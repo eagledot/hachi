@@ -33,9 +33,9 @@
 
 1. Install [Caddy](https://caddyserver.com/docs/install) (Open source webserver, For serving static files and out of the box HTTPS configuration, if needed.)
 2. Python 3 (any version should work. Tested with versions >= 3.6.x)
-3. Download ``source.zip``  from latest [release](https://github.com/ramanlabs-in/hachi.git/releases) or ``git clone https://github.com/ramanlabs-in/hachi.git``
+3. Download ``source.zip``  from latest [release](https://github.com/ramanlabs-in/hachi/releases) or ``git clone https://github.com/ramanlabs-in/hachi.git``
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
-5. Collect Model Weights by downloading ``data.zip`` from  [releases](), ``extract/unzip`` it at the root of the directory, such that there is now a ``data`` directory with 2 ``.bin`` files in it.
+5. Collect Model Weights by downloading ``data.zip`` from  [releases](https://github.com/ramanlabs-in/hachi/releases/download/v1.0/data.zip), ``extract/unzip`` it at the root of the directory, such that there is now a ``data`` directory with 2 ``.bin`` files in it.
 6. Run command ``pip install -r requirements.txt``   ( This would install ``opencv-python``, ``numpy``, ``flask``, ``regex``, ``ftfy`` python packages, if not found .)
 
     ### Extra steps (for Linux distributions Only.)
