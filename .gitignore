@@ -1,0 +1,13 @@
+data/
+data_extra/
+video_indices/
+image_indices/
+__pycache__/
+data_extra/
+clip_python_module/
+faceEmbeddings_python_module/
+tmp*
+*.bin
+*.zip
+*.openfile
+*.dll

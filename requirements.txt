@@ -1,0 +1,5 @@
+Flask
+ftfy
+numpy
+opencv-python
+regex
