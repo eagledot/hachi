@@ -1098,13 +1098,9 @@ def queryVideo(top_k:int = 3):
 
 print("[Debug]: Loading Model, may take a few seconds.")
 clip.load_text_transformer("./data/ClipTextTransformer.bin")
-if sys.platform.lower() != "win32" and sys.platform.lower() != "cygwin":
-    clip.load_vit_b32("./data/ClipViTB32.bin")
-else:
-    # TODO: Q version, requires also ``dnnl_v3``, so needs to be manually copied after downloading, difficult to install 
-    # two versions of same library using conda, named is expected as ``libdnnl_v3.so``. Open an issue with instructions to do so.
-    clip.load_vit_b32Q("./data/ClipViTB32.bin")
-
+# TODO: On Linux, for now quantized model is not being Used, due to 2 different version of ONEDNN are needed.
+# TODO: open an Issue with detailed instructions to download and put both v2 and v2 in LDD PATH. and then use Quantized module.
+clip.load_vit_b32Q("./data/ClipViTB32.bin")
 
 
 print("[DEBUG]: Loading Image index")
