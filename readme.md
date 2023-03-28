@@ -6,7 +6,8 @@
 
 <h2 align="center">
     <a href="https://ramanlabs.in/static/hachi.html"> Project Page </a> | 
-    <a href="https://www.youtube.com/watch?v=Oier6dK9Zs4"> Demo Video</a>
+    <a href="https://www.youtube.com/watch?v=Oier6dK9Zs4"> Demo Video</a> |
+    <a href="https://demo.ramanlabs.in"> Demo </a>
 </h2>
 
 ## Features:
