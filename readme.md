@@ -7,7 +7,7 @@
 <h2 align="center">
     <a href="https://ramanlabs.in/static/hachi.html"> Project Page </a> | 
     <a href="https://www.youtube.com/watch?v=Oier6dK9Zs4"> Demo Video</a> |
-    <a href="https://demo.ramanlabs.in"> Demo </a>
+    <a href="https://ramanlabs.gumroad.com/l/gslep/kf38xrw"> Buy@gumroad </a>
 </h2>
 
 ## Features:
@@ -48,6 +48,13 @@
     8. Install ``openblas`` if not already included/installed with your OS.
         *   ``sudo dnf install openblas-devel`` (Fedora)
         *   ``sudo apt-get install openblas-dev``  (Ubuntu/Debian)
+
+## To genrate frontend code (content of `./static/` folder)
+1. Goto `./hachi_frontend/`
+2. Install node related dependancies
+    * tested with `node v18.13.0`
+    a. `npm install`
+    b. `npm run build`
 
 ## Usage:
 1. ``cd`` into the downloaded directory.
