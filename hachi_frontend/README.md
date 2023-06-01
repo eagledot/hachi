@@ -1,6 +1,6 @@
 # video_intel_svelte
 
-This contains client side logic for `video_intel`
+This contains client side logic for `hachi`
 
 # Development
 
