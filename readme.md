@@ -52,7 +52,7 @@
 ## To genrate frontend code (content of `./static/` folder)
 1. Goto `./hachi_frontend/`
 2. Install node related dependancies
-    * tested @ `node` version = v18.13.0
+    * tested with `node v18.13.0`
     a. `npm install`
     b. `npm run build`
 
