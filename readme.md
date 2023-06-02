@@ -49,22 +49,23 @@
         *   ``sudo dnf install openblas-devel`` (Fedora)
         *   ``sudo apt-get install openblas-dev``  (Ubuntu/Debian)
 
-## To genrate frontend code (content of `./static/` folder)
-1. Goto `./hachi_frontend/`
-2. Install node related dependancies
-    * tested with `node v18.13.0`
-    a. `npm install`
-    b. `npm run build`
-
 ## Usage:
 1. ``cd`` into the downloaded directory.
 2.  Run command: ``caddy run``
 3. Run command: ``python semantic_search.py``  OR ``python3 semantic_search.py``
 4. Visit [http://localhost:5000](http://localhost:5000)
 
+## Development:
+
+### Front-End:
+    Front-code of the app lies in ``./static/`` directory and is generated automatically based on the [svelte] components in ``./hachi_frontend`` directory.
+    Front-end development requires ``Node``(tested with v18.13.0) to be installed on user's machine.
+
+    Checkout ``readme.md`` in ``./hachi_frontend`` for more details. 
+
+
 ## References:
 * Machine learning model powering this webapp is based on [CLIP](https://github.com/openai/CLIP) architecture.
-
 
 ## Extra Details:
 For Windows, shared libraries  ``dnnl.dll`` and ``dnnl_v3.dll`` are included in this repository and are based on the [ONEDNN Project](https://github.com/oneapi-src/oneDNN).
