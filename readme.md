@@ -58,7 +58,7 @@
 ## Development:
 
 ### Front-End:
-Front-code of the app lies in ``./static/`` directory and is generated automatically based on the [svelte] components in ``./hachi_frontend`` directory.
+Front-end code of the app lies in ``./static/`` directory and is generated automatically based on the [svelte](https://svelte.dev/) components in ``./hachi_frontend`` directory.
 Front-end development requires ``Node``(tested with v18.13.0) to be installed on user's machine.
 
 Checkout ``readme.md`` in ``./hachi_frontend`` for more details. 
