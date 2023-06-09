@@ -1,5 +1,5 @@
 Flask
 ftfy
 numpy
-opencv-python
+opencv-python-headless
 regex
