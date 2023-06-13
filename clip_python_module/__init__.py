@@ -1,7 +1,6 @@
 from . import clip_python_module as clip_model
 import numpy as np
 
-## Tokenize the text, taken from openAI/CLIP/clip/simple_tokenizer.py
 from typing import Any, Union, List
 from .simple_tokenizer import SimpleTokenizer as _Tokenizer
 
@@ -12,6 +11,8 @@ def tokenize(
     texts: Union[str, List[str]], context_length: int = 77, truncate: bool = False
 ):
     """
+    Tokenize the text, taken from openAI/CLIP/clip/simple_tokenizer.py
+    
     Returns the tokenized representation of given input string(s)
 
     Parameters
