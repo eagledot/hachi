@@ -1,3 +1,6 @@
+<!-- This module displays the video tiles/cards dynamically based on the video directory selected. 
+All video related routes should be available here.
+-->
 <script lang="ts">
   import Video from "./Video.svelte";
   //import Video_youtube from "./Video_youtube.svelte";
@@ -8,32 +11,75 @@
   export let i = -1;
 
   onMount(() => {
-    let data = sessionStorage.getItem(f.video_hash)
-    console.log("session storage:", data)
-    if (data === "indexing") {
-      const eventSource = handleProgress();
-      if (gen_index_btn) {
-        gen_index_btn.disabled = true;
-        gen_index_btn.innerHTML = "Index in progress"
-      }
-    }
+    
+    let endpoint = url_prefix + "indexStatus/" + f.video_hash ;
+    console.log("making request to : ", endpoint);
+    fetch(endpoint, {
+      method: 'GET',
+    })
+      .then((response) => {
+        return response.json();
+      }).then((data) => {
+        var index_active = data["active"]
+        if (index_active == true){
+          pollEndpointNew(endpoint);        
+          // return here.
+        }
+      })
   });
 
   let gen_index_btn;
-  
   var index_progress = '0'
   var eta = "unknown"
+  var indexing = false       // is currently indexing ?
 
-  var indexing = false
-  function genIndex() {
-    this.disabled = true;
-    // this.remove()
-    this.innerHTML = "Index in progress"
-
+  let pollEndpointTimeoutId;
+  function pollEndpointNew(endpoint)
+  {
+   
+    f.index_available = false
     indexing = true
-    // /progress eventSource
-    const eventSource = handleProgress();
-    const url = url_prefix + "/videoIndex"
+    
+    if(gen_index_btn)
+    {
+      gen_index_btn.disabled = true;
+      gen_index_btn.innerHTML = "indexing in progress"
+    }
+  
+    // make a request to the endpoint to check status for this video.
+    fetch(endpoint, {
+      method: 'GET',
+    }).then((response) => {
+        return response.json();
+      }).then((data) => {
+        //based on this data
+        eta = data["eta"]
+        index_progress = data["progress"]  // bound to html element to show progress
+        
+        if (eta == "0"){
+          if (gen_index_btn)
+          {
+            gen_index_btn.disabled = true
+          }
+            f.index_available = true
+            indexing = false // this means that indexing is done.
+        }
+        else{
+          if(pollEndpointTimeoutId){
+            clearTimeout(pollEndpointTimeoutId);
+          }
+          pollEndpointTimeoutId = setTimeout(function() {pollEndpointNew(endpoint)} , 1000) // call this function again, after a second.
+          // here we return
+        }
+        
+      })
+  }
+
+  function genIndex() {
+    // make a request to genereate index for this video. based on the arguments we receive like video_hash.
+    // based on the if an index is available, we would update the status.
+    
+    const url = url_prefix + "videoIndex"
     let formData = new FormData();
     formData.append('video_absolute_path', f.video_absolute_path);
     fetch(url, {
@@ -44,49 +90,10 @@
         return response.json();
       })
       .then((data) => {
-        indexing = false
-        this.innerHTML = "Index complete"
-        sessionStorage.setItem(f.video_hash, "indexed");
-        f.index_available = true;
-        eventSource.close();
+        let endpoint = url_prefix + "indexStatus/" + data.statusEndpoint   // where should client make the request to know its indexing status.
+        pollEndpointNew(endpoint)
       })
-  }
-
-  
-  function handleProgress() {
-    // Create the connection
-    let eventSource = new EventSource("/api/progress/" + f.video_hash);
-    // When there is an incoming message from the server side
-    eventSource.onmessage = (event) => {
-      // Splitting the data into progress_value and hash
-      console.log("Got some data: " + event.data);
-      let progress_data = event.data.split("_")
-      let progress = progress_data[0]
-      let hash = progress_data[1]
-      eta = progress_data[2]
-      // Selecting the right progressbar to update
-      if (f.video_hash === hash) {
-          index_progress = progress
-          indexing = true
-          sessionStorage.setItem(hash, "indexing")
-
-      }
-      if (index_progress == "1.0"){
-        console.log("Index complete")
-        indexing = false;
-        if (gen_index_btn) {
-          gen_index_btn.disabled = true
-          gen_index_btn.innerHTML = "Index complete"
-        }
-        sessionStorage.setItem(hash, "indexed")
-      }
-    }
-
-    // When there is an error
-    eventSource.onerror = (event) => {
-      console.log("Error with event source");
-      eventSource.close();
-    }
+       
   }
 
   // handle video modal
