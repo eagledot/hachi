@@ -17,6 +17,8 @@ YOUTUBE_VIDEOS_DIRECTORY = "./youtube_videos"
 PIXEL_VARIANCE_THRESHOLD = 60
 USE_YOUTUBE_AS_PLAYBACK_SOURCE = False
 
+DIR_SCANNING_DEPTH = 4                         # recursive depth upto a which a directory can be scanned, to collect images/videos. 1 means only current directory.
+
 import os
 import base64
 import binascii
@@ -64,21 +66,39 @@ global_thread_status = {}
 indexStatusDict = {}   # global dict, mapping an endpoint to videoIndexing progress.
 indexStatusDictLock = threading.RLock()  # https://docs.python.org/3/library/threading.html#rlock-objects
 
-def scan_dir(dirpath: str) -> List[str]:
+def scan_dir_recursively(root:str, depth:int, start_count:int = 0, file_extensions:list[str] = ALLOWED_IMAGE_EXTENSIONS):
+    """ Scans the directory recursively upto depth argument."""
+    ## Inputs:
+        # root: root path to the directory.
+        # depth: adjustable depth, default 1, i.e only current directory, with no sub-directories scanning.
+        # start_count: to keep track of current depth.
+    
+    root = os.path.abspath(root)
+    result = []
+    if not os.path.exists(root):
+        print("{} Path doesn't exist on this SYSTEM".format({}))
+        return result
+        
+    try:
+        for item in os.scandir(root):
+            if os.path.isfile(item) and  os.path.splitext(item)[1].lower() in file_extensions:
+                result = result + [os.path.join(root, item)]
+            if os.path.isdir(item):
+                if (start_count + 1) >= depth:
+                    continue
+                else:
+                    result = result + scan_dir_recursively(root = os.path.join(root, item), depth = depth, start_count = start_count + 1, file_extensions= file_extensions)
+    except:
+        print("Error occured while scanning: {}".format(root))
+    return result
 
-    dirpath = os.path.abspath(dirpath)
-    if os.path.exists(dirpath):
-
-        return list(
-            filter(
-                lambda x: True
-                if os.path.splitext(x)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
-                else False,
-                os.listdir(dirpath),
-            )
-        )
-    else:
-        return []
+def scan_dir(dirpath:str, recursive:bool = False, file_extensions: list[str] = ALLOWED_IMAGE_EXTENSIONS) -> List[str]:
+    # scan the given dirpath, to look for images files.
+    # returns the list of image paths, that can be scanned.
+    depth = 1
+    if recursive:
+        depth = DIR_SCANNING_DEPTH
+    return scan_dir_recursively(root = dirpath, depth = depth, start_count= 0, file_extensions=file_extensions)
 
 
 def check_image_data(image_path: str) -> bool:
@@ -426,9 +446,9 @@ class ImageIndex(object):
 
         return (scores, image_hashes)
 
-    def process_dir(self, dirpath: str):
+    def process_dir(self, dirpath: str, recursive:bool = True):
 
-        image_files = scan_dir(dirpath)
+        image_files = scan_dir(dirpath, recursive = recursive, file_extensions=ALLOWED_IMAGE_EXTENSIONS)
         image_total_count = len(image_files)
         image_curr_count = 0
 
@@ -594,12 +614,13 @@ class VideoIndex:
 
     def process_video(
         self,
-        index_progress_queue,
         video_hash: str,
         video_absolute_path: str,
         frames_to_skip: int,
+        statusEndpoint: str
     ):
-
+        
+        tempEndpoint = statusEndpoint
         index_array = np.empty(
             (MAX_FRAMES_INDEXED, self.embedding_size + 3), dtype=np.float32
         )
@@ -640,13 +661,22 @@ class VideoIndex:
                         len(i_frames) - (image_features_count)
                     )
                     eta = str(datetime.timedelta(seconds=eta))
-                    index_progress_queue.put(
-                        (
-                            image_features_count / (len(i_frames) + 1e-5),
-                            video_hash,
-                            eta[: eta.find(".")],
-                        )
-                    )
+                    progress = str(frame_num / cap.num_frames)
+                    
+                    with indexStatusDictLock:  # acquire and release the lock based on the context.
+                        if indexStatusDict.get(tempEndpoint):
+                            indexStatusDict[tempEndpoint]["eta"] = eta
+                            indexStatusDict[tempEndpoint]["progress"] = progress
+                        else:
+                            indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
+
+                    # index_progress_queue.put(
+                    #     (
+                    #         image_features_count / (len(i_frames) + 1e-5),
+                    #         video_hash,
+                    #         eta[: eta.find(".")],
+                    #     )
+                    # )
 
         else:
             while True:
@@ -676,9 +706,18 @@ class VideoIndex:
                         - image_features_count
                     )
                     eta = str(datetime.timedelta(seconds=eta))
-                    index_progress_queue.put(
-                        (frame_num / cap.num_frames, video_hash, eta[: eta.find(".")])
-                    )
+                    progress = str(frame_num / cap.num_frames)
+                    
+                    with indexStatusDictLock:  # acquire and release the lock based on the context.
+                        if indexStatusDict.get(tempEndpoint):
+                            indexStatusDict[tempEndpoint]["eta"] = eta
+                            indexStatusDict[tempEndpoint]["progress"] = progress
+                        else:
+                            indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
+                    
+                    # index_progress_queue.put(
+                    #     (frame_num / cap.num_frames, video_hash, eta[: eta.find(".")])
+                    # )
                 else:
                     break
 
@@ -696,7 +735,10 @@ class VideoIndex:
         with open(os.path.join(VIDEO_INDEX_DIRECTORY, "hash2path.pkl"), "wb") as f:
             pickle.dump(self.hash2path, f)
 
-        index_progress_queue.put((1, video_hash, "0"))
+        with indexStatusDictLock:  # acquire and release the lock based on the context.
+            indexStatusDict[tempEndpoint] = {"active": False, "eta":str(int(0)), "progress":str(int(1))}
+
+        # index_progress_queue.put((1, video_hash, "0"))
         print("[DEBUG]: {} Index created successfully".format(video_hash))
 
 
@@ -1136,6 +1178,10 @@ def videos():
     result = []
     video_directory = flask.request.form.get("video_directory")
     video_directory = os.path.abspath(video_directory)
+    recursive = False
+    if flask.request.form.get("include_subdirectories", False):
+        if flask.request.form["include_subdirectories"].strip().lower() == "true":
+            recursive = True
     if os.path.exists(video_directory):
         
         if not flask.request.form.get("data_generation_id", False):
@@ -1196,11 +1242,8 @@ def videoIndex(frames_to_skip: int = 10):
             "statusEndpoint":statusEndpoint # so that client can request this endpoint to know its indexing status.
             })
 
-    temp_queue = Queue(maxsize=50)
-    hash2queue[video_hash] = temp_queue
-
-    def something(temp_queue, video_hash, video_absolute_path, frames_to_skip, endpoint):
-        video_index.process_video(temp_queue, video_hash, video_absolute_path = video_absolute_path, frames_to_skip = frames_to_skip, statusEndpoint = endpoint)
+    def something(video_hash, video_absolute_path, frames_to_skip, endpoint):
+        video_index.process_video(video_hash, video_absolute_path = video_absolute_path, frames_to_skip = frames_to_skip, statusEndpoint = endpoint)
     
     index_done_or_active = False
     with indexStatusDictLock:
@@ -1209,7 +1252,7 @@ def videoIndex(frames_to_skip: int = 10):
     
     if not index_done_or_active:
         # push video_indexing process to a different thread.
-        temp_thread  = Thread(target = something, args = (temp_queue, video_hash, video_absolute_path, frames_to_skip, statusEndpoint))
+        temp_thread  = Thread(target = something, args = (video_hash, video_absolute_path, frames_to_skip, statusEndpoint))
         temp_thread.start()
         with indexStatusDictLock:  # this can be polled to check
             indexStatusDict[statusEndpoint] = {"active":True, "eta":"unknown","progress":str(int(0))}
@@ -1285,10 +1328,10 @@ def queryVideo(top_k: int = 3):
 
 
 print("[Debug]: Loading Model, may take a few seconds.")
-clip.load_text_transformer("./data/ClipTextTransformer.bin")
-# TODO: On Linux, for now quantized model is not being Used, due to 2 different version of ONEDNN are needed.
-# TODO: open an Issue with detailed instructions to download and put both v2 and v2 in LDD PATH. and then use Quantized module.
-clip.load_vit_b32Q("./data/ClipViTB32.bin")
+# clip.load_text_transformer("./data/ClipTextTransformer.bin")
+# # TODO: On Linux, for now quantized model is not being Used, due to 2 different version of ONEDNN are needed.
+# # TODO: open an Issue with detailed instructions to download and put both v2 and v2 in LDD PATH. and then use Quantized module.
+# clip.load_vit_b32Q("./data/ClipViTB32.bin")
 
 
 print("[DEBUG]: Loading Image index")
