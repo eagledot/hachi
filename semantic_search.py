@@ -1106,6 +1106,26 @@ def get_full_image(local_hash):
             print("[debug]: Could not locate {}".format(local_hash))
             return "not found"
 
+@app.route("/get_bboxes/<local_hash>",methods = ["GET"])
+def get_bboxes(local_hash):
+    result = "to be implemented.."
+    return result
+
+@app.route("/tag_face/<local_hash>/<index>/<face_id>")
+def tag_face(local_hash, index, face_id):
+    result = "To be implemented..."
+    return result
+
+@app.route("/get_full_path/<local_hash>")
+def get_full_image_path(local_hash):
+    if "_" not in local_hash:
+        temp_path = image_index.hash2path.get(local_hash, False)
+        if temp_path and os.path.exists(temp_path):
+            return temp_path
+        else:
+            print("[debug]: Could not locate {}".format(local_hash))
+            return "not found"
+
 
 TEMPORARY_HASH_2_PATH = {}
 client_2_dataGenerator = {}     # shared dict mapping a client to dataGenerator to allow data streaming.
