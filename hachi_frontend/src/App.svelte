@@ -32,13 +32,19 @@
     }
 
 
-  async function getVideos() {
+  async function getVideos(data_generation_id = "xxxxxx", got_id = false) {
+    if (got_id == false){
+      videos_list = [];
+    }
     const url = url_prefix + "/videos"
     let formData = new FormData();
     // create POST request formData
     formData.append('video_directory', dirname);
     formData.append("include_subdirectories", include_subdirectories.toString());
-    const res = await fetch(url, {
+    if (got_id){
+      formData.append("data_generation_id", data_generation_id);
+    }
+      const res = await fetch(url, {
                   method: 'POST',
                   body: formData,
                 })
@@ -46,9 +52,16 @@
 			throw new Error(res);
 		}
     else{
-      const result = await res.json();
-      videos_list = result;
-      return result
+      let temp = await res.json();  // temp is supposed to be an object with fields.
+      let data_generation_id = temp.data_generation_id
+      if (temp.flag == true){
+        
+        videos_list.push(temp);
+        videos_list = videos_list;  // so that svelte know.
+
+        await getVideos(data_generation_id, got_id = true);   // call this again with this data_generation_id
+      }
+      return
     }
   }
   
@@ -109,15 +122,18 @@
         <p class="dark:text-white">
           Current selected directory: <span class="font-bold">{dirname}</span>
         </p>
+        
         {#await promiseGetVideos}
           <p class="dark:text-white"> Fetching data....</p>
         {:then}
-          <div class="relative grid sm:grid-cols-3 2xl:grid-cols-5 min-[2400px]:grid-cols-9 gap-8 mt-6 grid-flow-row-dense">
-            {#each current_videos_list as f,i (f)}
-              <Card f={f} i={i}/>
-            {/each}
-          </div>
+          <p class="dark:text-white"></p>
         {/await}
+
+        <div class="relative grid sm:grid-cols-3 2xl:grid-cols-5 min-[2400px]:grid-cols-9 gap-8 mt-6 grid-flow-row-dense">
+          {#each current_videos_list as f,i (f)}
+            <Card f={f} i={i}/>
+          {/each}
+        </div>
       
       {/if}
     </div>
