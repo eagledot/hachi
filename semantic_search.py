@@ -27,6 +27,7 @@ import pickle
 import imghdr
 from queue import Queue
 from threading import Thread
+import threading
 import uuid
 import datetime
 import random
@@ -60,6 +61,8 @@ global_mapping = {}
 GLOBAL_MAPPING_MAX_SIZE = 400
 global_thread_status = {}
 
+indexStatusDict = {}   # global dict, mapping an endpoint to videoIndexing progress.
+indexStatusDictLock = threading.RLock()  # https://docs.python.org/3/library/threading.html#rlock-objects
 
 def scan_dir(dirpath: str) -> List[str]:
 
@@ -1072,7 +1075,56 @@ def index_progress(video_hash):
 
 
 TEMPORARY_HASH_2_PATH = {}
+client_2_dataGenerator = {}     # shared dict mapping a client to dataGenerator to allow data streaming.
+client_2_dataGeneratorLock = threading.RLock() # a lock, to allow clean access from multiple threads.
 
+def generate_metadata_videos(video_directory:str, recursive:bool):
+    """ A generator to generate  meta-data for videos,  one generator is mapped to an id in a shared dictionary.
+        Can be called from multiple threads, hence equivalent to streaming this meta-data.
+    """
+
+    temp = {}
+    for item in scan_dir(dirpath= video_directory, recursive= recursive, file_extensions= ALLOWED_VIDEO_EXTENSIONS):
+        video_directory = os.path.dirname(item)
+        temp_path = os.path.abspath(os.path.join(video_directory, item))
+        # extra code to make sure that file being read is a valid video file.
+        temp_cap = VideoCaptureBasic(video_path = temp_path)
+        temp_frame_count = temp_cap.num_frames
+        if int(temp_frame_count) == 0:
+            print("[Debug]: {} Doesnot seem like a valid video file".format(temp_path))
+            del temp_cap
+            continue
+        
+        temp_hash = create_video_hash(temp_path)
+        if temp_hash is None:
+            continue
+        
+        TEMPORARY_HASH_2_PATH[temp_hash] = temp_path
+
+        index_available = False
+        if video_index.hash2path.get(temp_hash, False):
+            index_available = True
+        
+        # TODO: check this code later to make sure this works as intended !!
+        youtube_id = None
+        if USE_YOUTUBE_AS_PLAYBACK_SOURCE == True:
+            # if video_directory provided is the YOUTUBE_VIDEOS directory... return the corresponding youtube_id as well.
+            if video_directory == os.path.abspath(YOUTUBE_VIDEOS_DIRECTORY):
+                with open(os.path.join(YOUTUBE_VIDEOS_DIRECTORY, "hash2youtubeId.pkl"), "rb") as f:
+                    temp_dict = pickle.load(f)
+                    if temp_dict.get(temp_hash, False):
+                        youtube_id = temp_dict[temp_hash]
+
+        temp = {
+                    "video_hash":temp_hash, 
+                    "index_available": index_available,
+                    "video_title": os.path.basename(item),
+                    "video_absolute_path":temp_path,
+                    "video_directory":video_directory, # os specific path...to resolve any os PATH conflicts..
+                    "youtube_id":youtube_id,
+                    "status_endpoint":temp_hash        # for now using video_hash as a valid endpoint. (assuming single client, may collision if multiple clients has a same video)
+                    }
+        yield temp
 
 @app.route("/videos", methods=["POST"])
 def videos():
@@ -1085,56 +1137,27 @@ def videos():
     video_directory = flask.request.form.get("video_directory")
     video_directory = os.path.abspath(video_directory)
     if os.path.exists(video_directory):
-        for item in os.listdir(video_directory):
-            if os.path.splitext(item)[1] in ALLOWED_VIDEO_EXTENSIONS:
-
-                temp_path = os.path.abspath(os.path.join(video_directory, item))
-
-                temp_cap = VideoCaptureBasic(video_path=temp_path)
-                temp_frame_count = temp_cap.num_frames
-                if int(temp_frame_count) == 0:
-                    print(
-                        "[Debug]: {} Doesnot seem like a valid video file".format(
-                            temp_path
-                        )
-                    )
-                    del temp_cap
-                    continue
-
-                temp_hash = create_video_hash(temp_path)
-                if temp_hash is None:
-                    continue
-
-                TEMPORARY_HASH_2_PATH[temp_hash] = temp_path
-
-                index_available = False
-                if video_index.hash2path.get(temp_hash, False):
-                    index_available = True
-
-                youtube_id = None
-                if USE_YOUTUBE_AS_PLAYBACK_SOURCE == True:
-
-                    if video_directory == os.path.abspath(YOUTUBE_VIDEOS_DIRECTORY):
-                        with open(
-                            os.path.join(
-                                YOUTUBE_VIDEOS_DIRECTORY, "hash2youtubeId.pkl"
-                            ),
-                            "rb",
-                        ) as f:
-                            temp_dict = pickle.load(f)
-                            if temp_dict.get(temp_hash, False):
-                                youtube_id = temp_dict[temp_hash]
-
-                temp = {
-                    "video_hash": temp_hash,
-                    "index_available": index_available,
-                    "video_title": item,
-                    "video_absolute_path": temp_path,
-                    "video_directory": video_directory,
-                    "youtube_id": youtube_id,
-                }
-                result.append(temp)
-
+        
+        if not flask.request.form.get("data_generation_id", False):
+            data_generation_id = uuid.uuid4().hex  # client is requesting a fresh request !!
+            with client_2_dataGeneratorLock:
+                client_2_dataGenerator[data_generation_id] = generate_metadata_videos(video_directory=video_directory, recursive=recursive)
+                result = next(client_2_dataGenerator[data_generation_id], -1)
+        else:
+            data_generation_id = flask.request.form.get("data_generation_id")
+            with client_2_dataGeneratorLock:
+                result = next(client_2_dataGenerator[data_generation_id], {}) 
+        
+        if len(result) == 0:
+            #send a flag to not to continue, Done with this request.
+            result["flag"] = False
+            with client_2_dataGeneratorLock:
+                temp = client_2_dataGenerator.pop(data_generation_id)
+                del temp
+        else:
+            result["data_generation_id"] = data_generation_id
+            result["flag"] = True
+    
     return flask.jsonify(result)
 
 
@@ -1151,7 +1174,7 @@ def videoIndex(frames_to_skip: int = 10):
     video_absolute_path = flask.request.form.get("video_absolute_path").strip()
 
     if not os.path.exists(video_absolute_path):
-        return flask.jsonify({"success"})
+        return flask.jsonify({"success"})  #TODO: better debugging response.
 
     video_hash = create_video_hash(video_absolute_path)
     if video_hash is None:
@@ -1162,26 +1185,42 @@ def videoIndex(frames_to_skip: int = 10):
             }
         )
 
+    statusEndpoint = "{}".format(video_hash)  # just using a video-hash is enough for index checking endpoint !
+
     if video_index.hash2path.get(video_hash, False):
-        return flask.jsonify({"success": "true", "reason": "Index already available"})
+        return flask.jsonify(
+            {
+            "success":"true",
+            "reason":"already indexed",
+            "video_hash":video_hash,
+            "statusEndpoint":statusEndpoint # so that client can request this endpoint to know its indexing status.
+            })
 
     temp_queue = Queue(maxsize=50)
     hash2queue[video_hash] = temp_queue
 
-    video_index.process_video(
-        temp_queue,
-        video_hash,
-        video_absolute_path=video_absolute_path,
-        frames_to_skip=frames_to_skip,
-    )
+    def something(temp_queue, video_hash, video_absolute_path, frames_to_skip, endpoint):
+        video_index.process_video(temp_queue, video_hash, video_absolute_path = video_absolute_path, frames_to_skip = frames_to_skip, statusEndpoint = endpoint)
+    
+    index_done_or_active = False
+    with indexStatusDictLock:
+        if indexStatusDict.get(statusEndpoint, False):
+            index_done_or_active = True
+    
+    if not index_done_or_active:
+        # push video_indexing process to a different thread.
+        temp_thread  = Thread(target = something, args = (temp_queue, video_hash, video_absolute_path, frames_to_skip, statusEndpoint))
+        temp_thread.start()
+        with indexStatusDictLock:  # this can be polled to check
+            indexStatusDict[statusEndpoint] = {"active":True, "eta":"unknown","progress":str(int(0))}
 
     return flask.jsonify(
-        {
-            "success": "true",
-            "reason": reason,
-            "video_hash": video_hash,
-        }
-    )
+            {
+            "success":"true",
+            "reason":reason,
+            "video_hash":video_hash,
+            "statusEndpoint":statusEndpoint # so that client can request this endpoint to know its indexing status.
+            })
 
 
 @app.route("/videoPoster/<video_hash>.jpg")
