@@ -1107,31 +1107,6 @@ def get_full_image(local_hash):
             return "not found"
 
 
-hash2queue = {}
-
-
-@app.route("/progress/<video_hash>", methods=["GET"])
-def index_progress(video_hash):
-    """This allows a client to subscribe to an event. This is unidirectional , to publish updates from server --> client.
-    Using this to indicate the progress of index being created for a video.
-    index_queue is updated during index creation, which is read here. we also send the video_hash, along with
-    percentage, which can then be read by client, to display progress.
-    """
-
-    def emit_response_data():
-        while True:
-            if hash2queue.get(video_hash):
-                progress, video_id, eta = hash2queue[video_hash].get()
-                yield "data: {}_{}_{}\n\n".format(progress, video_id, eta)
-                if int(progress) == 1:
-                    hash2queue.pop(video_hash)
-                    break
-            else:
-                time.sleep(0.01)
-
-    return flask.Response(emit_response_data(), mimetype="text/event-stream")
-
-
 TEMPORARY_HASH_2_PATH = {}
 client_2_dataGenerator = {}     # shared dict mapping a client to dataGenerator to allow data streaming.
 client_2_dataGeneratorLock = threading.RLock() # a lock, to allow clean access from multiple threads.
@@ -1344,10 +1319,10 @@ def queryVideo(top_k: int = 3):
 
 
 print("[Debug]: Loading Model, may take a few seconds.")
-# clip.load_text_transformer("./data/ClipTextTransformer.bin")
-# # TODO: On Linux, for now quantized model is not being Used, due to 2 different version of ONEDNN are needed.
-# # TODO: open an Issue with detailed instructions to download and put both v2 and v2 in LDD PATH. and then use Quantized module.
-# clip.load_vit_b32Q("./data/ClipViTB32.bin")
+clip.load_text_transformer("./data/ClipTextTransformer.bin")
+# TODO: On Linux, for now quantized model is not being Used, due to 2 different version of ONEDNN are needed.
+# TODO: open an Issue with detailed instructions to download and put both v2 and v2 in LDD PATH. and then use Quantized module.
+clip.load_vit_b32Q("./data/ClipViTB32.bin")
 
 
 print("[DEBUG]: Loading Image index")
