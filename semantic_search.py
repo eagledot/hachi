@@ -829,6 +829,22 @@ def imageIndexProgress():
 
     return flask.Response(send_event(), mimetype="text/event-stream")
 
+@app.route("/indexStatus/<endpoint>")
+def indexStatus(endpoint):
+    # a route to allow a client to check for indexing status, conditioned on the endpoint. Endpoint may simple by a video/image hash.
+    # it works by reading from indexStatusDict, a shared dictionary. with endpoint as key.
+    # NOTE: we don't pop endpoint key from indexStatusDict, because client may reload, or need to call multiple times this endpoint.
+    # NOTE: it is valid for a SERVER SESSION.
+
+    global indexStatusDict
+    result = {"active":False, "eta":"unknown", "progress":"0"} # read active state on the client side.
+    with indexStatusDictLock: # acquire and release based on the context.
+        if indexStatusDict.get(endpoint, False):   # it would be available if indexing has started for this endpoint in current session.            
+            result["active"] = indexStatusDict[endpoint]["active"]
+            result["eta"] = indexStatusDict[endpoint]["eta"]
+            result["progress"] = indexStatusDict[endpoint]["progress"]
+    return flask.jsonify(result)
+
 
 @app.route("/indexImageDir", methods=["POST"])
 def indexImageDir():
