@@ -55,46 +55,63 @@ class VideoCaptureBasic(object):
     def read(self, bgr=True):
         """Supposed to be compatible with opencv VideoCapture.read(), but can skip frames based on self.frames_to_skip value.
 
-        Returns: a tuple, where first argument indicates, if a frame has been read successfully or not.
+        Returns: a tuple with 4 values (ret), where first argument indicates, if a frame has been read successfully or not.
         """
-        frame = self.read_specific_frame(
-            frame_num=self.current_frame_idx + self.frames_to_skip + 1, bgr=bgr
-        )
-        if frame is not None:
-            return True, frame
-        else:
-            return False, None
+        
+        for _ in range(self.frames_to_skip):
+            ret = self.cap.grab()         # just grab the raw-encoded data, donot decode the frame. i.e cap.retrieve()
+            if ret == False:
+                return (False, None, None, None)  # (ret, frame, frame_index, pos_seconds)
+            else:
+                self.current_frame_idx += 1
+        
+        ret, frame = self.cap.read()
+        self.current_frame_idx += 1
+        pos_seconds = self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
 
-    def read_specific_frame(self, frame_num: int, bgr=False):
+        if ret and not bgr:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        return (ret, frame, self.current_frame_idx, pos_seconds)
+
+    def read_specific_frame(self, frame_num: int, bgr=False, use_seek:bool = True):
         """Returns None, if a frame cannot be read for any reason, i.e because of invalid frame_num, otherwise a frame [HWC] uint8 data.
 
         frame_num: a specific frame_num, should be [1, FRAME_COUNT], if invalid a None would be returned.
         bgr: Flag to indicate if we want BGR data, if True would return BGR data, otherwise RGB.
         """
 
-        self.current_frame_idx = frame_num
+        ret = False
+        frame = None
         prop_set = self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_num - 1)
         if prop_set:
             ret, frame = self.cap.read()
-            if ret == True:
-                if bgr:
-                    return frame
-                else:
-                    return frame[:, :, ::-1].copy()
-            else:
-                return None
-        else:
-            None
+            if not ret:
+                frame = None
 
+            # reset to original state MUST BE done to be in sync, if to use read and read_specific frame for a particular capture object.
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.current_frame_idx)
+        
+        if ret and (not bgr):
+            return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        return frame       
+    
     def get_pos_seconds(self):
+        #TO REMOVE THIS..
         """Returns current playback position in seconds. Works good enough!
         # NOTE: We first actually have to read a frame using cap.read(), to get best-guess playback position, rather than directly calling cv2.CAP_PROP_POS_MSEC.
         """
 
-        if self.read_specific_frame(frame_num=self.current_frame_idx) is not None:
-            return self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
-        else:
-            return None
+        return self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
+
+        # prop_set = self.cap.set(self.current_frame_idx)  # this is a seeek operation right !!
+        # if prop_set:
+        #     return self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
+        # # if self.read_specific_frame(frame_num=self.current_frame_idx) is not None:
+        # #     return self.cap.get(cv2.CAP_PROP_POS_MSEC) / 1000
+        # else:
+        #     return None
 
 
 def get_frame_variance(frame, pixel_count: int = 100) -> float:
