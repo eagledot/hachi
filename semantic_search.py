@@ -56,7 +56,6 @@ if EXTRA_FEATURES:
         get_corrupt_photo_features,
     )
 
-FFPROBE_AVAILABLE = False
 
 index_progress_queue = Queue(maxsize=50)
 global_mapping = {}
@@ -630,85 +629,45 @@ class VideoIndex:
         image_features_count = 0
 
         tic = time.time()
-        if FFPROBE_AVAILABLE:
+        
+        while True:
+            ret, frame, frame_num, playback_pos = cap.read(bgr = True)
+            if ret == True:
+                image_features = clip.encode_image(
+                    frame, is_bgr=True, center_crop=False
+                )
+                index_array[
+                    image_features_count, : self.embedding_size
+                ] = image_features
+                
 
-            frame_types = get_frame_types(video_absolute_path)
-            i_frames = [x[0] for x in frame_types if x[1] == "I"]
-            print("{} I frames found for {}".format(len(i_frames), video_absolute_path))
-            tic = time.time()
-            if i_frames:
-                for frame_no in i_frames:
-                    frame = cap.read_specific_frame(frame_no + 1, bgr=False)
-                    if frame is None:
-                        continue
+                index_array[
+                    image_features_count,
+                    self.embedding_size : self.embedding_size + 2,
+                ] = np.array([frame_num, playback_pos]).astype("float32")
 
-                    image_features = clip.encode_image(
-                        frame, is_bgr=False, center_crop=False
-                    )
-                    index_array[
-                        image_features_count, : self.embedding_size
-                    ] = image_features
-                    frame_num = cap.current_frame_idx
-                    playback_pos = cap.get_pos_seconds()
-                    index_array[
-                        image_features_count,
-                        self.embedding_size : self.embedding_size + 2,
-                    ] = np.array([frame_num, playback_pos]).astype("float32")
+                image_features_count += 1
 
-                    image_features_count += 1
-
-                    eta = ((time.time() - tic) / (image_features_count)) * (
-                        len(i_frames) - (image_features_count)
-                    )
-                    eta = str(datetime.timedelta(seconds=eta))
-                    progress = str(frame_num / cap.num_frames)
-                    
-                    with indexStatusDictLock:  # acquire and release the lock based on the context.
-                        if indexStatusDict.get(tempEndpoint):
-                            indexStatusDict[tempEndpoint]["eta"] = eta
-                            indexStatusDict[tempEndpoint]["progress"] = progress
-                        else:
-                            indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
-
-        else:
-            while True:
-                ret, frame, frame_num, playback_pos = cap.read(bgr = True)
-                if ret == True:
-                    image_features = clip.encode_image(
-                        frame, is_bgr=True, center_crop=False
-                    )
-                    index_array[
-                        image_features_count, : self.embedding_size
-                    ] = image_features
-                    
-
-                    index_array[
-                        image_features_count,
-                        self.embedding_size : self.embedding_size + 2,
-                    ] = np.array([frame_num, playback_pos]).astype("float32")
-
-                    image_features_count += 1
-
-                    if image_features_count >= MAX_FRAMES_INDEXED:
-                        reason = "Index database limit reached."
-                        break
-
-                    eta = ((time.time() - tic) / image_features_count) * (
-                        min(cap.num_frames / frames_to_skip, MAX_FRAMES_INDEXED)
-                        - image_features_count
-                    )
-                    eta = str(datetime.timedelta(seconds=eta))
-                    progress = str(frame_num / cap.num_frames)
-                    
-                    with indexStatusDictLock:  # acquire and release the lock based on the context.
-                        if indexStatusDict.get(tempEndpoint):
-                            indexStatusDict[tempEndpoint]["eta"] = eta
-                            indexStatusDict[tempEndpoint]["progress"] = progress
-                        else:
-                            indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
-
-                else:
+                if image_features_count >= MAX_FRAMES_INDEXED:
+                    reason = "Index database limit reached."
                     break
+
+                eta = ((time.time() - tic) / image_features_count) * (
+                    min(cap.num_frames / frames_to_skip, MAX_FRAMES_INDEXED)
+                    - image_features_count
+                )
+                eta = str(datetime.timedelta(seconds=eta))
+                progress = str(frame_num / cap.num_frames)
+                
+                with indexStatusDictLock:  # acquire and release the lock based on the context.
+                    if indexStatusDict.get(tempEndpoint):
+                        indexStatusDict[tempEndpoint]["eta"] = eta
+                        indexStatusDict[tempEndpoint]["progress"] = progress
+                    else:
+                        indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
+
+            else:
+                break
 
         if EXTRA_FEATURES:
             update_blur_scores(
