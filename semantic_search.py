@@ -670,26 +670,18 @@ class VideoIndex:
                         else:
                             indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
 
-                    # index_progress_queue.put(
-                    #     (
-                    #         image_features_count / (len(i_frames) + 1e-5),
-                    #         video_hash,
-                    #         eta[: eta.find(".")],
-                    #     )
-                    # )
-
         else:
             while True:
-                ret, frame = cap.read(bgr=False)
+                ret, frame, frame_num, playback_pos = cap.read(bgr = True)
                 if ret == True:
                     image_features = clip.encode_image(
-                        frame, is_bgr=False, center_crop=False
+                        frame, is_bgr=True, center_crop=False
                     )
                     index_array[
                         image_features_count, : self.embedding_size
                     ] = image_features
-                    frame_num = cap.current_frame_idx
-                    playback_pos = cap.get_pos_seconds()
+                    
+
                     index_array[
                         image_features_count,
                         self.embedding_size : self.embedding_size + 2,
@@ -714,10 +706,7 @@ class VideoIndex:
                             indexStatusDict[tempEndpoint]["progress"] = progress
                         else:
                             indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
-                    
-                    # index_progress_queue.put(
-                    #     (frame_num / cap.num_frames, video_hash, eta[: eta.find(".")])
-                    # )
+
                 else:
                     break
 
@@ -738,7 +727,6 @@ class VideoIndex:
         with indexStatusDictLock:  # acquire and release the lock based on the context.
             indexStatusDict[tempEndpoint] = {"active": False, "eta":str(int(0)), "progress":str(int(1))}
 
-        # index_progress_queue.put((1, video_hash, "0"))
         print("[DEBUG]: {} Index created successfully".format(video_hash))
 
 
