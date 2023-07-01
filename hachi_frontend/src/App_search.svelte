@@ -16,6 +16,7 @@
   let indexing = false;
   let num_images_indexed = 0;
   let basic_interface = true;
+  let current_score_threshold = 0;
 
   $: basic_interface = !indexing;
   
@@ -60,6 +61,7 @@
             image_src = [];
             image_local_hash = [];
             image_scores = [];
+            current_score_threshold = 0;
             formData.append("query_start", "true");
             query_button.disabled = true;
         }
@@ -110,6 +112,7 @@
             console.log("Stream completed");
             temp_count = 0;
             query_button.disabled = false;
+            orig_image_src = image_src;
             return;
 
         }
@@ -133,10 +136,26 @@
   }
 
   // show updated result when slidebar value changes
-  let topk_tag;
+  let topk_tag;        // i think not needed, TODO remove it.
   function topkValueChange() {
     console.log("topk: ", topk_input)
     handleClick();
+  }
+
+  function scoresThresholdChange() {
+    // Event handler for threshold update.
+
+    if (image_scores.length > 0 ){
+      
+      // generate a linear distribution from [0 - 1].
+      let max_score = image_scores[0];  // image_scores would be a sorted array.
+      let min_score = image_scores[image_scores.length - 1];
+      let temp_scores = image_scores.map((value, index) => ( (value - min_score) / ((max_score - min_score) + 0.00001) ));
+      console.log("new scores: ", temp_scores);
+
+      // update the img_src, based on the threshold update event.
+      image_src = orig_image_src.filter( (value, index) => (temp_scores[index] >= current_score_threshold));
+    }
   }
 
   $: if(query_button) {
@@ -213,47 +232,71 @@
 
   }
 
-  async function add_image_directory(){  
-      //make a fetch request to post the image directory.
-      // fetch("/api/updateImageIndex")
-      console.log("adding image directory " + image_dir_path);
+  let pollEndpointTimeoutId;
+  async function pollEndpointNew(endpoint, count = 0){
+
+    if(count == 0){
+      indexing = true;
       show_image_directory_form = false;
-      let form_data = new FormData();
-      form_data.append("image_directory_path", image_dir_path);
-      let response = await fetch("/api/indexImageDir", {
-                method: 'POST',
-                body: form_data
-                })        
-      if (!response.ok) {
-        throw new Error(response);
-      }
-      else{
-      let result = await response.json();
-      if (result["success"] == true){
-        if(query_button){  
-          query_button.disabled = false;
-        }
-          alert("Index Updated Successfully.")
-          indexing = false;
-          await getIndexCount();
-      }
     }
+    
+    let response = await fetch(endpoint, 
+      {method: "GET"});
+    let data = await response.json();
+    let status_available = data["status_available"]
+    if (status_available == true){
+      
+      // if status available, check for progress. TODO: check for a done flag, rather than progress, add it on the server side.
+      if (data["done"] == true){
+        indexing = false;              //it means server done indexing.
+        await getIndexCount();         // count of total images indexed. 
+        alert("Index Updated Successfully.");
+        return;
+      }
+
+      index_progress = data["progress"]
+      
+      //set it to poll this endpoint .
+      if(pollEndpointTimeoutId){
+            clearTimeout(pollEndpointTimeoutId);
+          }
+      pollEndpointTimeoutId = setTimeout(function() {pollEndpointNew(endpoint, count + 1)} , 1000) // call this function again, after a second.
+    }
+    
+
   }
 
   
+  async function add_image_directory(){
+    //send a request to index a particular image directory.
+    
+    console.log("Adding image directory: " + image_dir_path);
+    if(query_button){
+      query_button.disabled = true;
+    }
+   
+    let form_data = new FormData();
+    form_data.append("image_directory_path", image_dir_path);
+    let url = "/api/indexImageDir";
+    let response = await fetch(url, {method: 'POST', body: form_data}) ;
+    let data = await response.json();
+    let wasSuccess = data["success"] // indexing started successfully.
+    if (wasSuccess){
+      let endpoint = "/api/indexStatus/" + data.statusEndpoint;
+      pollEndpointNew(endpoint) // keep polling that endpoint.
+    }
+
+    //check this later, if necessary !
+    else{
+        if (query_button){
+          query_button.disabled = false;
+        }
+      }
+  }
+
 
   getIndexCount();
 
-  let eventSource = new EventSource("/api/imageIndexProgress");
-  eventSource.onmessage = (event) => {
-      indexing = true;
-      console.log("Got some data: " + event.data);
-      let progress = event.data;
-      index_progress = progress;
-      if (index_progress == "1"){
-        indexing = false;
-      }      
-    }
 
   //####################################################################################################
   // code to update database . TODO: may be clean it a bit
