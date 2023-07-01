@@ -595,6 +595,12 @@
         <input on:change={topkValueChange} bind:this={topk_tag} type="range" min="1" max="30" bind:value={topk_input} class="w-full">
         <label for="topk" class="dark:text-white">Displaying top {topk_input} images.</label>
       </div>
+      
+      <div class="my-4">
+        <input on:change={scoresThresholdChange} type="range" min="0" max="1.0" step="0.01" bind:value={current_score_threshold} class="w-full">
+        <label for="topk" class="dark:text-white">Score threshold: {current_score_threshold}.</label>
+      </div>
+
       {/if}
     </div>
   </div>
