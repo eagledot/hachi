@@ -11,21 +11,9 @@ All video related routes should be available here.
   export let i = -1;
 
   onMount(() => {
-    
     let endpoint = url_prefix + "indexStatus/" + f.video_hash ;
-    console.log("making request to : ", endpoint);
-    fetch(endpoint, {
-      method: 'GET',
-    })
-      .then((response) => {
-        return response.json();
-      }).then((data) => {
-        var index_active = data["active"]
-        if (index_active == true){
-          pollEndpointNew(endpoint);        
-          // return here.
-        }
-      })
+    pollEndpointNew(endpoint) // this should be enough.
+    
   });
 
   let gen_index_btn;
@@ -34,45 +22,49 @@ All video related routes should be available here.
   var indexing = false       // is currently indexing ?
 
   let pollEndpointTimeoutId;
-  function pollEndpointNew(endpoint)
-  {
-   
-    f.index_available = false
-    indexing = true
+  async function pollEndpointNew(endpoint, count = 0){
     
-    if(gen_index_btn)
-    {
-      gen_index_btn.disabled = true;
-      gen_index_btn.innerHTML = "indexing in progress"
-    }
-  
-    // make a request to the endpoint to check status for this video.
-    fetch(endpoint, {
-      method: 'GET',
-    }).then((response) => {
-        return response.json();
-      }).then((data) => {
-        //based on this data
-        eta = data["eta"]
-        index_progress = data["progress"]  // bound to html element to show progress
-        
-        if (eta == "0"){
-          if (gen_index_btn)
+    let response = await fetch(endpoint,
+      {method: 'GET'});
+    let data = await response.json();
+    let status_available = data["status_available"];
+    if (status_available){
+      
+      // if indexing done.
+      if (data["done"] == true){
+          
+        if (gen_index_btn)
           {
             gen_index_btn.disabled = true
           }
-            f.index_available = true
-            indexing = false // this means that indexing is done.
+          
+          f.index_available = true
+          indexing = false // this means that indexing is done.
+          return
         }
-        else{
-          if(pollEndpointTimeoutId){
-            clearTimeout(pollEndpointTimeoutId);
-          }
-          pollEndpointTimeoutId = setTimeout(function() {pollEndpointNew(endpoint)} , 1000) // call this function again, after a second.
-          // here we return
-        }
+
+
+        if (count == 0){
+          // update state, for variables.
+          f.index_available = false;
+          indexing = true;
+          if(gen_index_btn){
+              {
+                gen_index_btn.disabled = true;
+                gen_index_btn.innerHTML = "indexing in progress";
+              }
+        }}
         
-      })
+        eta = data["eta"]
+        index_progress = data["progress"]
+
+        if(pollEndpointTimeoutId){
+          clearTimeout(pollEndpointTimeoutId);
+        }
+        pollEndpointTimeoutId = setTimeout(function() {pollEndpointNew(endpoint, count + 1)} , 1000) // call this function again, after a second.
+        // return now.
+    }
+
   }
 
   function genIndex() {
