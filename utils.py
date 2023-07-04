@@ -139,3 +139,70 @@ def get_frame_variance(frame, pixel_count: int = 100) -> float:
             )
         )
     return np.mean(temp_std)
+
+
+# A cache like interface, that would allow a user to put some task/data.
+# Similiar Cache can be used for video/audio/text data as well. easier to update/modify.
+import threading
+from collections import OrderedDict
+import time
+import imghdr
+
+class ImageDataCache(object):
+    """A cache/storage which should be able to fill itself, concurrently.    
+    Should WORK as an INTERFACE allowing any kind of task to done asynchronously but transparently, using only standard library tools.
+    Could be modelled better in case of pure multithreading, but for python this works good enoug
+    """
+    
+    def __init__(self, cache_size = 50):        
+        # appropriate data-structures:
+        self.cache_size = cache_size 
+        self.cache = OrderedDict()
+        self.cache_lock = threading.RLock()
+        self.lock = threading.RLock()
+
+    def fulfill_tasks(self, hashes:list[str], absolute_paths:list[str]):
+        # this function definition would vary  based on the task you want to done.
+
+        for hash,absolute_path in zip(hashes, absolute_paths):
+            with self.cache_lock:
+                if self.cache.get(hash, False):
+                    continue
+            
+                if len(self.cache) == self.cache_size - 1:
+                    print("Cache at capacity... should not happen, no more data would be entered, CHECK CODE.")
+                    break
+                
+                if os.path.exists(absolute_path):
+                    image_data = open(absolute_path, "rb").read()
+                    image_type = imghdr.what(absolute_path)
+                    self.cache[hash] = (image_data, image_type)
+                else:
+                    self.cache[hash] = (None, None)
+    
+    def put(self, hashes:list[str], absolute_paths:list[str]):
+        with self.lock:
+            threading.Thread(target = self.fulfill_tasks, args = (hashes, absolute_paths)).start()
+        
+    def get(self, hash:str, n_tries:int = 100):
+        # what if cache is not fulfilled for this hash.
+        # this should happen very rarely, i guess ??
+        temp_count = 0
+        while True:
+            if temp_count == n_tries:
+                print ("[WARNING]: cache Missed, MUST NOT HAPPEN, returning.. none data")
+                return (None, None)
+            
+            with self.cache_lock:
+                if self.cache.get(hash, False):
+                    data, data_type = self.cache[hash]
+                    _ = self.cache.pop(hash)   # pop this key. Since this was consumed.
+                    return (data, data_type)
+                
+            # print("CACHE MISS SHOULD NOT HAPPEN TOO OFTEN, otherwise CHECK..")
+            time.sleep(0.01)
+            temp_count += 1
+
+    def __len__(self):
+        with self.cache_lock:
+            return len(self.cache)
