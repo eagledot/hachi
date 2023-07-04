@@ -5,8 +5,6 @@
   let image_local_hash = [];
   let query_button;
   let text_query = "";
-  let temp_count = 0;
-  let MAX_COUNT = 100;
   let formData;
   const url_prefix = "/api";
   let image_directory_input ;
@@ -49,33 +47,41 @@
   // handle topk
   let topk_input = 3;
 
-  async function handleClick()
-    {   
+  async function getImageBinaryData(hash, data_generation_id){
+    // get image data from the server, given a hash.
+    // hash is generally received as a result of query.
+
+    let url = "/api/imageBinaryData/" + hash + "/" + data_generation_id;
+    let response = await fetch(url);
+    let myBlob = await response.blob();
+    let objectURL = await URL.createObjectURL(myBlob);
+    return objectURL
+  }
+
+  async function handleClick(data_generation_id = "xxxxxxx", got_id = false)
+    {   // called upon a new query, called recursively until server asks it to stop.
+      // collects corresponding hashes (image-data) and scores for each call. 
+
         let topk = topk_input;
         formData = new FormData();
         if (!text_query) return;
         formData.append('text_query', text_query);
         formData.append('topk', topk.toString());
 
-        if(temp_count == 0){
-            image_src = [];
-            image_local_hash = [];
-            image_scores = [];
-            current_score_threshold = 0;
-            formData.append("query_start", "true");
-            query_button.disabled = true;
+        if (got_id){
+          formData.append("data_generation_id", data_generation_id);  //send this key along with subsequent requests. We would get this from server.
         }
-  
-        if(temp_count == MAX_COUNT){
-          //TODO: wait out for the previous stream to complete.
-            console.log("Max limit reached. Ending query.");
-            temp_count = 0;
-            query_button.disabled = false;
-            return;
-        }           
-        
 
-        const url = url_prefix + "/search/image";
+        if (got_id == false){
+          image_src = [];
+          image_local_hash = [];
+          image_scores = [];
+          current_score_threshold = 0;
+          formData.append("query_start", "true");
+          query_button.disabled = true;
+        }
+
+        const url = url_prefix + "/search_new/image";
         let response = await fetch(url, {
                 method: 'POST',
                 body: formData,
@@ -86,46 +92,29 @@
 			    throw new Error(response);
         }
         
-        let reader = response.body.getReader();
-
-        let new_stream = await new ReadableStream({
-        start(controller) {
-            return pump();
-            function pump() {
-            return reader.read().then(({ done, value }) => {
-                // When no more data needs to be consumed, close the stream
-                if (done) {
-                controller.close();
-                return;
-                }
-                // Enqueue the next data chunk into our target stream
-                controller.enqueue(value);
-                return pump();
-            });
-            }
+        let data = await response.json()
+        
+        if (data["query_completed"] == true){
+          query_button.disabled = false;
+          orig_image_src = image_src;   // so that we have a reference to original data. in case of filter threshold.
+          return
         }
-        })
 
-        let new_response = await new Response(new_stream);
-        let temp_json = await new_response.json();
-        if (temp_json["query_completed"] == true){
-            console.log("Stream completed");
-            temp_count = 0;
-            query_button.disabled = false;
-            orig_image_src = image_src;
-            return;
-
+        else{
+          let temp_id = data["data_generation_id"] ;
+          for(let i = 0; i < data["local_hashes"].length; i++){
+            image_local_hash.push(data["local_hashes"][i]);
+            image_scores.push(data["scores"][i]);
+            let objectURL = await getImageBinaryData(data["local_hashes"][i], temp_id);
+            image_src.push(objectURL);
+            sort_image_data();
+          }
+                    
+          await handleClick(temp_id, true);  // run it recursively.
         }
-        // image_data.push("data:image/jpg;base64, " + temp_json["data"]);
-        image_local_hash.push(temp_json["local_hash"]);
-        image_src.push(temp_json["data"]);
-        image_scores.push(Number(temp_json["score"]));
-        sort_image_data();  // sort the image_local_hash/src/scores based on the image_sores.
 
-
-        temp_count += 1;
-        handleClick();
     }
+
   // process text query when enter is pressed while inputing text  
   function handleKeyUp(event) {
     if (event.key === 'Enter') {
@@ -151,7 +140,6 @@
       let max_score = image_scores[0];  // image_scores would be a sorted array.
       let min_score = image_scores[image_scores.length - 1];
       let temp_scores = image_scores.map((value, index) => ( (value - min_score) / ((max_score - min_score) + 0.00001) ));
-      console.log("new scores: ", temp_scores);
 
       // update the img_src, based on the threshold update event.
       image_src = orig_image_src.filter( (value, index) => (temp_scores[index] >= current_score_threshold));
