@@ -41,7 +41,7 @@ import numpy as np
 import cv2
 
 import clip_python_module as clip
-from utils import create_video_hash, softmax_np, VideoCaptureBasic, get_frame_variance
+from utils import create_video_hash, softmax_np, VideoCaptureBasic, get_frame_variance, ImageDataCache
 
 DEBUG = True
 EXTRA_FEATURES = False
@@ -57,9 +57,9 @@ if EXTRA_FEATURES:
     )
 
 
-index_progress_queue = Queue(maxsize=50)
-global_mapping = {}
-GLOBAL_MAPPING_MAX_SIZE = 400
+# index_progress_queue = Queue(maxsize=50)
+# global_mapping = {}
+# GLOBAL_MAPPING_MAX_SIZE = 400
 global_thread_status = {}
 
 indexStatusDict = {}   # global dict, mapping an endpoint to videoIndexing progress.
@@ -445,15 +445,22 @@ class ImageIndex(object):
 
         return (scores, image_hashes)
 
-    def process_dir(self, dirpath: str, recursive:bool = True):
+    def process_dir(self, dirpath: str, statusEndpoint:str, recursive:bool = True):
 
         image_files = scan_dir(dirpath, recursive = recursive, file_extensions=ALLOWED_IMAGE_EXTENSIONS)
         image_total_count = len(image_files)
         image_curr_count = 0
 
         for image_file in image_files:
-            index_progress_queue.put(image_curr_count / (image_total_count + 1e-5))
 
+            # indicate progress/eta syncing with a common index dictionary.
+            progress = str((image_curr_count / (image_total_count + 1e-5)))
+            eta = "unknown"  # TODO: later calculate it too...
+            with indexStatusDictLock:  # acquire and release the lock based on the context.
+                if indexStatusDict.get(statusEndpoint):
+                    indexStatusDict[statusEndpoint]["eta"] = eta
+                    indexStatusDict[statusEndpoint]["progress"] = progress
+            
             temp_hash = generate_hash(os.path.join(dirpath, image_file))
             if temp_hash is None:
                 image_curr_count += 1
@@ -486,7 +493,6 @@ class ImageIndex(object):
                     face_embeddings=face_features,
                 )
                 image_curr_count += 1
-        index_progress_queue.put(1)
 
         with open(os.path.join(IMAGE_INDEX_DIRECTORY, "hash2path.pkl"), "wb") as f:
             pickle.dump(self.hash2path, f)
@@ -494,6 +500,13 @@ class ImageIndex(object):
         with open(image_index.current_shard_path, "wb") as f:
             np.save(f, image_index.current_shard)
 
+        # Indexing done.
+        with indexStatusDictLock:  # acquire and release the lock based on the context.
+            if indexStatusDict.get(statusEndpoint):
+                indexStatusDict[statusEndpoint]["done"] = True
+                indexStatusDict[statusEndpoint]["eta"] = str(int(0))
+                indexStatusDict[statusEndpoint]["progress"] = str(int(1))
+        
     def faceIds(self):
         return list(self.face_database.keys())
 
@@ -684,7 +697,7 @@ class VideoIndex:
             pickle.dump(self.hash2path, f)
 
         with indexStatusDictLock:  # acquire and release the lock based on the context.
-            indexStatusDict[tempEndpoint] = {"active": False, "eta":str(int(0)), "progress":str(int(1))}
+            indexStatusDict[tempEndpoint] = {"done":True, "eta":str(int(0)), "progress":str(int(1))}
 
         print("[DEBUG]: {} Index created successfully".format(video_hash))
 
@@ -766,16 +779,6 @@ def getIndexCount(media):
             {"index_count": "{}".format(max(0, len(image_index.hash2path) - 1))}
         )
 
-
-@app.route("/imageIndexProgress")
-def imageIndexProgress():
-    def send_event():
-        while True:
-            progress = index_progress_queue.get()
-            yield "data: {}\n\n".format(progress)
-
-    return flask.Response(send_event(), mimetype="text/event-stream")
-
 @app.route("/indexStatus/<endpoint>")
 def indexStatus(endpoint):
     # a route to allow a client to check for indexing status, conditioned on the endpoint. Endpoint may simple by a video/image hash.
@@ -784,10 +787,11 @@ def indexStatus(endpoint):
     # NOTE: it is valid for a SERVER SESSION.
 
     global indexStatusDict
-    result = {"active":False, "eta":"unknown", "progress":"0"} # read active state on the client side.
+    result = {"status_available":False, "done":False, "eta":"unknown", "progress":"0"} # read active state on the client side.
     with indexStatusDictLock: # acquire and release based on the context.
         if indexStatusDict.get(endpoint, False):   # it would be available if indexing has started for this endpoint in current session.            
-            result["active"] = indexStatusDict[endpoint]["active"]
+            result["status_available"] = True
+            result["done"] = indexStatusDict[endpoint]["done"]
             result["eta"] = indexStatusDict[endpoint]["eta"]
             result["progress"] = indexStatusDict[endpoint]["progress"]
     return flask.jsonify(result)
@@ -795,17 +799,42 @@ def indexStatus(endpoint):
 
 @app.route("/indexImageDir", methods=["POST"])
 def indexImageDir():
+    """
+    Start indexing all the images in an image directory, based on the POST arguments.
+    By default, it would index the subdirectories too, upto MAX_DEPTH.
+    Indexing status can be checked based on a specific endpoint generated for this directory.
+    """
+    global indexStatusDict, indexStatusDictLock
+
     status = {"success": False, "reason": "unknown"}
     if flask.request.form.get("image_directory_path"):
         temp_path = flask.request.form.get("image_directory_path")
         temp_path = os.path.abspath(temp_path)
+        
         if os.path.exists(temp_path):
-            image_index.process_dir(temp_path)
-            status["success"] = True
-            status["reason"] = ""
+            # statusEndpoint = generate_hash(temp_path) # generate endpoint for this directory.
+            statusEndpoint = temp_path.replace("/", "-")
+            statusEndpoint = statusEndpoint.replace('\\',"-")
+           
+            index_done_or_active = False
+            with indexStatusDictLock:
+                if indexStatusDict.get(statusEndpoint, False):
+                    index_done_or_active = True  #either is active, and was indexed during this sesssion. both are valid states for client to call to endpoint.
+
+            if not index_done_or_active:
+                # run the process of indexing image directory in the separate thread.
+                def something(image_dir_path:str, statusEndpoint:str):
+                    image_index.process_dir(image_dir_path, statusEndpoint = statusEndpoint)
+                Thread(target= something, args = (temp_path, statusEndpoint)).start()
+                with indexStatusDictLock:
+                    indexStatusDict[statusEndpoint] = {"done":False,"eta":"unknown","progress":str(int(0))}  
+
+                status["success"] = True
+                status["statusEndpoint"] = statusEndpoint # this can be queried by client.
         else:
             status["reason"] = "{} path doesnot exist on server side".format(temp_path)
-    return status
+    
+    return status   
 
 
 @app.route("/updateDatabase", methods=["POST"])
@@ -859,172 +888,99 @@ def updateDatabase():
 def get_faceIds():
     return flask.jsonify({"face_ids": image_index.faceIds()})
 
+client_2_imageDataCache = {}  # global shared dictionary. should be accessed using locks.
+client_2_imageDataCacheLock = threading.RLock()  # for now used only be getimagebinary data.
 
-def get_the_data(query: str, status_queue, data_queue, client_id, top_k: int = 3):
+def get_the_data(query:str, top_k:int, cache_generation_id:str):
+    """query the imageIndex based on the query arguments and return top-k best matching results.
+    #Inputs:
+        # query: string
+        # top_k:int  
+    """
 
+
+    # this would be a generator
     shard_idx = image_index.hash2path["CURR_SHARD_IDX"]
     shard_suffix = image_index.current_shard_suffix
-
     semantic_query, face_ids = parse_query(query)
-    stop_thread = False
+
+    temp_cache = ImageDataCache() # a threadsafe cache, generated for each new generator. 
+    with client_2_imageDataCacheLock:
+        client_2_imageDataCache[cache_generation_id] = temp_cache
 
     for i in range(shard_suffix + 1):
-        if stop_thread:
-            break
 
-        if i != shard_suffix:
-            meta_data = image_index.query(
-                semantic_query=semantic_query,
-                shard_suffix=i,
-                shard_idx=image_index.shard_size,
-                top_k=top_k,
-                ids=face_ids,
-            )
+        if (i != shard_suffix):
+            meta_data = image_index.query(semantic_query = semantic_query, shard_suffix = i, shard_idx = image_index.shard_size, top_k = top_k, ids = face_ids)
         else:
-            meta_data = image_index.query(
-                semantic_query=semantic_query,
-                shard_suffix=i,
-                shard_idx=shard_idx,
-                top_k=top_k,
-                ids=face_ids,
-            )
-
+            meta_data = image_index.query(semantic_query = semantic_query, shard_suffix = i, shard_idx = shard_idx, top_k = top_k, ids = face_ids)
+        
         scores, image_hashes = meta_data
+        absolute_paths = [image_index.hash2path[x] for x in image_hashes]
+        
+        temp_cache.put(hashes = image_hashes, absolute_paths = absolute_paths)
 
-        for score, item in zip(scores, image_hashes):
-            if status_queue.empty() == False:
-                if status_queue.get() == "STOP_THREAD":
-                    stop_thread = True
-                    break
+        yield (scores, image_hashes)
+        
+@app.route("/imageBinaryData/<image_hash>/<data_generation_id>")
+def imageBinaryData(image_hash:str, data_generation_id:str):
 
-            if os.path.exists(image_index.hash2path.get(item)):
-
-                image_arr = cv2.imread(image_index.hash2path[item])
-                temp_variance = get_frame_variance(image_arr)
-                if temp_variance < PIXEL_VARIANCE_THRESHOLD:
-                    continue
-
-                h_w_ratio = image_arr.shape[0] / image_arr.shape[1]
-                width_dimension = min(image_arr.shape[1], 360)
-                height_dimension = int(h_w_ratio * width_dimension)
-                image_arr = cv2.resize(
-                    image_arr,
-                    (width_dimension, height_dimension),
-                    interpolation=cv2.INTER_LINEAR,
-                )
-                image_data = cv2.imencode(".jpg", image_arr)[1].tobytes()
-
-                data = "data:image/{};base64, {}".format(
-                    imghdr.what(image_index.hash2path[item]),
-                    base64.b64encode(image_data).decode("utf-8"),
-                )
-
-                if data_queue.qsize() == (data_queue.maxsize - 1):
-                    print(
-                        "[DEBUG]: Data queue is full, breaking and aborting this thread. One way to mitigate this to increase the size of queue."
-                    )
-                    stop_thread = True
-                    break
-
-                data_queue.put((False, score, data, item))
-            else:
-                print(
-                    "[DEBUG]: could not locate: {}".format(image_index.hash2path[item])
-                )
-
-    data_queue.put((True, None, None, None))
-    global_thread_status[client_id] = None
-    if DEBUG:
-        print("Image thread is done!!!")
+    with client_2_imageDataCacheLock:
+        tempCache = client_2_imageDataCache[data_generation_id]
+    data, data_type = tempCache.get(image_hash)
+    return flask.Response(data , mimetype= "image/{}".format(data_type))
 
 
-@app.route("/search/<media>", methods=["POST"])
-def search(media, top_k: int = 3):
-    "Full database search on indexed Videos or Indexed images, based on the media argument."
-
-    if media.strip() not in ["video", "image"]:
+@app.route("/search/<media>", methods = ["POST"])
+def search_new(media:str, top_k:int = 3):
+    
+    if media.strip() not in ["video","image"]:
         return "Bad request"
-
-    if len(global_mapping) >= GLOBAL_MAPPING_MAX_SIZE:
-        _ = global_mapping.popitem(last=False)
-        _ = global_thread_status.popitem(last=False)
-
-    def generate_client_id():
-        return uuid.uuid4().hex
-
-    if not session.get("client_id"):
-        client_id = generate_client_id()
-        session["client_id"] = client_id
-        global_mapping[client_id] = (Queue(maxsize=1), Queue(maxsize=200))
-        global_thread_status[client_id] = None
-    elif not global_mapping.get(session["client_id"]):
-        client_id = generate_client_id()
-        session["client_id"] = client_id
-        global_mapping[client_id] = (Queue(maxsize=1), Queue(maxsize=200))
-        global_thread_status[client_id] = None
-    else:
-        client_id = session["client_id"]
-
+    
+    # create a new generator, for this specific request and for this client.
     top_k_temp = flask.request.form.get("topk")
     if top_k_temp != None:
         top_k = int(top_k_temp)
-
+ 
     text_query = flask.request.form.get("text_query").strip().lower()
-    status_queue, data_queue = global_mapping[client_id]
-    thread_running = global_thread_status[client_id]
 
-    if flask.request.form.get("query_start"):
-        if thread_running is not None:
-            status_queue.put("STOP_THREAD")
-            thread_running.join()
-
-        while data_queue.empty() == False:
-            _ = data_queue.get()
-        while status_queue.empty() == False:
-            _ = status_queue.get()
-
-        assert data_queue.empty() and status_queue.empty()
-        if DEBUG:
-            print("Starting new thread for this query.")
-        if media.strip() == "image":
-            temp_thread = Thread(
-                target=get_the_data,
-                args=(text_query, status_queue, data_queue, client_id, top_k),
-            )
-        else:
-            context_window = 1
-            if flask.request.form.get("context_window"):
-                context_window = int(flask.request.form.get("context_window"))
-            temp_thread = Thread(
-                target=get_video_data,
-                args=(
-                    text_query,
-                    status_queue,
-                    data_queue,
-                    client_id,
-                    top_k,
-                    context_window,
-                ),
-            )
-
-        global_thread_status[client_id] = temp_thread
-        temp_thread.start()
-
-    while data_queue.empty() == True:
-        time.sleep(0.01)
-
-    done, score, data, local_hash = data_queue.get()
-    resp = flask.jsonify(
-        {
-            "data": None if done is True else data,
-            "score": str(score),
-            "local_hash": local_hash,
-            "query_completed": done,
-        }
-    )
-    resp.headers["Access-Control-Allow-Origin"] = "*"
-
-    return resp
+    if not flask.request.form.get("data_generation_id", False):
+        data_generation_id = uuid.uuid4().hex  # client is requesting a fresh request !!
+        with client_2_dataGeneratorLock:
+            # atomic transaction, one iteration of generator would be done completely.
+            assert data_generation_id not in client_2_dataGenerator
+            client_2_dataGenerator[data_generation_id] = get_the_data(query = text_query, top_k= top_k, cache_generation_id = data_generation_id)
+            result = next(client_2_dataGenerator[data_generation_id], ())
+            if len(result) == 0:
+                #send a flag to not to continue, Done with this request.
+                temp = client_2_dataGenerator.pop(data_generation_id)
+                del temp
+    else:
+        data_generation_id = flask.request.form.get("data_generation_id")
+        with client_2_dataGeneratorLock:
+            # should be atomic transactions !! (getting and updating generator without any interruption, once acquire the lock)
+            if client_2_dataGenerator.get(data_generation_id, False):
+                result = next(client_2_dataGenerator[data_generation_id], ()) 
+                if len(result) == 0:
+                    #send a flag to not to continue, Done with this request.
+                    temp = client_2_dataGenerator.pop(data_generation_id)
+                    del temp
+    
+    if len(result) == 0:
+        return flask.jsonify({
+            "scores":None,
+            "local_hashes":None,
+            "query_completed": True
+        })
+                
+    else:
+        scores, hashes = result
+        return flask.jsonify({
+            "scores":[str(x) for x in scores],
+            "local_hashes":hashes,
+            "data_generation_id":data_generation_id,
+            "query_completed": False
+        })
 
 
 @app.route("/get_full_image/<local_hash>", methods=["GET"])
