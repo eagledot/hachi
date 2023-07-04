@@ -1,5 +1,6 @@
 <script>
   import DarkMode from "./lib/DarkMode.svelte";
+  let orig_image_src = [];  // to preserve the reference to original image data, in case of filtering based on threshold.
   let image_src = [];
   let image_scores = [];
   let image_local_hash = [];
@@ -58,7 +59,7 @@
     return objectURL
   }
 
-  async function handleClick(data_generation_id = "xxxxxxx", got_id = false)
+ async function handleClick(data_generation_id = "xxxxxxx", got_id = false)
     {   // called upon a new query, called recursively until server asks it to stop.
       // collects corresponding hashes (image-data) and scores for each call. 
 
@@ -81,7 +82,7 @@
           query_button.disabled = true;
         }
 
-        const url = url_prefix + "/search_new/image";
+        const url = url_prefix + "/search/image";
         let response = await fetch(url, {
                 method: 'POST',
                 body: formData,
@@ -566,7 +567,8 @@
     <div>
       {#if (basic_interface && (num_images_indexed > 0))}
         <input bind:this={input_text_query} on:keyup={handleKeyUp} on:keydown={handleKeyDown} bind:value={text_query} autofocus class="bg-transparent focus:outline-none dark:text-white border-b border-black dark:border-white" placeholder="Search">
-        <button on:click={handleClick} bind:this={query_button} class="bg-blue-600 hover:bg-blue-800 disabled:bg-blue-400 text-white py-1 px-3 my-2 ml-2 rounded-md">Query All Images</button>
+        <!-- Svelte complaints, that event handler must be a function rather than a promise if we just directly use handleClick, but this works! -->
+        <button on:click={async (e) => {await handleClick()}} bind:this={query_button} class="bg-blue-600 hover:bg-blue-800 disabled:bg-blue-400 text-white py-1 px-3 my-2 ml-2 rounded-md">Query All Images</button>
         {#if showDropdown}
           <div>
             <select on:click={selectIds} on:keyup={handleKeyUpForIdsDropdown} bind:value={selected} bind:this={idsDropdown} size={(ids.length < 10) ? ids.length : 10}>
