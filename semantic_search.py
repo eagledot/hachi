@@ -886,6 +886,22 @@ def imageBinaryData(image_hash:str, data_generation_id:str):
     data, data_type = tempCache.get(image_hash)
     return flask.Response(data , mimetype= "image/{}".format(data_type))
 
+@app.route("/videoFramesBinaryData/<video_hash>/<data_generation_id>")
+def videoFramesBinaryData(video_hash:str, data_generation_id:str):
+    # return the image jpg/png (data), dedicated route so that client can just use this data as an image source directly.
+    # otherwise, we have to base64 encode it.
+
+    tempKey = "{}-{}".format(data_generation_id,video_hash)
+    with client_2_videoDataCacheLock:
+        tempCache = client_2_videoDataCache[tempKey]
+    
+    data, data_type, queue_done = tempCache.get()     # its a queue, so would be called a number of times, depending upon top_k for each video.
+    if queue_done:
+        with client_2_videoDataCacheLock:
+            _ = client_2_videoDataCache.pop(tempKey)  # here client is supposed to stop requesting for a particular video_hash.
+    
+    return flask.Response(data , mimetype= "image/{}".format(data_type))
+
 
 @app.route("/search/<media>", methods = ["POST"])
 def search_new(media:str, top_k:int = 3):
