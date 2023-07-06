@@ -2,8 +2,11 @@ import numpy as np
 from typing import List, Union
 import os
 import hashlib
+from queue import Queue
+
 import cv2
 
+PIXEL_VARIANCE_THRESHOLD = 60  # < 255, higher value would lead to agressive filtering.
 
 def softmax_np(arr, axis: int):
     max_arr = np.max(arr, axis=axis, keepdims=True)
@@ -206,3 +209,46 @@ class ImageDataCache(object):
     def __len__(self):
         with self.cache_lock:
             return len(self.cache)
+        
+
+class VideoFramesCache(object):
+    """An interface to collect specified frames from Videos in the background.
+    NOTE: it is used to fill corresponding frame data as frames_scores are sent already to client. So Don't skip data, just fill with None if needed. Let client handle it.
+    """
+
+    def __init__(self, cache_size = 50):        
+        # appropriate data-structures:
+        self.lock = threading.RLock()
+        self.cache = Queue(maxsize=50)  # in this case, this is better modelled as queue.
+
+    def fulfill_tasks(self, frame_indices:list[int], video_path:str):
+        # creates a Video capture object and read/decode corresponding frames based on frame indices.
+
+        cap = VideoCaptureBasic(video_path)
+        for i, ix in enumerate(frame_indices):
+            frame = cap.read_specific_frame(ix, bgr = True)
+
+            # for each hash, client would request the data.
+            temp_std = get_frame_variance(frame)
+            if temp_std < PIXEL_VARIANCE_THRESHOLD:
+                if i == (len(frame_indices) - 1):
+                    self.cache.put((None, None, True))  # let client handle that..
+                else:
+                    self.cache.put((None, None, False))
+                continue
+            
+            img_data = cv2.imencode('.jpg', frame)[1].tobytes()
+            
+            if i == (len(frame_indices) - 1):
+                self.cache.put((img_data, "jpg", True)) # (data, data_type, queue_done)
+            else:
+                self.cache.put((img_data, "jpg", False))  # (data, data_type, queue_done)              
+
+        del cap
+
+    def get(self):
+        return self.cache.get()
+    
+    def put(self, frame_indices:list[int], video_path:str):
+        with self.lock:
+            threading.Thread(target = self.fulfill_tasks, args = (frame_indices, video_path)).start()
