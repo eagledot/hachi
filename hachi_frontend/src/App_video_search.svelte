@@ -41,80 +41,77 @@
     }
   
   
-    async function handleClick()
-      {   
-          formData = new FormData();
-          if (!text_query) return;
-          formData.append('text_query', text_query);
-          formData.append('context_window', context_window.toString());
+    async function getImageBinaryData(hash, data_generation_id){
+      // get image data from the server, given a hash.
+      // hash is generally received as a result of query.
+
+      let temp_hash = hash.split("_")[0]
+      let url = "/api/videoFramesBinaryData/" + temp_hash + "/" + data_generation_id;
+      let response = await fetch(url);
+      let myBlob = await response.blob();
+      let objectURL = null;
+      if (myBlob.size > 0){
+        objectURL = await URL.createObjectURL(myBlob);
+      }
+      return objectURL
+    }
   
-          if(temp_count == 0){
-              image_src = [];
-              image_local_hash = [];
-              image_scores = [];
-              formData.append("query_start", "true");
-              query_button.disabled = true;
+    async function handleClick(data_generation_id = "xxxxxxx", got_id = false){
+      let formData = new FormData();
+      
+      formData.append('text_query', text_query);
+      formData.append('context_window', context_window.toString());
+
+      if (got_id == true){
+          formData.append("data_generation_id", data_generation_id);  //send this key along with subsequent requests. We would get this from server.
+      }
+      
+      if(got_id == false){
+          image_src = [];
+          image_local_hash = [];
+          image_scores = [];
+          formData.append("query_start", "true");
+          query_button.disabled = true;
           }
-    
-          if(temp_count == MAX_COUNT){
-            //TODO: wait out for the previous stream to complete.
-              console.log("Max limit reached. Ending query.");
-              temp_count = 0;
-              query_button.disabled = false;
-              return;
-          }           
-          
-  
-          const url = url_prefix + "/search/video";
-          let response = await fetch(url, {
-                  method: 'POST',
-                  body: formData,
-                  })
-          
-          if (!response.ok) {
+
+      // send the query.
+      const url = url_prefix + "/search_new/video";
+      let response = await fetch(url, {
+              method: 'POST',
+              body: formData,
+              })
+      if (!response.ok) {
             query_button.disabled = false;
                   throw new Error(response);
           }
-          
-          let reader = response.body.getReader();
-  
-          let new_stream = await new ReadableStream({
-          start(controller) {
-              return pump();
-              function pump() {
-              return reader.read().then(({ done, value }) => {
-                  // When no more data needs to be consumed, close the stream
-                  if (done) {
-                  controller.close();
-                  return;
-                  }
-                  // Enqueue the next data chunk into our target stream
-                  controller.enqueue(value);
-                  return pump();
-              });
-              }
-          }
-          })
-  
-          let new_response = await new Response(new_stream);
-          let temp_json = await new_response.json();
-          if (temp_json["query_completed"] == true){
-              console.log("Stream completed");
-              temp_count = 0;
-              query_button.disabled = false;
-              return;
-  
-          }
-          // image_data.push("data:image/jpg;base64, " + temp_json["data"]);
-          image_local_hash.push(temp_json["local_hash"]);
-          image_src.push(temp_json["data"]);
-          image_scores.push(Number(temp_json["score"]));
-          sort_image_data();  // sort the image_local_hash/src/scores based on the image_sores.
-  
-  
-          temp_count += 1;
-          handleClick();
+
+      let data = await response.json();
+      let query_completed = data["query_completed"];
+      if(query_completed == true){
+        query_button.disabled = false;
+        return
       }
+      let temp_id = data["data_generation_id"];
+      let local_hashes  = data["local_hashes"];
+      let frame_scores = data["scores"];
+
+      for (let i = 0; i < frame_scores.length ; i++){
+        let objectURL = await getImageBinaryData(local_hashes[i], temp_id);
+        if (objectURL == null){
+          continue
+        }
+
+        image_src.push(objectURL);
+        image_scores.push(frame_scores[i]);
+        image_local_hash.push(local_hashes[i]);
+        
+        image_src = image_src;
+      }
+      sort_image_data();
+
+      await handleClick(temp_id, true) // call it recursively.
+
+    }
   
     function handleKeyUp(event) {
       if (event.key === 'Enter') {
@@ -168,12 +165,12 @@
     </div>
   
     <div class="flex items-center select-none m-4">
-      <div class="relative grid md:grid-cols-3 2xl:grid-cols-4 gap-8 mt-6 grid-flow-row-dense">
+      <div class="relative grid md:grid-cols-3 2xl:grid-cols-5 gap-8 mt-6 grid-flow-row-dense">
       {#each image_src  as src,i}
         <div  class="flex flex-col">
           <!-- href works for local path only, This is local url, only works when running on local host. -->
             <a href={"/api/get_full_image/" + image_local_hash[i]} target="_blank"> 
-              <img class="h-auto rounded-lg shadow-xl" src={src} alt="image">
+              <img class="sm:max-h-48 rounded-lg shadow-xl" src={src} alt="image">
             </a>
         </div>
       {/each}
