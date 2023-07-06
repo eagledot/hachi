@@ -701,69 +701,25 @@ class VideoIndex:
 
         print("[DEBUG]: {} Index created successfully".format(video_hash))
 
+client_2_videoDataCache = {}
+client_2_videoDataCacheLock = threading.RLock()
 
-def get_video_data(
-    query: str,
-    status_queue,
-    data_queue,
-    client_id,
-    top_k: int = 3,
-    context_window: int = 1,
-):
+def get_video_data(query:str, cache_generation_id:str, top_k:int = 3, context_window:int = 1):
+    query, _ = parse_query(query) #  # for now no face-embeddings/search for videos
 
-    query, _ = parse_query(query)
-
-    stop_thread = False
     video_hashes = video_index.hash2path.keys()
     for video_hash in video_hashes:
-        if stop_thread:
-            break
-
-        frame_scores, frame_indices, _ = video_index.query(
-            query, video_hash, top_k, context=context_window
-        )
-
+        frame_scores, frame_indices, _ = video_index.query(query, video_hash, top_k, context = context_window)
         video_path = video_index.hash2path[video_hash]
-        if os.path.exists(video_path):
 
-            cap = VideoCaptureBasic(video_path)
-            for i, ix in enumerate(frame_indices):
-                if status_queue.empty() == False:
-                    if status_queue.get() == "STOP_THREAD":
-                        stop_thread = True
-                        break
-                frame = cap.read_specific_frame(ix, bgr=True)
+        temp_cache = VideoFramesCache()  # create a new cache/queue for each of video.
+        with client_2_videoDataCacheLock:
+            client_2_videoDataCache["{}-{}".format(cache_generation_id, video_hash)] = temp_cache
+        
+        temp_cache.put(frame_indices = frame_indices, video_path = video_path)  # ask the cache to fill itself in the background.
+        
+        yield (frame_scores, ["{}_{}".format(video_hash, int(x)) for x in frame_indices])
 
-                temp_std = get_frame_variance(frame)
-                if temp_std < PIXEL_VARIANCE_THRESHOLD:
-                    continue
-
-                img_data = cv2.imencode(".jpg", frame)[1].tobytes()
-                img_data = "data:image/jpg;base64, {}".format(
-                    base64.b64encode(img_data).decode("utf-8")
-                )
-
-                if data_queue.qsize() == (data_queue.maxsize - 1):
-                    print(
-                        "[DEBUG]: Data queue is full, breaking and aborting this thread. One way to mitigate this to increase the size of queue."
-                    )
-                    stop_thread = True
-                    break
-                data_queue.put(
-                    (
-                        False,
-                        frame_scores[i],
-                        img_data,
-                        "{}_{}".format(video_hash, int(ix)),
-                    )
-                )
-        else:
-            continue
-
-    data_queue.put((True, None, None, None))
-    global_thread_status[client_id] = None
-    if DEBUG:
-        print("Video Thread DONE.")
 
 
 app = Flask(__name__, static_folder=None, static_url_path=None, template_folder=None)
