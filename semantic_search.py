@@ -903,32 +903,29 @@ def search_new(media:str, top_k:int = 3):
     if not flask.request.form.get("data_generation_id", False):
         data_generation_id = uuid.uuid4().hex  # client is requesting a fresh request !!
         with client_2_dataGeneratorLock:
-            # atomic transaction, one iteration of generator would be done completely.
             assert data_generation_id not in client_2_dataGenerator
-            client_2_dataGenerator[data_generation_id] = get_the_data(query = text_query, top_k= top_k, cache_generation_id = data_generation_id)
-            result = next(client_2_dataGenerator[data_generation_id], ())
-            if len(result) == 0:
-                #send a flag to not to continue, Done with this request.
-                temp = client_2_dataGenerator.pop(data_generation_id)
-                del temp
+            if media == "image":
+                client_2_dataGenerator[data_generation_id] = get_the_data(query = text_query, top_k= top_k, cache_generation_id = data_generation_id)
+            else:
+                client_2_dataGenerator[data_generation_id] = get_video_data(query = text_query, top_k = top_k, cache_generation_id = data_generation_id)
     else:
         data_generation_id = flask.request.form.get("data_generation_id")
-        with client_2_dataGeneratorLock:
-            # should be atomic transactions !! (getting and updating generator without any interruption, once acquire the lock)
-            if client_2_dataGenerator.get(data_generation_id, False):
-                result = next(client_2_dataGenerator[data_generation_id], ()) 
-                if len(result) == 0:
-                    #send a flag to not to continue, Done with this request.
-                    temp = client_2_dataGenerator.pop(data_generation_id)
-                    del temp
     
+    with client_2_dataGeneratorLock:
+        result = next(client_2_dataGenerator[data_generation_id], ())
+        if len(result) == 0:
+            temp = client_2_dataGenerator.pop(data_generation_id)
+            del temp
+
     if len(result) == 0:
+        assert len(client_2_imageDataCache[data_generation_id]) == 0      # all the data is read by client with this data-generation-id. this assumption should hold.
+        with client_2_imageDataCacheLock:
+            _ = client_2_imageDataCache.pop(data_generation_id)      # done with this cache.
         return flask.jsonify({
             "scores":None,
             "local_hashes":None,
             "query_completed": True
-        })
-                
+        })     
     else:
         scores, hashes = result
         return flask.jsonify({
