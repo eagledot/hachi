@@ -934,9 +934,10 @@ def search_new(media:str, top_k:int = 3):
             del temp
 
     if len(result) == 0:
-        assert len(client_2_imageDataCache[data_generation_id]) == 0      # all the data is read by client with this data-generation-id. this assumption should hold.
-        with client_2_imageDataCacheLock:
-            _ = client_2_imageDataCache.pop(data_generation_id)      # done with this cache.
+        if media == "image":
+            assert len(client_2_imageDataCache[data_generation_id]) == 0      # all the data is read by client with this data-generation-id. this assumption should hold.
+            with client_2_imageDataCacheLock:
+                _ = client_2_imageDataCache.pop(data_generation_id)      # done with this cache.
         return flask.jsonify({
             "scores":None,
             "local_hashes":None,
