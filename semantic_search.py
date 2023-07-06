@@ -41,7 +41,7 @@ import numpy as np
 import cv2
 
 import clip_python_module as clip
-from utils import create_video_hash, softmax_np, VideoCaptureBasic, get_frame_variance, ImageDataCache
+from utils import create_video_hash, softmax_np, VideoCaptureBasic, get_frame_variance, ImageDataCache, VideoFramesCache
 
 DEBUG = True
 EXTRA_FEATURES = False
