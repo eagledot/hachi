@@ -1072,7 +1072,7 @@ def videos():
             data_generation_id = uuid.uuid4().hex  # client is requesting a fresh request !!
             with client_2_dataGeneratorLock:
                 client_2_dataGenerator[data_generation_id] = generate_metadata_videos(video_directory=video_directory, recursive=recursive)
-                result = next(client_2_dataGenerator[data_generation_id], -1)
+                result = next(client_2_dataGenerator[data_generation_id], {})
         else:
             data_generation_id = flask.request.form.get("data_generation_id")
             with client_2_dataGeneratorLock:
