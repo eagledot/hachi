@@ -78,8 +78,8 @@ def scan_dir_recursively(root:str, depth:int, start_count:int = 0, file_extensio
         print("{} Path doesn't exist on this SYSTEM".format({}))
         return result
         
-    try:
-        for item in os.scandir(root):
+    for item in os.scandir(root):
+        try:
             if os.path.isfile(item) and  os.path.splitext(item)[1].lower() in file_extensions:
                 result = result + [os.path.join(root, item)]
             if os.path.isdir(item):
@@ -87,8 +87,11 @@ def scan_dir_recursively(root:str, depth:int, start_count:int = 0, file_extensio
                     continue
                 else:
                     result = result + scan_dir_recursively(root = os.path.join(root, item), depth = depth, start_count = start_count + 1, file_extensions= file_extensions)
-    except:
-        print("Error occured while scanning: {}".format(root))
+        except:
+            print("Error occured while scanning: {}".format(root,item))
+            if os.path.isdir(item):
+                print("Skipping Entire directory: {}".format(item))
+                continue
     return result
 
 def scan_dir(dirpath:str, recursive:bool = False, file_extensions: list[str] = ALLOWED_IMAGE_EXTENSIONS) -> List[str]:
@@ -1013,13 +1016,6 @@ def generate_metadata_videos(video_directory:str, recursive:bool):
     for item in scan_dir(dirpath= video_directory, recursive= recursive, file_extensions= ALLOWED_VIDEO_EXTENSIONS):
         video_directory = os.path.dirname(item)
         temp_path = os.path.abspath(os.path.join(video_directory, item))
-        # extra code to make sure that file being read is a valid video file.
-        temp_cap = VideoCaptureBasic(video_path = temp_path)
-        temp_frame_count = temp_cap.num_frames
-        if int(temp_frame_count) == 0:
-            print("[Debug]: {} Doesnot seem like a valid video file".format(temp_path))
-            del temp_cap
-            continue
         
         temp_hash = create_video_hash(temp_path)
         if temp_hash is None:
@@ -1059,7 +1055,7 @@ def videos():
     NOTE: For now, response is not streamed, and client has to wait until all of the meta-data is collected.
     """
 
-    result = []
+    result = {"query_done":True}
     video_directory = flask.request.form.get("video_directory")
     video_directory = os.path.abspath(video_directory)
     recursive = False
@@ -1080,13 +1076,13 @@ def videos():
         
         if len(result) == 0:
             #send a flag to not to continue, Done with this request.
-            result["flag"] = False
+            result["query_done"] = True
             with client_2_dataGeneratorLock:
                 temp = client_2_dataGenerator.pop(data_generation_id)
                 del temp
         else:
             result["data_generation_id"] = data_generation_id
-            result["flag"] = True
+            result["query_done"] = False
     
     return flask.jsonify(result)
 
@@ -1150,7 +1146,7 @@ def videoIndex(frames_to_skip: int = 10):
             })
 
 
-@app.route("/videoPoster/<video_hash>.jpg")
+@app.route("/videoPoster/<video_hash>")
 def videoPoster(video_hash):
 
     temp_path = None
@@ -1160,13 +1156,16 @@ def videoPoster(video_hash):
     if temp_path and os.path.exists(temp_path):
 
         temp_cap = VideoCaptureBasic(video_path=temp_path)
-        frame = temp_cap.read_specific_frame(
-            frame_num=int(temp_cap.num_frames * (random.randint(20, 80) / 100)),
-            bgr=True,
-        )
-        img_byte = cv2.imencode(".jpg", frame)[1].tobytes()
+        temp_frame_count = temp_cap.num_frames
+        
+        if int(temp_frame_count) == 0:
+            print("[Debug]: {} Doesnot seem like a valid video file".format(temp_path))
+            img_byte = cv2.imencode('.jpg', np.zeros((48,64,3), dtype=np.uint8))[1].tobytes()
+        else:
+            frame = temp_cap.read_specific_frame(frame_num= int(temp_cap.num_frames * (random.randint(20,80)/100)) , bgr=True)
+            img_byte = cv2.imencode('.jpg', frame)[1].tobytes()
         del temp_cap
-        return flask.Response(img_byte, mimetype="image/jpg")
+        return flask.Response(img_byte, mimetype= "image/jpg")
     else:
         return "No data"
 
