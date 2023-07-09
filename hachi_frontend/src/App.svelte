@@ -27,42 +27,69 @@
   let promiseGetVideos;
   let include_subdirectories = false;
 
-  $: if(videos_list){ 
+  $: if(videos_list){
+    if (search_text.length > 0){ 
     current_videos_list  = videos_list.filter(item => item.video_title.toLowerCase().search(search_text) != -1)
     }
+    else{
+      current_videos_list = [];
+    }
+  }
 
+  async function getVideoPosterData(video_hash){
+    // get the poster/thumbnail for a video.
+    let url = "/api/videoPoster/" + video_hash;
+    let response = await fetch(url);
+    let myBlob = await response.blob();
+    let objectURL = await URL.createObjectURL(myBlob);
+    return objectURL
+  }
 
   async function getVideos(data_generation_id = "xxxxxx", got_id = false) {
     if (got_id == false){
+      //TODO: disable search button.
+
       videos_list = [];
+      current_videos_list = [];
     }
     const url = url_prefix + "/videos"
     let formData = new FormData();
+
     // create POST request formData
     formData.append('video_directory', dirname);
     formData.append("include_subdirectories", include_subdirectories.toString());
     if (got_id){
+      //send it along to let server pinpoint the request iteration.
       formData.append("data_generation_id", data_generation_id);
     }
-      const res = await fetch(url, {
-                  method: 'POST',
-                  body: formData,
-                })
+    const res = await fetch(url, {
+                method: 'POST',
+                body: formData,
+              })
     if (!res.ok) {
 			throw new Error(res);
 		}
     else{
-      let temp = await res.json();  // temp is supposed to be an object with fields.
-      let data_generation_id = temp.data_generation_id
-      if (temp.flag == true){
-        
-        videos_list.push(temp);
-        videos_list = videos_list;  // so that svelte know.
+      let data = await res.json();  // temp is supposed to be an object with fields.
+      let is_query_done = data["query_done"]
+      if (is_query_done == true){
+        //TODO: enable search button.
 
-        await getVideos(data_generation_id, got_id = true);   // call this again with this data_generation_id
+        return
       }
-      return
-    }
+      else{
+          let data_generation_id = data["data_generation_id"];
+          let video_hash = data["video_hash"];
+          let poster_url = await getVideoPosterData(video_hash); // get the corresponding poster for the video.
+          data["poster_url"] = poster_url;
+          videos_list.push(data);
+          videos_list = videos_list; // allowing svelte to run reactive code.
+
+          // recursive.
+          await getVideos(data_generation_id, true) // Donot use `got_id = true`, just true. Have to discuss this issue. call this again with this data_generation_id
+      }
+
+  }
   }
   
   $: if (dirname) {
@@ -128,9 +155,18 @@
         {:then}
           <p class="dark:text-white"></p>
         {/await}
+        
+        <!-- shouldn't i also supply poster url/data here also, so that each mounting of card doesn't cause it to  -->
+        <div class="relative grid sm:grid-cols-6 2xl:grid-cols-8 min-[2400px]:grid-cols-12 gap-8 mt-6 grid-flow-row-dense">
+          {#each current_videos_list as f,i (f)}
+            <Card f={f} i={i}/>
+          {/each}
+        </div>
+        
+        <hr>
 
         <div class="relative grid sm:grid-cols-3 2xl:grid-cols-5 min-[2400px]:grid-cols-9 gap-8 mt-6 grid-flow-row-dense">
-          {#each current_videos_list as f,i (f)}
+          {#each videos_list as f,i (f)}
             <Card f={f} i={i}/>
           {/each}
         </div>
