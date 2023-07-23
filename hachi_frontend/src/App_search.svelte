@@ -302,6 +302,7 @@
     let wasSuccess = data["success"] // indexing started successfully.
     if (wasSuccess){
       let endpoint = "/api/indexStatus/" + data.statusEndpoint;
+      current_endpoint = endpoint;
       pollEndpointNew(endpoint) // keep polling that endpoint.
     }
 
