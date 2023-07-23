@@ -455,12 +455,28 @@ class ImageIndex(object):
         image_curr_count = 0
 
         for image_file in image_files:
-
+            
             # indicate progress/eta syncing with a common index dictionary.
-            progress = str((image_curr_count / (image_total_count + 1e-5)))
-            eta = "unknown"  # TODO: later calculate it too...
-            with indexStatusDictLock:  # acquire and release the lock based on the context.
-                if indexStatusDict.get(statusEndpoint):
+            if image_curr_count % 10 == 0:
+                progress = str((image_curr_count / (image_total_count + 1e-5)))
+                eta = "unknown"  # TODO: later calculate it too...
+                with indexStatusDictLock:  # acquire and release the lock based on the context.
+                    if indexStatusDict.get(statusEndpoint):
+                        
+                        # check for a cancellation request from the client.
+                        if indexStatusDict[statusEndpoint].get("should_cancel", False):
+                            if indexStatusDict[statusEndpoint]["should_cancel"] == True:
+                                indexStatusDict[statusEndpoint]["done"] = True
+
+                                print("Saving the data....before cancelling current indexing..")
+                                with open(os.path.join(IMAGE_INDEX_DIRECTORY, "hash2path.pkl"), "wb") as f:
+                                    pickle.dump(self.hash2path, f)
+                                # save the current shard as well.
+                                with open(image_index.current_shard_path, "wb") as f:
+                                    np.save(f, image_index.current_shard)
+                                
+                                return         
+                    
                     indexStatusDict[statusEndpoint]["eta"] = eta
                     indexStatusDict[statusEndpoint]["progress"] = progress
             
@@ -470,6 +486,7 @@ class ImageIndex(object):
                 continue
             else:
                 if self.hash2path.get(temp_hash):
+                    # NOTE: this checks if a particular image is already indexed !
                     image_curr_count += 1
                     continue
 
@@ -679,6 +696,8 @@ class VideoIndex:
                     if indexStatusDict.get(tempEndpoint):
                         indexStatusDict[tempEndpoint]["eta"] = eta
                         indexStatusDict[tempEndpoint]["progress"] = progress
+                        # TODO: may also read another field/key like should_cancel, to allow cancelling.
+                        # this should work i think..
                     else:
                         indexStatusDict[tempEndpoint] = {"eta":eta, "progress":progress}
 
@@ -746,13 +765,38 @@ def indexStatus(endpoint):
     # NOTE: it is valid for a SERVER SESSION.
 
     global indexStatusDict
+    CANCEL_INDEXING = False
     result = {"status_available":False, "done":False, "eta":"unknown", "progress":"0"} # read active state on the client side.
     with indexStatusDictLock: # acquire and release based on the context.
         if indexStatusDict.get(endpoint, False):   # it would be available if indexing has started for this endpoint in current session.            
-            result["status_available"] = True
-            result["done"] = indexStatusDict[endpoint]["done"]
-            result["eta"] = indexStatusDict[endpoint]["eta"]
-            result["progress"] = indexStatusDict[endpoint]["progress"]
+            if flask.request.method == "POST":
+                if "ack" in flask.request.form:
+                    acknowledged = flask.request.form["ack"].strip().lower()
+                    if acknowledged == "true":  # we are sure that client received the status that current indexing has been done.
+                        print("Popping endpoint, as client got the Done status successfully.")
+                        _ = indexStatusDict.pop(endpoint)
+
+                if "cancel" in flask.request.form:  
+                    should_cancel = flask.request.form["cancel"].strip().lower()
+                    if should_cancel == "true":  # client requested to stop indexing corresponding to this endpoint.
+                        indexStatusDict[endpoint]["should_cancel"] = True      # put this flag, so that threading doing indexing can read it.
+                        CANCEL_INDEXING = True    
+            
+            else:
+                result["status_available"] = True
+                result["done"] = indexStatusDict[endpoint]["done"]
+                result["eta"] = indexStatusDict[endpoint]["eta"]
+                result["progress"] = indexStatusDict[endpoint]["progress"]
+    
+    if CANCEL_INDEXING:
+        while True:
+            print("waiting for endpoint to be cancelled: {}".format(endpoint))
+            time.sleep(1)
+            with indexStatusDictLock:      # check the status, by acquiring lock.
+                if indexStatusDict.get(endpoint, False) == False:  # this is supposed to be popped out during GET request, when DONE. so good enough signal to indicate that cancelling was indeed cancelled.
+                    break
+        return flask.jsonify({"success":True})
+    
     return flask.jsonify(result)
 
 
@@ -775,12 +819,13 @@ def indexImageDir():
             statusEndpoint = temp_path.replace("/", "-")
             statusEndpoint = statusEndpoint.replace('\\',"-")
            
-            index_done_or_active = False
+            index_active = False
             with indexStatusDictLock:
                 if indexStatusDict.get(statusEndpoint, False):
-                    index_done_or_active = True  #either is active, and was indexed during this sesssion. both are valid states for client to call to endpoint.
+                    index_active = True  # if endpoint exists in dict, then active, otherwise not.
+                    return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
 
-            if not index_done_or_active:
+            if not index_active:
                 # run the process of indexing image directory in the separate thread.
                 def something(image_dir_path:str, statusEndpoint:str):
                     image_index.process_dir(image_dir_path, statusEndpoint = statusEndpoint)
