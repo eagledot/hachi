@@ -16,6 +16,7 @@
   let num_images_indexed = 0;
   let basic_interface = true;
   let current_score_threshold = 0;
+  let current_endpoint = "";     // supposed to point to the current endpoint being indexed.
 
   $: basic_interface = !indexing;
   
@@ -239,6 +240,19 @@
       if (data["done"] == true){
         indexing = false;              //it means server done indexing.
         await getIndexCount();         // count of total images indexed. 
+        
+        // code block, to acknowledge the done flag for current index.
+        let formData = new FormData();
+        formData.append("ack", "true");
+        let response = await fetch(endpoint,
+          {
+            method: "POST",
+            body: formData
+          })
+          if (response.ok === false){
+          console.log("index updated succesfully, but server should have responded with 200 code")
+        }
+        
         alert("Index Updated Successfully.");
         return;
       }
@@ -252,8 +266,24 @@
       pollEndpointTimeoutId = setTimeout(function() {pollEndpointNew(endpoint, count + 1)} , 1000) // call this function again, after a second.
     }
     
-
   }
+
+  // routine to cancel and ongoing index.
+  async function cancel_current_indexing(){
+    let formData = new FormData();
+    formData.append("cancel", "true");  // set cancel key as true.
+    let response = await fetch(current_endpoint,
+        {
+          method: "POST",
+          body: formData
+        })
+    if (!response.ok) {
+        throw new Error(response);
+      }
+    
+    // response ok is enough for now to know indexing has been cancelled successfully.
+    alert("Indexing Cancelled.");
+    }
 
   
   async function add_image_directory(){
@@ -535,7 +565,8 @@
       {#if indexing}
         <p class="dark:text-white">Indexing in progress...please wait for it to finish.</p>
         <progress class="bg-gray-400 h-3 mt-2 w-full" value={index_progress} max="1"></progress>
-      {/if}
+        <button on:click={cancel_current_indexing} class="bg-yellow-600 hover:bg-yellow-800 disabled:bg-yellow-400 text-white py-1 px-3 m-2 rounded-md">Cancel</button>
+        {/if}
     </div>
   </div>
   
