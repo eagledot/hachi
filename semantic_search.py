@@ -757,7 +757,7 @@ def getIndexCount(media):
             {"index_count": "{}".format(max(0, len(image_index.hash2path) - 1))}
         )
 
-@app.route("/indexStatus/<endpoint>")
+@app.route("/indexStatus/<endpoint>", methods = ["GET", "POST"])
 def indexStatus(endpoint):
     # a route to allow a client to check for indexing status, conditioned on the endpoint. Endpoint may simple by a video/image hash.
     # it works by reading from indexStatusDict, a shared dictionary. with endpoint as key.
