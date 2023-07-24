@@ -19,7 +19,8 @@ export default defineConfig({
       input: {
         main: resolve(root, 'index.html'),
         search: resolve(root, 'search.html'),
-        video_search: resolve(root, "video_search.html")
+        video_search: resolve(root, "video_search.html"),
+        fuzzy_search:resolve(root, "fuzzy_search.html")
       },
       // output: {
       //   assetFileNames: (assetInfo) => {
