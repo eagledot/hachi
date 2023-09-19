@@ -325,3 +325,14 @@ def indexStart(batch_size = 1):
     else:
         print("{} Doesn't exist on server side".format(index_root_dir))
         return flask.jsonify({"success":False, "reason":"Path {} Doesn't exist of Server side".format(index_root_dir)})
+
+@app.route("/indexCancel/<endpoint>", methods = ["GET"])
+def indexCancel(endpoint:str):
+    """raise a cancellation request to cancel an ongoing indexing.
+    """
+
+    result = indexStatus.indicate_cancellation(endpoint)                     # raise cancellation request, should be read by indexing thread.
+    if not result:
+        return {"success":False, "reason":"Endpoint {} Doesn't exist on server side"}
+    else:
+        return {"success":True, "reason":"Endpoint {} cancellation request raised successfully".format(endpoint)}
