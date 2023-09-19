@@ -336,3 +336,14 @@ def indexCancel(endpoint:str):
         return {"success":False, "reason":"Endpoint {} Doesn't exist on server side"}
     else:
         return {"success":True, "reason":"Endpoint {} cancellation request raised successfully".format(endpoint)}
+
+@app.route("/getIndexStatus/<endpoint>", methods = ["GET", "POST"])
+def getIndexStatus(endpoint:str):
+
+    if flask.request.method == "POST":
+        ack = flask.request.form.get("ack", None)
+        if ack == "true":
+            # it should mean that client acknowledged the DONE status for indexing.
+            indexStatus.remove_endpoint(endpoint)
+        return flask.jsonify({"success":True})
+    return flask.jsonify(indexStatus.get_status(endpoint))
