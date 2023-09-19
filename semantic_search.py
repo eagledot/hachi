@@ -504,3 +504,19 @@ def tagPerson():
             personId_to_avgEmbedding.pop(old_person_id)
 
     return flask.jsonify(result)
+
+@app.route("/editMetaData", methods = ["POST"])
+def editMetaData():
+    """ Supposed to update/modify meta-index upon an user request"""
+
+    temp_meta_data = {}
+    for k,v in flask.request.form.items():
+        if "data_hash" not in k.lower():
+            temp_meta_data[k] = v
+
+    data_hash = flask.request.form["data_hash"]
+
+    metaIndex.modify_meta_data(data_hash, temp_meta_data)
+    metaIndex.save()
+
+    return flask.jsonify({"success":True})
