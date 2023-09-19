@@ -4,6 +4,13 @@ from typing import Optional, Union, Tuple, List
 from threading import RLock
 
 
+import cv2
+
+from image_index import ImageIndex
+
+from meta_index import MetaIndex
+
+import clip_python_module as clip
 
 
 def generate_endpoint(directory_path) -> str:
@@ -97,3 +104,40 @@ class IndexStatus(object):
     def is_cancel_request_active(self, endpoint):
         with self.lock:
             return self.status_dict[endpoint]["should_cancel"]
+        
+########################################################################
+IMAGE_EMBEDDING_SIZE = 512  # depends on the model architecture.
+TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
+FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
+
+def generate_image_embedding(image_path:str, is_bgr:bool = True, center_crop = False) -> Optional[np.array]:
+    # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
+
+    image_data = cv2.imread(image_path)
+    if image_data is None:
+        return None
+    
+    assert is_bgr == True, "If using opencv, is_bgr would be true."
+    image_features = clip.encode_image(image_data, is_bgr = True, center_crop = False)
+    assert image_features.size == IMAGE_EMBEDDING_SIZE
+    return image_features
+
+def generate_face_embedding(image_path:str, is_bgr:bool = True, conf_threshold:float = 0.85) -> Optional[np.array]:
+    # TODO: call actual model.
+    # return np.random.uniform(size = (1, FACE_EMBEDDING_SIZE)).astype(np.float32)
+
+    image_data = cv2.imread(image_path)
+    if image_data is None:
+        return None
+    
+    assert is_bgr == True, "If using opencv, is_bgr would be true."
+    face_bboxes, face_embeddings =  pipeline.detect_embedding(image_data, is_bgr = is_bgr, conf_threshold = conf_threshold)
+    assert face_embeddings.shape[1] == FACE_EMBEDDING_SIZE
+    return face_bboxes, face_embeddings
+
+def generate_text_embedding(query:str):
+    # return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
+
+    text_features = clip.encode_text(query)
+    assert text_features.size == TEXT_EMBEDDING_SIZE
+    return text_features
