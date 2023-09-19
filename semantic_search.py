@@ -461,3 +461,15 @@ def getSuggestion() -> dict[str, list[str]]:
     if attribute in metaIndex.fuzzy_search_attributes:
         result[attribute] = metaIndex.suggest(attribute, query)
     return flask.jsonify(result)
+
+@app.route("/getRawData/<data_hash>", methods = ["GET"])
+def getRawData(data_hash:str) -> any:
+    
+    hash_2_metaData = metaIndex.query(data_hashes = data_hash)
+    temp_meta = hash_2_metaData[data_hash]
+    resource_type = temp_meta["resource_type"]
+    resource_extension = temp_meta["resource_extension"]
+    absolute_path = temp_meta["absolute_path"]
+
+    raw_data = dataCache.get(data_hash, absolute_path)
+    return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
