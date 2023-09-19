@@ -117,3 +117,7 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]
         del(m)
     
     return data_hash
+
+
+# config
+META_DATA_INDEX_DIRECTORY = "./meta_indices"
