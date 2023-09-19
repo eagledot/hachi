@@ -540,3 +540,9 @@ def getGroup(attribute:str):
     temp[attribute] = list(possible_values)
 
     return flask.jsonify(temp)
+
+@app.route("/getMetaStats", methods = ["GET"])
+def getMetaStats():
+    """Supposed to return some stats about meta-data indexed, like number of images/text etc."""
+    result = metaIndex.get_stats()
+    return flask.jsonify(result)
