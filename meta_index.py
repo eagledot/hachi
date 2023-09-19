@@ -28,3 +28,65 @@ def get_resource_type(resource_extension:str) -> Optional[str]:
             return k
     return None
 
+geoCodeIndex = GeocodeIndex()                                    # initialize our geocoding database/index.
+
+def get_exif_data(resource_path:str, resource_type:str) -> dict:
+    
+    result_exif_data = {}
+    if resource_type == "image":
+        __allowed_image_fields = [
+            
+            # device specific information
+            "make",        
+            "model",
+            "device",
+
+            "taken_at",         # Date / timestamp. (original)   --> DateTimeOriginal.
+            "gps_latitude",     # gps latitude (if available else value would be None)
+            "gps_longitude"     # gps longitude (if available else would be None)
+        ]
+
+        result_exif_data = {k:None for k in __allowed_image_fields}
+
+        result_exif_data["taken_at"] = "unknown"
+        result_exif_data["gps_latitude"] = None
+        result_exif_data["gps_longitude"] = None
+        result_exif_data["make"] = ""
+        result_exif_data["model"] = ""
+        result_exif_data["device"] = ""
+ 
+        # exif package mapping to result_exif_data fields. 
+        exif_package_mapping = {
+            "make": "make",
+            "model": "model",
+            "datetime_original": "taken_at",
+            "gps_latitude": "gps_latitude",
+            "gps_longitude": "gps_longitude" 
+        }
+
+        try:
+            # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
+            temp_handle = Image(resource_path)
+            if temp_handle.has_exif:
+                for k,v in exif_package_mapping.items():
+                    if "gps" in k:
+                        # convert to degrees.. (From degrees, minutes, seconds)
+                        temp = str(float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600 )
+                        result_exif_data[v] = temp
+                    else:
+                        result_exif_data[v] = str(temp_handle[k])
+        except:
+            pass        # some error while extracting exif data.            
+        
+        # Read image size information. 
+        try:
+            width,height = get_image_size.get_image_size(resource_path)
+        except:
+            print("Image size error for: {}".format(resource_path))
+            width, height = 1, 1
+        result_exif_data["width"] = str(width)
+        result_exif_data["height"] = str(height)
+        result_exif_data["device"] = "{}".format(result_exif_data["make"].strip() + " " + result_exif_data["model"].strip())  # a single field for device.
+        result_exif_data["place"] = str(geoCodeIndex.query((result_exif_data["gps_latitude"], result_exif_data["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.
+
+    return result_exif_data
