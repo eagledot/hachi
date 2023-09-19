@@ -169,3 +169,122 @@ sessionId_to_config = {}      # a mapping to save some user specific settings fo
 personId_to_avgEmbedding = {} # we seek to create average embedding for a group/id a face can belong to, only for a single session.
 prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
 global_lock = threading.RLock()
+
+def indexing_thread(index_directory:str, client_id:str, include_subdirectories:bool = True):
+    exit_thread = False
+
+    fresh_request = True
+    while True:
+        if exit_thread:
+            break
+
+        # NOTE: fresh request to create a fresh set of meta-data for index_directory irrespective of client_id, could do BETTER...
+        flag, hash_2_metaData = metaIndex.get_meta_data(index_directory, client_id = client_id, include_subdirectories=include_subdirectories, fresh_client = fresh_request) # streaming meta_data for data in the indexing directory. (including sub-directories if needed).
+        fresh_request = False
+
+        # stats to be able to show progess.
+        images_count_total = sum([1 if v["resource_type"] == "image" else 0 for v in hash_2_metaData.values()])  # for current directory.
+        current_count = 0                                                                                        
+
+        tic = time.time()
+        tic_count = current_count
+        for data_hash, meta_data in hash_2_metaData.items():
+            if indexStatus.is_cancel_request_active(client_id):
+                exit_thread = True
+                break
+            
+            assert data_hash is not None
+            absolute_path = meta_data["absolute_path"]
+            resource_type = meta_data["resource_type"]
+            resource_extension = meta_data["resource_extension"]
+            is_indexed = meta_data["is_indexed"]
+
+            if resource_type == "image":
+
+                if current_count % 10 == 0:
+                    progress = (current_count / images_count_total)
+
+                    # calculate eta..
+                    dt_dc = (time.time() - tic) / (current_count - tic_count + 1e-5)    # dt/dc
+                    eta_in_seconds = dt_dc * (images_count_total - current_count)                  # eta (rate * remaining images to be indexed.)
+                    eta_hrs = eta_in_seconds // 3600
+                    eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
+                    eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
+                    eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
+
+                    indexStatus.update_status(client_id, current_directory=os.path.dirname(absolute_path), progress = progress, eta = eta)
+
+                    tic = time.time()
+                    tic_count = current_count
+
+                if is_indexed:
+                    current_count += 1
+                    continue
+                
+                image_embedding = generate_image_embedding(image_path=absolute_path, center_crop=False)
+                if image_embedding is not None:
+                    imageIndex.update(data_hash, data_embedding = image_embedding)
+                else:
+                    print("Invalid data for {}".format(absolute_path))
+                    continue
+
+                face_bboxes, face_embeddings = generate_face_embedding(image_path=absolute_path)
+                if face_bboxes.shape[0] > 0:
+                    meta_data["face_bboxes"] = []
+
+                    for bbox in face_bboxes:
+                        x1 = str(bbox[0])
+                        y1 = str(bbox[1])
+                        x2 = str(bbox[2])
+                        y2 = str(bbox[3])
+                        meta_data["face_bboxes"].append([x1, y1, x2, y2])
+
+                    with global_lock:
+                        # assing each face_embedding to a group.
+                        for temp_embedding in face_embeddings:
+                            id_2_assign = None
+
+                            worst_score = 10
+                            for id in personId_to_avgEmbedding:
+                                avg_embedding = personId_to_avgEmbedding[id]
+                                _, temp_scores = faceIndex.compare(temp_embedding, avg_embedding.reshape(1, -1))
+                                score = temp_scores.ravel().item()
+                                if score <= 1.12:    # be conservative.. (for now no reliable way to detect sunglasses, that harms the average embedding if included..)
+                                    if (score < worst_score):
+                                        worst_score = score
+                                        id_2_assign = id
+                                                        
+                            if id_2_assign is None:
+                                # if no match is found, we create a new id.
+                                id_2_assign = "{}_{}".format(prefix_personId, len(personId_to_avgEmbedding) + 1)
+                                personId_to_avgEmbedding[id_2_assign] = temp_embedding
+                            else:
+                                # TODO: if a reliable face-detector it would really help, can create one when get time, just a single linear layer based on clip image features.
+                                # NOTE: since it is easier to update few wrong ids, because based on user action, we just search and replace new id with old id. SO try to be accurate as possible during face assignment. 
+                                personId_to_avgEmbedding[id_2_assign] = np.concatenate([personId_to_avgEmbedding[id_2_assign].reshape(1,-1), temp_embedding.reshape(1,-1)], axis = 0).mean(axis = 0)
+
+                            if meta_data["person"] is not None:
+                                meta_data["person"].append(id_2_assign)
+                            else:
+                                meta_data["person"] = [id_2_assign]
+                else:
+                    meta_data["person"] = ["no person detected"]         # a separate category, similarly for place i.e no gps coordinates.
+                
+                meta_data["is_indexed"] = True
+                metaIndex.update(data_hash, meta_data)
+                current_count += 1
+        
+        # TODO: for more data-resources type.
+        if flag == False:               
+            break
+
+    # save the current in-memory data to disk.
+    imageIndex.save()
+    imageIndex.sanity_check()
+
+    faceIndex.save()
+    faceIndex.sanity_check()
+
+    metaIndex.save()
+
+    indexStatus.set_done(client_id)
