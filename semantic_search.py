@@ -7,6 +7,8 @@ import time
 
 
 import cv2
+from flask import Flask
+import flask
 
 from image_index import ImageIndex
 
@@ -288,3 +290,38 @@ def indexing_thread(index_directory:str, client_id:str, include_subdirectories:b
     metaIndex.save()
 
     indexStatus.set_done(client_id)
+
+
+############
+## FLASK APP
+############
+app = Flask(__name__, static_folder = None, static_url_path= None)
+app.secret_key = "Fdfasfdasdfasfasdfas"
+
+@app.route("/indexStart", methods = ["POST"])        
+def indexStart(batch_size = 1):
+
+    index_root_dir = flask.request.form.get("image_directory_path")
+    complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
+    if complete_rescan == "true":
+        imageIndex.reset()
+        faceIndex.reset()
+        metaIndex.reset()
+
+    index_root_dir = os.path.abspath(index_root_dir)
+    if not os.path.isdir(index_root_dir):
+        index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, even if it not directory.
+    if os.path.exists(index_root_dir):
+
+        client_id = generate_endpoint(index_root_dir)    # NOTE: client_id, would be equivalent to indexing directory, since there is ONE 2 ONE mapping is expected for client and indexing directory at any time.
+
+        indexing_active = indexStatus.is_active(client_id)
+        if indexing_active:
+            return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
+
+        threading.Thread(target = indexing_thread, args = (index_root_dir, client_id) ).start()
+        indexStatus.add_endpoint_for_indexing(client_id)
+        return flask.jsonify({"success":True, "statusEndpoint":client_id, "reason": "Indexing successfully started at entpoint"})
+    else:
+        print("{} Doesn't exist on server side".format(index_root_dir))
+        return flask.jsonify({"success":False, "reason":"Path {} Doesn't exist of Server side".format(index_root_dir)})
