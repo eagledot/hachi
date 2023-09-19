@@ -520,3 +520,23 @@ def editMetaData():
     metaIndex.save()
 
     return flask.jsonify({"success":True})
+
+
+@app.route("/getGroup/<attribute>", methods = ["GET"])
+def getGroup(attribute:str):
+
+    result = {} 
+    possible_values =  metaIndex.get_original_data(attribute = attribute)
+    for value in possible_values:
+        hash_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
+        for k,v  in hash_2_metaData.items():
+            if k is not None:  # it is not supposed to be None!!
+                result[k] = v
+
+    temp = {}
+    temp["data_hash"]= list(result.keys())
+    temp["meta_data"] = [result[k] for k in temp["data_hash"]]
+    temp["score"] = [1 for _ in range(len(temp["data_hash"]))]
+    temp[attribute] = list(possible_values)
+
+    return flask.jsonify(temp)
