@@ -451,3 +451,13 @@ def query():
     temp["query_completed"] = (not flag)
     temp["client_id"] = client_id
     return flask.jsonify(temp) # jsonify it.    
+
+@app.route("/getSuggestion", methods = ["POST"])
+def getSuggestion() -> dict[str, list[str]]:
+
+    attribute = flask.request.form.get("attribute")
+    query = flask.request.form.get("query")
+    result = {}
+    if attribute in metaIndex.fuzzy_search_attributes:
+        result[attribute] = metaIndex.suggest(attribute, query)
+    return flask.jsonify(result)
