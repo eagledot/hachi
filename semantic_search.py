@@ -4,6 +4,8 @@ from typing import Optional, Union, Tuple, List
 from threading import RLock
 import threading
 import time
+from collections import OrderedDict
+import uuid
 
 
 import cv2
@@ -13,6 +15,7 @@ import flask
 from image_index import ImageIndex
 
 from meta_index import MetaIndex
+from global_data_cache import GlobalDataCache
 
 import clip_python_module as clip
 
@@ -165,6 +168,9 @@ metaIndex = MetaIndex()
 print("Created meta Index")
 
 indexStatus = IndexStatus()
+
+dataCache = GlobalDataCache()   # a global data cache to serve raw-data.
+
 
 # config/data-structures
 sessionId_to_config = {}      # a mapping to save some user specific settings for a session.
@@ -347,3 +353,101 @@ def getIndexStatus(endpoint:str):
             indexStatus.remove_endpoint(endpoint)
         return flask.jsonify({"success":True})
     return flask.jsonify(indexStatus.get_status(endpoint))
+
+
+@app.route("/query", methods = ["POST"])
+def query():
+    
+    flag = False
+   
+    top_k = max(int(flask.request.form["topk"]), 16)         # 16 atleast 16 from each shard seems good enough..
+    query_start = flask.request.form["query_start"].strip().lower()
+    query = flask.request.form["query"]
+
+    if query_start == "true":
+        client_id = uuid.uuid4().hex           # must be unique for each query request.
+    else:
+        client_id = flask.request.form["client_id"]
+
+    image_attributes = parse_query(query)
+    final_result = OrderedDict()
+
+    if "query" in image_attributes:
+        current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+        text_embedding = generate_text_embedding(current_query)
+        flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+        
+        temp_count = 0
+        for k,v in image_hash2scores.items():
+            if temp_count == top_k:
+                break
+            
+            if k not in final_result:
+                final_result[k] = max(v)
+                temp_count += 1
+            else:
+                final_result[k] += max(v)
+            
+        _ = image_attributes.pop("query")
+        
+    final_result_attributes = {}
+    attribute_count = 0
+    for attribute in image_attributes:
+
+        temp = {}     # OR operation if more than value for an attribute.
+        for value in image_attributes[attribute]:
+
+            hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
+            for h in hashes_2_metaData:
+                temp[h] = 1   # # all have equal importance then !!!
+        
+        # fill current temp..
+        if(attribute_count == 0):
+            for k,score in temp.items():
+                final_result_attributes[k] = score
+
+        # keep only common keys
+        if attribute_count > 0:
+            to_be_popped_keys = []
+            for k in final_result_attributes:
+                if k in temp:  # for these we just keep them as they were.
+                    pass
+                else:
+                    to_be_popped_keys.append(k)
+            
+            for k in to_be_popped_keys:
+                _ = final_result_attributes.pop(k)
+
+        attribute_count += 1
+
+    # it would include all, nothing without included at least once is popped out. (just boosted..., semantic by default have higher scores.)
+    for k in final_result:
+        if k in final_result_attributes:
+            final_result[k] += 4
+            final_result_attributes.pop(k)  # i.e this attribute has been included.
+
+    # in the last shard, include remaining final attributes too..
+    if flag == False:
+        for k in final_result_attributes:
+            if k not in final_result:
+                final_result[k] = 1
+          
+    # NOTE: we now append data_hashes and absolute path to globalDatacache to start loading raw-data in the background if not already there.
+    temp_dict = OrderedDict()
+    for k,meta_data in metaIndex.query(data_hashes= final_result.keys()).items():
+        temp_dict[k] = meta_data["absolute_path"]
+    dataCache.append(data_hash = temp_dict.keys(), absolute_path = temp_dict.values())
+
+    temp = {}
+    temp["meta_data"] = []
+    temp["data_hash"] = []
+    temp["score"] = []
+    temp_something = metaIndex.query(data_hashes= final_result.keys())
+    for k,v in temp_something.items():
+        temp["meta_data"].append(v)
+        temp["data_hash"].append(k)
+        temp["score"].append(str(final_result[k]))
+    
+    temp["query_completed"] = (not flag)
+    temp["client_id"] = client_id
+    return flask.jsonify(temp) # jsonify it.    
