@@ -1,5 +1,8 @@
 # imports
 import os
+from typing import Optional, Union, Tuple, List
+from threading import RLock
+
 
 
 
@@ -31,3 +34,66 @@ def parse_query(query:str) -> dict[str, list[str]]:
 
         imageAttributes_2_values[attribute] = values
     return imageAttributes_2_values
+
+
+class IndexStatus(object):
+    """ A dedicated Class to implement indexing  book-keeping."""
+
+    def __init__(self) -> None:
+        self.status_dict = dict()
+        self.lock = RLock()
+    def is_done(self, endpoint) -> bool:
+        with self.lock:
+            return self.status_dict[endpoint]["done"]
+    def add_endpoint_for_indexing(self, endpoint):
+        with self.lock:
+            assert endpoint not in self.status_dict
+            self.status_dict[endpoint] = {
+                "done":False,
+                "current_directory":"unknown",
+                "eta":"unknown",
+                "progress":str(int(0)), 
+                "should_cancel":False
+            } 
+    def set_done(self, endpoint):
+        # This is only supposed to be called by the indexing thread.
+        with self.lock:
+            self.status_dict[endpoint]["done"] = True
+    
+    def update_status(self, endpoint:str, current_directory:str, progress:float, eta:Optional[str] = None):
+        with self.lock:
+            self.status_dict[endpoint]["current_directory"] = current_directory  # current directory being scanned.
+            self.status_dict[endpoint]["progress"] = str(progress)
+            self.status_dict[endpoint]["eta"] = eta
+
+    def get_status(self, endpoint:str):
+        result = {}
+        result["is_active"] = self.is_active(endpoint)
+
+        with self.lock:
+            result["done"] = self.status_dict[endpoint]["done"]
+            result["current_directory"] = self.status_dict[endpoint]["current_directory"]
+            result["eta"] = self.status_dict[endpoint]["eta"]
+            result["progress"] = self.status_dict[endpoint]["progress"]
+        return result
+    
+    def is_active(self, endpoint:str):
+        with self.lock:
+            return endpoint in self.status_dict
+
+    def remove_endpoint(self, endpoint):
+        with self.lock:
+            assert self.status_dict[endpoint]["done"] == True
+            self.status_dict.pop(endpoint)
+    
+    def indicate_cancellation(self, endpoint)->  bool:
+        with self.lock:
+            if endpoint in self.status_dict:
+                self.status_dict[endpoint]["should_cancel"] = True
+                return True
+            else:
+                return False
+    
+    def is_cancel_request_active(self, endpoint):
+        with self.lock:
+            return self.status_dict[endpoint]["should_cancel"]
