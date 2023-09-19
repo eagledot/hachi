@@ -2,6 +2,8 @@
 import os
 from typing import Optional, Union, Tuple, List
 from threading import RLock
+import threading
+import time
 
 
 import cv2
@@ -161,3 +163,9 @@ metaIndex = MetaIndex()
 print("Created meta Index")
 
 indexStatus = IndexStatus()
+
+# config/data-structures
+sessionId_to_config = {}      # a mapping to save some user specific settings for a session.
+personId_to_avgEmbedding = {} # we seek to create average embedding for a group/id a face can belong to, only for a single session.
+prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
+global_lock = threading.RLock()
