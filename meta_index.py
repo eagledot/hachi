@@ -21,3 +21,10 @@ ALLOWED_RESOURCES = {
     "image": set([".jpg", ".jpeg", ".png", ".tiff", ".raw"]),   # opencv is being used to read raw-data, so almost all extensions are generally supported.
     "text":  set([".pdf", ".txt", ".epub"])                     # TODO:
 }
+
+def get_resource_type(resource_extension:str) -> Optional[str]:
+    for k,v in ALLOWED_RESOURCES.items():
+        if resource_extension.lower() in v:
+            return k
+    return None
+
