@@ -141,3 +141,23 @@ def generate_text_embedding(query:str):
     text_features = clip.encode_text(query)
     assert text_features.size == TEXT_EMBEDDING_SIZE
     return text_features
+
+
+print("[Debug]: Loading Model, may take a few seconds.")
+clip.load_text_transformer("../data/ClipTextTransformer.bin")
+clip.load_vit_b32Q("../data/ClipViTB32.bin")
+
+print("[Debug]: ")
+import faceEmbeddings_python_module as pipeline
+pipeline.load_model("../data_extra/pipelineRetinaface.bin")
+
+imageIndex = ImageIndex(shard_size = 400, embedding_size = IMAGE_EMBEDDING_SIZE)
+print("Created Image index")
+
+faceIndex = FaceIndex(shard_size = 400, embedding_size = FACE_EMBEDDING_SIZE)
+print("Created face index")
+
+metaIndex = MetaIndex()
+print("Created meta Index")
+
+indexStatus = IndexStatus()
