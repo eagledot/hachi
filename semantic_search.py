@@ -473,3 +473,34 @@ def getRawData(data_hash:str) -> any:
 
     raw_data = dataCache.get(data_hash, absolute_path)
     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
+
+
+@app.route("/tagPerson", methods = ["POST"])
+def tagPerson():
+
+    result = {"success":False, "reason":"unknown"}
+
+    new_person_id = flask.request.form["new_person_id"].strip().lower()
+    old_person_id = flask.request.form["old_person_id"].strip().lower()
+
+    hash_2_metaData = metaIndex.query(attribute="person", attribute_value=old_person_id)
+    for curr_data_hash in hash_2_metaData:
+        temp_meta_data = hash_2_metaData[curr_data_hash]
+
+        # if more than one face of same person in an image, replace all of them.
+        for i,d in enumerate(temp_meta_data["person"]):
+            if d == old_person_id:
+                temp_meta_data["person"][i] = new_person_id        
+        metaIndex.modify_meta_data(curr_data_hash, temp_meta_data)
+
+    metaIndex.save()
+    result["success"] = True
+    result["reason"] = "Meta data successfully updated."
+
+    with global_lock:
+        # NOTE: this personId to avgEmbedding persists only for a session, for new photos in next session user may have to specify person id once atleast.
+        if old_person_id in personId_to_avgEmbedding:
+            personId_to_avgEmbedding[new_person_id] = personId_to_avgEmbedding[old_person_id]
+            personId_to_avgEmbedding.pop(old_person_id)
+
+    return flask.jsonify(result)
