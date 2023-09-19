@@ -126,3 +126,211 @@ class ShardCache(object):
                     temp_data.append((temp_key, n_rows_filled, n_rows_filled + n_rows_would_be_filled, False))
         
         return temp_data
+
+class CommonIndex(object):
+    # supposed to used as parent class.
+    def __init__(self, shard_size:int, embedding_size:int, index_directory:str, shard_prefix:str, preload:bool) -> None:
+        self.index_directory = os.path.abspath(index_directory)
+        if not os.path.exists(self.index_directory):
+            os.mkdir(self.index_directory)  
+                
+        self.shard_idx_update = max(sum([1 if ".idx" in x  else 0 for x in os.listdir(index_directory) ]) - 1, 0)     
+        self.shard_size = shard_size
+        self.embedding_size = embedding_size
+        self.key_2_shardIdx = {}  # mapping a key/UID to a specific shard, equivalent to encoding CALLER state in key.
+        self.shard_prefix = shard_prefix
+        self.preload = preload        
+
+        # Resources (properly manage, for case of index/db resetting)
+        if not hasattr(self, "lock"):    # only if there is alreay no lock.
+            self.lock = RLock()       # use this lock to sync access, writing can be slow but reading must be fast.
+        
+        self.shard_cache = ShardCache(
+            shard_prefix=shard_prefix,
+            shard_size=shard_size,
+            index_directory=index_directory,
+            embedding_size=embedding_size,
+            preload=preload
+        )
+        self.idx_2_hash = self.load_index() # Absolute indices to Hash mapping.
+    
+    def get_index_path(self):
+        return  os.path.join(self.index_directory, "{}_{}.pkl".format(self.shard_prefix,"INDEX"))
+    
+    def load_index(self):
+        # This returns a dict, mapping absolute shard indices to HASH (image/media)
+        temp_path = self.get_index_path()
+        if os.path.exists(temp_path):
+            with open(temp_path, "rb") as f:
+                return pickle.load(f)
+        else:
+            return {}
+        
+    def save_index(self):
+        temp_path = self.get_index_path()
+        with open(temp_path, "wb") as f:
+            pickle.dump(self.idx_2_hash, f)
+
+    def update_index(self, data_hash:str, update_status:tuple[int, int, int, bool]):
+        # also updates the corresponding idx_2_hash mapping.
+        for ix, start_idx, end_idx, shard_saved in update_status:
+            for j in range(start_idx, end_idx):
+                self.idx_2_hash[(ix * self.shard_size) + j] = data_hash
+        
+            if shard_saved:
+                self.save_index()
+
+    def compare(self, query:np.array, data_embeddings:np.array) -> tuple[np.array, np.array]:
+        raise NotImplementedError
+
+    def get_shard_row(self, data_hashes:list[str]) -> dict[str, dict[int, list[int]]]:
+
+        data_hashes = set(data_hashes)
+        hash_2_idx = {}
+        for k,v in self.idx_2_hash.items():
+            if v in hash_2_idx:
+                hash_2_idx[v] += [k]
+            else:
+                hash_2_idx[v] = [k]
+
+        absolute_indices = set()
+        for data_hash in data_hashes:
+            for ix in hash_2_idx[data_hash]:
+                absolute_indices.add((data_hash, ix))
+        absolute_indices = sorted(absolute_indices, key = lambda x: x[1], reverse = False)  # sorting would help in preloading as preloading supposed to load next in sequence.
+
+        result = OrderedDict()
+        for temp_hash, ix in absolute_indices:
+            shard_idx = ix // self.shard_size
+            row_idx = ix % self.shard_size
+            
+            if temp_hash not in result:
+                result[temp_hash] = {}
+            
+            if shard_idx in result[temp_hash]:
+                result[temp_hash][shard_idx] += [row_idx]
+            else:
+                result[temp_hash][shard_idx] = [row_idx]
+        return result        
+    
+    def query_base(self, query:np.array, client_key:str, key:Optional[list[str]] = None) -> dict[str, list[float]]:
+
+        query = query.reshape((-1, self.embedding_size))
+        with self.lock:
+
+            if key is not None:
+                result = {}
+                hash_2_shard_rows = self.get_shard_row(data_hashes=key)
+                for data_hash in hash_2_shard_rows:
+                    for shard_idx, row_indices in hash_2_shard_rows[data_hash].items():         # NOTE: row_indices are absolute indices.    
+
+                        temp_shard = self.shard_cache[shard_idx]  # load the shard, shard_idx are sorted, so helps in preloading.
+                        stored_embeddings = temp_shard[row_indices] # get corresponding embeddings.
+                        _, temp_scores = self.compare(query, data_embeddings=stored_embeddings)
+
+                        if data_hash not in result:
+                            result[data_hash] = []
+                        result[data_hash] += list(temp_scores.ravel())
+                return False, result
+
+            else:
+                if client_key not in self.key_2_shardIdx:
+                    self.key_2_shardIdx[client_key] = 0
+                shard_idx_query = self.key_2_shardIdx[client_key]
+                assert shard_idx_query <= self.shard_idx_update
+
+
+                data_embeddings = self.shard_cache.get_embedding(shard_idx_query)
+                result = OrderedDict()
+                
+                for x in query:
+                    sorted_indices, sorted_scores = self.compare(x, data_embeddings = data_embeddings) # NOTE: sorted indices are relative indices, so we convert them to absolute indices.
+                    for score, ix in zip(sorted_scores, sorted_indices):
+                        idx_hash = ix + (self.shard_size * shard_idx_query) + N_ROWS_SHARD_META_DATA # absolute index to get correponding hash.
+                        data_hash = self.idx_2_hash[idx_hash]
+                        if data_hash not in result:
+                            result[data_hash] = []
+                        result[data_hash] += [score]
+
+                if shard_idx_query == self.shard_idx_update:       # meaning all shards have been queried for given key/id.
+                    _ = self.key_2_shardIdx.pop(client_key)
+                    return (False, result)
+                else:
+                    self.key_2_shardIdx[client_key] += 1
+                    return (True, result)
+    
+    def query_all(self, query:np.array, client_key:str) -> dict:
+
+        final_result = {}
+        while True:
+            flag, hash_2_scores = self.query(query, client_key = client_key) # result hash to scores list mapping.
+            for k,v in hash_2_scores.items():
+                if k in final_result:
+                    final_result[k] += v
+                else:
+                    final_result[k] = v
+            if flag == False:
+                break
+        
+        return False, final_result
+    
+    def update_base(self, data_hash:str, data_embedding:np.array) -> tuple[int, int, int]:        
+        with self.lock:
+            update_status = self.shard_cache.update(self.shard_idx_update, data_embedding)  # update shard.
+            self.shard_idx_update = update_status[-1][0]  # update current index for update.
+            self.update_index(data_hash, update_status=update_status)       # update corresponding absolute shard index to hash mapping.
+    
+    def save(self):
+        with self.lock:
+            self.shard_cache.save_shard_to_disk(idx = self.shard_idx_update, shard = self.shard_cache[self.shard_idx_update])
+            self.save_index()
+    
+    def end_preloading_thread(self):
+        with self.lock:
+            self.shard_cache.command_queue.put(-1)
+            self.preload = False
+
+    def sanity_check(self):
+        # a very naive routine to do a sanity check. To elaborate on this in future to have stronger guarantees
+        observed_count = 0
+        for x in os.listdir(self.index_directory):
+            if ".idx" in x:
+                shard_path = os.path.join(self.index_directory, x)
+                with open(shard_path, "rb") as f:
+                    shard = np.load(f)
+                    observed_count += int(shard[0,0])  # how many rows have been updated in a given shard.
+        
+        temp_dict = self.load_index()
+        assert observed_count == len(temp_dict) # for each row in the SHARDS, there is a corresponding entry in META_DATA dict. (idx to hash)
+
+    def reset(self):    
+        """ For now resetting involves deleting all the .idx and .pkl(index) files, hence equivalent to generate a fresh index without rebooting the server.
+        NOTE: This would delete all the corresponding data with no way to recover. 
+        """        
+        with self.lock:
+
+            # deallocate shard resources.
+            store_preload_value = self.preload
+            if store_preload_value:
+                self.end_preloading_thread()
+            del self.shard_cache
+
+            # delete all shards/.idx files
+            for data_file in os.listdir(self.index_directory):
+                if ".idx" in data_file.lower() and self.shard_prefix.lower() in data_file.lower():        # this should be enough to check..
+                    path_to_remove = os.path.join(self.index_directory, data_file)
+                    os.remove(path_to_remove)
+
+            # delete the index
+            temp_path = self.get_index_path()
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+            # now call the self.__init__  to initiate a reset.
+            self.__init__(
+                shard_prefix=self.shard_prefix,
+                shard_size=self.shard_size,
+                embedding_size=self.embedding_size,
+                index_directory=self.index_directory,
+                preload = store_preload_value
+            )
