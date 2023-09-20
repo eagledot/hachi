@@ -107,3 +107,26 @@
     }
 
 </script>
+{#if (photos_interface_active)}
+        <Photos image_data = {people_data} show_exit_interface_button = {true} on:exitButtonPressed = {() => {console.log("pressed the hell out of it!"); photos_interface_active = false; image_src_downloading = false;}}/>
+    {:else if (image_src_downloading === true)}
+        <p> Loading, please wait...</p>
+    {:else}
+        <!-- some space to place some filters later. -->
+        <div class = "flex w-screen h-[80px] bg-blue-100"></div>
+
+        <!-- display each value in group as a clickable div, later on click we would use the PHOTOS component. -->
+        <div class = "flex justify-center gap-6 items-center my-2 py-2 w-100 h-100 bg-blue-200 flex-wrap">
+            <!-- a single div element -->
+            {#each state.people as person_id}
+                <div class = "flex-col cursor-pointer" on:click={(e) => {console.log("mine is: ", person_id); handleClick(person_id)}}>
+                    <div>
+                        <div class = "h-[150px] w-[200px] bg-gray-800">
+                            <img src={sample_bg} class="object-strech hover:opacity-50 w-full h-full border-gray-100 shadow-smr">
+                        </div>
+                        <div class = "flex text-xl text-white justify-center items-center">{ person_id.slice(0, 1).toUpperCase() + person_id.slice(1).toLowerCase()}</div>
+                    </div>
+                </div>
+            {/each}
+        </div>
+    {/if}
