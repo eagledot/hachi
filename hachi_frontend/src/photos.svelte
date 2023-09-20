@@ -47,5 +47,12 @@ export let image_data  = {
         "image_card_fullscreen":false
     }
 
+    $: if(interface_state){
+        let active = false;
+        if(interface_state.image_card == true || interface_state.image_card_fullscreen == true){
+            active = true;
+        }
+        dispatch("imageCardActive",{"active":active});
+    }
 
 </script>
