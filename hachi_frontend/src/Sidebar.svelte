@@ -42,3 +42,30 @@
 
 	]
 
+    onMount(() => {
+		// get some stats about indexed data.
+		if (!localStorage.getItem("no_images_indexed")){
+			fetch("/api/getMetaStats")
+			.then((response) => {
+				response.json()
+				.then((data) => {
+					menuItems[0].count = data["image"].count  // for now only for image.
+					menuItems[3].count = data["image"].unique_people_count
+					menuItems[4].count = data["image"].unique_place_count
+
+					localStorage.setItem("no_images_indexed", menuItems[0].count.toString());
+					localStorage.setItem("unique_people_count", menuItems[3].count.toString());
+					localStorage.setItem("unique_place_count", menuItems[4].count.toString());
+
+				})
+			})
+		}
+		else{
+			menuItems[0].count = Number(localStorage.getItem("no_images_indexed"));
+			menuItems[3].count = Number(localStorage.getItem("unique_people_count"));
+			menuItems[4].count = Number(localStorage.getItem("unique_place_count"));
+
+		}
+	})
+
+</script>
