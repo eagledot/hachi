@@ -186,4 +186,28 @@
     
   }
 
+const
+  state_interface = {
+    "query":{
+      "status":true, // default state.
+      "context":{}
+    },
+
+    "indexing":{
+      "status": false,
+      "context": {}
+    },
+
+    "place_album":{
+      "status": false,
+      "context": {}
+    },
+
+    "people_album":{
+      "status": false,
+      "context": {}
+  },
+
+}
+
 </script>
