@@ -21,6 +21,17 @@ onMount(() => {
       
     })
 
+    
+  onDestroy(() => {
+    // apparently setinterval function would keep running in the background...even after destroy!!!
+    if (pollEndpointTimeoutId){
+      clearTimeout(pollEndpointTimeoutId);
+    }
+
+  })
+
+
+
 
 
 
