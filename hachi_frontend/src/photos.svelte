@@ -320,3 +320,285 @@ async function editMetaData(node){
 
 
 </script>
+
+{#if interface_state.image_card_fullscreen === true}
+        <!-- image fullscreen interface -->
+        <div class = "fixed top-0 left-0 bg-black h-screen w-screen flex justify-center items-center">
+            <div class = "relative flex">  
+                <!-- object cover would  -->
+                <img on:load={scale_face_bboxes} class="object-cover h-screen w-auto" src={image_card_data.url} alt="">
+            
+                <!-- TODO: calculate scale -->
+                {#each scaled_face_bboxes as box, i}
+                    <div on:click={(e) => {tag_interface = {"active":true,"top": box.top - 28, "left": box.left}; current_box_ix  = Number(e.target.attributes["data-ix"].value)}} data-ix = {i} class="absolute text-white cursor-pointer border-solid border-2 border-green-300 hover:opacity-40 hover:bg-green-300 bg-transparent" style = "top: {box.top}px ; left: {box.left}px; width: {box.width}px; height: {box.height}px"></div>
+                {/each}
+
+                {#if tag_interface.active}
+                <div class="absolute flex h-auto w-240 bg-blue-300" style = "top: {tag_interface.top}px ; left: {tag_interface.left}px;">  
+                    <input autofocus value = {image_card_data.person_ids[current_box_ix]} class = "flex-none placeholder-gray-800  w-200 text-xl text-black py-2 bg-blue-300 bg-blue-300 border-none" on:keyup={updatePersonId} placeholder="Enter person id" type="text"/>
+                    <div on:click={() => {tag_interface.active = false;}} class="grow text-black hover:bg-blue-500 cursor-pointer text-xl px-2">X</div>
+                </div>
+                {/if}
+            </div>
+                  
+
+            <div class = "absolute flex mx-auto items-center justify-between w-screen">
+                <div class="text-white cursor-pointer" on:click={() => {update_image_card_previous()}}>
+                    <i class="fa fa-arrow-left" />
+                </div>
+                    
+                <div class="text-white cursor-pointer" on:click={() => {update_image_card_next()}}>
+                    <i class="fa fa-arrow-right" />
+                </div>
+            </div>
+        </div>
+               
+
+        <div class="fixed top-0 left-0 flex h-12 items-center justify-between w-screen">
+            <div class="cursor-pointer hover:underline text-white" on:click={() => {set_state_active("parent")}}>
+                <i  class="fa fa-arrow-left mr-1 text-white"></i>
+                Back to Search
+            </div>
+                  
+            <!--  -->
+            <div title="Fullscreen" on:click={() => {set_state_active("image_card")}} class="cursor-pointer text-white">
+                <i  class="fa fa-arrows-alt"></i>
+            </div>
+        </div>
+        
+        
+        
+{:else if (interface_state.image_card === true)}
+        <!-- single image card with meta -data interface -->
+        <div class="fixed w-screen h-screen overflow-auto left-0 top-0 bg-gray-700">
+            <!-- navigation elements. -->
+            <div class="flex h-6 items-center justify-between">
+                <div class="cursor-pointer hover:underline text-gray-200" on:click={() => {set_state_active("parent")}}>
+                    <i  class="fa fa-arrow-left mr-1 text-gray-200"></i>
+                    Back to Search
+                </div>
+                <!--  -->
+                <div title="Fullscreen" on:click={() => {set_state_active("image_card_fullscreen")}} class="cursor-pointer">
+                    <i  class="fa fa-arrows-alt text-gray-200"></i>
+                </div>
+            </div>
+                 
+            <!-- image card in a fixed height div -->
+            <div class="flex relative bg-black justify-center mx-auto h-[70vh] mt-2 gap-2">
+                <!-- left arrow -->
+                <div class="absolute text-xl cursor-pointer text-red -translate-y-2/4 top-2/4 left-10 text-white z-100" on:click={() => {update_image_card_previous()}}>
+                    <i class="fa fa-arrow-left text-gray-200" />
+                </div>
+
+              <!-- image card + edit interface(if active) -->
+              <div class="flex h-full items-center justify-center p-2 gap-4">
+                <!-- image/card with fixed height and auto width -->
+                <div class="flex shrink h-full">
+                  <img class="w-auto cursor-pointer h-full" on:click={() => {console.log("hellll"); set_state_active("image_card_fullscreen")}} src={image_card_data.url} alt="">
+
+                  <!-- to display a pencil like icon to edit some meta-data. -->
+                  <div class="absolute text-xl cursor-pointer  right-4 top-4 text-gray-200 z-100" on:click={() => {interface_state.image_card_edit_interface = true;}}>
+                    <i class="fa-solid fa-pen text-gray-200" />
+                  </div>
+                </div>
+
+                <!-- edit interface -->
+                {#if interface_state.image_card_edit_interface}
+                  <div class="flex flex-col py-4 px-4 gap-4 h-full shrink-0 overflow-y-auto w-80 rounded bg-gray-700">
+                    <div class="flex items-center">
+                      <div class="grow text-xl text-gray-100 font-bold">Info</div>
+                      <div class="text-gray-100 hover:bg-gray-400 px-2 py-1" on:click={() => {interface_state.image_card_edit_interface = false}}>X</div>
+                    </div>
+                    <div>
+                      <div class="mb-1 text-gray-100">Description</div>
+                      <input name = "Description" placeholder="" value = {image_card_data.description.toString()} on:change={editFormUpdate}  class="w-full rounded border-none bg-gray-800 px-2 py-2 text-sm text-white focus:outline-none" type="text" />
+                    </div>
+                    
+                    <div>
+                      <div class="mb-1 text-gray-100">place</div>
+                      <input name = "place" value={image_card_data.place.toString()} on:change={editFormUpdate} class="w-full rounded border-none bg-gray-800 px-2 py-2 text-sm text-white focus:outline-none" type="text" />
+                    </div>
+
+                    <div>
+                      <div class="mb-1 text-gray-100">Tags</div>
+                      <input name = "tags" placeholder="Car, chair" value={image_card_data.tags.toString()} on:change={editFormUpdate}   class="w-full rounded border-none bg-gray-800 px-2 py-2 text-sm text-white focus:outline-none" type="text" />
+                    </div>
+
+                    <div>
+                      <div class="mb-1 text-gray-100">Taken at: </div>
+                      <input name = "taken_at" value="" type="date" on:change={editFormUpdate} class="w-full rounded border-none bg-gray-800 px-2 py-2 text-sm text-white focus:outline-none" />
+                    </div>
+
+                    <div>
+                      <div class="mb-1 text-gray-100">device</div>
+                      <input name = "device" placeholder="Canon" value = {image_card_data.device.toString()} on:change={editFormUpdate} class="w-full rounded border-none bg-gray-800 px-2 py-2 text-sm text-white focus:outline-none" type="text" />
+                    </div>
+
+                    <div>
+                      <button class="px-4 bg-gray-200 py-2 rounded w-full cursor-pointer hover:bg-gray-400" on:click={editMetaData}>Save</button>
+                    </div>
+
+                  </div>
+                {/if}
+              </div>
+
+              <!-- right arrow -->
+              <div class="absolute text-xl cursor-pointer text-red -translate-y-2/4 top-2/4 right-10 text-white z-100" on:click={() => {update_image_card_next()}}>
+                  <i class="fa fa-arrow-right text-gray-200" />
+              </div>
+            
+            </div>
+                
+            <!-- meta-data -->
+            {#if (meta_data_available)}
+                
+
+                <style>
+                  /* Define the scrollbar track */
+                ::-webkit-scrollbar {
+                  width: 8px; /* Width of the scrollbar */
+                }
+                
+                /* Define the scrollbar track */
+                ::-webkit-scrollbar-track {
+                  background-color: rgb(17 24 39) /* Dark gray background color for the track */
+                }
+                
+                /* Define the scrollbar thumb */
+                ::-webkit-scrollbar-thumb {
+                  background-color: #64748b; /* Dark gray color for the thumb */
+                  border-radius: 2px; /* Rounded corners for the thumb */
+                }
+                
+                </style>
+                
+                  <!-- <div class="flex h-full w-full shrink items-center justify-center">
+                    <img src="https://images.unsplash.com/photo-1693748961027-756b95c4f396?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=406&q=80" alt="" />
+                  </div> -->
+                  <!-- METADATA -->
+                  <!-- Some basic information.. -->
+                  <div class = "flex flex-col w-100 justify-center items-center bg-gray-700 py-2">
+                    <div class="text-xl text-white"> {image_card_data.filename}</div>
+                    <div class="text-white">UID: <span class="text-sm text-gray-400"> {image_card_data.data_hash}</span></div>
+                    <div class="text-white">Last Modified:  <span class="text-sm text-gray-400">{image_card_data.last_modified}</div>
+                  </div>                 
+                  
+                  <div class="flex w-full justify-center p-4">
+                   <div class="flex h-full w-96 shrink-0 flex-col gap-4 rounded  text-white">
+                    
+                    <!-- Rest of meta data in 2 columns. -->
+                    <div class="flex flex-col py-4 px-4 gap-1 overflow-y-auto">
+                    
+                      <!-- description -->
+                      <div>
+                        <div class="">Description</div>
+                        <div class="text-sm text-gray-400">{image_card_data.description.toString()}</div>
+                      </div>
+
+                      <!-- taken at (photo date-time) -->
+                      <div>
+                        <div class="">Taken at</div>
+                        <div class="text-sm text-gray-400">{image_card_data.taken_at.toString()}</div>
+                      </div>
+                      
+                       <!-- tags -->
+                       <div>
+                        <div class="">Tags</div>
+                        <div class="text-sm text-gray-400">{image_card_data.tags.toString()}</div>
+                      </div>
+
+                       <!-- taken at (photo date-time) -->
+                       <div>
+                        <div class="">Place</div>
+                        <div class="text-sm text-gray-400">{image_card_data.place.toString()}</div>
+                      </div>
+                
+                    
+                    </div>
+                    <!-- <div>
+                      <button class="px-4 bg-gray-800 py-2 rounded w-full">Save</button>
+                    </div> -->
+                  </div>
+
+                  <div class="flex h-full w-96 shrink-0 flex-col gap-4 rounded bg-gray-700  text-white">
+                    <div class="flex flex-col py-4 px-4 gap-1 overflow-y-auto">
+                      
+                      <div>
+                        <div class="">people</div>
+                        <div class="text-sm text-gray-400">{image_card_data.person_ids.toString()}</div>
+                      </div>
+                      
+                       <div>
+                        <div class="">Device</div>
+                        <div class="text-sm text-gray-400">{image_card_data.device.toString()}</div>
+                      </div>
+
+                       <div>
+                        <div class="">Resolution</div>
+                        <div class="text-sm text-gray-400">{image_card_data.resolution.toString()}</div>
+                      </div>
+                      
+                      <div>
+                        <div class="">Path</div>
+                        <div class="text-sm text-gray-400">{image_card_data.absolute_path.toString()}</div>
+                      </div>
+
+                    </div>
+                  </div>
+
+                </div>
+
+            {/if}
+              
+        </div>
+
+  
+<!--  set parent interface at final else block -->
+{:else}
+
+    {#if (show_exit_interface_button)}
+    <!--  to exit from this interface.. -->
+    <div class = "flex">
+      <div class="top-0 left-0 flex h-12 items-center justify-between w-screen">
+        <div class="cursor-pointer hover:underline text-black" on:click={() => {dispatch("exitButtonPressed") }}>
+            <i  class="fa fa-arrow-left mr-1 text-black"></i>
+            Back
+        </div>
+      </div>
+    </div>
+    {/if}
+
+    <!-- filters interface, should allow us to invalidate some indices -->
+    <Filters filter_button_disabled = {filter_button_disabled} image_data = {final_image_data} on:filterApplied = {(event) => {applyFilterMask(event.detail.mask)}}/>
+
+    <!-- Search Interface to show queried images -->
+    <div class="flex">
+      <!-- <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => {SidebarItemClick(event)}} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/> -->
+      <div class="flex-1 overflow-y-auto min-h-screen bg-blue-200 p-2 relative">
+
+      <!-- score threshold range interface  -->
+      <div class="flex flex-row place-content-center mb-10 select-none mx-2">
+        <div>
+          <div class="my-4">
+            <input on:change={scoresThresholdChange} type="range" min="0" max="1.0" step="0.01" bind:value={current_score_threshold} class="w-full">
+            <label for="topk" class="dark:text-white">Score threshold: {current_score_threshold}.</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- show all available photos/images -->
+      <div class="flex flex-wrap gap-6 p-4 sm:p-12 px-auto justify-center">
+        <!-- {#each image_src  as src,i} -->
+        <!-- we only need to update the sorted_scoreIndex anyway, applicable for filter -->
+        {#each sorted_scoreIndex as score_ix, i}
+        <!-- (-1) here would indicate invalid index. so ignore that index -->
+          {#if (score_ix["ix"] >= 0)}        
+            <div on:click = {() => {update_image_card(i); set_state_active("image_card")}} class="relative group">              
+                <img class="sm:max-h-48 rounded-lg shadow-xl cursor-pointer" src={image_data.list_src[score_ix["ix"]]} alt="image">
+            </div>
+          {/if}
+        {/each}
+      </div>
+    </div>
+  </div>    
+{/if}
