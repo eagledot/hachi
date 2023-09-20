@@ -123,5 +123,133 @@ function next_valid_index(ix){
     return result;
 }
 
+function update_image_card(ix){
+    // this takes care of updating correct data in image_card_data.
+    // even if we have invalid indices as a result of some threshold or filtering operation.
+    
+    editForm = {};
+    meta_data_available  = false;
+    scaled_face_bboxes = [];
+    tag_interface = {
+      "active":false,
+      "top":null,
+      "left":null
+    }   
+
+    let current_ix = ix
+    let temp_length = sorted_scoreIndex.length
+    if(current_ix < 0){
+        current_ix = temp_length - 1;
+    }
+    if(current_ix > (temp_length - 1)){
+        current_ix = 0;
+    }
+    
+    
+    let temp_data = next_valid_index(current_ix);
+    let image_data_ix = temp_data.image_ix;
+    current_ix = temp_data.sorted_ix;
+
+    if (image_data_ix === null){
+      temp_data = next_valid_index(0); // start search from 0.
+      image_data_ix = temp_data.image_ix;
+      current_ix = temp_data.sorted_ix;
+    }
+
+    // TODO: handle null values, to be easily displayed in markup code, when needed.
+    image_card_data.ix = current_ix;
+    image_card_data.url = image_data.list_src[image_data_ix];
+    image_card_data.data_hash = image_data.list_dataHash[image_data_ix];
+
+    image_card_data.height = Number(image_data.list_metaData[image_data_ix]["height"])
+    image_card_data.width = Number(image_data.list_metaData[image_data_ix]["width"])
+    image_card_data.face_bboxes = image_data.list_metaData[image_data_ix]["face_bboxes"]
+    image_card_data.person_ids = image_data.list_metaData[image_data_ix]["person"]
+    if(image_card_data.person_ids === null){
+      image_card_data.person_ids = [];
+    }
+
+    // update meta-data for selected image.
+    image_card_data.resolution = image_card_data.height.toString() + " X " + image_card_data.width.toString();
+    image_card_data.filename = image_data.list_metaData[image_data_ix]["filename"]
+    image_card_data.taken_at = image_data.list_metaData[image_data_ix]["taken_at"]
+    if(image_card_data.taken_at == null){
+      image_card_data.taken_at = "Unknown"
+    }
+    image_card_data.last_modified = image_data.list_metaData[image_data_ix]["modified_at"]
+    image_card_data.device = image_data.list_metaData[image_data_ix]["device"]
+    if(image_card_data.device == null){
+      image_card_data.device = "";
+    }
+    image_card_data.place = image_data.list_metaData[image_data_ix]["place"]
+    image_card_data.absolute_path = image_data.list_metaData[image_data_ix]["absolute_path"]
+    image_card_data.description = image_data.list_metaData[image_data_ix]["description"];
+    image_card_data.tags = image_data.list_metaData[image_data_ix]["tags"];
+
+    meta_data_available = true;
+
+    }
+
+function update_image_card_next(){
+    update_image_card(image_card_data.ix + 1);
+}
+
+function update_image_card_previous(){
+    update_image_card(image_card_data.ix - 1);
+}
+
+let scaled_face_bboxes = [];  // to hold the array of scaled face bboxes, according to dimensions of image being currently shown.
+function scale_face_bboxes(node){
+
+  let card_rects = node.target.getClientRects()[0];
+  let card_width = card_rects.width;
+  let card_height = card_rects.height;
+
+  let result = [];
+  let original_bboxes = image_card_data.face_bboxes;
+  if(original_bboxes){
+
+
+    let image_width = image_card_data.width;
+    let image_height = image_card_data.height;
+
+    for(let i = 0; i < original_bboxes.length; i++){
+      let temp_bbox = structuredClone(original_bboxes[i])        // [x1, y1, x2, y2]
+     
+      let w_scale = Number(card_width) / (Number(image_width) + 1e-4);
+      let h_scale = Number(card_height) / (Number(image_height) + 1e-4);      
+
+      temp_bbox.top = (temp_bbox[1])*h_scale;
+      temp_bbox.height = (temp_bbox[3] - temp_bbox[1])*h_scale;
+
+      temp_bbox.left = (temp_bbox[0])*w_scale;
+      temp_bbox.width = (temp_bbox[2] - temp_bbox[0])*w_scale;
+
+      result.push(temp_bbox);
+    }
+  }
+  console.log(result);
+  scaled_face_bboxes = result;
+
+}
+
+let current_score_threshold = 0 // to hold the current value of threshold.
+function scoresThresholdChange() {
+
+    // idea is to invalidate indices, less than threshold, by providing a mask.
+    let max_score = sorted_scoreIndex[0].score;
+    let min_score = sorted_scoreIndex[(sorted_scoreIndex).length - 1].score;
+
+    let temp_scores = image_data.list_score.map((score) => ( (score - min_score) / ((max_score - min_score) + 0.00001) ));
+    let temp_mask = temp_scores.map((score) => {
+                            if (score >= current_score_threshold)
+                            {return 1}
+                            else{
+                                return 0
+                            }
+                            })
+
+    sorted_scoreIndex =  argsort(image_data.list_score, temp_mask); // would trigger re-rendering.
+}
 
 </script>
