@@ -290,4 +290,33 @@ function updatePersonId(node){
 
 }
 
+
+let editForm = {};  // to keep the edited/modified meta-data information.
+function editFormUpdate(node){  
+  editForm[node.target.name.toLowerCase()] = node.target.value;
+}
+
+async function editMetaData(node){
+  node.target.disabled = true;
+
+  let temp_keys = Object.keys(editForm);
+  let formData = new FormData();
+  for (let i = 0; i < temp_keys.length; i++){
+    formData.append(temp_keys[i], editForm[temp_keys[i]]);
+  }
+
+  formData.append("data_hash", image_card_data.data_hash);    // append the corresponding data_hash.
+  let response = await fetch("/api/editMetaData",
+            {"method": "POST",
+              "body": formData}
+            );
+  
+  if(! response.ok){
+    throw new Error("Error while updating meta-data !!");
+  }
+  let data = await response.json();   // TODO: use it later...
+  node.target.disabled = false;
+}
+
+
 </script>
