@@ -210,4 +210,21 @@ const
 
 }
 
+function make_interface_active(key){
+
+  //make all available interfaces inactive.
+  let temp_keys = Object.keys(state_interface);
+  for(let i = 0; i < temp_keys.length; i++){ 
+      if (state_interface[temp_keys[i]].status){
+        state_interface[temp_keys[i]].status = false;
+      }
+  }
+
+  // make specified interface active.
+  if (state_interface[key]){
+    state_interface[key].status = true;
+  }
+}
+
+
 </script>
