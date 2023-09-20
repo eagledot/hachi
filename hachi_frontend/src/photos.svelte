@@ -252,4 +252,11 @@ function scoresThresholdChange() {
     sorted_scoreIndex =  argsort(image_data.list_score, temp_mask); // would trigger re-rendering.
 }
 
+function applyFilterMask(filter_mask){
+  filter_button_disabled = true;
+  sorted_scoreIndex = argsort(image_data.list_score, filter_mask);
+  filter_button_disabled = false;
+}
+
+
 </script>
