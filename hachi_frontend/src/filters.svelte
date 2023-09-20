@@ -173,5 +173,38 @@ function filter_base(data, value_to_compare, key = null, compare_function = ((a,
         }
 
     }
-
     </script>
+
+
+<div class="flex container mx-auto max-w-4xl">
+    <div class="flex justify-center items-center gap-8 p-4 flex-wrap">
+
+        <!--  data input/filter -->
+        <span class="flex items-center text-md">From: <input class="mx-2 px-2 py-1 cursor-pointer border rounded hover:bg-blue-400 bg-blue-300 text-gray-600" type="date"></span>
+        <span class="flex items-center text-md">To: <input class="mx-2 px-2 py-1 cursor-pointer border rounded hover:bg-blue-400 bg-blue-300 text-gray-600" type="date"></span>
+        
+        <!-- select filters -->
+        {#each Object.keys(state.selectFilters) as filter}
+            <div on:mouseup={(e) => e.stopPropagation()} class="relative">
+                <!-- filter name/heading -->
+                <div class="px-4 py-1 flex items-center gap-2 text-gray-600 cursor-pointer border rounded bg-blue-300 hover:bg-blue-400" on:click={() => changeFilterDropdown(filter)}>{filter} <i class="fa {state.selectFilterActive === filter ? "fa-caret-up" : "fa-caret-down"}"></i></div>
+                
+                
+                <!-- fiter values, dropdown menu thing -->
+                <div  class="{state.selectFilterActive !== filter && "hidden"} absolute flex flex-col z-10 max-w-50  p-4 rounded  bg-gray-700 text-gray-300 left-0  top-10 max-h-60 overflow-auto">
+                {#each state.selectFilters[filter].options as option}
+                    <div on:click={() => handleSelectChange(filter, option)} class="my-2 flex gap-2 items-center cursor-pointer">
+                        <div class=" flex justify-center items-center w-4 h-4 min-w-4 min-h-4 border {state.selectFilters[filter].values.includes(option) && "bg-green-400 border-none"}">
+                        {#if state.selectFilters[filter].values.includes(option)}
+                            <i class="fa fa-plus text-xs text-black"></i>
+                        {/if}
+                        </div> 
+                        <span> {option}</span>
+                    </div>
+                {/each}
+                </div>
+            </div>
+        {/each}
+      <button disabled = "{filter_button_disabled}" on:click={handleFiltering} class="px-4 py-1 text-white rounded bg-blue-600 disabled:bg-blue-200 {filter_button_disabled === true ? "disabled": ""}">Filter</button>
+    </div>
+</div>
