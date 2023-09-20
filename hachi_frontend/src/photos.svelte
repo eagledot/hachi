@@ -103,4 +103,25 @@ export let image_data  = {
     return temp_scoreIndex;
     }
 
+    let current_box_ix;             // current selected face bbox for an image. 
+
+    let tag_interface = {
+  "active":false,
+  "top":null,
+  "left":null
+}
+
+function next_valid_index(ix){
+    let result = {"sorted_ix":null, "image_ix":null};
+    for (let i = ix; i < sorted_scoreIndex.length; i++){
+        if(sorted_scoreIndex[i].ix !== -1){
+        result.image_ix = sorted_scoreIndex[i].ix;
+        result.sorted_ix = i;
+        break
+        }
+    }
+    return result;
+}
+
+
 </script>
