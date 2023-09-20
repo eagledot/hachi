@@ -41,6 +41,14 @@
   let query_button_disabled = false
   let text_query = ""
   let query_attributes = {};        // child sends it when query is ready. // supposed to used to display possible filters for a query.
-        
+
+  async function getImageBinaryData(data_hash){
+
+    let url = "/api/getRawData/" + data_hash;
+    let response = await fetch(url);
+    let myBlob = await response.blob();
+    let objectURL = await URL.createObjectURL(myBlob);
+    return objectURL
+  }
 
 </script>
