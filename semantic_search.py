@@ -5,17 +5,21 @@ from threading import RLock
 import threading
 import time
 from collections import OrderedDict
+import sys
 import uuid
 
 import cv2
 from flask import Flask
 import flask
+import numpy as np
 
-from .index.image_index import ImageIndex
-from .index.face_index import compare_face_embeddings
-from .index.meta_index import MetaIndex
-from .index.global_data_cache import GlobalDataCache
+sys.path.append("./index")
+from image_index import ImageIndex
+from face_index import compare_face_embeddings
+from meta_index import MetaIndex
+from global_data_cache import GlobalDataCache
 
+sys.path.append("./ml")
 import clip_python_module as clip
 import faceEmbeddings_python_module as pipeline
 
@@ -150,15 +154,14 @@ def generate_text_embedding(query:str):
 
 
 print("[Debug]: Loading Model, may take a few seconds.")
-clip.load_text_transformer("../data/ClipTextTransformer.bin")
-clip.load_vit_b32Q("../data/ClipViTB32.bin")
+clip.load_text_transformer("./data/ClipTextTransformer.bin")
+clip.load_vit_b32Q("./data/ClipViTB32.bin")
 
 print("[Debug]: ")
-pipeline.load_model("../data_extra/pipelineRetinaface.bin")
+pipeline.load_model("./data/pipelineRetinaface.bin")
 
 imageIndex = ImageIndex(shard_size = 400, embedding_size = IMAGE_EMBEDDING_SIZE)
 print("Created Image index")
-
 
 metaIndex = MetaIndex()
 print("Created meta Index")
