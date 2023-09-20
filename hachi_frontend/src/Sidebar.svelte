@@ -85,5 +85,48 @@
 
 	}
 
+    // based on the update in sidebaropen state, we would dispatch en event.
+	$: if (state){
+		dispatch("sidebarStateChange",{
+			"open": state.sidebarOpen
+		})
+	}
 
 </script>
+
+<div class="flex h-screen text-white">
+  <!-- Sidebar -->
+  <aside class="{state.sidebarOpen && "w-64"} bg-green-50">
+    <div class="flex h-16 items-center justify-between bg-green-100 font-semibold text-black">
+
+			{#if state.sidebarOpen}
+<span class="px-4">Hachi</span>
+      <span on:click={closeSidebar} class="cursor-pointer px-4">
+        <i class="fa-solid fa-arrow-left"></i>
+    </span>
+			{:else}
+				 <span on:click={openSidebar} class="px-4">
+        <i class="fa-solid fa-bars cursor-pointer"></i>
+      </span>
+			{/if}
+			
+    </div>
+    <nav class="mt-6">
+		{#each menuItems as item,i}
+			<div on:click = {() => {handleMenuItemClick(i)}} class="flex items-center space-x-2 px-4 py-3 text-black hover:bg-green-100 hover:text-black">
+
+				<i class="fa-solid fa-{item.icon}"></i>
+
+				<!-- Hiding the names of menu items when sidebar is closed -->
+				{#if state.sidebarOpen}
+					<div class="flex w-full justify-between">
+						<div class="flex" data-ix = {i}>{item.name}</div>
+						<div class="px-3 flex text-black text-md text-bold">{item.count}</div>
+					</div>
+				{/if}
+			</div>
+		{/each}
+    </nav>
+  </aside>
+
+</div>
