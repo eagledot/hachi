@@ -258,5 +258,36 @@ function applyFilterMask(filter_mask){
   filter_button_disabled = false;
 }
 
+function updatePersonId(node){
+
+    let new_person_id = node.target.value; // new person id
+    let data_hash = image_card_data.data_hash;
+    let old_person_id = image_card_data["person_ids"][current_box_ix];
+
+    if(node.key == "Enter"){
+
+    let data = new FormData();
+    data.append("new_person_id", new_person_id);
+    data.append("old_person_id", old_person_id);
+    data.append("data_hash", data_hash);
+
+    fetch("/api/tagPerson",{
+        "method":"POST",
+        "body": data
+    }).
+    then((response) => {
+        if (!response.ok){
+        //  use a notification to display error/failure
+        throw new Error("Error occured");
+        }
+        else{
+        // use a notification to display success.
+        alert("Success");
+        }
+    })
+
+    }
+
+}
 
 </script>
