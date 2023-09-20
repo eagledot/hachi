@@ -42,6 +42,76 @@ let directory_being_indexed = ""
 let eta = ""
 let index_directory_path = ""             // absolute path to directory to be indexed(input by user..)
 
+let pollEndpointTimeoutId;
+    async function pollEndpointNew(endpoint, count = 0){
+    
+    if(count == 0){
+      console.log("starting a new polll...");
+    }
+    
+    let response = await fetch(endpoint, 
+      {method: "GET"});
+    let data = await response.json();
+
+    let status_available = data["is_active"]
+
+    if (status_available == true){
+      
+      if (data["done"] == true){
+
+        let formData = new FormData();
+        formData.append("ack", "true");  // let the server know that client has acknowledged that indexing done on server side. (So that server could do some cleanup,)
+
+        let response = await fetch(endpoint,
+          {
+            method: "POST",
+            body: formData
+          })
+        
+        if (response.ok === false){
+            alert("Some error on server side, after indexing is Completed. Contact administrator..");    
+        }
+        else{
+            alert("Indexing Completed Successfully");
+        }
+        
+        // update the indexing stats into localstorage
+        let temp_stats = await fetch("/api/getMetaStats");
+        temp_stats = await temp_stats.json();
+        localStorage.setItem("no_images_indexed", temp_stats["image"]["count"].toString());
+        localStorage.setItem("unique_people_count", temp_stats["image"]["unique_people_count"].toString());
+        localStorage.setItem("unique_place_count", temp_stats["image"]["unique_place_count"].toString());
+
+        index_start_button.disabled = false;
+
+        //reset states.
+        current_statusEndpoint = null;            // to store the current status endpoint to check indexing status, only atmax one such endpoint would be allowed for each client.
+        localStorage.removeItem("stored_indexing_endpoint");
+        index_progress = 0                 
+        directory_being_indexed = ""
+        eta = ""
+        index_directory_path = ""             // absolute path to directory to be indexed(input by user..)
+        index_cancel_button.disabled = true;
+        input_element.disabled = false;
+
+        return;
+      }
+
+      index_progress = data["progress"];
+      eta = data["eta"];
+      directory_being_indexed = data["current_directory"];
+      
+      //set it to poll this endpoint .
+      if(pollEndpointTimeoutId){
+            clearTimeout(pollEndpointTimeoutId);
+          }
+      pollEndpointTimeoutId = setTimeout(function() {pollEndpointNew(endpoint, count + 1)} , 1000) // call this function again, after a second.
+      
+
+
+    }
+    
+  }
 
 
 
