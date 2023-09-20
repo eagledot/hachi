@@ -7,18 +7,17 @@ import time
 from collections import OrderedDict
 import uuid
 
-
 import cv2
 from flask import Flask
 import flask
 
 from image_index import ImageIndex
-
+from face_index import compare_face_embeddings
 from meta_index import MetaIndex
 from global_data_cache import GlobalDataCache
 
 import clip_python_module as clip
-
+import faceEmbeddings_python_module as pipeline
 
 def generate_endpoint(directory_path) -> str:
     assert os.path.exists(directory_path)
@@ -155,14 +154,11 @@ clip.load_text_transformer("../data/ClipTextTransformer.bin")
 clip.load_vit_b32Q("../data/ClipViTB32.bin")
 
 print("[Debug]: ")
-import faceEmbeddings_python_module as pipeline
 pipeline.load_model("../data_extra/pipelineRetinaface.bin")
 
 imageIndex = ImageIndex(shard_size = 400, embedding_size = IMAGE_EMBEDDING_SIZE)
 print("Created Image index")
 
-faceIndex = FaceIndex(shard_size = 400, embedding_size = FACE_EMBEDDING_SIZE)
-print("Created face index")
 
 metaIndex = MetaIndex()
 print("Created meta Index")
@@ -255,7 +251,7 @@ def indexing_thread(index_directory:str, client_id:str, include_subdirectories:b
                             worst_score = 10
                             for id in personId_to_avgEmbedding:
                                 avg_embedding = personId_to_avgEmbedding[id]
-                                _, temp_scores = faceIndex.compare(temp_embedding, avg_embedding.reshape(1, -1))
+                                _, temp_scores = compare_face_embeddings(temp_embedding, avg_embedding.reshape(1, -1), embedding_size=FACE_EMBEDDING_SIZE)
                                 score = temp_scores.ravel().item()
                                 if score <= 1.12:    # be conservative.. (for now no reliable way to detect sunglasses, that harms the average embedding if included..)
                                     if (score < worst_score):
@@ -290,9 +286,6 @@ def indexing_thread(index_directory:str, client_id:str, include_subdirectories:b
     imageIndex.save()
     imageIndex.sanity_check()
 
-    faceIndex.save()
-    faceIndex.sanity_check()
-
     metaIndex.save()
 
     indexStatus.set_done(client_id)
@@ -311,7 +304,6 @@ def indexStart(batch_size = 1):
     complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
     if complete_rescan == "true":
         imageIndex.reset()
-        faceIndex.reset()
         metaIndex.reset()
 
     index_root_dir = os.path.abspath(index_root_dir)
@@ -546,3 +538,17 @@ def getMetaStats():
     """Supposed to return some stats about meta-data indexed, like number of images/text etc."""
     result = metaIndex.get_stats()
     return flask.jsonify(result)
+
+if __name__ == "__main__":
+
+    port = 8200
+
+    import argparse
+    parser = argparse.ArgumentParser()# Add an argument
+    parser.add_argument('--port', type=int, required=False)
+    args = parser.parse_args()
+
+    if args.port is not None:
+        port = args.port
+    
+    app.run(host = "127.0.0.1",  port = port)
