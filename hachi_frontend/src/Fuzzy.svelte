@@ -32,5 +32,26 @@ import { createEventDispatcher } from 'svelte';
     let valueInput = "";
     let showDropdown = false;
 
+    async function getSuggestion(attribute, query){
+        // return suggestion for a given attribute, and corresponding query.
+        let url = "/api/getSuggestion"
+        let data = new FormData();
+        data.append("attribute", attribute);
+        data.append("query", query);
+        let response = await fetch(
+            url,
+            {
+                method: "POST",
+                body: data
+            }
+        )
+        if (response.ok === true){
+            return  await response.json();
+        }
+        else{
+            return {};
+        }
+    }
+    
 
 </script>
