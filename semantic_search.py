@@ -11,10 +11,10 @@ import cv2
 from flask import Flask
 import flask
 
-from image_index import ImageIndex
-from face_index import compare_face_embeddings
-from meta_index import MetaIndex
-from global_data_cache import GlobalDataCache
+from .index.image_index import ImageIndex
+from .index.face_index import compare_face_embeddings
+from .index.meta_index import MetaIndex
+from .index.global_data_cache import GlobalDataCache
 
 import clip_python_module as clip
 import faceEmbeddings_python_module as pipeline
