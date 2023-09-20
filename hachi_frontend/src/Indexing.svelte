@@ -22,7 +22,7 @@ onMount(() => {
     })
 
     
-  onDestroy(() => {
+onDestroy(() => {
     // apparently setinterval function would keep running in the background...even after destroy!!!
     if (pollEndpointTimeoutId){
       clearTimeout(pollEndpointTimeoutId);
@@ -30,6 +30,17 @@ onMount(() => {
 
   })
 
+  $: if(current_statusEndpoint){
+      localStorage.setItem("stored_indexing_endpoint", current_statusEndpoint);
+    }
+
+let input_element;         // input element to accept indexing directory path..
+
+// current indexing stats
+let index_progress = 0.01;                 
+let directory_being_indexed = ""
+let eta = ""
+let index_directory_path = ""             // absolute path to directory to be indexed(input by user..)
 
 
 
