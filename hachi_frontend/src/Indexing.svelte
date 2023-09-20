@@ -113,6 +113,56 @@ let pollEndpointTimeoutId;
     
   }
 
+  let complete_rescan = false;   // bind to checkbox.
+    async function startIndex(){
+        
+        if (index_start_button && index_directory_path)
+        {
+            index_start_button.disabled = true;
+            input_element.disabled = true;
+
+            let form_data = new FormData();
+            
+            form_data.append("image_directory_path", index_directory_path);
+            form_data.append("complete_rescan",   complete_rescan.toString());
+
+            let url = "/api/indexStart"
+            let response = await fetch(url, {method: 'POST', body: form_data}) ;
+            let data = await response.json();
+            let wasSuccess = data["success"] // indexing started successfully.
+            if (wasSuccess === true){
+                index_cancel_button.disabled = false;
+                let endpoint = "/api/getIndexStatus/" + data.statusEndpoint;
+                current_statusEndpoint = data.statusEndpoint;     // for now assuming only one endpoint would be active for a CLIENT at a given time.
+                pollEndpointNew(endpoint) // keep polling that endpoint.
+            }
+        }
+        else{
+            console.log("No index_start_button object found!!!");
+        }
+    }
+
+    async function cancelIndex(){
+        if (current_statusEndpoint)
+        {             
+            index_cancel_button.disabled = true;
+            let url = "/api/indexCancel/" + current_statusEndpoint
+            let response = await fetch(url,
+                {
+                method: "GET",
+                })
+            
+            if (!response.ok) {
+                alert("Error occured while cancelling index. Contact administrator.")
+                throw new Error(response);
+            
+            }
+            return;
+        }
+        else{
+            return;
+        }
+    }
 
 
 
