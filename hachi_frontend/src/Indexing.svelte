@@ -164,8 +164,41 @@ let pollEndpointTimeoutId;
         }
     }
 
-
-
-
-
 </script>
+
+<div class="container mx-auto max-w-lg bg-green-50 p-4">
+    <p class="mb-2 text-sm font-semibold">Press Start button to start indexing</p>
+  
+    <div class="my-2">
+      <input bind:this={input_element} bind:value={index_directory_path} on:keydown={(e) => {if(e.key === "Enter"){index_start_button.click();}}} type="text" class="w-full rounded border p-1 text-sm" placeholder="D://images (Full path to directory to index)" required={true}/>
+    </div>
+  
+    <div class="mb-3">
+      <div class="h-2 rounded bg-gray-300">
+        <div class="h-2 rounded bg-blue-500" style="width: {(index_progress * 100).toString()}%;"></div>
+      </div>
+      <div class="pt-1 text-sm text-blue-600">Current directory: <span class="text-black">{directory_being_indexed}</span> <span class="pl-3 text-right">ETA: </span> <span class="text-black">{eta}</span></div>
+    </div>
+  
+    <div class="mt-4 mb-3 flex flex-wrap items-center">
+      <div class="mr-2 flex items-center">
+        <input type="checkbox" bind:checked={complete_rescan} class="h-5 w-5 text-blue-500" />
+        <label class="ml-1">Complete Rescan</label>
+      </div>
+      <div class="text-sm text-gray-600">Re-index all originals, including already indexed and unchanged files.</div>
+    </div>
+  
+    <div class="mb-3 mt-3 flex flex-wrap items-center">
+      <select class="h-8 rounded border border-blue-500 p-1 text-sm text-blue-700 focus:outline-none">
+        <option>Images Only</option>
+        <option disabled>Videos Only</option>
+        <option disabled>Videos and Images</option>
+      </select>
+      
+      <div class="ml-2 text-sm text-gray-600">Filter by content type</div>
+    </div>
+  
+    <button bind:this={index_cancel_button} on:click={cancelIndex} disabled type="button" class="mr-2 mt-2 rounded bg-orange-500 px-4 py-2 text-white disabled:bg-orange-200">Cancel</button>
+    <button bind:this={index_start_button} on:click={startIndex} type="button" class="rounded bg-blue-500 px-4 py-2 text-white  disabled:bg-blue-200">Start</button>
+  </div>
+
