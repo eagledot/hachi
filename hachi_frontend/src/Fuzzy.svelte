@@ -52,6 +52,50 @@ import { createEventDispatcher } from 'svelte';
             return {};
         }
     }
+
+    async function handleValueChange(e) {
+        // based of the current value in the Input (search), and current selected attribute, we try to suggestions.
+
+        if (valueInput.length === 0) {
+            return;
+        }
+        
+        // update the dropDown items, based on the current query aka valueInput for an image attribute, 
+        let result = await getSuggestion(selectedOption, valueInput);
+        if (selectedOption in result)
+        {
+            dropdownItems = result[selectedOption];
+            showDropdown = true;
+        }
+        else
+        {
+        dropdownItems = [];
+        showDropdown = false;
+        }
+    }
+
+    function clearFilter(target, option) {
+        selectedFilters[option] = [];
+        if(selectedOption == option){
+            dropdownItems = [];
+        }
+    }
+
+    function handleListItemClick(selectedOption, item) {
+        showDropdown = false;
+        valueInput = item; // Update inputValue with clicked item's value
+        input_element.focus();
+    }
+
+    function handleOptionChange(option) {
+        selectedOption = option;
+        dropdownItems =  selectedFilters[selectedOption]  // set dropdown items to recent searches for that attribute.
+        showDropdown = true;
+        input_element.focus();
+    }
+
     
+
+
 
 </script>
