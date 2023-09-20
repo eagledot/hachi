@@ -1,4 +1,4 @@
-  
+
 <script>
   // IMAGES INDEXING AND SEARCH INTERFACE.
   import Fuzzy from "./Fuzzy.svelte"
@@ -245,3 +245,48 @@ function SidebarItemClick(event){
 }
 
 </script>
+
+<!-- if need to check for window resize event.. -->
+<!-- <svelte:window on:resize={() =>{console.log("resized")}}/> -->
+
+{#if (state_interface.query.status)}
+      <div class="flex">
+        <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => {SidebarItemClick(event)}} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/>
+        <div class="flex-1 overflow-y-auto min-h-screen bg-blue-100 p-2">
+          <Fuzzy query_button_disabled = {query_button_disabled} on:queryReady={(event) => {
+                          text_query = event.detail.query; 
+                          query_attributes = event.detail.attributes;
+                          handleClick();}}/>
+          <Photos image_data = {image_data_for_child} />
+        </div>
+      </div>
+    
+
+{:else if state_interface.indexing.status === true}
+
+  <div class="flex">
+    <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => SidebarItemClick(event)} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/>
+    <div class="flex-1 overflow-y-auto min-h-screen bg-blue-200 p-2 relative">
+      <Indexing/>
+    </div>
+  </div>
+
+{:else if state_interface.place_album.status === true}
+
+  <div class="flex">
+    <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => SidebarItemClick(event)} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/>
+    <div class="flex-1 overflow-y-auto min-h-screen bg-blue-100 p-2 relative">
+      <Place/>
+    </div>
+  </div>
+
+  {:else if state_interface.people_album.status === true}
+
+  <div class="flex">
+    <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => SidebarItemClick(event)} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/>
+    <div class="flex-1 overflow-y-auto min-h-screen bg-blue-100 p-2 relative">
+      <People/>
+    </div>
+  </div>
+
+{/if}
