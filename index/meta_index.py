@@ -8,11 +8,16 @@ from queue import Queue
 import pickle
 import random
 import time
+import sys
 
 from exif import Image
 
-from ..fuzzy_search.fuzzy_search import FuzzySearch
-from ..geocoding.reverse_geocode import GeocodeIndex
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../fuzzy_search"))
+from fuzzy_search import FuzzySearch
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
+from reverse_geocode import GeocodeIndex
+
 import get_image_size
 
 ALLOWED_RESOURCES = {       
@@ -120,7 +125,8 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]
 
 
 # config
-META_DATA_INDEX_DIRECTORY = "./meta_indices"
+# making sure relativiness of resources is respected.
+META_DATA_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./meta_indices")
 
 class MetaIndex(object):
 
