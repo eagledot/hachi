@@ -94,6 +94,41 @@ import { createEventDispatcher } from 'svelte';
         input_element.focus();
     }
 
+    function handleFormSubmit(e) {
+        if(e){
+            e.preventDefault();
+        }
+        showDropdown = false;
+        let ix = selectedFilters[selectedOption].length;
+        if (valueInput.length > 0 && (!selectedFilters[selectedOption].includes(valueInput))){
+            selectedFilters[selectedOption][ix] = valueInput;
+        }
+        valueInput = "";
+        
+        let temp_keys = Object.keys(selectedFilters);
+
+        query_completed = ""
+        for (let i = 0; i < temp_keys.length; i ++){
+            let key = temp_keys[i];
+            let values  = selectedFilters[key];
+            
+            query_completed += (key + ":")
+
+            for (let j = 0;j < values.length; j++ ){
+                query_completed += values[j];
+                if (j != values.length - 1){
+                    query_completed += "-";
+                }
+                
+            }
+
+            if (i != (temp_keys.length -1)){
+                query_completed += ",";
+            }
+
+        }
+        console.log("Completed: " + query_completed);
+    }
     
 
 
