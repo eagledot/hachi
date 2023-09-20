@@ -29,6 +29,7 @@
   let current_score_threshold = 0;
   let current_statusEndpoint = "" // this is supposed to hold the endpoint being currently indexed.
   let query_completed = false;
+  let topk_input = 3;
 
   let image_data_for_child  = {
             "list_metaData": [],
@@ -51,4 +52,93 @@
     return objectURL
   }
 
+  async function handleClick(client_id = "xxxxxxx", got_id = false)
+    {   
+        console.log("handleClick count", text_query, got_id, client_id);
+        query_button_disabled = true;
+        query_completed = false;
+        let topk = topk_input;
+        formData = new FormData();
+        if (text_query.length === 0) return;
+        formData.append('query', text_query);
+        formData.append('topk', topk.toString());
+
+
+        if (got_id == false){
+          image_src = [];
+          image_local_hash = [];
+          image_scores = [];
+          image_metaData = [];
+          sorted_scoreIndex = [];
+          current_score_threshold = 0;
+
+          image_data_for_child  = {
+            "list_metaData": [],
+            "list_dataHash": [],
+            "list_src": [],
+            "list_score": [],
+            "done":false,
+        }
+
+          formData.append("query_start", "true");
+        }
+        else{
+          formData.append("query_start", "false");
+          formData.append("client_id", client_id);  //send this key along with subsequent requests. We would get this from server.
+        }
+
+        const url = "/api/query";
+        let response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                })
+        
+        if (!response.ok) {
+          query_button_disabled = false;
+			    throw new Error(response);
+        }
+        
+        let data = await response.json()
+        console.log("data: ",data);
+        
+        let temp_id = data["client_id"] ;
+        let list_metaData = data["meta_data"];  // list of dict mapping data_hash to meta_data.
+        let list_dataHash = data["data_hash"];
+        let list_scores = data["score"];
+
+        for(let i = 0; i < list_metaData.length; i++){
+          let data_hash = list_dataHash[i]
+          let score = list_scores[i]
+          image_local_hash.push(data_hash);
+          image_scores.push(score);
+          image_metaData.push(list_metaData[i]);
+
+
+          let objectUrl = await getImageBinaryData(data_hash);
+
+          // data for child.
+          image_data_for_child.list_dataHash.push(data_hash);
+          image_data_for_child.list_score.push(score);
+          image_data_for_child.list_metaData.push(list_metaData[i])
+          image_data_for_child.list_src.push(objectUrl);
+        }
+
+        if (data["query_completed"] == true){
+          image_data_for_child.done = true; // this should be enough to indicate svelte..
+        }
+        else{
+          image_data_for_child = image_data_for_child; // indicating svelte that image_data has been updated..
+        }
+
+        if (data["query_completed"] == true){
+          orig_image_src = image_src;   // so that we have a reference to original data. in case of filter threshold.
+          query_button_disabled = false;
+          query_completed = true;
+          return
+        }
+        
+        await handleClick(temp_id, true);  // run it recursively, if query not completed yet.
+
+    }
+  
 </script>
