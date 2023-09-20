@@ -55,4 +55,12 @@ export let image_data  = {
         dispatch("imageCardActive",{"active":active});
     }
 
+    function set_state_active(state){
+        let temp_keys = Object.keys(interface_state);
+        for(let i = 0; i < temp_keys.length; i++){
+            interface_state[temp_keys[i]] = false;
+        }
+        interface_state[state] = true;
+    }
+
 </script>
