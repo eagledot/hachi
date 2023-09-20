@@ -63,4 +63,44 @@ export let image_data  = {
         interface_state[state] = true;
     }
 
+    function argsort(data, mask = [1], key = null){
+   
+      let temp_scoreIndex = []; // list of object containing score and index in descending order of score.
+      if ((mask.length != 1 && mask.length != (data.length))){
+        throw new Error("Assertion failed");
+      }
+      
+        for(let i = 0; i < data.length; i++){
+        
+          let current_ix = i
+          if (!(mask[i % mask.length] === 1)){
+            current_ix = -1 // indicating invalid index, not to show/render this..
+          }
+
+          if(key){
+            
+            temp_scoreIndex.push({"ix":current_ix, "score":data[i][key]});
+          }
+          else{
+            temp_scoreIndex.push({"ix":current_ix, "score":data[i]});
+          }
+      
+      }
+
+        // sort in place.
+        temp_scoreIndex.sort((a, b) => {
+        if (a.score > b.score) {
+            return -1;
+        }
+        else if (a.score < b.score){
+            return 1;
+        }
+        else{
+            return 0;
+        }
+        })
+        
+    return temp_scoreIndex;
+    }
+
 </script>
