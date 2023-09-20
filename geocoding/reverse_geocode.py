@@ -1,11 +1,13 @@
 
 from typing import Tuple
 import numpy as np
+import os
 
 class GeocodeIndex(object):
     def __init__(self, separator = ",", quote_character = '"'):
-
-        self.data_path = "./cities15000/cities15000_modified.csv"
+        
+        this_file_directory = os.path.dirname(os.path.abspath(__file__))
+        self.data_path = os.path.join(this_file_directory , "./cities15000/cities15000_modified.csv")
         self.col_2_data = {}
 
         self.quote_character = quote_character
