@@ -68,4 +68,22 @@
 		}
 	})
 
+    function openSidebar() {
+		state.sidebarOpen = true
+	}
+
+	function closeSidebar() {
+		state.sidebarOpen = false
+	}
+
+	function handleMenuItemClick(i){
+		// based on one of the menu items click, we would dispatch en event to handle by parent.
+		let item_ix = i;
+		dispatch('menuClick', {
+        	item: menuItems[item_ix],
+        });
+
+	}
+
+
 </script>
