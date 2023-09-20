@@ -139,6 +139,107 @@ import { createEventDispatcher } from 'svelte';
         });
     }
 
-
-
 </script>
+
+<div class="max-w-screen p-4 mx-auto">
+    <div class="w-full relative place-content-center">
+        <!-- A select input -->
+        <form class="w-full" on:submit={handleFormSubmit} action="">
+            <div class="flex w-full items-center my-2 flex-wrap">
+                {#each Object.keys(selectedFilters) as option}
+                    {#if selectedFilters[option].length >= 1}
+                        <div
+                            class="px-4 py-2 self-center bg-blue-200 rounded-md inline-flex place-self-center items-center mr-2 mb-2 h-10"
+                        >
+                            <span on:click={() => handleOptionChange(option)} class="cursor-pointer">
+                                <span  class="text-blue-800  ">
+                                    {option.charAt(0).toUpperCase() +
+                                        option.slice(1)}
+                                </span>
+                                
+                                {#each selectedFilters[option] as value }
+                                    <span class="ml-1">{value + " "}</span>
+                                {/each}
+                            
+                            </span>
+                           
+                            <span
+                                class="ml-2 text-red-600 cursor-pointer hover:text-blue-500"
+                                on:click={(e) => clearFilter(e.currentTarget, option)}
+                            >
+                                x
+                        </span>
+                        </div>
+                    {/if}
+                {/each}
+            </div>
+
+            <div class="flex space-x-2">
+                <select
+                    on:change={(e) => handleOptionChange(e.target.value)}
+                    class="px-4 py-2 border  rounded-md focus:outline-none focus:border-blue-500"
+                    name="select-option"
+                    id="select-option"
+                    bind:value={selectedOption}
+                >   
+                    <!--  code to display all possible options as attributes in a select element as parent. -->
+                    {#each Object.keys(selectedFilters) as option}
+                        <option value={option}>
+                            {option.charAt(0).toUpperCase() + option.slice(1)}
+                        </option>
+                    {/each}
+                </select>
+
+                <div
+                    class=" bg-blue-200 rounded-md flex-grow h-10"
+                >
+                    <input
+                        bind:this={input_element}
+                        bind:value={valueInput}
+                        on:input={handleValueChange}
+                        class="px-4 py-4 rounded-md focus:outline-none bg-blue-200 h-full w-full"
+                        type="search"
+                        placeholder="Enter value here"
+                    />
+                </div>
+
+                <div class="flex">
+                    <button  class="bg-blue-600 hover:bg-blue-800 disabled:bg-blue-400 text-white font-semibold px-4 rounded"
+                    on:click={sendQuery}
+                    bind:this={query_button}>Search</button>
+                </div>
+            
+            </div>
+        </form>
+
+        <!-- Menu options list -->
+        {#if dropdownItems.length > 0}
+            <div
+                class="{!showDropdown
+                    ? 'hidden'
+                    : ''} w-full bg-white border rounded-md shadow-md mt-1"
+            >
+                <ul class="divide-y max-h-36 overflow-y-auto divide-gray-200">
+                    {#each dropdownItems as item}
+                        <li
+                            on:click={() =>
+                                handleListItemClick(selectedOption, item)}
+                            class="px-4 py-2 hover:bg-gray-100 cursor-pointer"
+                        >
+                            {item}
+                        </li>
+                    {/each}
+                </ul>
+                <div class="flex w-full justify-center items-center">
+                    <button
+                        class="w-full bg-gray-300 border text-gray-900 hover:bg-gray-500 hover:text-gray-100 py-1 px-4 shadow-md"
+                        on:click={() => (showDropdown = false)}
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        {/if}
+       
+</div>
+</div>
