@@ -129,7 +129,15 @@ import { createEventDispatcher } from 'svelte';
         }
         console.log("Completed: " + query_completed);
     }
-    
+
+    function sendQuery(node) {
+        // dispatch queryReady event, to let listener handle it.
+        handleFormSubmit();
+        dispatch('queryReady', {
+        query: query_completed,
+        attributes:selectedFilters
+        });
+    }
 
 
 
