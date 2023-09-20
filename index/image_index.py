@@ -1,8 +1,10 @@
 # Image index/db to store and serve image embeddings.
 
+import os
+
 # config
 SHARD_PREFIX = "IMAGE_SHARD"
-IMAGE_INDEX_DIRECTORY = "./image_indices"
+IMAGE_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./image_indices")
 IMAGE_EMBEDDING_SIZE = 512
 IMAGE_MATCHING_MIN_SCORE = 0   # minimum score to consider two embeddings a match, increment it for lower false positives.
 IMAGE_SHARD_SIZE = 40
