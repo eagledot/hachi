@@ -226,5 +226,22 @@ function make_interface_active(key){
   }
 }
 
+let sidebar_state = true;   // open state of sidebar, we remember the sidebar state. should be part OF STATE_INTERFACE in sidebar key. TODO.
+function SidebarItemClick(event){
+  let item_name = event.detail.item.name;
+  if(item_name.toLowerCase().includes("photo")){
+    make_interface_active("query");
+  }
+  else if (item_name.toLowerCase().includes("index")){
+    make_interface_active("indexing");
+  }
+  else if (item_name.toLowerCase().includes("people")){
+    make_interface_active("people_album");
+  }
+  else if (item_name.toLowerCase().includes("place")){
+    make_interface_active("place_album");
+  }
+
+}
 
 </script>
