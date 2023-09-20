@@ -11,8 +11,8 @@ import time
 
 from exif import Image
 
-from fuzzy_search import FuzzySearch
-from reverse_geocode import GeocodeIndex
+from ..fuzzy_search.fuzzy_search import FuzzySearch
+from ..geocoding.reverse_geocode import GeocodeIndex
 import get_image_size
 
 ALLOWED_RESOURCES = {       
