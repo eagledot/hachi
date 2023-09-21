@@ -10,6 +10,7 @@ import random
 import time
 import sys
 
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
 from exif import Image
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../fuzzy_search"))
