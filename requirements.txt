@@ -3,3 +3,4 @@ ftfy
 numpy
 opencv-python-headless
 regex
+plum-py>=0.5.0,<2.0.0
