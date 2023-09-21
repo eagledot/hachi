@@ -63,8 +63,11 @@ Front-end development requires ``Node``(tested with v18.13.0) to be installed on
 Checkout ``readme.md`` in ``./hachi_frontend`` for more details. 
 
 
-## References:
+## References/Resources:
 * Machine learning model powering this webapp is based on [CLIP](https://github.com/openai/CLIP) architecture.
+* https://gitlab.com/TNThieding/exif/ (exif data extraction)
+* https://github.com/scardine/image_size (extract image meta-data with no dependencies.)
+* https://www.geonames.org/   (geographical database allowing to implement a dependency free reverse geocoder for this project.)
 
 ## Extra Details:
 For Windows, shared libraries  ``dnnl.dll`` and ``dnnl_v3.dll`` are included in this repository and are based on the [ONEDNN Project](https://github.com/oneapi-src/oneDNN).
