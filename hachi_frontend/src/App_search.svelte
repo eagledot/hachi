@@ -141,51 +141,6 @@
 
     }
   
-  let pollEndpointTimeoutId;
-  async function pollEndpointNew(endpoint, count = 0){
-    
-    if(count == 0){
-      indexing = true;
-      show_image_directory_form = false;
-    }
-    
-    let response = await fetch(endpoint, 
-      {method: "GET"});
-    let data = await response.json();
-    let status_available = data["is_active"]
-
-    if (status_available == true){
-      
-      if (data["done"] == true){
-        indexing = false;              //it means server done indexing.
-        let formData = new FormData();
-        formData.append("ack", "true");
-
-        let response = await fetch(endpoint,
-          {
-            method: "POST",
-            body: formData
-          })
-        
-          if (response.ok === false){
-          console.log("index updated succesfully, but server should have responded with 200 code")
-        }
-
-        alert("Index Updated Successfully.");  
-        return;
-      }
-
-      index_progress = data["progress"]
-      directory_being_indexed = data["current_directory"]
-      
-      if(pollEndpointTimeoutId){
-            clearTimeout(pollEndpointTimeoutId);
-          }
-      pollEndpointTimeoutId = setTimeout(function() {pollEndpointNew(endpoint, count + 1)} , 1000) // call this function again, after a second.
-    }
-    
-  }
-
 const
   state_interface = {
     "query":{
