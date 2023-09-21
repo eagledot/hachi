@@ -33,10 +33,10 @@
 
 1. Install [Caddy](https://caddyserver.com/docs/install) (Open source webserver, For serving static files and out of the box HTTPS configuration, if needed.)
 2. Python 3 (any version should work. Tested with versions >= 3.6.x)
-3. Download ``source.zip``  from latest [release](https://github.com/ramanlabs-in/hachi/releases) or ``git clone https://github.com/ramanlabs-in/hachi.git``
+3. Download ``source.zip``  from latest [release](https://github.com/eagledot/hachi/releases) or ``git clone https://github.com/eagledot/hachi.git``
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
-5. Collect Model Weights by downloading ``data.zip`` from  [releases](https://github.com/ramanlabs-in/hachi/releases/download/v1.0/data.zip), ``extract/unzip`` it at the root of the directory, such that there is now a ``data`` directory with 2 ``.bin`` files in it.
-6. Run command ``pip install -r requirements.txt``   ( This would install ``opencv-python``, ``numpy``, ``flask``, ``regex``, ``ftfy`` python packages, if not found .)
+5. Collect Model Weights by downloading ``data.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.0/data.zip), ``extract/unzip`` it at the root of the directory, such that there is now a ``data`` directory with 2 ``.bin`` files in it.
+6. Run command ``pip install -r requirements.txt``   ( This would install ``opencv-python``, ``numpy``, ``flask``, ``regex``, ``ftfy``, ``plum-py`` python packages, if not found .)
 
     ### Extra steps (for Linux distributions Only.)
 
@@ -73,4 +73,6 @@ Checkout ``readme.md`` in ``./hachi_frontend`` for more details.
 For Windows, shared libraries  ``dnnl.dll`` and ``dnnl_v3.dll`` are included in this repository and are based on the [ONEDNN Project](https://github.com/oneapi-src/oneDNN).
 Specifically ``dnnl.dll`` corresponds to a version >= ``2.6.x`` but less than version ``3.x.x`` and ``dnnl_v3.dll`` corresponds to the version >= ``3.x.x`` but less than ``4.x.x``.
 Developers can choose to build their own corresponding ``DLLs`` based on the instructions on the [project](https://github.com/oneapi-src/oneDNN#requirements-for-building-from-source) page, provided they name it as ``dnnl.dll`` and ``dnnl_v3.dll`` after building.
+
+``Openblas.dll`` included along is based on the project https://github.com/OpenMathLib/OpenBLAS/ and as an alternative can be built from scratch or can be downloaded directly from [releases](https://github.com/OpenMathLib/OpenBLAS/releases) . 
 
