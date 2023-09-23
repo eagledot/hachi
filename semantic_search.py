@@ -13,6 +13,11 @@ from flask import Flask
 import flask
 import numpy as np
 
+# config:
+IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./preview_image")
+if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
+    os.mkdir(IMAGE_PREVIEW_DATA_PATH)
+
 sys.path.append("./index")
 from image_index import ImageIndex
 from face_index import compare_face_embeddings
