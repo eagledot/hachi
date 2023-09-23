@@ -231,59 +231,7 @@ class MetaIndex(object):
                                 temp[attribute].add(d, auxiliaryData = data_hash)
         return temp
 
-    def get_meta_data(self, root_directory:str, client_id:str, include_subdirectories:bool = False, fresh_client:bool = False) -> tuple[bool, dict[str, dict]]:
-        with self.lock:
-            result = {}
-            if client_id not in self.id_2_queue or (fresh_client == True):
-                self.id_2_queue[client_id] = Queue()
-                self.id_2_queue[client_id].put(root_directory)
-
-            if (self.id_2_queue[client_id]).qsize() == 0:
-                return (False, result)
-
-            current_directory_to_list = self.id_2_queue[client_id].get()
-
-            try:
-                directory_contents = os.listdir(current_directory_to_list)
-            except:
-                return (True, {})  # i.e if we encounter such directory, for that we just return i.e skipping, if this is ROOT DIRECTORY chosen, then we we would just return. (this logic is OK i think!1)
-            
-            for content in directory_contents:
-                absolute_path = os.path.abspath(os.path.join(current_directory_to_list, content))
-                if os.path.isdir(absolute_path):
-                    if include_subdirectories:
-                        self.id_2_queue[client_id].put(absolute_path)
-                else:
-                    # collect resource_type and extension.
-                    resource_extension = os.path.splitext(content)[1]
-                    resource_type = get_resource_type(resource_extension)
-                    if resource_type is None:
-                        continue
-                        
-                    # get/generate data_hash.
-                    data_hash  = generate_data_hash(absolute_path)
-                    if data_hash is None:
-                        continue
-                    
-                    if data_hash in self.hash_2_metaData:
-                        temp = self.hash_2_metaData[data_hash]
-                    else:
-                        # common meta-data attributes.
-                        temp = self._meta_data_template(
-                            is_indexed= False,
-                            absolute_path=absolute_path,
-                            resource_extension=resource_extension,
-                            resource_type=resource_type,
-                        )
-
-                        # resource specific meta-data attributes.
-                        temp_exif_data = get_exif_data(absolute_path, resource_type)
-                        for k,v in temp_exif_data.items():
-                            temp[k] = v
-                                            
-                    result[data_hash] = temp  # NOTE: for now it overrides, in case same data_hash (same file) is found.
-
-            return (True, result)
+    
     
     def get_original_data(self, attribute:str) -> Optional[Iterable[str]]:
         
