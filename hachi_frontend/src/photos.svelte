@@ -326,7 +326,7 @@ async function editMetaData(node){
         <div class = "fixed top-0 left-0 bg-black h-screen w-screen flex justify-center items-center">
             <div class = "relative flex">  
                 <!-- object cover would  -->
-                <img on:load={scale_face_bboxes} class="object-cover h-screen w-auto" src={image_card_data.url} alt="">
+                <img on:load={scale_face_bboxes} class="object-cover h-screen w-auto" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
             
                 <!-- TODO: calculate scale -->
                 {#each scaled_face_bboxes as box, i}
