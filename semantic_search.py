@@ -182,6 +182,26 @@ personId_to_avgEmbedding = {} # we seek to create average embedding for a group/
 prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
 global_lock = threading.RLock()
 
+def generate_image_preview(data_hash, absolute_path:Optional[str]):
+
+    preview_max_width = 640
+    if absolute_path is None:
+        raw_data = np.zeros((480,640), dtype = np.uint8)
+        print("No original resource path found!!, so creating a black image resource..")
+    else:
+        raw_data = cv2.imread(absolute_path)
+    
+    h,w,c = raw_data.shape
+    ratio = h/w
+
+    # calculate new height, width keep aspect ratio fixed.
+    new_width = min(w, preview_max_width)
+    new_height = int(ratio * new_width)
+
+    # resize, and save to disk in compressed jpeg format.
+    raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
+    cv2.imwrite(os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.jpg".format(data_hash)), raw_data_resized)
+
 def indexing_thread(index_directory:str, client_id:str, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
     exit_thread = False
