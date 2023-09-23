@@ -39,6 +39,7 @@ let input_element;         // input element to accept indexing directory path..
 // current indexing stats
 let index_progress = 0.01;                 
 let directory_being_indexed = ""
+let extra_details = ""
 let eta = ""
 let index_directory_path = ""             // absolute path to directory to be indexed(input by user..)
 
@@ -90,6 +91,7 @@ let pollEndpointTimeoutId;
         index_progress = 0                 
         directory_being_indexed = ""
         eta = ""
+        extra_details = ""
         index_directory_path = ""             // absolute path to directory to be indexed(input by user..)
         index_cancel_button.disabled = true;
         input_element.disabled = false;
@@ -99,6 +101,7 @@ let pollEndpointTimeoutId;
 
       index_progress = data["progress"];
       eta = data["eta"];
+      extra_details = data["details"];
       directory_being_indexed = data["current_directory"];
       
       //set it to poll this endpoint .
@@ -144,7 +147,8 @@ let pollEndpointTimeoutId;
 
     async function cancelIndex(){
         if (current_statusEndpoint)
-        {             
+        {   
+            localStorage.removeItem("stored_indexing_endpoint")
             index_cancel_button.disabled = true;
             let url = "/api/indexCancel/" + current_statusEndpoint
             let response = await fetch(url,
@@ -178,6 +182,7 @@ let pollEndpointTimeoutId;
         <div class="h-2 rounded bg-blue-500" style="width: {(index_progress * 100).toString()}%;"></div>
       </div>
       <div class="pt-1 text-sm text-blue-600">Current directory: <span class="text-black">{directory_being_indexed}</span> <span class="pl-3 text-right">ETA: </span> <span class="text-black">{eta}</span></div>
+      <div class="pt-1 text-sm text-blue-600">Details: <span class="text-black">{extra_details}</span></div>
     </div>
   
     <div class="mt-4 mb-3 flex flex-wrap items-center">
