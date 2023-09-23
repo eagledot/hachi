@@ -28,6 +28,41 @@ ALLOWED_RESOURCES = {
     "text":  set([".pdf", ".txt", ".epub"])                     # TODO:
 }
 
+def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> dict[os.PathLike, str]:
+    """Collect possible resources given a root_path, mapped to resource types."""
+    result = {}
+    for k in ALLOWED_RESOURCES:
+        result[k] = {}
+    
+    resources_queue = Queue()
+    resources_queue.put(os.path.abspath(root_path))
+    
+    while True:
+        if resources_queue.qsize() == 0:     #    "This is ok, since we are putting, and getting inside same iteration of function. So checking length is trustworthy."
+            return result
+        
+        current_directory = resources_queue.get()
+        try: 
+            temp_resources = os.listdir(current_directory)
+        except:
+            print("Error while listing: {}".format(current_directory))
+            continue
+
+        for temp_resource in temp_resources:
+            if os.path.isdir(os.path.join(current_directory, temp_resource)):
+                resources_queue.put(os.path.join(current_directory, temp_resource))
+            else:
+                resource_extension = os.path.splitext(temp_resource)[1]
+                temp_resource_type = get_resource_type(resource_extension)
+                if temp_resource_type is not None:
+                    if result[temp_resource_type].get(current_directory):
+                        result[temp_resource_type][current_directory].append(temp_resource)
+                    else:
+                        result[temp_resource_type][current_directory] = [temp_resource]
+
+        if include_subdirectories == False:
+            break
+
 def get_resource_type(resource_extension:str) -> Optional[str]:
     for k,v in ALLOWED_RESOURCES.items():
         if resource_extension.lower() in v:
