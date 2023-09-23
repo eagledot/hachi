@@ -10,3 +10,4 @@ tmp*
 *.openfile
 *.dll
 node_modules/
+preview_image/
