@@ -149,6 +149,7 @@ let pollEndpointTimeoutId;
         if (current_statusEndpoint)
         {   
             localStorage.removeItem("stored_indexing_endpoint")
+            
             index_cancel_button.disabled = true;
             let url = "/api/indexCancel/" + current_statusEndpoint
             let response = await fetch(url,
@@ -156,6 +157,8 @@ let pollEndpointTimeoutId;
                 method: "GET",
                 })
             
+            localStorage.removeItem("stored_indexing_endpoint")
+            current_statusEndpoint = null;
             if (!response.ok) {
                 alert("Error occured while cancelling index. Contact administrator.")
                 throw new Error(response);
