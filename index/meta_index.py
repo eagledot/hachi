@@ -172,7 +172,6 @@ class MetaIndex(object):
             os.mkdir(self.index_directory)        
 
         self.fuzzy_search_attributes = ["person", "place", "filename"]  # TODO: add more fuzzy search attributes, must be a subset of fields from self._meta_data_template.
-        self.id_2_queue = {}  # client_id to a queue containing directory to generate meta-data for files in that directory.
 
         # resources.
         if not hasattr(self, "lock"):        # would not want to recursively override an existing lock.
