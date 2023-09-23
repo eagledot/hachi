@@ -231,7 +231,41 @@ class MetaIndex(object):
                                 temp[attribute].add(d, auxiliaryData = data_hash)
         return temp
 
-    
+    def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> dict[str,dict]:
+        """Routine to extract valid metaData for image resource type.
+        """
+        result = {}
+        for resource_path in resources:
+            assert os.path.isfile(resource_path), "{} ".format(resource_path)
+            data_hash  = generate_data_hash(resource_path)
+            if data_hash is None:
+                continue
+            
+            try:
+                (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
+            except:
+                print("Invalid data possibly for {}".format(resource_path))
+                continue
+
+            if data_hash in self.hash_2_metaData:
+                temp = self.hash_2_metaData[data_hash]
+            else:
+                # common meta-data attributes.
+                temp = self._meta_data_template(
+                    is_indexed= False,
+                    absolute_path = resource_path,
+                    resource_extension = "." + type.lower().strip().strip("."),
+                    resource_type = "image"
+                )
+
+                # resource specific meta-data attributes.
+                temp_exif_data = get_exif_data(resource_path=resource_path, resource_type = "image")
+                for k,v in temp_exif_data.items():
+                    temp[k] = v
+                                        
+                result[data_hash] = temp
+        return result
+
     
     def get_original_data(self, attribute:str) -> Optional[Iterable[str]]:
         
