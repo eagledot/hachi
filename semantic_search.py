@@ -74,6 +74,7 @@ class IndexStatus(object):
                 "done":False,
                 "current_directory":"unknown",
                 "eta":"unknown",
+                "details": "",
                 "progress":str(int(0)), 
                 "should_cancel":False
             } 
@@ -82,11 +83,12 @@ class IndexStatus(object):
         with self.lock:
             self.status_dict[endpoint]["done"] = True
     
-    def update_status(self, endpoint:str, current_directory:str, progress:float, eta:Optional[str] = None):
+    def update_status(self, endpoint:str, current_directory:str, progress:float, eta:Optional[str] = None, details = ""):
         with self.lock:
             self.status_dict[endpoint]["current_directory"] = current_directory  # current directory being scanned.
             self.status_dict[endpoint]["progress"] = str(progress)
             self.status_dict[endpoint]["eta"] = eta
+            self.status_dict[endpoint]["details"] = details
 
     def get_status(self, endpoint:str):
         result = {}
@@ -97,6 +99,7 @@ class IndexStatus(object):
             result["current_directory"] = self.status_dict[endpoint]["current_directory"]
             result["eta"] = self.status_dict[endpoint]["eta"]
             result["progress"] = self.status_dict[endpoint]["progress"]
+            result["details"] = self.status_dict[endpoint]["details"]
         return result
     
     def is_active(self, endpoint:str):
