@@ -2,15 +2,6 @@
     import sample_bg from'./assets/sample_place_bg.jpg'
     import Photos from './photos.svelte';
     import {onMount, onDestroy} from "svelte"
-
-    async function getImageBinaryData(data_hash){
-        let url = "/api/getRawData/" + data_hash;
-        let response = await fetch(url);
-        let myBlob = await response.blob();
-        let objectURL = await URL.createObjectURL(myBlob);
-        return objectURL
-  }
-
     
     let state = {
         people: []  // all possible person ids.
@@ -28,7 +19,6 @@
         "list_metaData": [],
         "list_score": [],
         "list_dataHash": [],
-        "list_src": [],
         "done":false
     }
 
@@ -75,7 +65,6 @@
         "list_metaData": [],
         "list_score": [],
         "list_dataHash": [],
-        "list_src": [],
         "done":false
         }
 
@@ -90,8 +79,6 @@
                 people_data.list_metaData.push(image_data.list_metaData[i]);
                 people_data.list_dataHash.push(image_data.list_dataHash[i]);
                 people_data.list_score.push(image_data.list_score[i]);
-                let objectUrl = await getImageBinaryData(image_data.list_dataHash[i]);
-                people_data.list_src.push(objectUrl);
                 
                 temp_count += 1;
                 if((temp_count % batch_size) == 0){
