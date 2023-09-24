@@ -8,8 +8,6 @@
   import People from "./people.svelte";
   import Place from "./place.svelte";
 
-  let image_src = [];
-  let orig_image_src = []; // in case temporary access to image data..
   let image_scores = [];
   let image_local_hash = [];
   let image_metaData = [];
@@ -34,7 +32,6 @@
   let image_data_for_child  = {
             "list_metaData": [],
             "list_dataHash": [],
-            "list_src": [],
             "list_score": [],
             "done":false              // indicating if query is finished.
         }
@@ -65,7 +62,6 @@
 
 
         if (got_id == false){
-          image_src = [];
           image_local_hash = [];
           image_scores = [];
           image_metaData = [];
@@ -75,7 +71,6 @@
           image_data_for_child  = {
             "list_metaData": [],
             "list_dataHash": [],
-            "list_src": [],
             "list_score": [],
             "done":false,
         }
@@ -114,13 +109,10 @@
           image_metaData.push(list_metaData[i]);
 
 
-          let objectUrl = await getImageBinaryData(data_hash);
-
           // data for child.
           image_data_for_child.list_dataHash.push(data_hash);
           image_data_for_child.list_score.push(score);
           image_data_for_child.list_metaData.push(list_metaData[i])
-          image_data_for_child.list_src.push(objectUrl);
         }
 
         if (data["query_completed"] == true){
@@ -131,7 +123,6 @@
         }
 
         if (data["query_completed"] == true){
-          orig_image_src = image_src;   // so that we have a reference to original data. in case of filter threshold.
           query_button_disabled = false;
           query_completed = true;
           return
