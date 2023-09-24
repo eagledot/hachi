@@ -8,7 +8,6 @@ export let show_exit_interface_button = false;    // in case to exit this compon
 export let image_data  = {
             "list_metaData": [],
             "list_dataHash": [],
-            "list_src": [],
             "list_score": [],
             "done":false
     }
@@ -26,7 +25,6 @@ export let image_data  = {
       image_data  = {
         "list_metaData": [],
         "list_dataHash": [],
-        "list_src": [],
         "list_score": [],
         "done":false}
     })
@@ -158,7 +156,6 @@ function update_image_card(ix){
 
     // TODO: handle null values, to be easily displayed in markup code, when needed.
     image_card_data.ix = current_ix;
-    image_card_data.url = image_data.list_src[image_data_ix];
     image_card_data.data_hash = image_data.list_dataHash[image_data_ix];
 
     image_card_data.height = Number(image_data.list_metaData[image_data_ix]["height"])
@@ -394,7 +391,7 @@ async function editMetaData(node){
               <div class="flex h-full items-center justify-center p-2 gap-4">
                 <!-- image/card with fixed height and auto width -->
                 <div class="flex shrink h-full">
-                  <img class="w-auto cursor-pointer h-full" on:click={() => {console.log("hellll"); set_state_active("image_card_fullscreen")}} src={image_card_data.url} alt="">
+                  <img class="w-auto cursor-pointer h-full" on:click={() => {console.log("hellll"); set_state_active("image_card_fullscreen")}} src={"/api/getRawData/" + image_card_data.data_hash} alt="">
 
                   <!-- to display a pencil like icon to edit some meta-data. -->
                   <div class="absolute text-xl cursor-pointer  right-4 top-4 text-gray-200 z-100" on:click={() => {interface_state.image_card_edit_interface = true;}}>
@@ -594,7 +591,7 @@ async function editMetaData(node){
         <!-- (-1) here would indicate invalid index. so ignore that index -->
           {#if (score_ix["ix"] >= 0)}        
             <div on:click = {() => {update_image_card(i); set_state_active("image_card")}} class="relative group">              
-                <img class="sm:max-h-48 rounded-lg shadow-xl cursor-pointer" src={image_data.list_src[score_ix["ix"]]} alt="image">
+                <img class="sm:max-h-48 rounded-lg shadow-xl cursor-pointer" src={"api/getRawData/" +  image_data.list_dataHash[score_ix["ix"]]} alt="image">
             </div>
           {/if}
         {/each}
