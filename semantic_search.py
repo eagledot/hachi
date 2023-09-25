@@ -338,8 +338,8 @@ def indexStart(batch_size = 1):
         if indexing_active:
             return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
 
-        threading.Thread(target = indexing_thread, args = (index_root_dir, client_id) ).start()
         indexStatus.add_endpoint_for_indexing(client_id)
+        threading.Thread(target = indexing_thread, args = (index_root_dir, client_id) ).start()
         return flask.jsonify({"success":True, "statusEndpoint":client_id, "reason": "Indexing successfully started at entpoint"})
     else:
         print("{} Doesn't exist on server side".format(index_root_dir))
