@@ -8,6 +8,8 @@
   import People from "./people.svelte";
   import Place from "./place.svelte";
 
+  import {query_results_available} from "./stores.js"
+
   let image_scores = [];
   let image_local_hash = [];
   let image_metaData = [];
@@ -76,6 +78,7 @@
         }
 
           formData.append("query_start", "true");
+          query_results_available.update((value) => image_data_for_child);  // indicate query data is not available, i.e query started or something..
         }
         else{
           formData.append("query_start", "false");
@@ -125,6 +128,8 @@
         if (data["query_completed"] == true){
           query_button_disabled = false;
           query_completed = true;
+          console.log("hey i am being called!!!");
+          query_results_available.update((value) => image_data_for_child);  // indicate query data is not available, i.e query started or something..
           return
         }
         
@@ -157,6 +162,22 @@ const
 }
 
 function make_interface_active(key){
+
+  // idea to update any store values to default !!!
+  // should handle all stores updates here to be consistent !!
+
+  if (state_interface[key].status == false)
+  {
+    // only if it is not currently active...
+    image_data_for_child  = {
+              "list_metaData": [],
+              "list_dataHash": [],
+              "list_score": [],
+              "done":false              
+          }
+    query_results_available.update((value) => structuredClone(image_data_for_child))
+  }
+
 
   //make all available interfaces inactive.
   let temp_keys = Object.keys(state_interface);
@@ -203,7 +224,7 @@ function SidebarItemClick(event){
                           text_query = event.detail.query; 
                           query_attributes = event.detail.attributes;
                           handleClick();}}/>
-          <Photos image_data = {image_data_for_child} />
+          <Photos image_data = {image_data_for_child}/>
         </div>
       </div>
     
