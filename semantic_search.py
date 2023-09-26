@@ -210,8 +210,20 @@ def indexing_thread(index_directory:str, client_id:str, include_subdirectories:b
     exit_thread = False
     resource_mapping = collect_resources(index_directory, include_subdirectories)
     
-    image_resources = resource_mapping["image"]    # collect a particular type of resources.
-    for (resource_directory, contents) in (image_resources.items()):
+    while True:
+        indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
+
+        resource_mapping = next(resource_mapping_generator)
+        if (resource_mapping["finished"] == True):
+            del resource_mapping_generator
+            break
+        else:
+            image_resources = resource_mapping["image"]
+            if len(image_resources) == 0:
+                continue
+            resource_directory = list(image_resources.keys())[0]
+            contents = image_resources[resource_directory]
+        
         if exit_thread:
             print("Finishing index on cancellation request from user")
             break
