@@ -4,6 +4,7 @@
     import sample_bg from'./assets/sample_place_bg.jpg'
     import Photos from './photos.svelte';
     import {onMount, onDestroy} from "svelte"
+    import {query_results_available} from "./stores.js" // update the writable query_results_available
 
     
     let state = {
@@ -27,7 +28,6 @@
 
 
     //sample data
-    let image_src_downloading = false; // indicating that image data is being downloaded !!
     let photos_interface_active = false;
     let data_downloaded = true; // not exactly being used for now.. (may be used during destroy .. to prevent )
     onMount(() =>{
@@ -40,7 +40,6 @@
         then((response) => {
             response.json().then((data) => {
             let data_length = data["meta_data"].length;
-            console.log("data length: ", data_length);
             for(let i = 0; i < data_length; i++){
                 image_data.list_dataHash.push(data["data_hash"][i]);
                 image_data.list_score.push(data["score"][i]);
@@ -59,8 +58,6 @@
 
     async function handleClick(place_id){
 
-        const batch_size = 10         // i.e update the interface for a batch of 10 images atleast, otherwise not good to wait for all data to download.
-        let temp_count = 0
         photos_interface_active = false;
 
         place_data = {
@@ -70,40 +67,36 @@
         "done":false
         }
 
-        image_src_downloading = true;
+        query_results_available.update((value) => structuredClone(place_data));
+
         // update place_data for this place_id.
         for(let i = 0; i<image_data.list_dataHash.length; i++){
             
-            if (image_src_downloading === false){
-                console.log("stopping...")
-                return;
-            }
-
             if(image_data.list_metaData[i]["place"].toLowerCase() === place_id.toLowerCase()){
                 place_data.list_metaData.push(image_data.list_metaData[i]);
                 place_data.list_dataHash.push(image_data.list_dataHash[i]);
                 place_data.list_score.push(image_data.list_score[i]);
-                
-                temp_count += 1;
-                if((temp_count % batch_size) == 0){
-                    place_data = place_data  // indicate svelte to re-render photos
-                    photos_interface_active = true;
-                }
-
             }
         }
         place_data.done = true;  // should be enough to indicate svelte to render photos interface.
         photos_interface_active = true;
-        image_src_downloading = false;
+        
+        // indicate query
+        query_results_available.update((value) => structuredClone(place_data));
     }
+
+// by default photos interface is not active,
+// so we would just display possible places/div with a background image.
+// let us try this to get that right !!!
+// ok, then what are we supposed to do ??
+
 
 </script>
 
-
-{#if (photos_interface_active)}
-    <Photos image_data = {place_data} show_exit_interface_button = {true} on:exitButtonPressed = {() => {console.log("pressed the hell out of it!"); photos_interface_active = false; image_src_downloading = false;}}/>
-{:else if (image_src_downloading === true)}
+{#if (data_downloaded === false)}
     <p> Loading, please wait...</p>
+{:else if (photos_interface_active)}
+    <Photos image_data = {place_data} show_exit_interface_button = {true} on:exitButtonPressed = {() => {console.log("pressed the hell out of it!"); photos_interface_active = false}}/>
 {:else}
     <!-- some space to place some filters later. -->
     <div class = "flex w-screen h-[80px] bg-blue-100"></div>
