@@ -139,6 +139,11 @@ let pollEndpointTimeoutId;
                 current_statusEndpoint = data.statusEndpoint;     // for now assuming only one endpoint would be active for a CLIENT at a given time.
                 pollEndpointNew(endpoint) // keep polling that endpoint.
             }
+            else{
+              alert(data["reason"])
+              index_start_button.disabled = false;
+              input_element.disabled = false;
+            }
         }
         else{
             console.log("No index_start_button object found!!!");
