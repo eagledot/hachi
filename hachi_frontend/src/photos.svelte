@@ -1,5 +1,11 @@
 <script>
 
+// just want to raise an event when query full data has been received.
+// then can generate filter data page by page.
+// on more items click can generate again the event..
+
+import {filter_metaData_store, query_results_available} from "./stores.js"
+
 import { createEventDispatcher, onDestroy, onMount } from 'svelte';
 import Filters from './filters.svelte';
 const dispatch = createEventDispatcher();  // attach dispatch to this instance. 
@@ -13,28 +19,66 @@ export let image_data  = {
     }
 
     let filter_button_disabled = true;
-    let final_image_data = null;
-    $:if(image_data){
-      filter_button_disabled = !image_data.done
-      if(image_data.done){
-        final_image_data = image_data
-      }
-    }
-
     onDestroy(() => {
       image_data  = {
         "list_metaData": [],
         "list_dataHash": [],
         "list_score": [],
         "done":false}
+
+      filter_metaData_store.update((value) => []); // reset any filter metadata to empty.
     })
 
     let image_card_data = {} 
     let meta_data_available = false; 
     let sorted_scoreIndex = [];  
+    let original_sorted_scoreIndex = [];
+
+    let page_size = 20;
+    let offset  = 0;
+
+    function showMoreResults(node)
+    {
+      offset = offset + page_size;
+      sorted_scoreIndex = original_sorted_scoreIndex.slice(offset, offset + page_size)
+      filter_metaData_store.update((value) => generateFilterMetaData(sorted_scoreIndex));
+    }
+
+    function generateFilterMetaData(sorted_scoreIndex){
+        let temp_filter_metaData = [];
+
+        // collect meta_data based on current sorted_scoreIndex array
+        let temp_length = sorted_scoreIndex.length;
+        for (let i = 0; i< temp_length; i++){
+          let image_ix = sorted_scoreIndex[i].ix;  // absolute index into (unsorted) original image data.
+          temp_filter_metaData.push(image_data.list_metaData[image_ix]);
+        }
+        return temp_filter_metaData;
+      }
+    
+    query_results_available.subscribe((value) => 
+                                  {if(value.done == true){
+                                    afterAllQueryData(value);
+                                  }
+                                  else{
+                                    offset = 0;
+                                    sorted_scoreIndex = [];
+                                  }});
+
+    function afterAllQueryData(query_data){
+      original_sorted_scoreIndex = argsort(query_data.list_score);  // store in original array
+      sorted_scoreIndex = original_sorted_scoreIndex.slice(0, 0 + page_size);
+      filter_metaData_store.update((value) => generateFilterMetaData(sorted_scoreIndex));
+    }
+
 
     $: if (image_data){
-      sorted_scoreIndex = argsort(image_data.list_score);
+      original_sorted_scoreIndex = argsort(image_data.list_score);  // store in original array
+
+      // todo remove this sorted_ScoreIndex dependency, actually remove this reactive block completely.
+      if(image_data.done == false){
+        sorted_scoreIndex = original_sorted_scoreIndex.slice(offset, offset + page_size) // idea is to use this until all query data is available.
+      }
     }
 
     let interface_state = {
@@ -251,7 +295,18 @@ function scoresThresholdChange() {
 
 function applyFilterMask(filter_mask){
   filter_button_disabled = true;
-  sorted_scoreIndex = argsort(image_data.list_score, filter_mask);
+  
+  let temp_scoreIndex = original_sorted_scoreIndex.slice(offset, offset + page_size);
+  for(let i = 0; i < filter_mask.length; i++){
+    if (filter_mask[i] == 0){
+      sorted_scoreIndex[i].ix = -1;
+    }
+    else{
+      sorted_scoreIndex[i].ix = temp_scoreIndex[i].ix;
+    }
+  }
+
+
   filter_button_disabled = false;
 }
 
@@ -557,7 +612,7 @@ async function editMetaData(node){
     <!--  to exit from this interface.. -->
     <div class = "flex">
       <div class="top-0 left-0 flex h-12 items-center justify-between w-screen">
-        <div class="cursor-pointer hover:underline text-black" on:click={() => {dispatch("exitButtonPressed") }}>
+        <div class="cursor-pointer hover:underline text-black" on:click={() => {console.log("pressed me!!!"); sorted_scoreIndex = []; dispatch("exitButtonPressed") }}>
             <i  class="fa fa-arrow-left mr-1 text-black"></i>
             Back
         </div>
@@ -566,7 +621,7 @@ async function editMetaData(node){
     {/if}
 
     <!-- filters interface, should allow us to invalidate some indices -->
-    <Filters filter_button_disabled = {filter_button_disabled} image_data = {final_image_data} on:filterApplied = {(event) => {applyFilterMask(event.detail.mask)}}/>
+    <Filters filter_button_disabled = {filter_button_disabled} on:filterApplied = {(event) => {applyFilterMask(event.detail.mask)}}/>
 
     <!-- Search Interface to show queried images -->
     <div class="flex">
@@ -596,6 +651,13 @@ async function editMetaData(node){
           {/if}
         {/each}
       </div>
+
+      {#if sorted_scoreIndex.length >= page_size}
+        <div class = "flex items-center justify-center">
+          <button class = "px-4 py-1 text-white rounded bg-blue-600 disabled:bg-blue-200" on:click={showMoreResults}>More results ..</button>
+        </div>
+      {/if}
+
     </div>
   </div>    
 {/if}
