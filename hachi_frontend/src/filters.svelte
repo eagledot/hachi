@@ -1,9 +1,18 @@
 <script>
+
+
+
+    import {filter_metaData_store} from "./stores.js"
     import {createEventDispatcher, onMount} from "svelte";
+
+    let filter_metaData = [];
+    export let filter_button_disabled = true;
+    filter_metaData_store.subscribe((value) =>{
+        filter_button_disabled = false;
+        filter_metaData = value;
+    })
     const dispatch = createEventDispatcher();  // attach dispatch to this instance. 
 
-    export let filter_button_disabled = true;
-    export let image_data = null;
 
       const state = {
         selectFilterActive : "",
@@ -26,10 +35,11 @@
       }
     
 
-    $: if (image_data){
-        let temp_places = image_data.list_metaData.map((v,i) => {if(v.place) {return v.place}});
+    $: if (filter_metaData){
+
+        let temp_places = filter_metaData.map((v,i) => {if(v.place) {return v.place}});
         let temp_person = [];
-        image_data.list_metaData.map((v, i) => {
+        filter_metaData.map((v, i) => {
             if(v.person)
                 {v.person.forEach((x) => temp_person.push(x))}
         })
@@ -46,7 +56,6 @@
 
         state.selectFilters.people.values = person_array;
         state.selectFilters.people.options = person_array;
-
 
     }
     
@@ -130,7 +139,6 @@ function filter_base(data, value_to_compare, key = null, compare_function = ((a,
                                                                 return false;
                                                             }
                                                             }));
-            console.log("temp: ", temp_indices);
             for(let i = 0; i < default_mask.length; i++){
                 default_mask[i] = Number(Boolean(default_mask[i]) || Boolean(temp_indices[i])); // or operation
             }
@@ -155,10 +163,12 @@ function filter_base(data, value_to_compare, key = null, compare_function = ((a,
     }
     function handleFiltering(){
         
-        if (image_data){
+        if (filter_metaData){
+            console.log(filter_metaData);
+
             let places_array = [];
             let person_array = [];
-            image_data.list_metaData.map((v,i) => {places_array.push(v.place); person_array.push(v.person)});
+            filter_metaData.map((v,i) => {places_array.push(v.place); person_array.push(v.person)});
             let places_selected = state.selectFilters.place.values;
 
             let place_mask = apply_places_filter(places_array, places_selected);
