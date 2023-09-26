@@ -2,6 +2,7 @@
     import sample_bg from'./assets/sample_place_bg.jpg'
     import Photos from './photos.svelte';
     import {onMount, onDestroy} from "svelte"
+    import {query_results_available} from "./stores.js" // update the writable query_results_available
     
     let state = {
         people: []  // all possible person ids.
@@ -25,7 +26,6 @@
 
 
     //sample data
-    let image_src_downloading = false; // indicating that image data is being downloaded !!
     let photos_interface_active = false;
     let data_downloaded = true; // not exactly being used for now.. (may be used during destroy .. to prevent )
     onMount(() =>{
@@ -52,13 +52,11 @@
     })
 
     onDestroy(() => {
-        console.log("destroying...");
+        console.log("destroying... people..");
     })
 
     async function handleClick(person_id){
 
-        const batch_size = 10         // i.e update the interface for a batch of 10 images atleast, otherwise not good to wait for all data to download.
-        let temp_count = 0
         photos_interface_active = false;
 
         people_data = {
@@ -68,36 +66,28 @@
         "done":false
         }
 
-        image_src_downloading = true;
         for(let i = 0; i<image_data.list_dataHash.length; i++){
-            if (image_src_downloading === false){
-                console.log("stopping...")
-                return;
-            }
 
             if(image_data.list_metaData[i]["person"].includes(person_id)){
                 people_data.list_metaData.push(image_data.list_metaData[i]);
                 people_data.list_dataHash.push(image_data.list_dataHash[i]);
                 people_data.list_score.push(image_data.list_score[i]);
                 
-                temp_count += 1;
-                if((temp_count % batch_size) == 0){
-                    people_data = people_data  // indicate svelte to re-render photos
-                    photos_interface_active = true;
-                }
-
             }
         }
         people_data.done = true;  // should be enough to indicate svelte to render photos interface.
         photos_interface_active = true;
-        image_src_downloading = false;
+
+        query_results_available.update((value) => structuredClone(people_data));
+
     }
 
 </script>
-{#if (photos_interface_active)}
-        <Photos image_data = {people_data} show_exit_interface_button = {true} on:exitButtonPressed = {() => {console.log("pressed the hell out of it!"); photos_interface_active = false; image_src_downloading = false;}}/>
-    {:else if (image_src_downloading === true)}
+
+    {#if (data_downloaded === false)}
         <p> Loading, please wait...</p>
+    {:else if (photos_interface_active)}
+        <Photos image_data = {people_data} show_exit_interface_button = {true} on:exitButtonPressed = {() => {console.log("pressed the hell out of it!"); photos_interface_active = false}}/>
     {:else}
         <!-- some space to place some filters later. -->
         <div class = "flex w-screen h-[80px] bg-blue-100"></div>
