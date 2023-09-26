@@ -29,17 +29,19 @@ ALLOWED_RESOURCES = {
 }
 
 def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> dict[os.PathLike, str]:
-    """Collect possible resources given a root_path, mapped to resource types."""
-    result = {}
-    for k in ALLOWED_RESOURCES:
-        result[k] = {}
-    
+
     resources_queue = Queue()
     resources_queue.put(os.path.abspath(root_path))
     
     while True:
+        result = {}
+        for k in ALLOWED_RESOURCES:
+            result[k] = {}
+        result["finished"] = False
+
         if resources_queue.qsize() == 0:     #    "This is ok, since we are putting, and getting inside same iteration of function. So checking length is trustworthy."
-            return result
+            result["finished"] = True
+            break
         
         current_directory = resources_queue.get()
         try: 
@@ -59,9 +61,13 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
                         result[temp_resource_type][current_directory].append(temp_resource)
                     else:
                         result[temp_resource_type][current_directory] = [temp_resource]
-
+        
+        yield result
+                
         if include_subdirectories == False:
             break
+        
+    yield result
 
 def get_resource_type(resource_extension:str) -> Optional[str]:
     for k,v in ALLOWED_RESOURCES.items():
