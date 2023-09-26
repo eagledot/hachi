@@ -208,7 +208,7 @@ def generate_image_preview(data_hash, absolute_path:Optional[str]):
 def indexing_thread(index_directory:str, client_id:str, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
     exit_thread = False
-    resource_mapping = collect_resources(index_directory, include_subdirectories)
+    resource_mapping_generator = collect_resources(index_directory, include_subdirectories)
     
     while True:
         indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
