@@ -10,13 +10,13 @@ import random
 import time
 import sys
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
 from exif import Image
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../fuzzy_search"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../fuzzy_search"))
 from fuzzy_search import FuzzySearch
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
 from reverse_geocode import GeocodeIndex
 
 import get_image_size
