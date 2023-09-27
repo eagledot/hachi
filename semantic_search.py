@@ -1,6 +1,6 @@
 # imports
 import os
-from typing import Optional, Union, Tuple, List
+from typing import Optional, Union, Tuple, List, Iterable
 from threading import RLock
 import threading
 import time
@@ -17,14 +17,17 @@ import numpy as np
 IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./preview_image")
 if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PREVIEW_DATA_PATH)
+IMAGE_INDEX_SHARD_SIZE = 1200
+TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
+TO_SKIP_PATHS = [os.path.abspath("./")]                 # skip application root directory, children would also be excluded from indexing..
 
-sys.path.append("./index")
+sys.path.insert(0,"./index")
 from image_index import ImageIndex
 from face_index import compare_face_embeddings
 from meta_index import MetaIndex, collect_resources
 from global_data_cache import GlobalDataCache
 
-sys.path.append("./ml")
+sys.path.insert(0,"./ml")
 import clip_python_module as clip
 import faceEmbeddings_python_module as pipeline
 
@@ -168,7 +171,7 @@ clip.load_vit_b32Q("./data/ClipViTB32.bin")
 print("[Debug]: ")
 pipeline.load_model("./data/pipelineRetinaface.bin")
 
-imageIndex = ImageIndex(shard_size = 400, embedding_size = IMAGE_EMBEDDING_SIZE)
+imageIndex = ImageIndex(shard_size = IMAGE_INDEX_SHARD_SIZE, embedding_size = IMAGE_EMBEDDING_SIZE)
 print("Created Image index")
 
 metaIndex = MetaIndex()
@@ -385,7 +388,7 @@ def query():
     
     flag = False
    
-    top_k = max(int(flask.request.form["topk"]), 16)         # 16 atleast 16 from each shard seems good enough..
+    top_k = TOP_K_SHARD
     query_start = flask.request.form["query_start"].strip().lower()
     query = flask.request.form["query"]
 
