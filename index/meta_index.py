@@ -3,7 +3,7 @@
 import os
 import hashlib
 from threading import RLock
-from typing import Optional, Union, Iterable
+from typing import Optional, Union, Iterable, List
 from queue import Queue
 import pickle
 import random
@@ -27,6 +27,24 @@ ALLOWED_RESOURCES = {
     "image": set([".jpg", ".jpeg", ".png", ".tiff", ".raw"]),   # opencv is being used to read raw-data, so almost all extensions are generally supported.
     "text":  set([".pdf", ".txt", ".epub"])                     # TODO:
 }
+TO_SKIP_PATHS = [os.path.abspath(__package__)]                      # skip application root directory, children would also be excluded from indexing..
+
+def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = TO_SKIP_PATHS) ->bool:
+    """Supposed to tell if a resource directory is contained in the to_skip directories
+    """
+
+    # NOTE: i think good enough!! (should work on all Os)
+    temp_resource = os.path.abspath(resource_directory)
+    result = False
+    for x in to_skip:
+        try:
+            temp_result = os.path.commonpath([temp_resource, x])
+        except:
+            continue
+        if os.path.normcase(temp_result) == os.path.normcase(x):
+            result = True
+            break        
+    return result
 
 def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> dict[os.PathLike, str]:
 
@@ -49,7 +67,10 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
         except:
             print("Error while listing: {}".format(current_directory))
             continue
-
+        
+        if should_skip_indexing(current_directory):
+            continue
+        
         for temp_resource in temp_resources:
             if os.path.isdir(os.path.join(current_directory, temp_resource)):
                 resources_queue.put(os.path.join(current_directory, temp_resource))
