@@ -93,15 +93,16 @@
         <div class = "flex w-screen h-[80px] bg-blue-100"></div>
 
         <!-- display each value in group as a clickable div, later on click we would use the PHOTOS component. -->
-        <div class = "flex justify-center gap-6 items-center my-2 py-2 w-100 h-100 bg-blue-200 flex-wrap">
+        <div class = "flex justify-center gap-6 items-center my-2 py-2 w-100 h-100 bg-gray-900 flex-wrap">
             <!-- a single div element -->
             {#each state.people as person_id}
                 <div class = "flex-col cursor-pointer" on:click={(e) => {console.log("mine is: ", person_id); handleClick(person_id)}}>
                     <div>
-                        <div class = "h-[150px] w-[200px] bg-gray-800">
-                            <img src={sample_bg} class="object-strech hover:opacity-50 w-full h-full border-gray-100 shadow-smr">
+                        <div class = "h-[100px] w-[120px] bg-gray-800">
+                            <!-- <img src={sample_bg} class="object-strech hover:opacity-50 w-full h-full border-gray-100 shadow-smr"> -->
+                            <img src={"/api/getPreviewPerson/" + person_id} class="object-strech hover:opacity-50 w-full h-full border-gray-100 shadow-smr">
                         </div>
-                        <div class = "flex text-xl text-white justify-center items-center">{ person_id.slice(0, 1).toUpperCase() + person_id.slice(1).toLowerCase()}</div>
+                        <div class = "flex text-md text-white justify-center items-center">{ person_id.slice(0, 1).toUpperCase() + person_id.slice(1).toLowerCase()}</div>
                     </div>
                 </div>
             {/each}
