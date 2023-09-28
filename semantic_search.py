@@ -17,9 +17,12 @@ import numpy as np
 IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./preview_image")
 if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PREVIEW_DATA_PATH)
+IMAGE_PERSON_PREVIEW_DATA_PATH = os.path.join(IMAGE_PREVIEW_DATA_PATH, "preview_person")
+if not os.path.exists(IMAGE_PERSON_PREVIEW_DATA_PATH):
+    os.mkdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
+
 IMAGE_INDEX_SHARD_SIZE = 1200
 TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
-TO_SKIP_PATHS = [os.path.abspath("./")]                 # skip application root directory, children would also be excluded from indexing..
 
 sys.path.insert(0,"./index")
 from image_index import ImageIndex
@@ -188,7 +191,7 @@ personId_to_avgEmbedding = {} # we seek to create average embedding for a group/
 prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
 global_lock = threading.RLock()
 
-def generate_image_preview(data_hash, absolute_path:Optional[str]):
+def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:Optional[list[list[int]]]):
 
     preview_max_width = 640
     if absolute_path is None:
@@ -200,6 +203,23 @@ def generate_image_preview(data_hash, absolute_path:Optional[str]):
     h,w,c = raw_data.shape
     ratio = h/w
 
+    margin = 60
+    if face_bboxes is not None:
+        for i, bbox in enumerate(face_bboxes):
+            x1 = int(bbox[0])
+            y1 = int(bbox[1])
+            x2 = int(bbox[2])
+            y2 = int(bbox[3])
+
+            # apply some margin as well. 
+            x1 = max(0, x1 - margin)
+            x2 = min(w-1, x2 + margin)
+            y1 = max(0, y1 - margin)
+            y2 = min(h-1, y2 + margin)
+
+            raw_data_face = raw_data[y1:y2, x1:x2, :]
+            cv2.imwrite(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}_person_{}.jpg".format(data_hash, i)), raw_data_face)
+    
     # calculate new height, width keep aspect ratio fixed.
     new_width = min(w, preview_max_width)
     new_height = int(ratio * new_width)
@@ -268,10 +288,10 @@ def indexing_thread(index_directory:str, client_id:str, include_subdirectories:b
                 if face_bboxes.shape[0] > 0:
                     meta_data["face_bboxes"] = []
                     for bbox in face_bboxes:
-                        x1 = str(bbox[0])
-                        y1 = str(bbox[1])
-                        x2 = str(bbox[2])
-                        y2 = str(bbox[3])
+                        x1 = str(int(bbox[0]))
+                        y1 = str(int(bbox[1]))
+                        x2 = str(int(bbox[2]))
+                        y2 = str(int(bbox[3]))
                         meta_data["face_bboxes"].append([x1, y1, x2, y2])
 
                     with global_lock:
@@ -308,8 +328,10 @@ def indexing_thread(index_directory:str, client_id:str, include_subdirectories:b
                 metaIndex.update(data_hash, meta_data)
                 imageIndex.update(data_hash, data_embedding = image_embedding)
                 if generate_preview_data:
-                    generate_image_preview(data_hash, absolute_path)
-
+                    if face_bboxes.shape[0] > 0:
+                        generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"])
+                    else:
+                        generate_image_preview(data_hash, absolute_path, None)
             count += len(contents_batch)
 
             # calculate eta..
@@ -590,7 +612,7 @@ def getMetaStats():
     """Supposed to return some stats about meta-data indexed, like number of images/text etc."""
     result = metaIndex.get_stats()
     return flask.jsonify(result)
-
+        
 if __name__ == "__main__":
 
     port = 8200
