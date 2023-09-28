@@ -4,11 +4,6 @@
     A locally hosted webapp to enable natural language search for all your videos and images.
 </h1>
 
-<h2 align="center">
-    <a href="https://ramanlabs.in/static/hachi.html"> Project Page </a> | 
-    <a href="https://www.youtube.com/watch?v=Oier6dK9Zs4"> Demo Video</a>
-</h2>
-
 ## Features:
 - **Natural Language Search**: Query any video or image using Natural Language. (powered by [CLIP](https://github.com/openai/CLIP) )
 - **Simple, Clean Interface**: Index any media just by providing a path to a local directory/folder and start querying.
