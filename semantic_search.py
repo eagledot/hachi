@@ -612,7 +612,32 @@ def getMetaStats():
     """Supposed to return some stats about meta-data indexed, like number of images/text etc."""
     result = metaIndex.get_stats()
     return flask.jsonify(result)
-        
+
+@app.route("/getPreviewPerson/<person_id>", methods = ["GET"])
+def getPreviewPerson(person_id):
+
+    hash_2_metaData = metaIndex.query(data_hashes = None, attribute = "person", attribute_value = person_id )
+    if len(hash_2_metaData) > 0:
+        for k,v in hash_2_metaData.items():
+            temp_person = v["person"]
+            data_hash  =  k
+
+            try:
+                temp_index = temp_person.index(person_id)
+                temp_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}_person_{}.jpg".format(data_hash,temp_index))
+                del hash_2_metaData
+
+                if os.path.exists(temp_path):
+                    with open(temp_path, "rb")  as f:
+                        temp_raw_data = f.read()
+                return flask.Response(temp_raw_data, mimetype = "{}/{}".format("image", "jpg"))
+            
+            except:
+                break
+    
+    # TODO: send some default data...
+    return "some other poster..."       
+
 if __name__ == "__main__":
 
     port = 8200
