@@ -191,7 +191,7 @@ personId_to_avgEmbedding = {} # we seek to create average embedding for a group/
 prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
 global_lock = threading.RLock()
 
-def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:Optional[list[list[int]]]):
+def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:Optional[list[list[int]]], person_ids:list[str]):
 
     preview_max_width = 640
     if absolute_path is None:
@@ -206,6 +206,12 @@ def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:O
     margin = 60
     if face_bboxes is not None:
         for i, bbox in enumerate(face_bboxes):
+
+            temp_person_id = person_ids[i]
+            temp_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH,"{}.jpg".format(temp_person_id))
+            if os.path.exists(temp_path):
+                continue
+
             x1 = int(bbox[0])
             y1 = int(bbox[1])
             x2 = int(bbox[2])
@@ -218,7 +224,7 @@ def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:O
             y2 = min(h-1, y2 + margin)
 
             raw_data_face = raw_data[y1:y2, x1:x2, :]
-            cv2.imwrite(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}_person_{}.jpg".format(data_hash, i)), raw_data_face)
+            cv2.imwrite(temp_path, raw_data_face)
     
     # calculate new height, width keep aspect ratio fixed.
     new_width = min(w, preview_max_width)
@@ -329,9 +335,9 @@ def indexing_thread(index_directory:str, client_id:str, include_subdirectories:b
                 imageIndex.update(data_hash, data_embedding = image_embedding)
                 if generate_preview_data:
                     if face_bboxes.shape[0] > 0:
-                        generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"])
+                        generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"], person_ids=meta_data["person"])
                     else:
-                        generate_image_preview(data_hash, absolute_path, None)
+                        generate_image_preview(data_hash, absolute_path, None, person_ids=[])
             count += len(contents_batch)
 
             # calculate eta..
@@ -569,6 +575,9 @@ def tagPerson():
             personId_to_avgEmbedding[new_person_id] = personId_to_avgEmbedding[old_person_id]
             personId_to_avgEmbedding.pop(old_person_id)
 
+        temp_person_preview_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(old_person_id))
+        if os.path.exists(temp_person_preview_path):
+            os.rename(temp_person_preview_path, os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(new_person_id)))
     return flask.jsonify(result)
 
 @app.route("/editMetaData", methods = ["POST"])
@@ -615,28 +624,14 @@ def getMetaStats():
 
 @app.route("/getPreviewPerson/<person_id>", methods = ["GET"])
 def getPreviewPerson(person_id):
-
-    hash_2_metaData = metaIndex.query(data_hashes = None, attribute = "person", attribute_value = person_id )
-    if len(hash_2_metaData) > 0:
-        for k,v in hash_2_metaData.items():
-            temp_person = v["person"]
-            data_hash  =  k
-
-            try:
-                temp_index = temp_person.index(person_id)
-                temp_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}_person_{}.jpg".format(data_hash,temp_index))
-                del hash_2_metaData
-
-                if os.path.exists(temp_path):
-                    with open(temp_path, "rb")  as f:
-                        temp_raw_data = f.read()
-                return flask.Response(temp_raw_data, mimetype = "{}/{}".format("image", "jpg"))
-            
-            except:
-                break
-    
-    # TODO: send some default data...
-    return "some other poster..."       
+    temp_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(person_id))
+    if os.path.exists(temp_path):
+        with open(temp_path, "rb")  as f:
+            temp_raw_data = f.read()
+        return flask.Response(temp_raw_data, mimetype = "{}/{}".format("image", "jpg"))
+    else:
+        #TODO:
+        return "some other poster..."       
 
 if __name__ == "__main__":
 
