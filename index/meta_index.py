@@ -62,14 +62,15 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
             break
         
         current_directory = resources_queue.get()
+        if should_skip_indexing(current_directory):
+            continue
+        
         try: 
             temp_resources = os.listdir(current_directory)
         except:
             print("Error while listing: {}".format(current_directory))
             continue
         
-        if should_skip_indexing(current_directory):
-            continue
         
         for temp_resource in temp_resources:
             if os.path.isdir(os.path.join(current_directory, temp_resource)):
@@ -357,16 +358,24 @@ class MetaIndex(object):
             self.fuzzy_search = self.load_fuzzy_search(data_hashes = data_hash, fresh=False)
 
     def modify_meta_data(self, data_hash:str, meta_data:dict):
+        
+        updated_fuzzy_attributes = []
         with self.lock:
-            temp_meta_data = self.hash_2_metaData[data_hash]
-        for k,v in meta_data.items():
-            assert k in temp_meta_data, """ this is supposed to just update existing information based on an user request """
-            temp_meta_data[k] = v
-        with self.lock:
-            self.hash_2_metaData[data_hash] = temp_meta_data
+            old_meta_data = self.hash_2_metaData[data_hash]
+
+            for attribute in meta_data:
+                if attribute in self.fuzzy_search_attributes:
+                    if meta_data[attribute] != old_meta_data[attribute]:
+                        updated_fuzzy_attributes.append(attribute)
+            
+            # update old_meta data based on the modified attributes.
+            for k,v in meta_data.items():
+                assert k in old_meta_data, """ this is supposed to just update existing information based on an user request """
+                old_meta_data[k] = v
+            self.hash_2_metaData[data_hash] = old_meta_data  # i guess not needed, old_meta_data is a reference !!
 
             # also update the corresponding fuzzy-search/index
-            self.fuzzy_search =  self.load_fuzzy_search(data_hash, fresh = False)
+            self.fuzzy_search =  self.load_fuzzy_search(attributes_list = updated_fuzzy_attributes)
     
     def save(self):
         with self.lock:
