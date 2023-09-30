@@ -367,6 +367,15 @@ def indexStart(batch_size = 1):
     index_root_dir = flask.request.form.get("image_directory_path")
     complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
     if complete_rescan == "true":
+        
+        # also delete person previews.
+        preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
+        for preview_person in preview_data:
+            try:
+                os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
+            except:
+                print("Error deleting: {}".format(preview_data))
+        
         imageIndex.reset()
         metaIndex.reset()
 
