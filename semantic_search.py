@@ -577,7 +577,9 @@ def tagPerson():
 
         temp_person_preview_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(old_person_id))
         if os.path.exists(temp_person_preview_path):
-            os.rename(temp_person_preview_path, os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(new_person_id)))
+            new_path =  os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(new_person_id))
+            if not os.path.exists(new_path): 
+                os.rename(temp_person_preview_path, new_path)
     return flask.jsonify(result)
 
 @app.route("/editMetaData", methods = ["POST"])
