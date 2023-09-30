@@ -1,6 +1,7 @@
 # imports
 
 import os
+import copy
 import hashlib
 from threading import RLock
 from typing import Optional, Union, Iterable, List
@@ -327,7 +328,7 @@ class MetaIndex(object):
             temp_hashes = self.get_fuzzy_data(attribute, value)
             if temp_hashes is not None:
                 for temp_hash in temp_hashes:
-                    result[temp_hash] = self.hash_2_metaData[temp_hash]
+                    result[temp_hash] = copy.deepcopy(self.hash_2_metaData[temp_hash])
         return result    
 
     def query(self, data_hashes:Optional[str | Iterable[str]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> dict[str, dict]:
@@ -345,7 +346,7 @@ class MetaIndex(object):
             
             with self.lock:
                 for h in data_hashes:
-                    result[h] = self.hash_2_metaData[h]
+                    result[h] = copy.deepcopy(self.hash_2_metaData[h])
 
         return result
 
