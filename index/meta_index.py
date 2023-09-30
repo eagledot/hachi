@@ -230,33 +230,31 @@ class MetaIndex(object):
         
         return temp
 
-    def load_fuzzy_search(self, data_hashes: Iterable[str] | str, fresh = True) -> dict:
-        with self.lock:
-            if fresh:
-                temp = {}
-            else:
-                temp = self.fuzzy_search
-            
-            for attribute in self.fuzzy_search_attributes:
-                if attribute not in temp:
-                    temp[attribute] = FuzzySearch()
-            
-            if isinstance(data_hashes, str):
-                data_hashes = [data_hashes]
+    def load_fuzzy_search(self, attributes_list:Optional[list[str]] = "__all__") -> dict:
+        temp = {}
+        if hasattr(self, "fuzzy_search"):
+            temp = self.fuzzy_search
+        
+        if attributes_list == "__all__":  # what should i use to indicat something like * ??
+            attributes_list = self.fuzzy_search_attributes
+        
+        for updated_attribute in attributes_list:
+            if updated_attribute in self.fuzzy_search_attributes:
+                
+                temp[updated_attribute] = FuzzySearch()
 
-            # fill the fuzzyIndices with with corresponding meta-data.
-            for data_hash in data_hashes:
-                meta_data = self.hash_2_metaData[data_hash]
-                for attribute in self.fuzzy_search_attributes:
-                    data = meta_data[attribute]  # like for place attribute, this would allow fuzzy search across all possible PLACES for images
+                for data_hash, meta_data in self.hash_2_metaData.items():
+                    data = meta_data[updated_attribute]  # like for place attribute, this would allow fuzzy search across all possible PLACES for images
                     if data is not None:
                         if isinstance(data, str):
-                            temp[attribute].add(data, auxiliaryData = data_hash) # auxiliary data is data_hash in this case, since using set, it allows one to many modelling.
+                            temp[updated_attribute].add(data, auxiliaryData = data_hash) # auxiliary data is data_hash in this case, since using set, it allows one to many modelling.
                         else:
                             # since using for loop, and a set, allows "many to many" modelling.
                             for d in data:
-                                temp[attribute].add(d, auxiliaryData = data_hash)
+                                temp[updated_attribute].add(d, auxiliaryData = data_hash)
+
         return temp
+
 
     def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> dict[str,dict]:
         """Routine to extract valid metaData for image resource type.
