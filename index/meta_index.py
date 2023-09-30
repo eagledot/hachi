@@ -206,7 +206,7 @@ class MetaIndex(object):
         if not hasattr(self, "lock"):        # would not want to recursively override an existing lock.
             self.lock = RLock()
         self.hash_2_metaData = self.load()   # for each data_hash, corresponding dict of meta-data.
-        self.fuzzy_search = self.load_fuzzy_search(data_hashes = self.hash_2_metaData.keys(), fresh = True)                 #a collection  of fuzzyIndices.
+        self.fuzzy_search = self.load_fuzzy_search()                 #a collection  of fuzzyIndices.
 
     def _meta_data_template(self, absolute_path = None, resource_extension = None, resource_type = None, place = None, person = None, face_embeddings = None, face_bboxes = None, is_indexed = False):
         temp = {}
@@ -256,7 +256,28 @@ class MetaIndex(object):
 
         return temp
 
-
+    def update_fuzzy_search(self, data_hashes: Iterable[str] | str) -> dict:
+    
+        assert hasattr(self, "fuzzy_search")
+        if isinstance(data_hashes, str):
+            data_hashes = [data_hashes]
+        with self.lock:
+            
+            temp = self.fuzzy_search
+            for data_hash in data_hashes:
+                hash_2_metaData = self.query(data_hashes = data_hash)
+                for attribute in self.fuzzy_search_attributes:
+                    assert attribute in temp
+                    
+                    data = hash_2_metaData[data_hash][attribute]
+                    if data is not None:
+                        if isinstance(data, str):
+                            temp[attribute].add(data, auxiliaryData = data_hash)
+                        else:
+                            # since using for loop, and a set, allows "many to many" modelling.
+                            for d in data:
+                                temp[attribute].add(d, auxiliaryData = data_hash)
+    
     def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> dict[str,dict]:
         """Routine to extract valid metaData for image resource type.
         """
@@ -354,7 +375,9 @@ class MetaIndex(object):
         with self.lock:
             assert data_hash is not None
             self.hash_2_metaData[data_hash] = meta_data
-            self.fuzzy_search = self.load_fuzzy_search(data_hashes = data_hash, fresh=False)
+
+            self.update_fuzzy_search(data_hash)    # update rather than create new..
+            # self.fuzzy_search = self.load_fuzzy_search()
 
     def modify_meta_data(self, data_hash:str, meta_data:dict):
         
