@@ -37,7 +37,7 @@ onDestroy(() => {
 let input_element;         // input element to accept indexing directory path..
 
 // current indexing stats
-let index_progress = 0.01;                 
+let index_progress = 0.001;                 
 let directory_being_indexed = ""
 let extra_details = ""
 let eta = ""
@@ -94,6 +94,7 @@ let pollEndpointTimeoutId;
         extra_details = ""
         index_directory_path = ""             // absolute path to directory to be indexed(input by user..)
         index_cancel_button.disabled = true;
+        index_cancel_button.innerText = "Cancel";
         input_element.disabled = false;
 
         return;
@@ -156,6 +157,7 @@ let pollEndpointTimeoutId;
             localStorage.removeItem("stored_indexing_endpoint")
             
             index_cancel_button.disabled = true;
+            index_cancel_button.innerText = "Cancelling... Please wait."
             let url = "/api/indexCancel/" + current_statusEndpoint
             let response = await fetch(url,
                 {
@@ -186,9 +188,14 @@ let pollEndpointTimeoutId;
     </div>
   
     <div class="mb-3">
-      <div class="h-2 rounded bg-gray-300">
-        <div class="h-2 rounded bg-blue-500" style="width: {(index_progress * 100).toString()}%;"></div>
+      
+      <div class = "flex items-center">
+        <div class="flex h-2 w-11/12 rounded bg-gray-300">
+          <div class="h-2rounded bg-blue-500" style="width: {(index_progress * 100).toString()}%;"></div>
+        </div>
+        <div class="flex px-2 font-semibold">{(index_progress * 100).toString().slice(0,4)}% </div>
       </div>
+      
       <div class="pt-1 text-sm text-blue-600">Current directory: <span class="text-black">{directory_being_indexed}</span> <span class="pl-3 text-right">ETA: </span> <span class="text-black">{eta}</span></div>
       <div class="pt-1 text-sm text-blue-600">Details: <span class="text-black">{extra_details}</span></div>
     </div>
@@ -211,7 +218,7 @@ let pollEndpointTimeoutId;
       <div class="ml-2 text-sm text-gray-600">Filter by content type</div>
     </div>
   
-    <button bind:this={index_cancel_button} on:click={cancelIndex} disabled type="button" class="mr-2 mt-2 rounded bg-orange-500 px-4 py-2 text-white disabled:bg-orange-200">Cancel</button>
+    <button bind:this={index_cancel_button} on:click={cancelIndex} disabled type="button" class="mr-2 mt-2 rounded bg-orange-500 px-4 py-2 text-white disabled:bg-orange-200 disabled:opacity-75">Cancel</button>
     <button bind:this={index_start_button} on:click={startIndex} type="button" class="rounded bg-blue-500 px-4 py-2 text-white  disabled:bg-blue-200">Start</button>
   </div>
 
