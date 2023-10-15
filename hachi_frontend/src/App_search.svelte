@@ -35,8 +35,9 @@
             "list_metaData": [],
             "list_dataHash": [],
             "list_score": [],
-            "done":false              // indicating if query is finished.
-        }
+            "done":false,              // indicating if query is finished.
+            "progress": 0.0001         // query progress, just for indication for now.
+          }
 
   let query_button_disabled = false
   let text_query = ""
@@ -75,6 +76,7 @@
             "list_dataHash": [],
             "list_score": [],
             "done":false,
+            "progress": 0.1
         }
 
           formData.append("query_start", "true");
@@ -103,6 +105,7 @@
         let list_metaData = data["meta_data"];  // list of dict mapping data_hash to meta_data.
         let list_dataHash = data["data_hash"];
         let list_scores = data["score"];
+        let progress = Number(data["progress"]);
 
         for(let i = 0; i < list_metaData.length; i++){
           let data_hash = list_dataHash[i]
@@ -120,9 +123,12 @@
 
         if (data["query_completed"] == true){
           image_data_for_child.done = true; // this should be enough to indicate svelte..
+          image_data_for_child.progress = 0.0001;
         }
         else{
           image_data_for_child = image_data_for_child; // indicating svelte that image_data has been updated..
+          image_data_for_child.progress += 0.12;       // just increase it to indicate query progression.
+          image_data_for_child.progress = Math.min(image_data_for_child.progress, 0.92);
         }
 
         if (data["query_completed"] == true){
@@ -173,7 +179,8 @@ function make_interface_active(key){
               "list_metaData": [],
               "list_dataHash": [],
               "list_score": [],
-              "done":false              
+              "done":false,
+              "progress": 0             
           }
     query_results_available.update((value) => structuredClone(image_data_for_child))
   }
