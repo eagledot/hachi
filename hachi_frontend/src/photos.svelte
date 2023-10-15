@@ -353,6 +353,7 @@ function editFormUpdate(node){
 
 async function editMetaData(node){
   node.target.disabled = true;
+  node.target.innerText = "Saving...";
 
   let temp_keys = Object.keys(editForm);
   let formData = new FormData();
@@ -366,11 +367,18 @@ async function editMetaData(node){
               "body": formData}
             );
   
-  if(! response.ok){
-    throw new Error("Error while updating meta-data !!");
+  if(response.ok){
+      // throw new Error("Error while updating meta-data !!");
+    alert("Success!")
+    let data = await response.json();   // TODO: use it later...
+    interface_state.image_card_edit_interface = false;
   }
-  let data = await response.json();   // TODO: use it later...
+  else{
+    alert("Error while saving. Contact Admin");
+  }
+  node.target.innerText = "Save";
   node.target.disabled = false;
+  
 }
 
 
@@ -490,7 +498,7 @@ async function editMetaData(node){
                     </div>
 
                     <div>
-                      <button class="px-4 bg-gray-200 py-2 rounded w-full cursor-pointer hover:bg-gray-400" on:click={editMetaData}>Save</button>
+                      <button class="px-4 bg-gray-200 py-2 rounded w-full cursor-pointer hover:bg-gray-400 disabled:bg-gray-600" on:click={editMetaData}>Save</button>
                     </div>
 
                   </div>
