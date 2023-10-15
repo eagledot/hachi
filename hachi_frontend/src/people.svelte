@@ -133,7 +133,7 @@ function handleSearch(node){
                         <!-- some background like gray-100 and rounded borders -->
                         <!-- should be able to add search icon from font awesome too... -->
                         <div class = "flex">
-                            <input on:keyup={handleSearch} class = "text-md py-2 px-3 border-2 border-rose-600 text-slate-500 rounded-lg shadow-sm focus:outline-none focus:ring focus:ring-rose-200 focus:border-rose-500 dark:text-slate-400 dark:placeholder:text-slate-600 dark:bg-slate-900 dark:border-rose-500 dark:focus:ring-rose-900 dark:focus:border-rose-600" type = "text" placeholder="Search person">
+                            <input on:input={handleSearch} class = "text-md py-2 px-3 border-2 border-blue-600 text-slate-500 rounded-lg shadow-sm focus:outline-none focus:ring focus:ring-blue-200 focus:border-blue-500 dark:text-slate-400 dark:placeholder:text-slate-600 dark:bg-slate-900 dark:border-blue-500 dark:focus:ring-blue-900 dark:focus:border-blue-600" type = "text" placeholder="Search person">
                             <!-- <span class="flex px-2 items-center">S</span> -->
                         </div>
                     </div>
