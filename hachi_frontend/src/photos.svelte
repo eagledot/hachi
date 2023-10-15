@@ -629,7 +629,7 @@ async function editMetaData(node){
     <!-- Search Interface to show queried images -->
     <div class="flex">
       <!-- <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => {SidebarItemClick(event)}} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/> -->
-      <div class="flex-1 overflow-y-auto min-h-screen bg-blue-200 p-2 relative">
+      <div class="flex-1 overflow-y-auto min-h-full bg-blue-200 p-2 relative">
       
       <!-- show progress for ongoing query..  -->
       <div class="flex animate-pulse">
@@ -637,9 +637,9 @@ async function editMetaData(node){
       </div>
 
       <!-- score threshold range interface  -->
-      <div class="flex flex-row place-content-center mb-10 select-none mx-2">
+      <div class="flex flex-row place-content-center mb-2 select-none mx-2">
         <div>
-          <div class="my-4">
+          <div class="my-2">
             <input on:change={scoresThresholdChange} type="range" min="0" max="1.0" step="0.01" bind:value={current_score_threshold} class="w-full">
             <label for="topk" class="dark:text-white">Score threshold: {current_score_threshold}.</label>
           </div>
@@ -647,14 +647,14 @@ async function editMetaData(node){
       </div>
 
       <!-- show all available photos/images -->
-      <div class="flex flex-wrap gap-6 p-4 sm:p-12 px-auto justify-center">
+      <div class="grid grid-cols-8 gap-2 p-1 sm:p-8 px-auto justify-center">
         <!-- {#each image_src  as src,i} -->
         <!-- we only need to update the sorted_scoreIndex anyway, applicable for filter -->
         {#each sorted_scoreIndex as score_ix, i}
         <!-- (-1) here would indicate invalid index. so ignore that index -->
           {#if (score_ix["ix"] >= 0)}        
-            <div on:click = {() => {update_image_card(i); set_state_active("image_card")}} class="relative group">              
-                <img class="sm:max-h-48 rounded-lg shadow-xl cursor-pointer" src={"api/getRawData/" +  image_data.list_dataHash[score_ix["ix"]]} alt="image">
+            <div on:click = {() => {update_image_card(i); set_state_active("image_card")}} class="flex justify-center bg-black">              
+                <img class="sm:max-h-48 shadow-xl cursor-pointer" src={"api/getRawData/" +  image_data.list_dataHash[score_ix["ix"]]} alt="image">
             </div>
           {/if}
         {/each}
