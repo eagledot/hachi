@@ -188,7 +188,6 @@ dataCache = GlobalDataCache()   # a global data cache to serve raw-data.
 # config/data-structures
 sessionId_to_config = {}      # a mapping to save some user specific settings for a session.
 personId_to_avgEmbedding = {} # we seek to create average embedding for a group/id a face can belong to, only for a single session.
-prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
 global_lock = threading.RLock()
 
 def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:Optional[list[list[int]]], person_ids:list[str]):
@@ -234,8 +233,33 @@ def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:O
     raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
     cv2.imwrite(os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.jpg".format(data_hash)), raw_data_resized)
 
-def indexing_thread(index_directory:str, client_id:str, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
+def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = False, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
+
+    if complete_rescan == True:
+        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing person previews..")
+        
+        # delete person previews.
+        preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
+        for i, preview_person in enumerate(preview_data):
+            try:
+                os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
+            except:
+                print("Error deleting: {}".format(preview_data))
+            
+            if (i % 20) == 0:
+                indexStatus.update_status(client_id, current_directory="", progress = "{}/{}".format((i+1), len(preview_data)), eta = "unknown", details = "Removing person previews..")
+
+        # reset/remove old indices data.
+        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
+        imageIndex.reset()
+        metaIndex.reset()
+
+
+    error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.
+    
+    prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
+    
     exit_thread = False
     resource_mapping_generator = collect_resources(index_directory, include_subdirectories)
     
@@ -366,18 +390,20 @@ def indexStart(batch_size = 1):
 
     index_root_dir = flask.request.form.get("image_directory_path")
     complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
+    complete_rescan_arg = False
     if complete_rescan == "true":
+        complete_rescan_arg = True
         
-        # also delete person previews.
-        preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
-        for preview_person in preview_data:
-            try:
-                os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
-            except:
-                print("Error deleting: {}".format(preview_data))
+        # # also delete person previews.
+        # preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
+        # for preview_person in preview_data:
+        #     try:
+        #         os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
+        #     except:
+        #         print("Error deleting: {}".format(preview_data))
         
-        imageIndex.reset()
-        metaIndex.reset()
+        # imageIndex.reset()
+        # metaIndex.reset()
 
     index_root_dir = os.path.abspath(index_root_dir)
     if not os.path.isdir(index_root_dir):
@@ -391,7 +417,7 @@ def indexStart(batch_size = 1):
             return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
 
         indexStatus.add_endpoint_for_indexing(client_id)
-        threading.Thread(target = indexing_thread, args = (index_root_dir, client_id) ).start()
+        threading.Thread(target = indexing_thread, args = (index_root_dir, client_id, complete_rescan_arg) ).start()
         return flask.jsonify({"success":True, "statusEndpoint":client_id, "reason": "Indexing successfully started at entpoint"})
     else:
         print("{} Doesn't exist on server side".format(index_root_dir))
