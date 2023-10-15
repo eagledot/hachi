@@ -7,6 +7,7 @@ import time
 from collections import OrderedDict
 import sys
 import uuid
+import traceback
 
 import cv2
 from flask import Flask
@@ -84,10 +85,12 @@ class IndexStatus(object):
                 "progress":str(int(0)), 
                 "should_cancel":False
             } 
-    def set_done(self, endpoint):
+    def set_done(self, endpoint,message:Optional[str] = None):
         # This is only supposed to be called by the indexing thread.
         with self.lock:
             self.status_dict[endpoint]["done"] = True
+            if message:
+                self.status_dict[endpoint]["details"] = "{}".format(message)
     
     def update_status(self, endpoint:str, current_directory:str, progress:float, eta:Optional[str] = None, details = ""):
         with self.lock:
@@ -235,149 +238,151 @@ def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:O
 
 def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = False, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
-
-    if complete_rescan == True:
-        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing person previews..")
-        
-        # delete person previews.
-        preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
-        for i, preview_person in enumerate(preview_data):
-            try:
-                os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
-            except:
-                print("Error deleting: {}".format(preview_data))
+    try:
+        if complete_rescan == True:
+            indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing person previews..")
             
-            if (i % 20) == 0:
-                indexStatus.update_status(client_id, current_directory="", progress = "{}/{}".format((i+1), len(preview_data)), eta = "unknown", details = "Removing person previews..")
-
-        # reset/remove old indices data.
-        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
-        imageIndex.reset()
-        metaIndex.reset()
-
-
-    error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.
-    
-    prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
-    
-    exit_thread = False
-    resource_mapping_generator = collect_resources(index_directory, include_subdirectories)
-    
-    while True:
-        indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
-
-        resource_mapping = next(resource_mapping_generator)
-        if (resource_mapping["finished"] == True):
-            del resource_mapping_generator
-            break
-        else:
-            image_resources = resource_mapping["image"]
-            if len(image_resources) == 0:
-                continue
-            resource_directory = list(image_resources.keys())[0]
-            contents = image_resources[resource_directory]
-        
-        if exit_thread:
-            print("Finishing index on cancellation request from user")
-            break
-
-        # process the contents in batches.
-        count = 0
-        eta = "unknown"
-        while True:
-            contents_batch =  contents[count: count + batch_size]  # extract a batch
-            contents_batch = [os.path.join(resource_directory, x) for x in contents_batch]
-
-            if (len(contents_batch) == 0):    # should mean this directory has been 
-                break
-            
-            if indexStatus.is_cancel_request_active(client_id):
-                print("yes cancel request is active...")
-                exit_thread = True
-                break
-
-            # before each batch send the status to client
-            indexStatus.update_status(client_id, current_directory=resource_directory, progress = (count / len(contents) ), eta = eta, details = "{}/{}".format(count, len(contents)))
-
-            tic = time.time()         # start timing for this batch.
-            hash_2_metaData = metaIndex.extract_image_metaData(contents_batch)       # extra meta data
-            for data_hash, meta_data in hash_2_metaData.items():
-                assert data_hash is not None
-                absolute_path = meta_data["absolute_path"]
-                is_indexed = meta_data["is_indexed"]
-                if is_indexed:
-                    continue
+            # delete person previews.
+            preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
+            for i, preview_person in enumerate(preview_data):
+                try:
+                    os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
+                except:
+                    print("Error deleting: {}".format(preview_data))
                 
-                # generate image embeddings
-                image_embedding = generate_image_embedding(image_path=absolute_path, center_crop=False)
-                if image_embedding is None:
-                    print("Invalid data for {}".format(absolute_path))
+                if (i % 20) == 0:
+                    indexStatus.update_status(client_id, current_directory="", progress = "{}/{}".format((i+1), len(preview_data)), eta = "unknown", details = "Removing person previews..")
+
+            # reset/remove old indices data.
+            indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
+            imageIndex.reset()
+            metaIndex.reset()
+
+
+        error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.
+        
+        prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
+        
+        exit_thread = False
+        resource_mapping_generator = collect_resources(index_directory, include_subdirectories)
+        
+        while True:
+            indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
+
+            resource_mapping = next(resource_mapping_generator)
+            if (resource_mapping["finished"] == True):
+                del resource_mapping_generator
+                break
+            else:
+                image_resources = resource_mapping["image"]
+                if len(image_resources) == 0:
                     continue
+                resource_directory = list(image_resources.keys())[0]
+                contents = image_resources[resource_directory]
+            
+            if exit_thread:
+                print("Finishing index on cancellation request from user")
+                break
 
-                face_bboxes, face_embeddings = generate_face_embedding(image_path=absolute_path)
-                if face_bboxes.shape[0] > 0:
-                    meta_data["face_bboxes"] = []
-                    for bbox in face_bboxes:
-                        x1 = str(int(bbox[0]))
-                        y1 = str(int(bbox[1]))
-                        x2 = str(int(bbox[2]))
-                        y2 = str(int(bbox[3]))
-                        meta_data["face_bboxes"].append([x1, y1, x2, y2])
+            # process the contents in batches.
+            count = 0
+            eta = "unknown"
+            while True:
+                contents_batch =  contents[count: count + batch_size]  # extract a batch
+                contents_batch = [os.path.join(resource_directory, x) for x in contents_batch]
 
-                    with global_lock:
-                        # assign each face_embedding to a group.
-                        for temp_embedding in face_embeddings:
-                            id_2_assign = None
+                if (len(contents_batch) == 0):    # should mean this directory has been 
+                    break
+                
+                if indexStatus.is_cancel_request_active(client_id):
+                    print("yes cancel request is active...")
+                    exit_thread = True
+                    break
 
-                            worst_score = 10
-                            for id in personId_to_avgEmbedding:
-                                avg_embedding = personId_to_avgEmbedding[id]
-                                _, temp_scores = compare_face_embeddings(temp_embedding, avg_embedding.reshape(1, -1))
-                                score = temp_scores.ravel().item()
-                                if score <= 1.12:    # be conservative.. (for now no reliable way to detect sunglasses, that harms the average embedding if included..)
-                                    if (score < worst_score):
-                                        worst_score = score
-                                        id_2_assign = id
-                                                        
-                            if id_2_assign is None:
-                                # if no match is found, we create a new id.
-                                id_2_assign = "{}_{}".format(prefix_personId, len(personId_to_avgEmbedding) + 1)
-                                personId_to_avgEmbedding[id_2_assign] = temp_embedding
-                            else:
-                                personId_to_avgEmbedding[id_2_assign] = np.concatenate([personId_to_avgEmbedding[id_2_assign].reshape(1,-1), temp_embedding.reshape(1,-1)], axis = 0).mean(axis = 0)
+                # before each batch send the status to client
+                indexStatus.update_status(client_id, current_directory=resource_directory, progress = (count / len(contents) ), eta = eta, details = "{}/{}".format(count, len(contents)))
 
-                            if meta_data["person"] is not None:
-                                meta_data["person"].append(id_2_assign)
-                            else:
-                                meta_data["person"] = [id_2_assign]
-                else:
-                    meta_data["person"] = ["no person detected"]
+                tic = time.time()         # start timing for this batch.
+                hash_2_metaData = metaIndex.extract_image_metaData(contents_batch)       # extra meta data
+                for data_hash, meta_data in hash_2_metaData.items():
+                    assert data_hash is not None
+                    absolute_path = meta_data["absolute_path"]
+                    is_indexed = meta_data["is_indexed"]
+                    if is_indexed:
+                        continue
+                    
+                    # generate image embeddings
+                    image_embedding = generate_image_embedding(image_path=absolute_path, center_crop=False)
+                    if image_embedding is None:
+                        print("Invalid data for {}".format(absolute_path))
+                        continue
 
-                # sync/update both the indices.
-                meta_data["is_indexed"] = True
-                metaIndex.update(data_hash, meta_data)
-                imageIndex.update(data_hash, data_embedding = image_embedding)
-                if generate_preview_data:
+                    face_bboxes, face_embeddings = generate_face_embedding(image_path=absolute_path)
                     if face_bboxes.shape[0] > 0:
-                        generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"], person_ids=meta_data["person"])
+                        meta_data["face_bboxes"] = []
+                        for bbox in face_bboxes:
+                            x1 = str(int(bbox[0]))
+                            y1 = str(int(bbox[1]))
+                            x2 = str(int(bbox[2]))
+                            y2 = str(int(bbox[3]))
+                            meta_data["face_bboxes"].append([x1, y1, x2, y2])
+
+                        with global_lock:
+                            # assign each face_embedding to a group.
+                            for temp_embedding in face_embeddings:
+                                id_2_assign = None
+
+                                worst_score = 10
+                                for id in personId_to_avgEmbedding:
+                                    avg_embedding = personId_to_avgEmbedding[id]
+                                    _, temp_scores = compare_face_embeddings(temp_embedding, avg_embedding.reshape(1, -1))
+                                    score = temp_scores.ravel().item()
+                                    if score <= 1.12:    # be conservative.. (for now no reliable way to detect sunglasses, that harms the average embedding if included..)
+                                        if (score < worst_score):
+                                            worst_score = score
+                                            id_2_assign = id
+                                                            
+                                if id_2_assign is None:
+                                    # if no match is found, we create a new id.
+                                    id_2_assign = "{}_{}".format(prefix_personId, len(personId_to_avgEmbedding) + 1)
+                                    personId_to_avgEmbedding[id_2_assign] = temp_embedding
+                                else:
+                                    personId_to_avgEmbedding[id_2_assign] = np.concatenate([personId_to_avgEmbedding[id_2_assign].reshape(1,-1), temp_embedding.reshape(1,-1)], axis = 0).mean(axis = 0)
+
+                                if meta_data["person"] is not None:
+                                    meta_data["person"].append(id_2_assign)
+                                else:
+                                    meta_data["person"] = [id_2_assign]
                     else:
-                        generate_image_preview(data_hash, absolute_path, None, person_ids=[])
-            count += len(contents_batch)
+                        meta_data["person"] = ["no person detected"]
 
-            # calculate eta..
-            dt_dc = (time.time() - tic) / (len(contents_batch) + 1e-5)    # dt/dc
-            eta_in_seconds = dt_dc * (len(contents) - count)                  # eta (rate * remaining images to be indexed.)
-            eta_hrs = eta_in_seconds // 3600
-            eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
-            eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
-            eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
-    
-    # finally save the index/db to disk.
-    metaIndex.save()
-    imageIndex.save()
-    indexStatus.set_done(client_id)
-    imageIndex.sanity_check()
+                    # sync/update both the indices.
+                    meta_data["is_indexed"] = True
+                    metaIndex.update(data_hash, meta_data)
+                    imageIndex.update(data_hash, data_embedding = image_embedding)
+                    if generate_preview_data:
+                        if face_bboxes.shape[0] > 0:
+                            generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"], person_ids=meta_data["person"])
+                        else:
+                            generate_image_preview(data_hash, absolute_path, None, person_ids=[])
+                count += len(contents_batch)
 
+                # calculate eta..
+                dt_dc = (time.time() - tic) / (len(contents_batch) + 1e-5)    # dt/dc
+                eta_in_seconds = dt_dc * (len(contents) - count)                  # eta (rate * remaining images to be indexed.)
+                eta_hrs = eta_in_seconds // 3600
+                eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
+                eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
+                eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
+
+    except Exception:
+        error_trace = traceback.format_exc() # uses sys.exception() as the exception
+    finally:
+        # finally save the index/db to disk.
+        metaIndex.save()
+        imageIndex.save()
+        indexStatus.set_done(client_id, error_trace)
+        # imageIndex.sanity_check()
 
 ############
 ## FLASK APP
