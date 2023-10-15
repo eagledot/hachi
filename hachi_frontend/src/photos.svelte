@@ -15,7 +15,8 @@ export let image_data  = {
             "list_metaData": [],
             "list_dataHash": [],
             "list_score": [],
-            "done":false
+            "done":false,
+            "progress": 0      // to indicate progress for ongoing query.
     }
 
     let filter_button_disabled = true;
@@ -24,7 +25,9 @@ export let image_data  = {
         "list_metaData": [],
         "list_dataHash": [],
         "list_score": [],
-        "done":false}
+        "done":false,
+        "progress": 0
+      }
 
       filter_metaData_store.update((value) => []); // reset any filter metadata to empty.
     })
@@ -627,6 +630,11 @@ async function editMetaData(node){
     <div class="flex">
       <!-- <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => {SidebarItemClick(event)}} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/> -->
       <div class="flex-1 overflow-y-auto min-h-screen bg-blue-200 p-2 relative">
+      
+      <!-- show progress for ongoing query..  -->
+      <div class="flex animate-pulse">
+        <div class="h-1 rounded bg-blue-600" style="width: {(image_data.progress * 100).toString()}%;"></div>
+      </div>
 
       <!-- score threshold range interface  -->
       <div class="flex flex-row place-content-center mb-10 select-none mx-2">
