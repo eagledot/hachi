@@ -1,6 +1,7 @@
 <script>
 
 import { onMount, onDestroy } from "svelte";
+import { no_images_indexed, unique_people_count, unique_place_count } from "./stores";
 
 let current_statusEndpoint;        // to store the current status endpoint to check indexing status, only atmax one such endpoint would be allowed for each client.
 let index_cancel_button;
@@ -79,9 +80,9 @@ let pollEndpointTimeoutId;
         // update the indexing stats into localstorage
         let temp_stats = await fetch("/api/getMetaStats");
         temp_stats = await temp_stats.json();
-        localStorage.setItem("no_images_indexed", temp_stats["image"]["count"].toString());
-        localStorage.setItem("unique_people_count", temp_stats["image"]["unique_people_count"].toString());
-        localStorage.setItem("unique_place_count", temp_stats["image"]["unique_place_count"].toString());
+        no_images_indexed.update((value) => Number(temp_stats["image"]["count"]));
+        unique_people_count.update((value) => Number(temp_stats["image"]["unique_people_count"]));
+        unique_place_count.update((value) => Number(temp_stats["image"]["unique_place_count"]));
 
         index_start_button.disabled = false;
 
@@ -154,7 +155,7 @@ let pollEndpointTimeoutId;
     async function cancelIndex(){
         if (current_statusEndpoint)
         {   
-            localStorage.removeItem("stored_indexing_endpoint")
+            // localStorage.removeItem("stored_indexing_endpoint")
             
             index_cancel_button.disabled = true;
             index_cancel_button.innerText = "Cancelling... Please wait."
