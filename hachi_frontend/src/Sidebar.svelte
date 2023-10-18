@@ -1,6 +1,7 @@
 <script>
 
     import { createEventDispatcher, onMount } from 'svelte';
+    import { no_images_indexed, unique_people_count, unique_place_count } from './stores';
     const dispatch = createEventDispatcher();  // attach dispatch to this instance. 
 
     export let sidebarOpen = false;      // can control it from parent (generally used during initialization).
@@ -42,30 +43,14 @@
 
 	]
 
-    onMount(() => {
-		// get some stats about indexed data.
-		if (!localStorage.getItem("no_images_indexed")){
-			fetch("/api/getMetaStats")
-			.then((response) => {
-				response.json()
-				.then((data) => {
-					menuItems[0].count = data["image"].count  // for now only for image.
-					menuItems[3].count = data["image"].unique_people_count
-					menuItems[4].count = data["image"].unique_place_count
-
-					localStorage.setItem("no_images_indexed", menuItems[0].count.toString());
-					localStorage.setItem("unique_people_count", menuItems[3].count.toString());
-					localStorage.setItem("unique_place_count", menuItems[4].count.toString());
-
-				})
-			})
-		}
-		else{
-			menuItems[0].count = Number(localStorage.getItem("no_images_indexed"));
-			menuItems[3].count = Number(localStorage.getItem("unique_people_count"));
-			menuItems[4].count = Number(localStorage.getItem("unique_place_count"));
-
-		}
+	onMount(() => {
+		// can also indicate ongoing indexing indicator..
+		// instead subscribe here to update the stats.. updated
+		no_images_indexed.subscribe((value) => {
+			if(menuItems){menuItems[0].count = value}
+		})
+		unique_people_count.subscribe((value) => {if(menuItems){menuItems[3].count = value;}})
+		unique_place_count.subscribe((value) => {if(menuItems){menuItems[4].count = value;}})
 	})
 
     function openSidebar() {
