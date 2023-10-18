@@ -18,6 +18,8 @@
   import {no_images_indexed, query_results_available, unique_people_count, unique_place_count} from "./stores.js"
   import { onMount } from "svelte";
 
+  let show_indexing_alert = false       // in case no indexed images found!!
+
   // get indexing stats onMount and update store values.
   onMount(() => {
     fetch("/api/getMetaStats")
@@ -25,6 +27,10 @@
       if (response.ok){
       response.json().
       then((data) =>{
+        if(Number(data["image"]["count"]) == 0){
+          show_indexing_alert = true;
+        }
+
         no_images_indexed.update((value) => Number(data["image"]["count"]));
         unique_place_count.update((value) => Number(data["image"]["unique_place_count"]));
         unique_people_count.update((value) => Number(data["image"]["unique_people_count"]));
@@ -258,6 +264,17 @@ function SidebarItemClick(event){
 
 <!-- if need to check for window resize event.. -->
 <!-- <svelte:window on:resize={() =>{console.log("resized")}}/> -->
+
+{#if show_indexing_alert}
+  <div class="flex bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 justify-center items-center ml-4 mr-4" role="alert">
+    <div class="flex-1">
+      <p class="font-bold">Warning: </p>
+      <p>No Indexed Images found. Please index some images by visting Indexing library from left-sidebar.</p>
+    </div>
+    <div on:click = {() => show_indexing_alert = false} class="flex text-xl hover:orange-900 cursor-pointer">X</div>
+  </div>
+
+{/if}
 
 {#if (state_interface.query.status)}
       <div class="flex">
