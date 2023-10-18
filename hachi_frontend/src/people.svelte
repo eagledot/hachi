@@ -21,7 +21,8 @@
         "list_metaData": [],
         "list_score": [],
         "list_dataHash": [],
-        "done":false
+        "done":false,
+        "progress": 0
     }
 
 
@@ -65,7 +66,8 @@
         "list_metaData": [],
         "list_score": [],
         "list_dataHash": [],
-        "done":false
+        "done":false,
+        "progress":0
         }
 
         for(let i = 0; i<image_data.list_dataHash.length; i++){
@@ -146,7 +148,7 @@ function handleSearch(node){
                         <div>
                             <div class = "h-[160px] w-[160px] bg-gray-800">
                                 <!-- <img src={sample_bg} class="object-strech hover:opacity-50 w-full h-full border-gray-100 shadow-smr"> -->
-                                <img src={"/api/getPreviewPerson/" + person_id} class="object-strech hover:opacity-50 w-full h-full border-gray-100 shadow-smr">
+                                <img loading = "lazy" src={"/api/getPreviewPerson/" + person_id} class="object-strech hover:opacity-50 w-full h-full border-gray-100 shadow-smr">
                             </div>
                             <div class = "flex text-md text-black justify-center items-center">{ person_id.slice(0, 1).toUpperCase() + person_id.slice(1).toLowerCase()}</div>
                         </div>
