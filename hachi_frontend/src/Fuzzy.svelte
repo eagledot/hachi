@@ -53,15 +53,53 @@ import { createEventDispatcher } from 'svelte';
         }
     }
 
-    async function handleValueChange(e) {
+    // async function handleValueChange(node) {
         // based of the current value in the Input (search), and current selected attribute, we try to suggestions.
+    
+    var map = {};
+    function handleKeyDown(e){
+        // keyup event also updates this map, on keyup set to false.
+        map[e.keyCode] = (e.type == 'keydown') // it would be true, for keydownevent always.
 
-        if (valueInput.length === 0) {
+        // check for shiftkey and enter
+        if(map[13] == true  && e.shiftKey){
+            console.log("shift enter combination.");
+            sendQuery();
+        }
+    }
+
+    async function handleKeyUp(e){
+        // check for enter and shiftenter events, if shift sendQuery final.
+        // else get suggestions based on the current selected attribute and query value.
+        
+        // NOTE: it waits for key to be released, so may feel a bit delayed. But good not to overwhelm the user suggestions/network requests.
+        
+        show_usage_message = false;
+        map[e.keyCode] = false;  // donot remove it, handlekeyDown using it, to ascertain combination.
+
+        let node = e.target;
+        if(node.value.length == 0){
+            dropdownItems = [];
             return;
         }
+        console.log("current value: ", node.value);
         
+        // update selectedFilters on pressing enter key.
+        if(e.keyCode == 13){
+
+            let ix = selectedFilters[selectedOption].length;
+            if (node.value.length > 0 && (!selectedFilters[selectedOption].includes(node.value))){
+                selectedFilters[selectedOption][ix] = node.value;
+            }
+
+            node.value = "";
+            dropdownItems = [];
+            showDropdown = false;
+            return;
+        }
+
         // update the dropDown items, based on the current query aka valueInput for an image attribute, 
-        let result = await getSuggestion(selectedOption, valueInput);
+        let result = await getSuggestion(selectedOption, node.value);
         if (selectedOption in result)
         {
             dropdownItems = result[selectedOption];
@@ -74,16 +112,24 @@ import { createEventDispatcher } from 'svelte';
         }
     }
 
-    function clearFilter(target, option) {
-        selectedFilters[option] = [];
+    function clearFilter(target, option, value) {
+
+        // remove the particular value from option array.
+        let idx = selectedFilters[option].indexOf(value);
+        if (idx >= 0){
+            selectedFilters[option].splice(idx, 1);
+            selectedFilters = selectedFilters; // to trigger re-rendering..
+        }
+
         if(selectedOption == option){
             dropdownItems = [];
         }
+        
     }
 
     function handleListItemClick(selectedOption, item) {
         showDropdown = false;
-        valueInput = item; // Update inputValue with clicked item's value
+        input_element.value = item;
         input_element.focus();
     }
 
@@ -94,19 +140,16 @@ import { createEventDispatcher } from 'svelte';
         input_element.focus();
     }
 
-    function handleFormSubmit(e) {
-        if(e){
-            e.preventDefault();
-        }
-        showDropdown = false;
-        let ix = selectedFilters[selectedOption].length;
-        if (valueInput.length > 0 && (!selectedFilters[selectedOption].includes(valueInput))){
-            selectedFilters[selectedOption][ix] = valueInput;
-        }
-        valueInput = "";
-        
-        let temp_keys = Object.keys(selectedFilters);
+    function sendQuery(node) {
 
+        // update the selectedFilter too.. in case user clicks the button.
+        let ix = selectedFilters[selectedOption].length;
+        if (input_element.value.length > 0 && (!selectedFilters[selectedOption].includes(input_element.value))){
+            selectedFilters[selectedOption][ix] = input_element.value;
+        }
+
+        //prepare final query:
+        let temp_keys = Object.keys(selectedFilters);
         query_completed = ""
         for (let i = 0; i < temp_keys.length; i ++){
             let key = temp_keys[i];
@@ -128,27 +171,53 @@ import { createEventDispatcher } from 'svelte';
 
         }
         console.log("Completed: " + query_completed);
-    }
+        input_element.value = "";
 
-    function sendQuery(node) {
-        // dispatch queryReady event, to let listener handle it.
-        handleFormSubmit();
+        if(query_button.disabled == false)
+        {
         dispatch('queryReady', {
         query: query_completed,
         attributes:selectedFilters
         });
+        }
+        else{
+            console.log("chill dawg!!!");
+        }
     }
 
+let show_usage_message = false;
 </script>
 
 <div class="max-w-screen p-4 mx-auto">
     <div class="w-full relative place-content-center">
         <!-- A select input -->
-        <form class="w-full" on:submit={handleFormSubmit} action="">
-            <div class="flex w-full items-center my-2 flex-wrap">
+        <!-- <form class="w-full" on:submit={handleFormSubmit} action=""> -->
+        <div class="w-full">
+            <div class="flex w-full items-center my-3 flex-wrap text-lg">
                 {#each Object.keys(selectedFilters) as option}
                     {#if selectedFilters[option].length >= 1}
-                        <div
+                    
+                    {#each selectedFilters[option] as value }
+                        <div class="flex items-center justify-center">
+                            <div on:click={handleOptionChange(option)} class = "mx-1 px-2 bg-blue-200 rounded-md min-h-10">
+                                <span  class="text-blue-800  ">
+                                    {option.charAt(0).toUpperCase() +
+                                        option.slice(1)}
+                                </span>
+                                
+                                <span class="ml-1 text-sm font-semibold">{value + " "}</span>
+                                
+                                <span
+                                    class="ml-1 text-red-600 cursor-pointer hover:text-blue-500"
+                                    on:click={(e) => clearFilter(e.currentTarget, option, value)}
+                                >
+                                    x
+                                </span>
+                            </div>   
+                        </div>
+                    {/each}
+                        
+                        <!-- <div
                             class="px-4 py-2 self-center bg-blue-200 rounded-md inline-flex place-self-center items-center mr-2 mb-2 h-10"
                         >
                             <span on:click={() => handleOptionChange(option)} class="cursor-pointer">
@@ -169,7 +238,7 @@ import { createEventDispatcher } from 'svelte';
                             >
                                 x
                         </span>
-                        </div>
+                        </div> -->
                     {/if}
                 {/each}
             </div>
@@ -195,8 +264,10 @@ import { createEventDispatcher } from 'svelte';
                 >
                     <input
                         bind:this={input_element}
-                        bind:value={valueInput}
-                        on:input={handleValueChange}
+                        on:focus|once={(e) => {if(e.target.value.length == 0){ show_usage_message = true;}}}
+                        on:focusout={(e) => {show_usage_message = false;}}
+                        on:keyup={handleKeyUp}
+                        on:keydown={handleKeyDown}
                         class="px-4 py-4 rounded-md focus:outline-none bg-blue-200 h-full w-full"
                         type="search"
                         placeholder="Enter value here"
@@ -210,7 +281,8 @@ import { createEventDispatcher } from 'svelte';
                 </div>
             
             </div>
-        </form>
+        <!-- </form> -->
+        </div>
 
         <!-- Menu options list -->
         {#if dropdownItems.length > 0}
@@ -240,6 +312,20 @@ import { createEventDispatcher } from 'svelte';
                 </div>
             </div>
         {/if}
-       
-</div>
+    
+        {#if (show_usage_message == true)}
+        <div class = "flex-1 w-full min-h-40 p-3 bg-gray-300 text-sm">
+            <p>
+                Search interface allows combining multiple attributes in a single query. An attribute can be selected multiple times from left-side menu.
+            </p>
+            <p class="pt-1 pb-1">
+                For example if you have tagged a person as <b>sam</b>, select attribute <b>person</b> and enter <b>sam</b>, then select <b>query</b> and enter <b>playing in the park</b>.
+                And press <span class = "bg-blue-200 p-1 rounded-sm border-1">shift + enter</span> or click <span class = "bg-blue-200 p-1">Search</span> button.
+            </p>
+        </div>
+        {/if}
+
+    </div>
+
+    
 </div>
