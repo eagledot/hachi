@@ -1,5 +1,12 @@
 
 <script>
+  // TODO: use onMount, to actually request the indexing stats from server.
+  // should help on a reload, to update the data 
+  // what to do with localstorage or something.
+  // set up something, localstorage -> store variables.
+  // then subscribe to those variables, when those get a update...
+  // still there is use of current indexing status..
+
   // IMAGES INDEXING AND SEARCH INTERFACE.
   import Fuzzy from "./Fuzzy.svelte"
   import Sidebar from "./Sidebar.svelte"
@@ -8,7 +15,26 @@
   import People from "./people.svelte";
   import Place from "./place.svelte";
 
-  import {query_results_available} from "./stores.js"
+  import {no_images_indexed, query_results_available, unique_people_count, unique_place_count} from "./stores.js"
+  import { onMount } from "svelte";
+
+  // get indexing stats onMount and update store values.
+  onMount(() => {
+    fetch("/api/getMetaStats")
+    .then((response) => {
+      if (response.ok){
+      response.json().
+      then((data) =>{
+        no_images_indexed.update((value) => Number(data["image"]["count"]));
+        unique_place_count.update((value) => Number(data["image"]["unique_place_count"]));
+        unique_people_count.update((value) => Number(data["image"]["unique_people_count"]));
+      })
+      }
+      else{
+        alert("Error ocurred while fetching indexing stats. Contact admin!!");
+      }
+  })
+  })
 
   let image_scores = [];
   let image_local_hash = [];
@@ -109,16 +135,26 @@
 
         for(let i = 0; i < list_metaData.length; i++){
           let data_hash = list_dataHash[i]
-          let score = list_scores[i]
-          image_local_hash.push(data_hash);
-          image_scores.push(score);
-          image_metaData.push(list_metaData[i]);
+          let score = Number(list_scores[i]);
 
+          let idx = image_local_hash.indexOf(data_hash);
+          if(idx >= 0){
+            // if already included, then just boost the score..
+            // console.log("boosting the score,  old score", image_scores[idx], " new score ", score);
+            image_scores[idx] += score;
+            image_data_for_child.list_score[idx] += score;
+            // console.log(image_data_for_child.list_score);
+          }
+          else{
+            image_local_hash.push(data_hash);
+            image_scores.push(score);
+            image_metaData.push(list_metaData[i]);
 
-          // data for child.
-          image_data_for_child.list_dataHash.push(data_hash);
-          image_data_for_child.list_score.push(score);
-          image_data_for_child.list_metaData.push(list_metaData[i])
+            // data for child.
+            image_data_for_child.list_dataHash.push(data_hash);
+            image_data_for_child.list_score.push(score);
+            image_data_for_child.list_metaData.push(list_metaData[i])
+          }
         }
 
         if (data["query_completed"] == true){
