@@ -39,9 +39,20 @@ export let image_data  = {
 
     let page_size = 20;
     let offset  = 0;
+    let total_downloaded = 0
+    let query_progress = 0;
+    let pagination_button;
+    let flag_set = false; // indicating if should count, how many images have been downloaded to show al
 
     function showMoreResults(node)
     {
+      flag_set = true;
+      if(pagination_button){
+        pagination_button.disabled = true;
+      }
+      total_downloaded = 0;
+      query_progress = 0;
+
       offset = offset + page_size;
       sorted_scoreIndex = original_sorted_scoreIndex.slice(offset, offset + page_size)
       filter_metaData_store.update((value) => generateFilterMetaData(sorted_scoreIndex));
@@ -60,8 +71,10 @@ export let image_data  = {
       }
     
     query_results_available.subscribe((value) => 
-                                  {if(value.done == true){
+                                  { query_progress = value.progress;
+                                    if(value.done == true){
                                     afterAllQueryData(value);
+                                    query_progress = 0;      // indicating all meta-data downloaded i.e query finished.
                                   }
                                   else{
                                     offset = 0;
@@ -381,6 +394,23 @@ async function editMetaData(node){
   
 }
 
+function checkSomething(e){
+  // flag set would only be after query is finished, only when more_results button is clicked
+  if (flag_set){
+  total_downloaded += 1;
+  query_progress += (1 / page_size);
+  // console.log(total_downloaded);
+  if(total_downloaded == Math.min(sorted_scoreIndex.length, page_size)){
+    query_progress = 0;
+    flag_set = false;
+  }
+  if (pagination_button){
+    pagination_button.disabled = false;
+  }
+}
+  // idea is to keep calling this on each image load..
+  // when all are done, be sure to 
+}
 
 </script>
 
@@ -641,7 +671,7 @@ async function editMetaData(node){
       
       <!-- show progress for ongoing query..  -->
       <div class="flex animate-pulse">
-        <div class="h-1 rounded bg-blue-600" style="width: {(image_data.progress * 100).toString()}%;"></div>
+        <div class="h-1 rounded bg-blue-600" style="width: {(query_progress * 100).toString()}%;"></div>
       </div>
 
       <!-- score threshold range interface  -->
@@ -655,14 +685,14 @@ async function editMetaData(node){
       </div>
 
       <!-- show all available photos/images -->
-      <div class="grid grid-cols-8 gap-2 p-1 sm:p-8 px-auto justify-center">
+      <div class="grid grid-cols-6 2xl:grid-cols-8 gap-2 p-1 sm:p-8 px-auto justify-center">
         <!-- {#each image_src  as src,i} -->
         <!-- we only need to update the sorted_scoreIndex anyway, applicable for filter -->
         {#each sorted_scoreIndex as score_ix, i}
         <!-- (-1) here would indicate invalid index. so ignore that index -->
           {#if (score_ix["ix"] >= 0)}        
             <div on:click = {() => {update_image_card(i); set_state_active("image_card")}} class="flex justify-center bg-black">              
-                <img class="sm:max-h-48 shadow-xl cursor-pointer" src={"api/getRawData/" +  image_data.list_dataHash[score_ix["ix"]]} alt="image">
+                <img on:load={checkSomething} class="sm:max-h-48 shadow-xl cursor-pointer" src={"api/getRawData/" +  image_data.list_dataHash[score_ix["ix"]]} alt="image">
             </div>
           {/if}
         {/each}
@@ -670,7 +700,7 @@ async function editMetaData(node){
 
       {#if sorted_scoreIndex.length >= page_size}
         <div class = "flex items-center justify-center">
-          <button class = "px-4 py-1 text-white rounded bg-blue-600 disabled:bg-blue-200" on:click={showMoreResults}>More results ..</button>
+          <button bind:this={pagination_button} class = "px-4 py-1 text-white rounded bg-blue-400 disabled:bg-blue-200 hover:bg-blue-600" on:click={showMoreResults}>More results ..</button>
         </div>
       {/if}
 
