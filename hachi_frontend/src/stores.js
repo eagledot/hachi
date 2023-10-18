@@ -9,8 +9,10 @@ export const lastModal = writable(-1);
 export const dark_bg = writable(false);
 
 
-// idea is to to update by some component..
-// then subscribed to by in filter.svelte.
+export const no_images_indexed = writable(0);  // on app mount, update these and also on indexing completion..
+export const unique_people_count = writable(0); 
+export const unique_place_count = writable(0);
+
 export const filter_metaData_store = writable([]);
 
 let query_completed_data_store  = {
