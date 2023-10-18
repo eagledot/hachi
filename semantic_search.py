@@ -485,48 +485,44 @@ def query():
                 final_result[k] += max(v)
             
         _ = image_attributes.pop("query")
-        
-    final_result_attributes = {}
-    attribute_count = 0
-    for attribute in image_attributes:
 
-        temp = {}     # OR operation if more than value for an attribute.
-        for value in image_attributes[attribute]:
+    if flag == False:    
+        final_result_attributes = {}
+        attribute_count = 0
+        for attribute in image_attributes:
 
-            hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
-            for h in hashes_2_metaData:
-                temp[h] = 1   # # all have equal importance then !!!
-        
-        # fill current temp..
-        if(attribute_count == 0):
-            for k,score in temp.items():
-                final_result_attributes[k] = score
+            temp = {}     # OR operation if more than value for an attribute.
+            for value in image_attributes[attribute]:
 
-        # keep only common keys
-        if attribute_count > 0:
-            to_be_popped_keys = []
-            for k in final_result_attributes:
-                if k in temp:  # for these we just keep them as they were.
-                    pass
-                else:
-                    to_be_popped_keys.append(k)
+                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
+                for h in hashes_2_metaData:
+                    temp[h] = 1   # # all have equal importance then !!!
             
-            for k in to_be_popped_keys:
-                _ = final_result_attributes.pop(k)
+            # fill current temp..
+            if(attribute_count == 0):
+                for k,score in temp.items():
+                    final_result_attributes[k] = score
 
-        attribute_count += 1
+            # keep only common keys
+            if attribute_count > 0:
+                to_be_popped_keys = []
+                for k in final_result_attributes:
+                    if k in temp:  # for these we just keep them as they were.
+                        pass
+                    else:
+                        to_be_popped_keys.append(k)
+                
+                for k in to_be_popped_keys:
+                    _ = final_result_attributes.pop(k)
 
-    # it would include all, nothing without included at least once is popped out. (just boosted..., semantic by default have higher scores.)
-    for k in final_result:
-        if k in final_result_attributes:
-            final_result[k] += 4
-            final_result_attributes.pop(k)  # i.e this attribute has been included.
+            attribute_count += 1
 
-    # in the last shard, include remaining final attributes too..
     if flag == False:
         for k in final_result_attributes:
             if k not in final_result:
-                final_result[k] = 1
+                final_result[k] = 10
+            else:
+                final_result[k] += 10  # boost the score for common.
           
     # NOTE: we now append data_hashes and absolute path to globalDatacache to start loading raw-data in the background if not already there.
     temp_dict = OrderedDict()
