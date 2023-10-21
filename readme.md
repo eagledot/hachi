@@ -60,16 +60,6 @@
 3. Run command: ``python semantic_search.py``  OR ``python3 semantic_search.py``
 4. Visit [http://localhost:5000](http://localhost:5000)
 
-
-<details>
-  <summary>RAM usage</summary>
-  Server hovers at 1100 Mb of Ram usage, which also includes around 650 Mb of Ram by CLIP Machine-learning model.
-  In future, idea is to use ``image-encoder`` only during indexing, which should save us about 350 Mb Ram usage.
-</details>
-
-
-
-
 ## Development:
 
 ### Front-End:
@@ -92,3 +82,8 @@ Developers can choose to build their own corresponding ``DLLs`` based on the ins
 
 ``Openblas.dll`` included along is based on the project https://github.com/OpenMathLib/OpenBLAS/ and as an alternative can be built from scratch or can be downloaded directly from [releases](https://github.com/OpenMathLib/OpenBLAS/releases) . 
 
+<details>
+  <summary><h3>RAM usage</h3></summary>
+  Server hovers at 1100 Mb of RAM usage, which also includes around 650 Mb usage by CLIP Machine-learning model.
+  In future, idea is to use ``image-encoder`` only during indexing, which should save us about 350 Mb RAM usage.
+</details>
