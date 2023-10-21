@@ -4,14 +4,16 @@
     An end to end semantic and meta-data search engine for personal data.
 </h1>
 
-## ScreenShots:
+### Screenshots:
 ![query](/assets/screenshot_query.png "query screenshot")
+
 ![image_card](/assets/screenshot_image_card.png "image card screenshot")
 
-## More screenshots:
-	<details>
-		<summary>Indexing</summary>
-	</details>
+### More screenshots:
+	
+<details>
+	<summary>Indexing</summary>
+</details>
 
 ## Features:
 - **Semantic + Meta-data Search**: Query data using Natural language and/or Meta-data attributes. Combine any attributes to enable complex queries.
