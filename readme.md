@@ -1,16 +1,25 @@
 <h1 align="center">Hachi</h1>
 
 <h3 align="center">
-    A locally hosted webapp to enable natural language search for all your videos and images.
+    An end to end semantic and meta-data search engine for personal data.
 </h1>
 
+## ScreenShots:
+![query](/assets/screenshot_query.png "query screenshot")
+![image_card](/assets/screenshot_image_card.png "image card screenshot")
+
+## More screenshots:
+	<details>
+		<summary>Indexing</summary>
+	</details>
+
 ## Features:
-- **Natural Language Search**: Query any video or image using Natural Language. (powered by [CLIP](https://github.com/openai/CLIP) )
-- **Simple, Clean Interface**: Index any media just by providing a path to a local directory/folder and start querying.
-- **Full Index Search**: Enable Natural Language Search across **ALL** Indexed Videos or Images.
+- **Semantic + Meta-data Search**: Query data using Natural language and/or Meta-data attributes. Combine any attributes to enable complex queries.
+- **End-2-end interface**: Index any media just by providing a path to a local directory/folder and start querying. No complex configurations. 
+- **Face-recognition**: Face Detection and Recognition.
 - **Fast**: Start Getting Results in milliseconds. All Indices are stored on user's system.
 - **Minimal Requirements**: Any consumer Grade CPU with AVX2 instructions enabled and minimal software dependencies. (No dependence on deep-learning frameworks like ``pytorch``/``tensorflow``.)
-- **Private**: Fully self hosted on users' system with no dependence on outside Network in any manner.
+- **Private**: Fully self hosted on users' system with **no** dependence on outside Network in any manner.
 
 ## Hardware requirements:
     Intel-64/AMD CPU with AVX2 instructions enabled.
@@ -48,6 +57,16 @@
 2.  Run command: ``caddy run``
 3. Run command: ``python semantic_search.py``  OR ``python3 semantic_search.py``
 4. Visit [http://localhost:5000](http://localhost:5000)
+
+
+<details>
+  <summary>RAM usage</summary>
+  Server hovers at 1100 Mb of Ram usage, which also includes around 650 Mb of Ram by CLIP Machine-learning model.
+  In future, idea is to use ``image-encoder`` only during indexing, which should save us about 350 Mb Ram usage.
+</details>
+
+
+
 
 ## Development:
 
