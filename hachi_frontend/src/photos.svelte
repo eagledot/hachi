@@ -37,19 +37,20 @@ export let image_data  = {
     let sorted_scoreIndex = [];  
     let original_sorted_scoreIndex = [];
 
-    let page_size = 20;
+    let page_size = 18;
     let offset  = 0;
     let total_downloaded = 0
     let query_progress = 0;
-    let pagination_button;
     let flag_set = false; // indicating if should count, how many images have been downloaded to show al
 
     function showMoreResults(node)
     {
-      flag_set = true;
-      if(pagination_button){
-        pagination_button.disabled = true;
+      if(flag_set == true){
+        // console.log("downloading in progress!!");
+        return;
       }
+      
+      flag_set = true;
       total_downloaded = 0;
       query_progress = 0;
 
@@ -404,9 +405,9 @@ function checkSomething(e){
     query_progress = 0;
     flag_set = false;
   }
-  if (pagination_button){
-    pagination_button.disabled = false;
-  }
+  // if (pagination_button){
+  //   pagination_button.disabled = false;
+  // }
 }
   // idea is to keep calling this on each image load..
   // when all are done, be sure to 
@@ -670,9 +671,9 @@ function checkSomething(e){
       <div class="flex-1 overflow-y-auto min-h-full bg-blue-200 p-2 relative">
       
       <!-- show progress for ongoing query..  -->
-      <div class="flex animate-pulse">
+      <!-- <div class="flex animate-pulse top-0 left-0 fixed">
         <div class="h-1 rounded bg-blue-600" style="width: {(query_progress * 100).toString()}%;"></div>
-      </div>
+      </div> -->
 
       <!-- score threshold range interface  -->
       <div class="flex flex-row place-content-center mb-2 select-none mx-2">
@@ -685,7 +686,7 @@ function checkSomething(e){
       </div>
 
       <!-- show all available photos/images -->
-      <div class="grid grid-cols-6 2xl:grid-cols-8 gap-2 p-1 sm:p-8 px-auto justify-center">
+      <div class="grid grid-cols-6 2xl:grid-cols-6 gap-2 p-1 sm:p-8 px-auto justify-center">
         <!-- {#each image_src  as src,i} -->
         <!-- we only need to update the sorted_scoreIndex anyway, applicable for filter -->
         {#each sorted_scoreIndex as score_ix, i}
@@ -700,10 +701,15 @@ function checkSomething(e){
 
       {#if sorted_scoreIndex.length >= page_size}
         <div class = "flex items-center justify-center">
-          <button bind:this={pagination_button} class = "px-4 py-1 text-white rounded bg-blue-400 disabled:bg-blue-200 hover:bg-blue-600" on:click={showMoreResults}>More results ..</button>
+          <button class = "px-4 py-1 text-white rounded bg-blue-400 disabled:bg-blue-200 hover:bg-blue-600" on:click={showMoreResults}>More results ..</button>
         </div>
       {/if}
 
     </div>
   </div>    
 {/if}
+
+<!-- show progress for ongoing query.  -->
+<div class="flex animate-pulse">
+  <div class="h-1 rounded top-0 left-0 bg-rose-600 fixed" style="width: {(query_progress * 100).toString()}%;"></div>
+</div>
