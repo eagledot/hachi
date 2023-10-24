@@ -9,7 +9,7 @@
 
 ![image_card](/assets/screenshot_image_card.png "image card screenshot")
 
-### More screenshots:
+## More screenshots:
 	
 <details>
 	<summary>Indexing</summary>
