@@ -4,12 +4,12 @@
     An end to end semantic and meta-data search engine for personal data.
 </h1>
 
-### Screenshots:
+## Screenshots:
 ![query](/assets/screenshot_query.png "query screenshot")
 
 ![image_card](/assets/screenshot_image_card.png "image card screenshot")
 
-## More screenshots:
+### More screenshots:
 	
 <details>
 	<summary>Indexing</summary>
