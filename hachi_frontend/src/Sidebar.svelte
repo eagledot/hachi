@@ -44,7 +44,7 @@
 		{
 			icon : "folder",
 			path : "#",
-			name : "Places",
+			name : "Local",
 			count: 0
 		}
 
