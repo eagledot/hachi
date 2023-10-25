@@ -16,7 +16,7 @@
   import Place from "./place.svelte";
   import Local from "./local.svelte"
 
-  import {no_images_indexed, query_results_available, unique_people_count, unique_place_count, unique_resource_directories_count} from "./stores.js"
+  import {no_images_indexed, query_results_available, unique_people_count, unique_place_count, unique_resource_directories_count, available_resource_attributes} from "./stores.js"
   import { onMount } from "svelte";
 
   let show_indexing_alert = false       // in case no indexed images found!!
@@ -339,7 +339,7 @@ function SidebarItemClick(event){
       <People/>
     </div>
   </div>
-  
+
   {:else if state_interface.local_album.status === true}
 
   <div class="flex">
