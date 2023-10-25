@@ -14,11 +14,22 @@
   import Photos from "./photos.svelte";
   import People from "./people.svelte";
   import Place from "./place.svelte";
+  import Local from "./local.svelte"
 
-  import {no_images_indexed, query_results_available, unique_people_count, unique_place_count} from "./stores.js"
+  import {no_images_indexed, query_results_available, unique_people_count, unique_place_count, unique_resource_directories_count} from "./stores.js"
   import { onMount } from "svelte";
 
   let show_indexing_alert = false       // in case no indexed images found!!
+
+  // to do have a handler on window scrollbar event, 
+  // so that we can save the most recent position of scrollbar..
+  // if needed a component can read it...
+
+  onMount(() => {
+    window.onscrollend = function(){
+      // here update this value 
+    }
+  })
 
   // get indexing stats onMount and update store values.
   onMount(() => {
@@ -34,6 +45,11 @@
         no_images_indexed.update((value) => Number(data["image"]["count"]));
         unique_place_count.update((value) => Number(data["image"]["unique_place_count"]));
         unique_people_count.update((value) => Number(data["image"]["unique_people_count"]));
+        unique_resource_directories_count.update((value) => Number(data["image"]["unique_resource_directories_count"]));
+        
+        available_resource_attributes.update((value) => data["available_resource_attributes"]);  // a list of string of available resoruce attributes that could be searched for.
+
+      
       })
       }
       else{
@@ -207,6 +223,11 @@ const
       "context": {}
   },
 
+  "local_album":{
+        "status": false,
+        "context": {}
+    },
+
 }
 
 function make_interface_active(key){
@@ -256,6 +277,9 @@ function SidebarItemClick(event){
   }
   else if (item_name.toLowerCase().includes("place")){
     make_interface_active("place_album");
+  }
+  else if (item_name.toLowerCase().includes("local")){
+    make_interface_active("local_album");
   }
 
 }
@@ -315,5 +339,13 @@ function SidebarItemClick(event){
       <People/>
     </div>
   </div>
+  
+  {:else if state_interface.local_album.status === true}
 
+  <div class="flex">
+    <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => SidebarItemClick(event)} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/>
+    <div class="flex-1 overflow-y-auto min-h-screen bg-blue-100 p-2 relative">
+      <Local/>
+    </div>
+  </div>
 {/if}
