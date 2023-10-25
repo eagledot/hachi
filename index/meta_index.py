@@ -200,7 +200,7 @@ class MetaIndex(object):
         if not os.path.exists(self.index_directory):
             os.mkdir(self.index_directory)        
 
-        self.fuzzy_search_attributes = ["person", "place", "filename"]  # TODO: add more fuzzy search attributes, must be a subset of fields from self._meta_data_template.
+        self.fuzzy_search_attributes = ["person", "place", "filename", "resource_directory"]  # TODO: add more fuzzy search attributes, must be a subset of fields from self._meta_data_template.
 
         # resources.
         if not hasattr(self, "lock"):        # would not want to recursively override an existing lock.
@@ -208,11 +208,12 @@ class MetaIndex(object):
         self.hash_2_metaData = self.load()   # for each data_hash, corresponding dict of meta-data.
         self.fuzzy_search = self.load_fuzzy_search()                 #a collection  of fuzzyIndices.
 
-    def _meta_data_template(self, absolute_path = None, resource_extension = None, resource_type = None, place = None, person = None, face_embeddings = None, face_bboxes = None, is_indexed = False):
+    def _meta_data_template(self, absolute_path = None, resource_directory = None, resource_extension = None, resource_type = None, place = None, person = None, face_embeddings = None, face_bboxes = None, is_indexed = False):
         temp = {}
         temp["is_indexed"] = is_indexed
 
         temp["absolute_path"] = absolute_path
+        temp["resource_directory"] = resource_directory
         temp["resource_extension"] = resource_extension
         temp["resource_type"] = resource_type
 
@@ -288,29 +289,30 @@ class MetaIndex(object):
             if data_hash is None:
                 continue
             
+            if data_hash in self.hash_2_metaData: # check if already indexed.
+                continue
+
             try:
                 (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
             except:
                 print("Invalid data possibly for {}".format(resource_path))
                 continue
 
-            if data_hash in self.hash_2_metaData:
-                temp = self.hash_2_metaData[data_hash]
-            else:
-                # common meta-data attributes.
-                temp = self._meta_data_template(
-                    is_indexed= False,
-                    absolute_path = resource_path,
-                    resource_extension = "." + type.lower().strip().strip("."),
-                    resource_type = "image"
-                )
+            # common meta-data attributes.
+            temp = self._meta_data_template(
+                is_indexed= False,
+                absolute_path = resource_path,
+                resource_directory=os.path.dirname(resource_path),
+                resource_extension = "." + type.lower().strip().strip("."),
+                resource_type = "image"
+            )
 
-                # resource specific meta-data attributes.
-                temp_exif_data = get_exif_data(resource_path=resource_path, resource_type = "image")
-                for k,v in temp_exif_data.items():
-                    temp[k] = v
+            # resource specific meta-data attributes.
+            temp_exif_data = get_exif_data(resource_path=resource_path, resource_type = "image")
+            for k,v in temp_exif_data.items():
+                temp[k] = v
                                         
-                result[data_hash] = temp
+            result[data_hash] = temp
         return result
 
     
@@ -430,7 +432,8 @@ class MetaIndex(object):
         result = {}
         for k in ALLOWED_RESOURCES:
             result[k] = {"count":0}  # add more fields in the future if needed.
-        
+            result["available_resource_attributes"] = copy.deepcopy(self.fuzzy_search_attributes)
+
         with self.lock:
             # update the count for each of the resource type.
             for meta_data in self.hash_2_metaData.values():
@@ -442,5 +445,8 @@ class MetaIndex(object):
 
             temp_count_place = self.get_original_data("place")
             result["image"]["unique_place_count"] = 0 if temp_count_place is None else len(temp_count_place)
-        
+    
+            temp_count_directories = self.get_original_data("resource_directory")
+            result["image"]["unique_resource_directories_count"] = 0 if temp_count_directories is None else len(temp_count_directories)
+
         return result
