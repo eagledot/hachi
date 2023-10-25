@@ -28,7 +28,7 @@ ALLOWED_RESOURCES = {
     "image": set([".jpg", ".jpeg", ".png", ".tiff", ".raw"]),   # opencv is being used to read raw-data, so almost all extensions are generally supported.
     "text":  set([".pdf", ".txt", ".epub"])                     # TODO:
 }
-TO_SKIP_PATHS = [os.path.abspath(__package__)]                      # skip application root directory, children would also be excluded from indexing..
+TO_SKIP_PATHS = [os.path.dirname(os.path.abspath(__file__))]                      # skip application root directory, children would also be excluded from indexing..
 
 def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = TO_SKIP_PATHS) ->bool:
     """Supposed to tell if a resource directory is contained in the to_skip directories
