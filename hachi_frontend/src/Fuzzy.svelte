@@ -4,9 +4,19 @@
 
 <script>
 
-import { createEventDispatcher } from 'svelte';
-    // import Search from './lib/search.svelte';
-    const dispatch = createEventDispatcher();  // attach dispatch to this instance. 
+import { createEventDispatcher, onMount } from 'svelte';
+import {available_resource_attributes} from "./stores.js"
+
+onMount(() => {
+        // subscribe to get the possible resource attributes.
+        available_resource_attributes.subscribe((attributes) => {
+            for(let i = 0; i < attributes.length; i++){
+                selectedFilters[attributes[i]] = []; 
+            }
+        })
+    })
+
+const dispatch = createEventDispatcher();  // attach dispatch to this instance. 
 
 
     let selectedOption = "query";
