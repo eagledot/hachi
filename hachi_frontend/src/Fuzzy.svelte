@@ -33,6 +33,7 @@ const dispatch = createEventDispatcher();  // attach dispatch to this instance.
 
     // holding the current value for image attributes.
     let selectedFilters = {
+        "query": []
     };
 
     let valueInput = "";
