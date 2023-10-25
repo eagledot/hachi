@@ -1,7 +1,7 @@
 <script>
 
     import { createEventDispatcher, onMount } from 'svelte';
-    import { no_images_indexed, unique_people_count, unique_place_count } from './stores';
+    import { no_images_indexed, unique_people_count, unique_place_count, unique_resource_directories_count } from './stores';
     const dispatch = createEventDispatcher();  // attach dispatch to this instance. 
 
     export let sidebarOpen = false;      // can control it from parent (generally used during initialization).
@@ -39,6 +39,13 @@
 			path : "#",
 			name : "Places",
 			count: 0
+		},
+
+		{
+			icon : "folder",
+			path : "#",
+			name : "Places",
+			count: 0
 		}
 
 	]
@@ -51,6 +58,8 @@
 		})
 		unique_people_count.subscribe((value) => {if(menuItems){menuItems[3].count = value;}})
 		unique_place_count.subscribe((value) => {if(menuItems){menuItems[4].count = value;}})
+		unique_resource_directories_count.subscribe((value) => {if(menuItems){menuItems[5].count = value;}})
+		
 	})
 
     function openSidebar() {
@@ -79,7 +88,7 @@
 
 </script>
 
-<div class="flex h-screen text-white">
+<div class="flex h-100 text-white">
   <!-- Sidebar -->
   <aside class="{state.sidebarOpen && "w-64"} bg-green-50">
     <div class="flex h-16 items-center justify-between bg-green-100 font-semibold text-black">
