@@ -47,14 +47,18 @@ def parse_query(query:str) -> dict[str, list[str]]:
         "person" -> [x,y,z]
     """
     
-    temp_query = query.strip().lower().split(",")
+    or_character = "?"     # assuming multiple values for an attribute.
+    and_character = "&"    # assuming mutliple attributes are separated by this character.
+    separator_character = "="
+
+    temp_query = query.strip().lower().split(and_character)
     imageAttributes_2_values = {}
     for x in temp_query:
-        temp_x = x.strip().split(":")
+        temp_x = x.strip().split(separator_character)
         attribute = temp_x[0].strip()
 
         values = []
-        for v in temp_x[1].strip().split("-"):
+        for v in temp_x[1].strip().split(or_character):
             if len(v.strip()) > 0:
                 values.append(v.strip())
 
