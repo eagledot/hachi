@@ -33,10 +33,6 @@ const dispatch = createEventDispatcher();  // attach dispatch to this instance.
 
     // holding the current value for image attributes.
     let selectedFilters = {
-        person: [],
-        query: [],
-        place: [],
-        filename: []
     };
 
     let valueInput = "";
@@ -152,6 +148,10 @@ const dispatch = createEventDispatcher();  // attach dispatch to this instance.
 
     function sendQuery(node) {
 
+        let and_character = '&'
+        let or_character = '?'
+        let separator_character = '='
+
         // update the selectedFilter too.. in case user clicks the button.
         let ix = selectedFilters[selectedOption].length;
         if (input_element.value.length > 0 && (!selectedFilters[selectedOption].includes(input_element.value))){
@@ -165,18 +165,18 @@ const dispatch = createEventDispatcher();  // attach dispatch to this instance.
             let key = temp_keys[i];
             let values  = selectedFilters[key];
             
-            query_completed += (key + ":")
+            query_completed += (key + separator_character)
 
             for (let j = 0;j < values.length; j++ ){
                 query_completed += values[j];
                 if (j != values.length - 1){
-                    query_completed += "-";
+                    query_completed += or_character;
                 }
                 
             }
 
             if (i != (temp_keys.length -1)){
-                query_completed += ",";
+                query_completed += and_character;
             }
 
         }
