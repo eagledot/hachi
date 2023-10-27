@@ -255,7 +255,7 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
                     print("Error deleting: {}".format(preview_data))
                 
                 if (i % 20) == 0:
-                    indexStatus.update_status(client_id, current_directory="", progress = "{}/{}".format((i+1), len(preview_data)), eta = "unknown", details = "Removing person previews..")
+                    indexStatus.update_status(client_id, current_directory="", progress = (i+1) / len(preview_data), eta = "unknown", details = "Removing person previews..")
 
             # reset/remove old indices data.
             indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
