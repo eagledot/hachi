@@ -41,7 +41,7 @@ def generate_endpoint(directory_path) -> str:
     statusEndpoint = statusEndpoint.replace('\\',"-")
     return statusEndpoint
 
-def parse_query(query:str) -> dict[str, list[str]]:
+def parse_query(query:str) -> dict[str, List[str]]:
     """ parse a query.
         a mapping from an image-attribute to a list with possible values.
         "person" -> [x,y,z]
@@ -197,7 +197,7 @@ sessionId_to_config = {}      # a mapping to save some user specific settings fo
 personId_to_avgEmbedding = {} # we seek to create average embedding for a group/id a face can belong to, only for a single session.
 global_lock = threading.RLock()
 
-def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:Optional[list[list[int]]], person_ids:list[str]):
+def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:Optional[List[List[int]]], person_ids:List[str]):
 
     preview_max_width = 640
     if absolute_path is None:
@@ -549,7 +549,7 @@ def query():
     return flask.jsonify(temp) # jsonify it.    
 
 @app.route("/getSuggestion", methods = ["POST"])
-def getSuggestion() -> dict[str, list[str]]:
+def getSuggestion() -> dict[str, List[str]]:
 
     attribute = flask.request.form.get("attribute")
     query = flask.request.form.get("query")
