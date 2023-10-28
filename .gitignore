@@ -2,6 +2,7 @@ data/
 data_extra/
 video_indices/
 image_indices/
+meta_indices/
 __pycache__/
 data_extra/
 tmp*
