@@ -96,9 +96,13 @@ Developers can choose to build their own corresponding ``DLLs`` based on the ins
 	<summary>What is Hachi ?</summary>
 
 Hachi is an end to end semantic and meta-data search engine for personal data.	
+
 **end to end**: It takes care of embeddings generation, meta-data extraction, storage, and retrieval without any intervention for data in a directory pointed to by user. It doesn't modify original data in any form.   	
+
 **Semantic**:   Understands natural language query.
+
 **meta-data**:  Extracts possible meta-data like `filename`, `directory`, available `exif-data` for a resource like an image. 
+
 **Search**:    Provides an unified interface to allow search using semantic and/or meta-data attributes, hence allowing complex queries.
 
 
