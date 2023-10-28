@@ -9,7 +9,7 @@ IMAGE_EMBEDDING_SIZE = 512
 IMAGE_MATCHING_MIN_SCORE = 0   # minimum score to consider two embeddings a match, increment it for lower false positives.
 IMAGE_SHARD_SIZE = 40
 
-from typing import Optional
+from typing import Optional, Tuple, List
 
 import numpy as np
 
@@ -25,7 +25,7 @@ class ImageIndex(CommonIndex):
             preload = preload
         )
     
-    def compare(self, query:np.array, data_embeddings:np.array) -> tuple[np.array, np.array]:
+    def compare(self, query:np.array, data_embeddings:np.array) -> Tuple[np.array, np.array]:
         # return the sorted indices, and corresponding scores.
 
         assert query.size == self.embedding_size, "Expected a single vector during query routine, use a For loop around query routine if needed."
@@ -42,7 +42,7 @@ class ImageIndex(CommonIndex):
         with self.lock:
             self.update_base(data_hash, data_embedding = data_embedding)
     
-    def query(self, query:np.array, client_key:str, key:Optional[list[str]] = None) -> tuple[bool, dict[str, list[float]]]:
+    def query(self, query:np.array, client_key:str, key:Optional[List[str]] = None) -> Tuple[bool, dict[str, List[float]]]:
         with self.lock:
             flag, hash_2_scores = self.query_base(query, client_key=client_key, key = key)
             return flag, hash_2_scores
