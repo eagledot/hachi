@@ -232,7 +232,7 @@ class MetaIndex(object):
         
         return temp
 
-    def load_fuzzy_search(self, attributes_list:Optional[list[str]] = "__all__") -> dict:
+    def load_fuzzy_search(self, attributes_list:Optional[List[str]] = "__all__") -> dict:
         temp = {}
         if hasattr(self, "fuzzy_search"):
             temp = self.fuzzy_search

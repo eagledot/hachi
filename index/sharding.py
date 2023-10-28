@@ -5,7 +5,7 @@ import threading
 import queue
 import pickle
 from collections import OrderedDict
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -96,7 +96,7 @@ class ShardCache(object):
         n_rows = int(temp_shard[0,0])
         return temp_shard[N_ROWS_SHARD_META_DATA : N_ROWS_SHARD_META_DATA+n_rows]
 
-    def update(self, idx:int, embeddings:np.array) -> tuple[int, int, int, bool]:
+    def update(self, idx:int, embeddings:np.array) -> Tuple[int, int, int, bool]:
         assert len(embeddings.shape) == 2  # rank
 
         temp_key = idx
@@ -171,7 +171,7 @@ class CommonIndex(object):
         with open(temp_path, "wb") as f:
             pickle.dump(self.idx_2_hash, f)
 
-    def update_index(self, data_hash:str, update_status:tuple[int, int, int, bool]):
+    def update_index(self, data_hash:str, update_status:Tuple[int, int, int, bool]):
         # also updates the corresponding idx_2_hash mapping.
         for ix, start_idx, end_idx, shard_saved in update_status:
             for j in range(start_idx, end_idx):
@@ -180,7 +180,7 @@ class CommonIndex(object):
             if shard_saved:
                 self.save_index()
 
-    def compare(self, query:np.array, data_embeddings:np.array) -> tuple[np.array, np.array]:
+    def compare(self, query:np.array, data_embeddings:np.array) -> Tuple[np.array, np.array]:
         raise NotImplementedError
 
     def get_shard_row(self, data_hashes:list[str]) -> dict[str, dict[int, list[int]]]:
@@ -274,7 +274,7 @@ class CommonIndex(object):
         
         return False, final_result
     
-    def update_base(self, data_hash:str, data_embedding:np.array) -> tuple[int, int, int]:        
+    def update_base(self, data_hash:str, data_embedding:np.array) -> Tuple[int, int, int]:        
         with self.lock:
             update_status = self.shard_cache.update(self.shard_idx_update, data_embedding)  # update shard.
             self.shard_idx_update = update_status[-1][0]  # update current index for update.
