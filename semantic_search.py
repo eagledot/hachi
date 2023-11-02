@@ -14,16 +14,13 @@ from flask import Flask
 import flask
 import numpy as np
 
-# config:
-IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./preview_image")
-if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
-    os.mkdir(IMAGE_PREVIEW_DATA_PATH)
-IMAGE_PERSON_PREVIEW_DATA_PATH = os.path.join(IMAGE_PREVIEW_DATA_PATH, "preview_person")
-if not os.path.exists(IMAGE_PERSON_PREVIEW_DATA_PATH):
-    os.mkdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
+from config import appConfig
 
-IMAGE_INDEX_SHARD_SIZE = 1200
-TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
+# config:
+IMAGE_PERSON_PREVIEW_DATA_PATH = appConfig["image_person_preview_data_path"]
+IMAGE_PREVIEW_DATA_PATH = appConfig["image_preview_data_path"]
+IMAGE_INDEX_SHARD_SIZE = appConfig["image_index_shard_size"]
+TOP_K_SHARD = appConfig["topK_per_shard"]
 
 sys.path.insert(0,"./index")
 from image_index import ImageIndex
