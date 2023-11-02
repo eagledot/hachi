@@ -15,7 +15,7 @@ IMAGE_PERSON_PREVIEW_DATA_PATH = os.path.join(IMAGE_PREVIEW_DATA_PATH, "preview_
 if not os.path.exists(IMAGE_PERSON_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
 
-IMAGE_INDEX_SHARD_SIZE = 1000
+IMAGE_INDEX_SHARD_SIZE = 1200
 TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
 
 # allowed resources.
