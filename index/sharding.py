@@ -133,7 +133,15 @@ class CommonIndex(object):
         self.index_directory = os.path.abspath(index_directory)
         if not os.path.exists(self.index_directory):
             os.mkdir(self.index_directory)  
-                
+        else:
+            # for now only checking a "<prefix>_0.idx", not all .idx to detect invalid indices. 
+            shard_0_path = os.path.join(self.index_directory, "{}_0.idx".format(shard_prefix))
+            if os.path.exists(shard_0_path):
+                temp_size, temp_embedding_size = np.load(shard_0_path).shape
+                if (temp_size != shard_size) or (temp_embedding_size != embedding_size):
+                    print("Invalid Index!! EXPECTED: {}  Got: {}".format((shard_size, embedding_size), (temp_size, temp_embedding_size)))
+                    exit(-1)
+           
         self.shard_idx_update = max(sum([1 if ".idx" in x  else 0 for x in os.listdir(index_directory) ]) - 1, 0)     
         self.shard_size = shard_size
         self.embedding_size = embedding_size
