@@ -4,7 +4,7 @@ import os
 import copy
 import hashlib
 from threading import RLock
-from typing import Optional, Union, Iterable, List
+from typing import Optional, Union, Iterable, List, Dict
 from queue import Queue
 import pickle
 import random
@@ -47,7 +47,7 @@ def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLik
             break        
     return result
 
-def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> dict[os.PathLike, str]:
+def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Dict[os.PathLike, str]:
 
     resources_queue = Queue()
     resources_queue.put(os.path.abspath(root_path))
@@ -100,7 +100,7 @@ def get_resource_type(resource_extension:str) -> Optional[str]:
 
 geoCodeIndex = GeocodeIndex()                                    # initialize our geocoding database/index.
 
-def get_exif_data(resource_path:str, resource_type:str) -> dict:
+def get_exif_data(resource_path:str, resource_type:str) -> Dict:
     
     result_exif_data = {}
     if resource_type == "image":
@@ -232,7 +232,7 @@ class MetaIndex(object):
         
         return temp
 
-    def load_fuzzy_search(self, attributes_list:Optional[List[str]] = "__all__") -> dict:
+    def load_fuzzy_search(self, attributes_list:Optional[List[str]] = "__all__") -> Dict:
         temp = {}
         if hasattr(self, "fuzzy_search"):
             temp = self.fuzzy_search
@@ -257,7 +257,7 @@ class MetaIndex(object):
 
         return temp
 
-    def update_fuzzy_search(self, data_hashes: Iterable[str] | str) -> dict:
+    def update_fuzzy_search(self, data_hashes: Iterable[str] | str) -> Dict:
     
         assert hasattr(self, "fuzzy_search")
         if isinstance(data_hashes, str):
@@ -279,7 +279,7 @@ class MetaIndex(object):
                             for d in data:
                                 temp[attribute].add(d, auxiliaryData = data_hash)
     
-    def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> dict[str,dict]:
+    def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> Dict[str,Dict]:
         """Routine to extract valid metaData for image resource type.
         """
         result = {}
@@ -343,7 +343,7 @@ class MetaIndex(object):
             result = list(temp_result)
         return result
 
-    def _apply_filter(self, attribute:str, value:str) -> dict[str, dict[str]]:
+    def _apply_filter(self, attribute:str, value:str) -> Dict[str, Dict[str]]:
 
         result = {}
         with self.lock:
@@ -354,7 +354,7 @@ class MetaIndex(object):
                     result[temp_hash] = copy.deepcopy(self.hash_2_metaData[temp_hash])
         return result    
 
-    def query(self, data_hashes:Optional[str | Iterable[str]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> dict[str, dict]:
+    def query(self, data_hashes:Optional[str | Iterable[str]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
         """
         result = {}
@@ -381,7 +381,7 @@ class MetaIndex(object):
             self.update_fuzzy_search(data_hash)    # update rather than create new..
             # self.fuzzy_search = self.load_fuzzy_search()
 
-    def modify_meta_data(self, data_hash:str, meta_data:dict):
+    def modify_meta_data(self, data_hash:str, meta_data:Dict):
         
         updated_fuzzy_attributes = []
         with self.lock:
