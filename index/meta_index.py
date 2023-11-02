@@ -257,7 +257,7 @@ class MetaIndex(object):
                             for d in data:
                                 temp[attribute].add(d, auxiliaryData = data_hash)
     
-    def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> Dict[str,Dict]:
+    def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> Dict[str, Dict]:
         """Routine to extract valid metaData for image resource type.
         """
         result = {}
@@ -324,7 +324,7 @@ class MetaIndex(object):
             result = list(temp_result)
         return result
 
-    def _apply_filter(self, attribute:str, value:str) -> Dict[str, Dict[str]]:
+    def _apply_filter(self, attribute:str, value:str) -> Dict[str, Dict]:
 
         result = {}
         with self.lock:
