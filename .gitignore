@@ -12,3 +12,4 @@ tmp*
 *.dll
 node_modules/
 preview_image/
+hachiConfig.json
