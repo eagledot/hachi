@@ -11,6 +11,9 @@ import random
 import time
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../"))
+from config import appConfig
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
 from exif import Image
 
@@ -28,9 +31,8 @@ ALLOWED_RESOURCES = {
     "image": set([".jpg", ".jpeg", ".png", ".tiff", ".raw"]),   # opencv is being used to read raw-data, so almost all extensions are generally supported.
     "text":  set([".pdf", ".txt", ".epub"])                     # TODO:
 }
-TO_SKIP_PATHS = [os.path.dirname(os.path.abspath(__file__))]                      # skip application root directory, children would also be excluded from indexing..
 
-def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = TO_SKIP_PATHS) ->bool:
+def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = appConfig["to_skip_paths"]) ->bool:
     """Supposed to tell if a resource directory is contained in the to_skip directories
     """
 
@@ -54,7 +56,7 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
     
     while True:
         result = {}
-        for k in ALLOWED_RESOURCES:
+        for k in appConfig["allowed_resources"]:
             result[k] = {}
         result["finished"] = False
 
@@ -93,7 +95,7 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
     yield result
 
 def get_resource_type(resource_extension:str) -> Optional[str]:
-    for k,v in ALLOWED_RESOURCES.items():
+    for k,v in appConfig["allowed_resources"].items():
         if resource_extension.lower() in v:
             return k
     return None
@@ -104,17 +106,7 @@ def get_exif_data(resource_path:str, resource_type:str) -> Dict:
     
     result_exif_data = {}
     if resource_type == "image":
-        __allowed_image_fields = [
-            
-            # device specific information
-            "make",        
-            "model",
-            "device",
-
-            "taken_at",         # Date / timestamp. (original)   --> DateTimeOriginal.
-            "gps_latitude",     # gps latitude (if available else value would be None)
-            "gps_longitude"     # gps longitude (if available else would be None)
-        ]
+        __allowed_image_fields = appConfig[resource_type]["exif_attributes"]
 
         result_exif_data = {k:None for k in __allowed_image_fields}
 
@@ -210,28 +202,14 @@ class MetaIndex(object):
 
     def _meta_data_template(self, absolute_path = None, resource_directory = None, resource_extension = None, resource_type = None, place = None, person = None, face_embeddings = None, face_bboxes = None, is_indexed = False):
         temp = {}
-        temp["is_indexed"] = is_indexed
-
-        temp["absolute_path"] = absolute_path
-        temp["resource_directory"] = resource_directory
-        temp["resource_extension"] = resource_extension
+        assert resource_type in appConfig["allowed_resources"]
+        for attribute in appConfig[resource_type]["meta_attributes"]:
+            temp[attribute] = None        
+        # common attributes for all resources
+        temp["is_indexed"] = False
         temp["resource_type"] = resource_type
-
-        temp["place"] = place
-        temp["face_bboxes"] = face_bboxes
-        
-        temp["person"] = person # supposed to be of same length as face_bboxes.
-        
-        temp["is_favourite"] = False
-        temp["filename"] = os.path.basename(absolute_path)
-        temp["modified_at"] = time.ctime(os.path.getmtime(absolute_path))
-        
-        temp["description"] = ""
-        temp["albums"] = []
-        temp["tags"] = []
-        
         return temp
-
+        
     def load_fuzzy_search(self, attributes_list:Optional[List[str]] = "__all__") -> Dict:
         temp = {}
         if hasattr(self, "fuzzy_search"):
@@ -299,13 +277,16 @@ class MetaIndex(object):
                 continue
 
             # common meta-data attributes.
-            temp = self._meta_data_template(
-                is_indexed= False,
-                absolute_path = resource_path,
-                resource_directory=os.path.dirname(resource_path),
-                resource_extension = "." + type.lower().strip().strip("."),
-                resource_type = "image"
-            )
+            temp = self._meta_data_template(resource_type = "image")
+            temp["absolute_path"] = resource_path
+            temp["resource_directory"] = os.path.dirname(resource_path)
+            temp["resource_extension"] = os.path.splitext(resource_path)[1]
+            temp["is_favourite"] = False
+            temp["filename"] = os.path.basename(resource_path)
+            temp["modified_at"] = time.ctime(os.path.getmtime(resource_path))
+            temp["description"] = ""
+
+            assert set(temp.keys()) == set(appConfig["image"]["meta_attributes"]), "Config meta-attributes must match"
 
             # resource specific meta-data attributes.
             temp_exif_data = get_exif_data(resource_path=resource_path, resource_type = "image")
@@ -430,7 +411,7 @@ class MetaIndex(object):
     def get_stats(self):
         """Some stats about the amount and type of data indexed, add more information in the future if needed."""
         result = {}
-        for k in ALLOWED_RESOURCES:
+        for k in appConfig["allowed_resources"]:
             result[k] = {"count":0}  # add more fields in the future if needed.
             result["available_resource_attributes"] = copy.deepcopy(self.fuzzy_search_attributes)
 
