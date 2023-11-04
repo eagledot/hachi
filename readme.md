@@ -27,7 +27,7 @@
     Intel-64/AMD CPU with AVX2 instructions enabled.
 
 ## Software requirements:
--   **Python3 with pip installed** (tested with >= 3.6.x)
+-   **Python3 with pip installed** (tested with >= 3.8.x)
 
 -   **Caddy**:  Open Source Web server. Download from [here](https://caddyserver.com/docs/install)
 
@@ -38,7 +38,7 @@
 ## Install (one-time process):
 
 1. Install [Caddy](https://caddyserver.com/docs/install) (Open source webserver, For serving static files and out of the box HTTPS configuration, if needed.)
-2. Python 3 (any version should work. Tested with versions >= 3.6.x)
+2. Python 3 (Tested with versions >= 3.8)
 3. Download ``source.zip``  from latest [release](https://github.com/eagledot/hachi/releases) or ``git clone https://github.com/eagledot/hachi.git``
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
 5. Collect Model Weights by downloading ``data.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.0/data.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data`` , such that now ``./data`` directory has 3 ``.bin`` files in it.
