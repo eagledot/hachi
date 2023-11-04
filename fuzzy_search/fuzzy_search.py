@@ -1,5 +1,5 @@
 
-from typing import Union, Optional, Iterable
+from typing import Union, Optional, Iterable, Dict
 from threading import RLock
 
 from tlsh_python_port import from_hex, h_distance, CODE_SIZE, mod_diff, RANGE_LVALUE, RANGE_QRATIO, getQLo, getQHi, bit_pairs_diff_table, Uint8Array, Tlsh
@@ -161,7 +161,7 @@ class FuzzySearch(object):
                 else:
                     self.rigid_strings.append(temp_d)
 
-    def query(self, query:str, top_k = 24) -> dict[str, float]:
+    def query(self, query:str, top_k = 24) -> Dict[str, float]:
         
         PERFECT_SCORE = 1000
         query_original = query.strip().lower()

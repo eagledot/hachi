@@ -235,7 +235,7 @@ class MetaIndex(object):
 
         return temp
 
-    def update_fuzzy_search(self, data_hashes: Iterable[str] | str) -> Dict:
+    def update_fuzzy_search(self, data_hashes: Union[Iterable[str], str]) -> Dict:
     
         assert hasattr(self, "fuzzy_search")
         if isinstance(data_hashes, str):
@@ -335,7 +335,7 @@ class MetaIndex(object):
                     result[temp_hash] = copy.deepcopy(self.hash_2_metaData[temp_hash])
         return result    
 
-    def query(self, data_hashes:Optional[str | Iterable[str]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> Dict[str, Dict]:
+    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
         """
         result = {}

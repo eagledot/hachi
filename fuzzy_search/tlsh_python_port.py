@@ -9,7 +9,7 @@ TLSH pure python port based on the `github.com/trendmicro/tlsh` implementation.
 """
 
 import math
-from typing import Union
+from typing import Union, List
 
 # any random permutation should suffice.
 V_TABLE = bytearray([
@@ -197,7 +197,7 @@ def partition(buf, left, right):
 
     return ret
 
-def h_distance(diff_table: list[int], length:int, x:bytearray, y:bytearray):
+def h_distance(diff_table: List[int], length:int, x:bytearray, y:bytearray):
     diff = 0
     for i in range(0, length):
         ix = int(math.sqrt(len(diff_table)))*int(x[i]) + int(y[i])   # direct indexing into the diff_table.
@@ -520,7 +520,7 @@ class Tlsh(object):
         
         return diff
 
-def generateTable() -> list[int]:
+def generateTable() -> List[int]:
     arraySize = 256
     result = [0 for _ in range(arraySize * arraySize)]
 
