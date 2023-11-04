@@ -5,7 +5,7 @@ import threading
 import queue
 import pickle
 from collections import OrderedDict
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, List
 
 import numpy as np
 
@@ -191,7 +191,7 @@ class CommonIndex(object):
     def compare(self, query:np.array, data_embeddings:np.array) -> Tuple[np.array, np.array]:
         raise NotImplementedError
 
-    def get_shard_row(self, data_hashes:list[str]) -> dict[str, dict[int, list[int]]]:
+    def get_shard_row(self, data_hashes:List[str]) -> Dict[str, Dict[int, List[int]]]:
 
         data_hashes = set(data_hashes)
         hash_2_idx = {}
@@ -221,7 +221,7 @@ class CommonIndex(object):
                 result[temp_hash][shard_idx] = [row_idx]
         return result        
     
-    def query_base(self, query:np.array, client_key:str, key:Optional[list[str]] = None) -> dict[str, list[float]]:
+    def query_base(self, query:np.array, client_key:str, key:Optional[List[str]] = None) -> Dict[str, List[float]]:
 
         query = query.reshape((-1, self.embedding_size))
         with self.lock:
@@ -267,7 +267,7 @@ class CommonIndex(object):
                     self.key_2_shardIdx[client_key] += 1
                     return (True, result)
     
-    def query_all(self, query:np.array, client_key:str) -> dict:
+    def query_all(self, query:np.array, client_key:str) -> Dict:
 
         final_result = {}
         while True:

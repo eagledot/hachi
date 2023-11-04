@@ -1,6 +1,6 @@
 # imports
 import os
-from typing import Optional, Union, Tuple, List, Iterable
+from typing import Optional, Union, Tuple, List, Iterable, Dict
 from threading import RLock
 import threading
 import time
@@ -38,7 +38,7 @@ def generate_endpoint(directory_path) -> str:
     statusEndpoint = statusEndpoint.replace('\\',"-")
     return statusEndpoint
 
-def parse_query(query:str) -> dict[str, List[str]]:
+def parse_query(query:str) -> Dict[str, List[str]]:
     """ parse a query.
         a mapping from an image-attribute to a list with possible values.
         "person" -> [x,y,z]
@@ -546,7 +546,7 @@ def query():
     return flask.jsonify(temp) # jsonify it.    
 
 @app.route("/getSuggestion", methods = ["POST"])
-def getSuggestion() -> dict[str, List[str]]:
+def getSuggestion() -> Dict[str, List[str]]:
 
     attribute = flask.request.form.get("attribute")
     query = flask.request.form.get("query")
