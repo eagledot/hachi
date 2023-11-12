@@ -213,3 +213,13 @@ class GooglePhotos(object):
         except ConnectionError as e:
             print("Connection Problem...")
             return None
+
+    def start_download(self):
+        # TODO: empty the queue if not!!
+        threading.Thread(target = (self.download_target)).start()
+    
+    def stop_download(self):
+        # TODO: be sure that downloading stopped..age old problem !!!
+        with self.lock:
+            self.stop_downloading = True
+        
