@@ -191,3 +191,25 @@ class GooglePhotos(object):
             "finished":True,
             "message": "SUCCESS"  # or any other message to indicate some error.
         })
+
+    def listMediaItems(self) -> Optional[Dict]:
+        # TODO: more possible error cases.        
+        try:
+            if not self.is_token_valid():
+                success, reason = self.get_new_access_token()
+                if not success:
+                    print("Couldn't download token..{}".format(reason))
+                    return None
+
+            headers = {'Authorization': 'Bearer {}'.format(self.credentials['access_token']),
+                    'Content-type': 'application/json'}
+            req_uri = 'https://photoslibrary.googleapis.com/v1/mediaItems'
+
+            r = requests.get(req_uri, headers=headers, allow_redirects = False)
+            if r.status_code == 200:
+                return r.json()["mediaItems"]
+            else:
+                return None
+        except ConnectionError as e:
+            print("Connection Problem...")
+            return None
