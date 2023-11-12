@@ -331,6 +331,39 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
         if index_directory in appConfig["supported_remote_protocols"]:
             remote_protocol = index_directory
 
+        # instruct the extension to download, if a remote protocol is requested.
+        if index_directory in appConfig["supported_remote_protocols"]:
+            if index_directory.lower().strip() == "google_photos":
+                index_directory = googlePhotos.get_temp_resource_directory() # directory where data is being downloaded..
+                googlePhotos.start_download()
+                while True:
+                    
+                    if indexStatus.is_cancel_request_active(client_id):
+                        googlePhotos.stop_download() # TODO: no guarantee it indeed has stopped for now..
+                        indexStatus.set_done(client_id)
+                        return
+                           
+                    download_status = googlePhotos.get_downloading_status()
+                    if download_status["finished"] == True:
+                        break
+                    else:
+                        if download_status.get("available"):
+                            progress = download_status["downloaded"] / download_status["available"]
+                        else:
+                            progress = 0
+                        indexStatus.update_status(
+                            endpoint = client_id,
+                            current_directory = "google_photos",
+                            progress = progress,
+                            eta = "unknown",
+                            details = download_status["details"]
+                        )
+                    
+                    time.sleep(1)
+            else:
+                indexStatus.set_done(client_id, message = "not a supported protocol")
+                return  # nothing left to be done, just return.
+
         prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
         
         exit_thread = False
