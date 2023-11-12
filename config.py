@@ -80,6 +80,7 @@ class Config(object):
         self.app["image_index_shard_size"] = IMAGE_INDEX_SHARD_SIZE
         self.app["topK_per_shard"]   = TOP_K_SHARD
         self.app["allowed_resources"] = ALLOWED_RESOURCES
+        self.app["supported_remote_protocols"] = SUPPORTED_REMOTE_PROTOCOLS
         self.app["to_skip_paths"] = TO_SKIP_PATHS
         self.app["do_sanity_check"] = False        # this field would be read before starting server.
         self.app["config_hash"] = hashlib.md5(open(os.path.abspath(__file__), "rb").read()).hexdigest()
