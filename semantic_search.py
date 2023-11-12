@@ -745,6 +745,39 @@ def beginGAuthflow():
     
     return "ok"
 
+@app.route("/OAuthCallback")
+def oAuthCallback():
+    # TODO: error checking, like failed or user not consent.
+    global googlePhotos
+
+    # TODO: exchange the code to by making a request to OAUTH server. 
+    client_data = read_gClient_secret()
+    token_uri = client_data["token_uri"]
+    
+    try:
+        response = requests.post(token_uri, data={
+        
+            # data to exchange code with 
+            'client_id': client_data["client_id"],
+            'client_secret': client_data["client_secret"],
+            'grant_type': 'authorization_code',
+            'redirect_uri': client_data["redirect_uris"][0],  # just provide this. and make sure match with one on google console. (not being used..)
+            'code':flask.request.args["code"]
+        })
+    except ConnectionError:
+        with global_lock:
+            GAuthFlowStatus["status"] =  "Connection Error" 
+            GAuthFlowStatus["finished"] = True
+        return "Ok"
+    
+    write_gClient_credentials(response.json(), password = None)
+
+    googlePhotos = GooglePhotos()
+    with global_lock:
+        GAuthFlowStatus["status"] =  "Success" 
+        GAuthFlowStatus["finished"] = True
+
+    return "Ok"
 
 
 
