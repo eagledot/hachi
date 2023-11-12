@@ -712,6 +712,12 @@ import webbrowser
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "./extensions/google_photos"))
 from gphotos import GooglePhotos, read_gClient_secret, write_gClient_credentials
 
+googlePhotos = GooglePhotos() #in case not client_secret/credentials, would be equivalent to a dummy initialization.
+GAuthFlowStatus = {
+    "status":"not active",
+    "finished":True,
+}
+
 
 
 
