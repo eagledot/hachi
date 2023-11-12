@@ -222,4 +222,20 @@ class GooglePhotos(object):
         # TODO: be sure that downloading stopped..age old problem !!!
         with self.lock:
             self.stop_downloading = True
-        
+    
+    def reset(self):
+        # NOTE: must be called during revoking of a token, i.e only credentials specific reasons.. NO relation with main codebase.
+        with self.lock:
+            if os.path.exists(self.resource_directory):
+                for x in os.listdir(self.resource_directory):
+                    os.remove(os.path.join(self.resource_directory, x))
+            
+            if os.path.exists(self.meta_json_path):
+                os.remove(self.meta_json_path)  # like ./hachiMeta.json.
+            if os.path.exists(CLIENT_SECRET_PATH):
+                os.remove(CLIENT_SECRET_PATH)
+            if os.path.exists(CREDENTIALS_PATH):
+                os.remove(CREDENTIALS_PATH)
+            
+            if hasattr(self, "credentials"):
+                delattr(self, "credentials")
