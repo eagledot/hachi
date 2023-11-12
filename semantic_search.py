@@ -417,11 +417,9 @@ def indexStart(batch_size = 1):
         # imageIndex.reset()
         # metaIndex.reset()
 
-    index_root_dir = os.path.abspath(index_root_dir)
-    if not os.path.isdir(index_root_dir):
-        index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, even if it not directory.
-    if os.path.exists(index_root_dir):
-
+    if os.path.exists(index_root_dir) and not os.path.isdir(index_root_dir):
+        index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, if it a valid file path on server.
+    if os.path.exists(index_root_dir) or index_root_dir in appConfig["supported_remote_protocols"]:
         client_id = generate_endpoint(index_root_dir)    # NOTE: client_id, would be equivalent to indexing directory, since there is ONE 2 ONE mapping is expected for client and indexing directory at any time.
 
         indexing_active = indexStatus.is_active(client_id)
