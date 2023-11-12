@@ -255,3 +255,8 @@ class GooglePhotos(object):
     def get_temp_resource_directory(self) -> os.PathLike:
         # return local temporary directory where data is being downloaded from google photos.
         return deepcopy(self.resource_directory)
+    
+    def get_downloading_status(self) -> Dict:
+        status = self.download_status_queue.get()
+        return status
+    
