@@ -239,3 +239,10 @@ class GooglePhotos(object):
             
             if hasattr(self, "credentials"):
                 delattr(self, "credentials")
+    
+    def add_new_client(self, client_secret:Dict):
+        self.reset()
+        with open(CLIENT_SECRET_PATH, "w") as f:
+            json.dump(client_secret, f)
+        with self.lock:
+            self.__init__()
