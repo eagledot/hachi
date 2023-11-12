@@ -709,6 +709,8 @@ def getPreviewPerson(person_id):
 ##################
 import requests
 import webbrowser
+import json
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "./extensions/google_photos"))
 from gphotos import GooglePhotos, read_gClient_secret, write_gClient_credentials
 
@@ -717,6 +719,13 @@ GAuthFlowStatus = {
     "status":"not active",
     "finished":True,
 }
+
+@app.route("/uploadClientData", methods = ["POST"])
+def uploadClientData():
+    client_data = flask.request.form.get("client_data")
+    client_data = json.loads(client_data)
+    googlePhotos.add_new_client(client_data)
+    return flask.jsonify({"success":True})
 
 
 
