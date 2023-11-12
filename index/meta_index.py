@@ -285,6 +285,7 @@ class MetaIndex(object):
             temp["filename"] = os.path.basename(resource_path)
             temp["modified_at"] = time.ctime(os.path.getmtime(resource_path))
             temp["description"] = ""
+            temp["tags"] = ""
 
             assert set(temp.keys()) == set(appConfig["image"]["meta_attributes"]), "Config meta-attributes must match"
 
