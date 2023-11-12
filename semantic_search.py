@@ -703,6 +703,19 @@ def getPreviewPerson(person_id):
         #TODO:
         return "some other poster..."       
 
+
+################
+# Extension specific routes
+##################
+import requests
+import webbrowser
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "./extensions/google_photos"))
+from gphotos import GooglePhotos, read_gClient_secret, write_gClient_credentials
+
+
+
+
+
 if __name__ == "__main__":
 
     port = 8200
