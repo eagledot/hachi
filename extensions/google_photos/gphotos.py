@@ -15,6 +15,32 @@ import threading
 from queue import Queue
 from copy import deepcopy
 
+import hashlib  # TODO: use already defined ...
+def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]:
+    data_hash = None
+    if os.path.exists(resource_path):
+        f = open(resource_path, "rb")
+        file_size = os.stat(resource_path).st_size
+        start_offset = int(0.1 * file_size)
+        m = hashlib.sha256()
+
+        try:
+            f.seek(start_offset, 0)
+            start_bytes = f.read(chunk_size)
+            m.update(start_bytes)
+            
+            end_offset = int(0.1 * file_size)
+            f.seek(-end_offset, 2)
+            end_bytes = f.read(chunk_size)
+            m.update(end_bytes)
+
+            m.update(str(file_size).encode("utf8"))
+            data_hash =  m.hexdigest()
+        except:
+            pass
+        del(m)
+
+
 CLIENT_SECRET_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), "client_secret.json")
 CREDENTIALS_PATH  = os.path.join(os.path.abspath(os.path.dirname(__file__)), "credentials.json")
 
@@ -167,6 +193,9 @@ class GooglePhotos(object):
                             f.write(r.content)
                                             
                         temp_hash = generate_data_hash(os.path.join(self.resource_directory, x["filename"]))       # NOTE: this hash MUST USE THE COMMON HASH GENERATION ROUTINE.
+                        if temp_hash is None:
+                            continue
+                        
                         self.remote_meta[temp_hash] = x     # map the hash for file to remote_metaData.
             
                         # save this meta JSON to disk, as soon as a single image is successfully downloaded.
