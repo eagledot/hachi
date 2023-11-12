@@ -326,6 +326,11 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
 
         error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.
         
+        # check remote protocol status
+        remote_protocol = None
+        if index_directory in appConfig["supported_remote_protocols"]:
+            remote_protocol = index_directory
+
         prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
         
         exit_thread = False
