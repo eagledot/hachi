@@ -65,3 +65,25 @@ class GooglePhotos(object):
 
         self.stop_downloading = False
         self.download_status_queue = Queue() # to communicate the current downloading status.
+        
+
+    def get_client_info(self):
+        """Information about current Client linked."""
+        with self.lock:
+            result = {
+                "client_id_available":False
+            }
+            if hasattr(self, "credentials"):
+                assert "refresh_token" in self.credentials
+                result["client_id"] = self.credentials["client_id"]
+                result["is_activated"] = True
+                result["client_id_available"] = True
+            elif os.path.exists(CLIENT_SECRET_PATH):
+                temp = read_gClient_secret()
+                result["client_id"] = temp["client_id"]
+                result["is_activated"] = False
+                result["client_id_available"] = True
+            else:
+                pass
+        return result
+    
