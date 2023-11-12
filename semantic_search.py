@@ -727,6 +727,23 @@ def uploadClientData():
     googlePhotos.add_new_client(client_data)
     return flask.jsonify({"success":True})
 
+@app.route("/beginGAuthFlow")
+def beginGAuthflow():
+    # TODO: later provide password..
+
+    client_data = read_gClient_secret(password=None)
+    client_id = client_data["client_id"]
+    redirect_uri = client_data["redirect_uris"][0]
+    auth_uri = client_data["auth_uri"]
+    SCOPE = "https://www.googleapis.com/auth/photoslibrary"   # TODO: for now hard-code it.
+    webbrowser.get(using = None).open('{}?response_type=code'
+                '&client_id={}&redirect_uri={}&scope={}&access_type=offline'.format(auth_uri, client_id, redirect_uri, SCOPE), new=1, autoraise=True)
+    
+    with global_lock:
+        GAuthFlowStatus["status"] =  "in progress" 
+        GAuthFlowStatus["finished"] = False
+    
+    return "ok"
 
 
 
