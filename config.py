@@ -26,6 +26,11 @@ ALLOWED_RESOURCES = {
     "text":  [".pdf", ".txt", ".epub"]                     # TODO:
 }
 
+# supported Remote Directories/protocols.
+SUPPORTED_REMOTE_PROTOCOLS = [
+    "google_photos"
+]
+
 TO_SKIP_PATHS = [os.path.dirname(os.path.abspath(__file__))]
 
 # meta Index properties.
