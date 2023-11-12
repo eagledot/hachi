@@ -251,3 +251,7 @@ class GooglePhotos(object):
     def get_remote_meta(self, data_hash:str) -> Dict:
         assert data_hash in self.remote_meta, "data_hash must be there, as a key. if this routine has been called."
         return deepcopy(self.remote_meta[data_hash])
+
+    def get_temp_resource_directory(self) -> os.PathLike:
+        # return local temporary directory where data is being downloaded from google photos.
+        return deepcopy(self.resource_directory)
