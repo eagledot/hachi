@@ -86,4 +86,11 @@ class GooglePhotos(object):
             else:
                 pass
         return result
+
+    def is_token_valid(self) -> bool:
+        result = False
+        if int(self.credentials["expires_at"]) >= int(time.time() + 15*60):              # atleast 15 minutes should be remaining.
+            # print("{} minutes remaining".format((self.credentials["expires_at"] - time.time()) / 60))
+            result = True
+        return result
     
