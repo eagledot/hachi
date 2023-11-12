@@ -13,6 +13,7 @@ import time
 import json
 import threading
 from queue import Queue
+from copy import deepcopy
 
 CLIENT_SECRET_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), "client_secret.json")
 CREDENTIALS_PATH  = os.path.join(os.path.abspath(os.path.dirname(__file__)), "credentials.json")
@@ -246,3 +247,7 @@ class GooglePhotos(object):
             json.dump(client_secret, f)
         with self.lock:
             self.__init__()
+
+    def get_remote_meta(self, data_hash:str) -> Dict:
+        assert data_hash in self.remote_meta, "data_hash must be there, as a key. if this routine has been called."
+        return deepcopy(self.remote_meta[data_hash])
