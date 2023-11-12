@@ -94,3 +94,27 @@ class GooglePhotos(object):
             result = True
         return result
     
+    def get_new_access_token(self) -> Dict:
+        result = {'success':False, 'reason':""}
+        data = {
+            'client_id': self.credentials["client_id"],
+            'client_secret': self.credentials["client_secret"],
+            'grant_type': 'refresh_token',
+            'refresh_token': self.credentials["refresh_token"]
+        }
+        r = requests.post(self.credentials["token_uri"], data=data)
+        if r.status_code == 200:
+            result["success"] = True
+            result["reason"] = ""
+
+            temp = r.json()
+            temp["refresh_token"] = self.credentials["refresh_token"]
+            for k,v in temp.items():
+                self.credentials[k] = v
+            
+            # sync the credentials to disk as well.
+            write_gClient_credentials(temp)
+        else:
+            result["success"] = False
+            result["reason"] = r.text
+        return result
