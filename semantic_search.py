@@ -268,6 +268,10 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
         resource_mapping_generator = collect_resources(index_directory, include_subdirectories)
         
         while True:
+            if exit_thread:
+                print("Finishing index on cancellation request from user")
+                break
+            
             indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
 
             resource_mapping = next(resource_mapping_generator)
@@ -281,10 +285,6 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
                 resource_directory = list(image_resources.keys())[0]
                 contents = image_resources[resource_directory]
             
-            if exit_thread:
-                print("Finishing index on cancellation request from user")
-                break
-
             # process the contents in batches.
             count = 0
             eta = "unknown"
