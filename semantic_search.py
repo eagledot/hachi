@@ -237,6 +237,70 @@ def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:O
     raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
     cv2.imwrite(os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.jpg".format(data_hash)), raw_data_resized)
 
+def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str, generate_preview_data:bool = True, remote_protocol:Optional[str] = None):
+    hash_2_metaData = metaIndex.extract_image_metaData(resources_batch)       # extra meta data
+    for data_hash, meta_data in hash_2_metaData.items():
+        assert data_hash is not None
+        absolute_path = meta_data["absolute_path"]
+        is_indexed = meta_data["is_indexed"]
+        if is_indexed:
+            continue
+        
+        # generate image embeddings
+        image_embedding = generate_image_embedding(image_path=absolute_path, center_crop=False)
+        if image_embedding is None:
+            print("Invalid data for {}".format(absolute_path))
+            continue
+
+        face_bboxes, face_embeddings = generate_face_embedding(image_path=absolute_path)
+        if face_bboxes.shape[0] > 0:
+            meta_data["face_bboxes"] = []
+            for bbox in face_bboxes:
+                x1 = str(int(bbox[0]))
+                y1 = str(int(bbox[1]))
+                x2 = str(int(bbox[2]))
+                y2 = str(int(bbox[3]))
+                meta_data["face_bboxes"].append([x1, y1, x2, y2])
+
+            with global_lock:
+                # assign each face_embedding to a group.
+                for temp_embedding in face_embeddings:
+                    id_2_assign = None
+
+                    worst_score = 10
+                    for id in personId_to_avgEmbedding:
+                        avg_embedding = personId_to_avgEmbedding[id]
+                        _, temp_scores = compare_face_embeddings(temp_embedding, avg_embedding.reshape(1, -1))
+                        score = temp_scores.ravel().item()
+                        if score <= 1.12:    # be conservative.. (for now no reliable way to detect sunglasses, that harms the average embedding if included..)
+                            if (score < worst_score):
+                                worst_score = score
+                                id_2_assign = id
+                                                
+                    if id_2_assign is None:
+                        # if no match is found, we create a new id.
+                        id_2_assign = "{}_{}".format(prefix_personId, len(personId_to_avgEmbedding) + 1)
+                        personId_to_avgEmbedding[id_2_assign] = temp_embedding
+                    else:
+                        personId_to_avgEmbedding[id_2_assign] = np.concatenate([personId_to_avgEmbedding[id_2_assign].reshape(1,-1), temp_embedding.reshape(1,-1)], axis = 0).mean(axis = 0)
+
+                    if meta_data["person"] is not None:
+                        meta_data["person"].append(id_2_assign)
+                    else:
+                        meta_data["person"] = [id_2_assign]
+        else:
+            meta_data["person"] = ["no person detected"]
+
+        # sync/update both the indices.
+        meta_data["is_indexed"] = True
+        metaIndex.update(data_hash, meta_data)
+        imageIndex.update(data_hash, data_embedding = image_embedding)
+        if generate_preview_data:
+            if face_bboxes.shape[0] > 0:
+                generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"], person_ids=meta_data["person"])
+            else:
+                generate_image_preview(data_hash, absolute_path, None, person_ids=[])
+                
 def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = False, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
     try:
@@ -304,68 +368,10 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
                 indexStatus.update_status(client_id, current_directory=resource_directory, progress = (count / len(contents) ), eta = eta, details = "{}/{}".format(count, len(contents)))
 
                 tic = time.time()         # start timing for this batch.
-                hash_2_metaData = metaIndex.extract_image_metaData(contents_batch)       # extra meta data
-                for data_hash, meta_data in hash_2_metaData.items():
-                    assert data_hash is not None
-                    absolute_path = meta_data["absolute_path"]
-                    is_indexed = meta_data["is_indexed"]
-                    if is_indexed:
-                        continue
-                    
-                    # generate image embeddings
-                    image_embedding = generate_image_embedding(image_path=absolute_path, center_crop=False)
-                    if image_embedding is None:
-                        print("Invalid data for {}".format(absolute_path))
-                        continue
-
-                    face_bboxes, face_embeddings = generate_face_embedding(image_path=absolute_path)
-                    if face_bboxes.shape[0] > 0:
-                        meta_data["face_bboxes"] = []
-                        for bbox in face_bboxes:
-                            x1 = str(int(bbox[0]))
-                            y1 = str(int(bbox[1]))
-                            x2 = str(int(bbox[2]))
-                            y2 = str(int(bbox[3]))
-                            meta_data["face_bboxes"].append([x1, y1, x2, y2])
-
-                        with global_lock:
-                            # assign each face_embedding to a group.
-                            for temp_embedding in face_embeddings:
-                                id_2_assign = None
-
-                                worst_score = 10
-                                for id in personId_to_avgEmbedding:
-                                    avg_embedding = personId_to_avgEmbedding[id]
-                                    _, temp_scores = compare_face_embeddings(temp_embedding, avg_embedding.reshape(1, -1))
-                                    score = temp_scores.ravel().item()
-                                    if score <= 1.12:    # be conservative.. (for now no reliable way to detect sunglasses, that harms the average embedding if included..)
-                                        if (score < worst_score):
-                                            worst_score = score
-                                            id_2_assign = id
-                                                            
-                                if id_2_assign is None:
-                                    # if no match is found, we create a new id.
-                                    id_2_assign = "{}_{}".format(prefix_personId, len(personId_to_avgEmbedding) + 1)
-                                    personId_to_avgEmbedding[id_2_assign] = temp_embedding
-                                else:
-                                    personId_to_avgEmbedding[id_2_assign] = np.concatenate([personId_to_avgEmbedding[id_2_assign].reshape(1,-1), temp_embedding.reshape(1,-1)], axis = 0).mean(axis = 0)
-
-                                if meta_data["person"] is not None:
-                                    meta_data["person"].append(id_2_assign)
-                                else:
-                                    meta_data["person"] = [id_2_assign]
-                    else:
-                        meta_data["person"] = ["no person detected"]
-
-                    # sync/update both the indices.
-                    meta_data["is_indexed"] = True
-                    metaIndex.update(data_hash, meta_data)
-                    imageIndex.update(data_hash, data_embedding = image_embedding)
-                    if generate_preview_data:
-                        if face_bboxes.shape[0] > 0:
-                            generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"], person_ids=meta_data["person"])
-                        else:
-                            generate_image_preview(data_hash, absolute_path, None, person_ids=[])
+                index_image_resources(resources_batch = contents_batch,
+                                      prefix_personId = prefix_personId,
+                                      generate_preview_data = True)
+                                
                 count += len(contents_batch)
 
                 # calculate eta..
