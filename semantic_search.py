@@ -405,18 +405,7 @@ def indexStart(batch_size = 1):
     complete_rescan_arg = False
     if complete_rescan == "true":
         complete_rescan_arg = True
-        
-        # # also delete person previews.
-        # preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
-        # for preview_person in preview_data:
-        #     try:
-        #         os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
-        #     except:
-        #         print("Error deleting: {}".format(preview_data))
-        
-        # imageIndex.reset()
-        # metaIndex.reset()
-
+    
     if os.path.exists(index_root_dir) and not os.path.isdir(index_root_dir):
         index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, if it a valid file path on server.
     if os.path.exists(index_root_dir) or index_root_dir in appConfig["supported_remote_protocols"]:
