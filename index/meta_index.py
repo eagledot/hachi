@@ -4,7 +4,7 @@ import os
 import copy
 import hashlib
 from threading import RLock
-from typing import Optional, Union, Iterable, List, Dict
+from typing import Optional, Union, Iterable, List, Dict, Any
 from queue import Queue
 import pickle
 import random
@@ -200,7 +200,7 @@ class MetaIndex(object):
         self.hash_2_metaData = self.load()   # for each data_hash, corresponding dict of meta-data.
         self.fuzzy_search = self.load_fuzzy_search()                 #a collection  of fuzzyIndices.
 
-    def _meta_data_template(self, absolute_path = None, resource_directory = None, resource_extension = None, resource_type = None, place = None, person = None, face_embeddings = None, face_bboxes = None, is_indexed = False):
+    def _meta_data_template(self, resource_type:str)-> Dict[str, Any]:
         temp = {}
         assert resource_type in appConfig["allowed_resources"]
         for attribute in appConfig[resource_type]["meta_attributes"]:
