@@ -46,8 +46,15 @@
 			path : "#",
 			name : "Local",
 			count: 0
-		}
+		},
 
+		{
+			icon : "image",
+			path : "#",
+			name : "Google Photos",
+			count: 0
+		}
+	
 	]
 
 	onMount(() => {

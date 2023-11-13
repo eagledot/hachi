@@ -15,6 +15,7 @@
   import People from "./people.svelte";
   import Place from "./place.svelte";
   import Local from "./local.svelte"
+  import GPhotos from "./GPhotos.svelte"
 
   import {no_images_indexed, query_results_available, unique_people_count, unique_place_count, unique_resource_directories_count, available_resource_attributes} from "./stores.js"
   import { onMount } from "svelte";
@@ -266,7 +267,11 @@ function make_interface_active(key){
 let sidebar_state = true;   // open state of sidebar, we remember the sidebar state. should be part OF STATE_INTERFACE in sidebar key. TODO.
 function SidebarItemClick(event){
   let item_name = event.detail.item.name;
-  if(item_name.toLowerCase().includes("photo")){
+  // TODO: make sure item names are unique enough to not overlap each other...otherwise different interface would get active..
+  if (item_name.toLowerCase().includes("google")){
+    make_interface_active("google_photos");
+  }
+  else if(item_name.toLowerCase().includes("photo")){
     make_interface_active("query");
   }
   else if (item_name.toLowerCase().includes("index")){
@@ -348,4 +353,14 @@ function SidebarItemClick(event){
       <Local/>
     </div>
   </div>
+
+  {:else if state_interface.google_photos.status === true}
+
+  <div class="flex">
+    <Sidebar sidebarOpen = {sidebar_state} on:menuClick= {(event) => SidebarItemClick(event)} on:sidebarStateChange = {(event) => {sidebar_state = event.detail.open}}/>
+    <div class="flex-1 overflow-y-auto min-h-screen bg-blue-100 p-2 relative">
+      <GPhotos/>
+    </div>
+  </div>
+
 {/if}
