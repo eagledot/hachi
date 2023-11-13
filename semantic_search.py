@@ -720,6 +720,10 @@ GAuthFlowStatus = {
     "finished":True,
 }
 
+@app.route("/gClientInfo")
+def gClientInfo():
+    return flask.jsonify(googlePhotos.get_client_info()) 
+
 @app.route("/uploadClientData", methods = ["POST"])
 def uploadClientData():
     client_data = flask.request.form.get("client_data")
