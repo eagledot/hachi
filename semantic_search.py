@@ -783,7 +783,10 @@ def oAuthCallback():
 
     return "Ok"
 
-
+@app.route("/statusGAuthFlow")
+def statusGAuthFlow():
+    with global_lock:
+        return flask.jsonify(GAuthFlowStatus)
 
 if __name__ == "__main__":
 
