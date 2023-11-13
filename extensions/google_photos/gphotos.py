@@ -8,6 +8,7 @@ Google Photos extension for Hachi (https://github.com/eagledot/hachi)
 
 import os
 import requests
+from requests.exceptions import ConnectionError
 from typing import Optional, Dict
 import time
 import json
@@ -136,11 +137,9 @@ class GooglePhotos(object):
 
             temp = r.json()
             temp["refresh_token"] = self.credentials["refresh_token"]
-            for k,v in temp.items():
-                self.credentials[k] = v
-            
             # sync the credentials to disk as well.
             write_gClient_credentials(temp)
+            self.credentials = read_gClient_credentials()
         else:
             result["success"] = False
             result["reason"] = r.text
@@ -246,6 +245,7 @@ class GooglePhotos(object):
 
     def start_download(self):
         # TODO: empty the queue if not!!
+        # TODO: return if already downloading in progress.
         threading.Thread(target = (self.download_target)).start()
     
     def stop_download(self):
