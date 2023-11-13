@@ -1,5 +1,6 @@
 <!-- Svelte component to manage Google Photos related functionalities. -->
 <script>
+import { onMount } from "svelte";
 
 let gClientInfo = null;
 let display_activation_button = false;
@@ -21,6 +22,8 @@ function get_client_info(){
     }
     )
 }
-
+onMount(()=>{
+    get_client_info();
+})
 
 </script>
