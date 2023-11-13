@@ -292,6 +292,14 @@ def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str
 
         # sync/update both the indices.
         meta_data["is_indexed"] = True
+
+        # merge remote meta-data too if allowed remoted protocol.
+        if remote_protocol == "google_photos":
+            remote_meta_data = googlePhotos.get_remote_meta(data_hash)
+            meta_data["remote"] = remote_meta_data  
+            meta_data["resource_directory"] = "google_photos"
+            meta_data["absolute_path"] = "remote"
+        
         metaIndex.update(data_hash, meta_data)
         imageIndex.update(data_hash, data_embedding = image_embedding)
         if generate_preview_data:
@@ -407,7 +415,8 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
                 tic = time.time()         # start timing for this batch.
                 index_image_resources(resources_batch = contents_batch,
                                       prefix_personId = prefix_personId,
-                                      generate_preview_data = True)
+                                      generate_preview_data = True,
+                                      remote_protocol = remote_protocol)
                                 
                 count += len(contents_batch)
 
