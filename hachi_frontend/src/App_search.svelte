@@ -229,6 +229,11 @@ const
         "context": {}
     },
 
+    "google_photos":{
+        "status": false,
+        "context": {}
+    },
+
 }
 
 function make_interface_active(key){
