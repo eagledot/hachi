@@ -4,6 +4,7 @@ import { onMount } from "svelte";
 
 let gClientInfo = null;
 let display_activation_button = false;
+let label = "Upload Client secret json"
 
 function get_client_info(){
     fetch("/api/gClientInfo")
@@ -60,6 +61,57 @@ function activate(event){
             setTimeout(pollActivationStatus, 1000);
         }
     })
+}
+
+
+function handleClientUpload(event){
+    let expected_redirect = "http://localhost:5000/api/OAuthCallback"
+    label = "upload in progress.."
+    event.preventDefault();
+    console.log(event.target);
+    event.target.disabled = true;
+
+    var reader = new FileReader();
+    reader.onload = function() {
+      var client_data = JSON.parse(reader.result);
+      let temp_keys = Object.keys(client_data);
+      
+      // client side checking for valid credentials..
+      let is_web_app = temp_keys.includes("web");
+      let redirect_uri_valid = false;
+      
+      if (is_web_app){
+        if (Object.keys(client_data["web"]).includes("redirect_uris")){
+            redirect_uri_valid =  client_data["web"]["redirect_uris"].includes(expected_redirect)
+        }
+      }
+
+        if ((is_web_app === true) && (redirect_uri_valid == true)){
+           let temp_data = new FormData();
+           temp_data.append("client_data", reader.result);
+
+            fetch("/api/uploadClientData",
+                {
+                "method": "POST",
+                "body": temp_data
+                })
+                .then((response) => {
+                    if (response.ok == false){
+                        alert("Some error occured !!")
+                    }
+                    else{
+                        label = "Upload Client secret json"
+                        get_client_info();
+                        event.target.disabled = false;
+                        display_activation_button = true;
+                    }
+                })
+        }
+        else{
+            alert("Must be a webapp and redirect_uris must contain: " + expected_redirect);
+            return;
+        }};
+    reader.readAsText(event.target.files[0]);
 }
 
 
