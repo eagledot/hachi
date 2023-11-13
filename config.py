@@ -31,7 +31,7 @@ SUPPORTED_REMOTE_PROTOCOLS = [
     "google_photos"
 ]
 
-TO_SKIP_PATHS = [os.path.dirname(os.path.abspath(__file__))]
+TO_SKIP_PATHS = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview_image")]  # Children would also be excluded from indexing.
 
 # meta Index properties.
 IMAGE_META_DATA_ATTRIBUTES =      {
