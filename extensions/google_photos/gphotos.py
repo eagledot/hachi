@@ -39,7 +39,7 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]
         except:
             pass
         del(m)
-
+    return data_hash
 
 CLIENT_SECRET_PATH = os.path.join(os.path.abspath(os.path.dirname(__file__)), "client_secret.json")
 CREDENTIALS_PATH  = os.path.join(os.path.abspath(os.path.dirname(__file__)), "credentials.json")
