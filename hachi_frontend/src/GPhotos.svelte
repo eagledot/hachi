@@ -44,6 +44,24 @@ function pollActivationStatus(){
     })
     })
 }
+function activate(event){
+    event.target.disabled = true;
+    event.target.innerText = "activation in progress..."
+    
+    fetch(
+        "/api/beginGAuthFlow"
+    ).then((response) => {
+        if (response.ok == false){
+            alert("Some error occured while starting authorization flow !");
+            event.target.disabled = false;
+            event.target.innerText = "Activate Google Photos"
+        } 
+        else{
+            setTimeout(pollActivationStatus, 1000);
+        }
+    })
+}
+
 
 
 </script>
