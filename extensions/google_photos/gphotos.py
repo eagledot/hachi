@@ -246,27 +246,45 @@ class GooglePhotos(object):
         with self.lock:
             self.is_downloading = False
     
-    def listMediaItems(self) -> Optional[Dict]:
-        # TODO: more possible error cases.        
+    def listMediaItems(self, page_token:str = None) -> Tuple[Optional[str], Dict, Optional[str]]:
+        # Paginated listing
+        # Return (pageToken, Dict for meta-data about mediaItems, error) (at max self.page_size). Paginated listing
+        
+        result = (None, {}, None)    # (page_token[optional], response json, error[optional])
+        if not self.is_token_valid():
+            success, reason = self.update_access_token()
+            if not success:
+                result = (None, {}, reason)
+
+        headers = {'Authorization': 'Bearer {}'.format(self.credentials['access_token']),
+                'Content-type': 'application/json'}
+        
+        if page_token is not None:
+            req_uri = 'https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}&pageToken={}'.format(self.page_size, page_token)
+        else:
+            req_uri = 'https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}'.format(self.page_size)
+
         try:
-            if not self.is_token_valid():
-                success, reason = self.get_new_access_token()
-                if not success:
-                    print("Couldn't download token..{}".format(reason))
-                    return None
-
-            headers = {'Authorization': 'Bearer {}'.format(self.credentials['access_token']),
-                    'Content-type': 'application/json'}
-            req_uri = 'https://photoslibrary.googleapis.com/v1/mediaItems'
-
-            r = requests.get(req_uri, headers=headers, allow_redirects = False)
-            if r.status_code == 200:
-                return r.json()["mediaItems"]
-            else:
-                return None
+            r = requests.get(req_uri, headers=headers, allow_redirects = False, timeout = 5)
         except ConnectionError as e:
-            print("Connection Problem...")
-            return None
+            result = (None, {}, "Connection Error")
+            return result
+        
+        if r.status_code == 200:
+            # TODO: check for error message, like Unauthenticated or disabled api etc.
+            temp_result = r.json()
+
+            if "mediaItems" in temp_result:
+                if "pageToken" in temp_result:
+                    result = (temp_result["pageToken"], temp_result["mediaItems"], None)
+                else:
+                    result = (None, temp_result["mediaItems"], None)
+            else:
+                result = (None, {}, r.text)
+        else:
+            result = (None, {}, r.text)
+            
+        return result
 
     def start_download(self):
         # TODO: empty the queue if not!!
