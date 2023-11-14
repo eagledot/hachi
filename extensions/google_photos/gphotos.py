@@ -210,7 +210,7 @@ class GooglePhotos(object):
                     'Accept-Encoding': 'gzip'
                 }
                 try:
-                    r = requests.get(x["baseUrl"], headers=temp_headers, allow_redirects=False, timeout = 5)   # this URL is temporary, would need to create new based on mediaItemId on the fly.
+                    r = requests.get(x["baseUrl"], headers=temp_headers, allow_redirects=False, timeout = 10)   # this URL is temporary, would need to create new based on mediaItemId on the fly.
                 except ConnectionError as e:
                     self.download_status_queue.put({
                         "finished":False,
