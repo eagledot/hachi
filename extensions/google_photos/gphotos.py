@@ -176,81 +176,80 @@ class GooglePhotos(object):
                     self.is_downloading = False
                 return
 
-        curr_page_token = None
-        while True:
-            # download all metaData for mediaItems. (have to check in case user has large number of photos/videos.)   
-            self.download_status_queue.put({
-                    "finished":False,
-                    "details":"Downloading remote metaData!"
-                })
-            next_page_token, remote_metaData, error_fetching = self.listMediaItems(curr_page_token)  # TODO: check for large amount of personal data.
-            if error_fetching is not None:
-                self.download_status_queue.put({
-                "finished":True,
-                "message":error_fetching
-                })
-                with self.lock:
-                    self.is_downloading = False
-                return
-            
-            available_mediaItemids = [v["id"] for v in self.remote_meta.values()]
-
-            for x in remote_metaData:
-                with self.lock:
-                    if self.stop_downloading_thread == True:
-                        self.download_status_queue.put({
-                            "finished":True,
-                            "message": "Downloading Stopped.."  # or any other message to indicate some error.
-                        })
-                        self.is_downloading = False
-                        return
-                
-                resource_type, extension = x["mimeType"].lower().split("/")
-                if resource_type == "image" and x["id"] not in available_mediaItemids:
-                
-                    temp_headers = {
-                        'User-Agent': 'Mozilla/5.0 gzip', # Api suggests to include gzip string in user-agent too !!
-                        'Accept-Encoding': 'gzip'
-                    }
-                    try:
-                        r = requests.get(x["baseUrl"], headers=temp_headers, allow_redirects=False, timeout = 5)   # this URL is temporary, would need to create new based on mediaItemId on the fly.
-                    except ConnectionError as e:
-                        continue
-
-                    if r.status_code == 200:
-                        with open(os.path.join(self.resource_directory, x["filename"]), "wb") as f:
-                            f.write(r.content)
-                                            
-                        temp_hash = generate_data_hash(os.path.join(self.resource_directory, x["filename"]))       # NOTE: this hash MUST USE THE COMMON HASH GENERATION ROUTINE.
-                        if temp_hash is None:
-                            continue
-                    
-                        self.remote_meta[temp_hash] = x     # map the hash for file to remote_metaData.
-            
-                        # save this meta JSON to disk, as soon as a single image is successfully downloaded.
-                        with open(self.meta_json_path, "w") as f:
-                            json.dump(self.remote_meta, f)
-
-                        self.download_status_queue.put({
-                            "available": len(remote_metaData),
-                            "downloaded": len(self.remote_meta),
-                            "finished":False,
-                            "details":x["filename"]
-                        })
-
-                    else:
-                        # TODO: possible, some error/unauthentication, even with a successful response.
-                        # TODO: return response text in this case. to queue.
-                        pass
+        self.download_status_queue.put({
+                "finished":False,
+                "details":"Downloading remote meta-data!"
+            })
         
-            if next_page_token is None:
-                break
-            curr_page_token = next_page_token
+        temp_meta = self.listMediaItems()
+        remote_metaData = temp_meta["meta"]
+        error_trace = temp_meta["error"]
+        print("Got remote: {}".format(remote_metaData))
+
+        # already available metaItemsIds, (for data that was downloaded atleast once.)
+        available_mediaItemids = [v["id"] for v in self.remote_meta.values()]
+
+        print("AVAILABLE ID: {}".format(available_mediaItemids))
+        
+        for x in remote_metaData:
+            with self.lock:
+                if self.stop_downloading_thread == True:
+                    self.download_status_queue.put({
+                        "finished":True,
+                        "message": "Downloading Stopped.."  # or any other message to indicate some error.
+                    })
+                    self.is_downloading = False
+                    return
             
+            # for now only downloading "images", later may be video or some specific extension.
+            resource_type, extension = x["mimeType"].lower().split("/")
+            if resource_type == "image" and x["id"] not in available_mediaItemids:
+                
+                temp_headers = {
+                    'User-Agent': 'Mozilla/5.0 gzip', # Api suggests to include gzip string in user-agent too !!
+                    'Accept-Encoding': 'gzip'
+                }
+                try:
+                    r = requests.get(x["baseUrl"], headers=temp_headers, allow_redirects=False, timeout = 5)   # this URL is temporary, would need to create new based on mediaItemId on the fly.
+                except ConnectionError as e:
+                    self.download_status_queue.put({
+                        "finished":False,
+                        "details":"Failed in downloading: {}".format(x["filename"])
+                    })
+                    continue
+
+                if r.status_code == 200:
+                    with open(os.path.join(self.resource_directory, x["filename"]), "wb") as f:
+                        f.write(r.content)
+                                        
+                    temp_hash = generate_data_hash(os.path.join(self.resource_directory, x["filename"]))       # NOTE: this hash MUST USE THE COMMON HASH GENERATION ROUTINE.
+                    if temp_hash is None:
+                        continue
+                    
+                    self.remote_meta[temp_hash] = x     # map the hash for file to remote_metaData.
+        
+                    with open(self.meta_json_path, "w") as f:
+                        json.dump(self.remote_meta, f)
+
+                    self.download_status_queue.put({
+                        "available": len(remote_metaData),
+                        "downloaded": len(self.remote_meta),
+                        "finished":False,
+                        "details":x["filename"]
+                    })
+
+                else:
+                    # TODO: possible, some error/unauthentication, even with a successful response.
+                    # TODO: return response text in this case. to queue.
+                    pass
+        
         # finally.
+        final_message = "SUCCESS"
+        if error_trace is not None:
+            final_message = error_trace
         self.download_status_queue.put({
             "finished":True,
-            "message": "SUCCESS"  # or any other message to indicate some error.
+            "message": final_message  # or any other message to indicate some error.
         })
         with self.lock:
             self.is_downloading = False
