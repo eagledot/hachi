@@ -342,17 +342,24 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
         if index_directory in appConfig["supported_remote_protocols"]:
             if index_directory.lower().strip() == "google_photos":
                 index_directory = googlePhotos.get_temp_resource_directory() # directory where data is being downloaded..
-                googlePhotos.start_download()
+                status = googlePhotos.start_download()
+                if status == False:
+                    error_trace = "Failed to start downloading for {}".format(remote_protocol)
+                    return 
                 while True:
                     
                     if indexStatus.is_cancel_request_active(client_id):
                         googlePhotos.stop_download() # TODO: no guarantee it indeed has stopped for now..
-                        indexStatus.set_done(client_id)
+                        error_trace = "Downloading stopped on user request"
                         return
                            
                     download_status = googlePhotos.get_downloading_status()
                     if download_status["finished"] == True:
-                        break
+                        if not (download_status["message"].strip().lower() == "success"):
+                            error_trace =  download_status["message"]
+                            return  # finished but not fully/successfully.
+                        else:
+                            break
                     else:
                         if download_status.get("available"):
                             progress = download_status["downloaded"] / download_status["available"]
@@ -368,7 +375,7 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
                     
                     time.sleep(1)
             else:
-                indexStatus.set_done(client_id, message = "not a supported protocol")
+                error_trace = "not a supported protocol"
                 return  # nothing left to be done, just return.
 
         prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
