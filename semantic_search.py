@@ -91,6 +91,8 @@ class IndexStatus(object):
             self.status_dict[endpoint]["done"] = True
             if message:
                 self.status_dict[endpoint]["details"] = "{}".format(message)
+            else:
+                self.status_dict[endpoint]["details"] = "SUCCESS"
     
     def update_status(self, endpoint:str, current_directory:str, progress:float, eta:Optional[str] = None, details = ""):
         with self.lock:
