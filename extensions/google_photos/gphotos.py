@@ -285,7 +285,7 @@ class GooglePhotos(object):
             if r.status_code == 200:
                 temp_result = r.json()
                 if "mediaItems" in temp_result:
-                    final_result["meta"] = temp_result["mediaItems"]
+                    final_result["meta"] = final_result["meta"] + (temp_result["mediaItems"])
                     
                     if "nextPageToken" in temp_result:
                         page_token = temp_result["nextPageToken"]
