@@ -61,6 +61,7 @@ let pollEndpointTimeoutId;
       
       if (data["done"] == true){
 
+        let final_status = data["details"]
         let formData = new FormData();
         formData.append("ack", "true");  // let the server know that client has acknowledged that indexing done on server side. (So that server could do some cleanup,)
 
@@ -74,7 +75,7 @@ let pollEndpointTimeoutId;
             alert("Some error on server side, after indexing is Completed. Contact administrator..");    
         }
         else{
-            alert("Indexing Completed Successfully");
+            alert("Indexing Completed Successfully\nFinal Status: " + final_status);
         }
         
         // update the indexing stats into localstorage
