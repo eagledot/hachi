@@ -75,7 +75,7 @@ let pollEndpointTimeoutId;
             alert("Some error on server side, after indexing is Completed. Contact administrator..");    
         }
         else{
-            alert("Indexing Completed Successfully\nFinal Status: " + final_status);
+            alert("Indexing Completed.\nFinal Status: " + final_status);
         }
         
         // update the indexing stats into localstorage
