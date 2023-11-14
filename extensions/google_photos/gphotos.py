@@ -16,6 +16,8 @@ import threading
 from queue import Queue
 from copy import deepcopy
 
+PAGE_SIZE = 100   # max allowed Page size for downloading/listing.
+
 import hashlib  # TODO: use already defined ...
 def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]:
     data_hash = None
@@ -60,10 +62,13 @@ def read_gClient_credentials(password:Optional[str] = None) -> Dict:
         return json.load(f)
     
 class GooglePhotos(object):
-    def __init__(self):
+    def __init__(self, page_size = PAGE_SIZE):
         self.resource_directory = os.path.join(os.path.dirname(__file__), "temp_gphotos")
         self.meta_json_path = os.path.join(os.path.dirname(__file__), "./hachiMeta.json") # corresponding metaData if available.
-        
+        self.is_downloading = False
+        self.download_status_queue = Queue() # to communicate the current downloading status.
+        self.page_size = PAGE_SIZE
+
         # mapping from (data_hash) --> remote_metaData, data_hash would be used by Original MetaData during augmenting/mergin.
         if not os.path.exists(self.meta_json_path):
             self.remote_meta = {}
@@ -91,8 +96,6 @@ class GooglePhotos(object):
         self.credentials["auth_uri"] = temp["auth_uri"]
         self.credentials["token_uri"] = temp["token_uri"]
 
-        self.stop_downloading = False
-        self.download_status_queue = Queue() # to communicate the current downloading status.
         
 
     def get_client_info(self):
