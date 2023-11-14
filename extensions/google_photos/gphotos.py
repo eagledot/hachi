@@ -9,7 +9,7 @@ Google Photos extension for Hachi (https://github.com/eagledot/hachi)
 import os
 import requests
 from requests.exceptions import ConnectionError
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 import time
 import json
 import threading
@@ -126,24 +126,33 @@ class GooglePhotos(object):
             result = True
         return result
     
-    def get_new_access_token(self) -> Dict:
-        result = {'success':False, 'reason':""}
+    def update_access_token(self) -> Tuple[bool, Optional[str]]:
+
+        result = {'success':False, 'reason':None}
         data = {
             'client_id': self.credentials["client_id"],
             'client_secret': self.credentials["client_secret"],
             'grant_type': 'refresh_token',
             'refresh_token': self.credentials["refresh_token"]
         }
-        r = requests.post(self.credentials["token_uri"], data=data)
+        try:
+            r = requests.post(self.credentials["token_uri"], data=data, timeout = 5)
+        except ConnectionError as e:
+            result = {"success":False, "reason": "Connection Error"}
+            return result
+        
         if r.status_code == 200:
-            result["success"] = True
-            result["reason"] = ""
-
             temp = r.json()
-            temp["refresh_token"] = self.credentials["refresh_token"]
-            # sync the credentials to disk as well.
-            write_gClient_credentials(temp)
-            self.credentials = read_gClient_credentials()
+            if "access_token" in temp: 
+                result["success"] = True
+                result["reason"] = None
+
+                temp["refresh_token"] = self.credentials["refresh_token"]
+                write_gClient_credentials(temp) 
+                self.credentials = read_gClient_credentials()  # read from the disk. (so that in sync..)
+            else:
+                result["success"] = False
+                result["success"] = r.text
         else:
             result["success"] = False
             result["reason"] = r.text
