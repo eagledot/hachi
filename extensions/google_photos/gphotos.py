@@ -8,7 +8,7 @@ Google Photos extension for Hachi (https://github.com/eagledot/hachi)
 
 import os
 import requests
-from requests.exceptions import ConnectionError
+from requests.exceptions import ConnectionError, Timeout
 from typing import Optional, Dict, Tuple
 import time
 import json
@@ -136,8 +136,8 @@ class GooglePhotos(object):
             'refresh_token': self.credentials["refresh_token"]
         }
         try:
-            r = requests.post(self.credentials["token_uri"], data=data, timeout = 5)
-        except ConnectionError as e:
+            r = requests.post(self.credentials["token_uri"], data=data, timeout = 10)
+        except (ConnectionError, Timeout) as e:
             result = {"success":False, "reason": "Connection Error"}
             return result
         
@@ -213,8 +213,9 @@ class GooglePhotos(object):
                     'Accept-Encoding': 'gzip'
                 }
                 try:
-                    r = requests.get(x["baseUrl"], headers=temp_headers, allow_redirects=False, timeout = 10)   # this URL is temporary, would need to create new based on mediaItemId on the fly.
-                except ConnectionError as e:
+                    # apparently adding =d seems to work, otherwise would not download in full resolution.
+                    r = requests.get("{}=d".format(x["baseUrl"]), headers=temp_headers, allow_redirects=True, timeout = 10)   # this URL is temporary, would need to create new based on mediaItemId on the fly.
+                except (ConnectionError, Timeout) as e:
                     self.download_status_queue.put({
                         "finished":False,
                         "details":"Failed in downloading: {}".format(x["filename"])
@@ -280,7 +281,7 @@ class GooglePhotos(object):
 
             try:
                 r = requests.get(req_uri, headers=headers, allow_redirects = False, timeout = 5)
-            except ConnectionError as e:
+            except (ConnectionError, Timeout) as e:
                 final_result["error"] = "Connection Error"
                 return final_result
             
