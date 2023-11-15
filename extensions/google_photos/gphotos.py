@@ -147,9 +147,12 @@ class GooglePhotos(object):
                 result["success"] = True
                 result["reason"] = None
 
-                temp["refresh_token"] = self.credentials["refresh_token"]
-                write_gClient_credentials(temp) 
-                self.credentials = read_gClient_credentials()  # read from the disk. (so that in sync..)
+                assert "access_token" in self.credentials
+                assert "expires_in" in temp
+
+                self.credentials["expires_in"] = temp["expires_in"]      # generally fixed ~ 3599 seconds
+                self.credentials["access_token"] = temp["access_token"]  # update the access_token.
+                write_gClient_credentials(self.credentials)  # sync to the disk. 
             else:
                 result["success"] = False
                 result["success"] = r.text
