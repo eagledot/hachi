@@ -274,6 +274,10 @@ class GooglePhotos(object):
         
         page_token = None
         while True:
+            with self.lock:
+                if self.stop_downloading_thread == True:
+                    return final_result
+
             if page_token is not None:
                 req_uri = 'https://photoslibrary.googleapis.com/v1/mediaItems?pageSize={}&pageToken={}'.format(self.page_size, page_token)
             else:
