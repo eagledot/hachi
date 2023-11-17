@@ -317,7 +317,7 @@ class GooglePhotos(object):
     def stop_download(self):
         # TODO: be sure that downloading stopped..age old problem !!!
         with self.lock:
-            self.stop_downloading = True
+            self.stop_downloading_thread = True
     
     def reset(self):
         # NOTE: must be called during revoking of a token, i.e only credentials specific reasons.. NO relation with main codebase.
@@ -337,10 +337,11 @@ class GooglePhotos(object):
                 delattr(self, "credentials")
     
     def add_new_client(self, client_secret:Dict):
-        self.reset()
-        with open(CLIENT_SECRET_PATH, "w") as f:
-            json.dump(client_secret, f)
+        # NOTE: for now we allow atmax 1 linked google account only.
         with self.lock:
+            self.reset()
+            with open(CLIENT_SECRET_PATH, "w") as f:
+                json.dump(client_secret, f)
             self.__init__()
 
     def get_remote_meta(self, data_hash:str) -> Dict:
