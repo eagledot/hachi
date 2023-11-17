@@ -187,12 +187,9 @@ class GooglePhotos(object):
         temp_meta = self.listMediaItems()
         remote_metaData = temp_meta["meta"]
         error_trace = temp_meta["error"]
-        print("Got remote: {}".format(remote_metaData))
 
         # already available metaItemsIds, (for data that was downloaded atleast once.)
         available_mediaItemids = [v["id"] for v in self.remote_meta.values()]
-
-        print("AVAILABLE ID: {}".format(available_mediaItemids))
         
         for x in remote_metaData:
             with self.lock:
