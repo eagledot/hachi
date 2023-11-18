@@ -36,9 +36,10 @@ onDestroy(() => {
     }
 
 let input_element;         // input element to accept indexing directory path..
+let select_input_element;
 
 // current indexing stats
-let index_progress = 0.001;                 
+let index_progress = 0.00;                 
 let directory_being_indexed = ""
 let extra_details = ""
 let eta = ""
@@ -98,6 +99,9 @@ let pollEndpointTimeoutId;
         index_cancel_button.disabled = true;
         index_cancel_button.innerText = "Cancel";
         input_element.disabled = false;
+        if(select_input_element){
+          select_input_element.value = "None selected";
+        }
 
         return;
       }
@@ -186,7 +190,19 @@ let pollEndpointTimeoutId;
     <p class="mb-2 text-sm font-semibold">Press Start button to start indexing</p>
   
     <div class="my-2">
-      <input bind:this={input_element} bind:value={index_directory_path} on:keydown={(e) => {if(e.key === "Enter"){index_start_button.click();}}} type="text" class="w-full rounded border p-1 text-sm" placeholder="D://images (Full path to directory to index)" required={true}/>
+      <input bind:this={input_element} bind:value={index_directory_path} on:keydown={(e) => {if(e.key === "Enter"){index_start_button.click();}}} type="text" class="w-full rounded border p-1 text-sm disabled:bg-gray-200" placeholder="D://images (Full path to directory to index)" required={true}/>
+      
+      <p class="font-semibold">OR</p>
+
+      <div class="mb-3 mt-3 flex flex-wrap items-center">
+        <select bind:this={select_input_element} class="h-8 rounded border border-blue-500 p-1 text-sm text-blue-700 focus:outline-none" on:change={(e) => {if(e.target.value == "None selected"){index_directory_path = ""; input_element.disabled = false;}else{index_directory_path = e.target.value; input_element.disabled = true;}}}>
+          <option>None selected</option>
+          <option>google_photos</option>
+        </select>
+        
+        <div class="ml-2 text-sm text-gray-600">Choose a supported remote protocol</div>
+      </div>
+    
     </div>
   
     <div class="mb-3">
