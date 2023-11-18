@@ -15,6 +15,7 @@ import json
 import threading
 from queue import Queue
 from copy import deepcopy
+from collections import OrderedDict
 
 PAGE_SIZE = 100   # max allowed Page size for downloading/listing.
 
@@ -70,6 +71,9 @@ class GooglePhotos(object):
         self.page_size = PAGE_SIZE
         self.stop_downloading_thread = False
 
+        self.cache_max_size = 40
+        self.cache = OrderedDict()  # mediaItemid 2 raw bytes mapping
+
         # mapping from (data_hash) --> remote_metaData, data_hash would be used by Original MetaData during augmenting/mergin.
         if not os.path.exists(self.meta_json_path):
             self.remote_meta = {}
@@ -97,7 +101,7 @@ class GooglePhotos(object):
         self.credentials["auth_uri"] = temp["auth_uri"]
         self.credentials["token_uri"] = temp["token_uri"]
 
-        
+
 
     def get_client_info(self):
         """Information about current Client linked."""
@@ -162,8 +166,6 @@ class GooglePhotos(object):
         return result
     
     def download_target(self):
-        with self.lock:
-            self.stop_downloading_thread = False
         if not self.is_token_valid():
             self.download_status_queue.put({
                 "finished":False,
@@ -305,20 +307,31 @@ class GooglePhotos(object):
     def start_download(self) -> bool:
         with self.lock:
             if self.is_downloading == True:
-                return False
-            if hasattr(self, "queue"):
-                del self.queue
-            self.queue = Queue()
+                return False 
+            self.empty_queue()
         
         threading.Thread(target = (self.download_target)).start()
         with self.lock:
             self.is_downloading = True
+            self.stop_downloading_thread = False
         return True
     
-    def stop_download(self):
-        # TODO: be sure that downloading stopped..age old problem !!!
+    def stop_download(self) -> bool:
+        # blocking routine..
         with self.lock:
-            self.stop_downloading_thread = True
+            if self.is_downloading:
+                self.stop_downloading_thread = True
+
+        status = False
+        for _ in range(15):      # 30 seconds.
+            with self.lock:
+                if self.is_downloading == False:
+                    status = True
+                    self.stop_downloading_thread = False
+                    break
+            time.sleep(2)
+        return status
+
     
     def reset(self):
         # NOTE: must be called during revoking of a token, i.e only credentials specific reasons.. NO relation with main codebase.
@@ -350,10 +363,64 @@ class GooglePhotos(object):
         return deepcopy(self.remote_meta[data_hash])
 
     def get_temp_resource_directory(self) -> os.PathLike:
-        # return local temporary directory where data is being downloaded from google photos.
         return deepcopy(self.resource_directory)
     
     def get_downloading_status(self) -> Dict:
         status = self.download_status_queue.get()
         return status
     
+    def get_raw_data(self, meta_data:Dict) -> Optional[bytes]:
+        result = self._get_from_cache(meta_data)
+        return result
+
+    def _get_from_cache(self, meta_data:Dict) -> Optional[bytes]:
+        # extract raw-bytes from cache, if available else download.
+        raw_data = None
+        with self.lock:
+            id = meta_data["id"]
+            if id in self.cache:
+                raw_data = self.cache[id]
+            else:
+                if not self.is_token_valid():
+                    self.update_access_token()
+
+                headers = {'Authorization': 'Bearer {}'.format(self.credentials['access_token']),
+                'Content-type': 'application/json'}
+
+                # get new baseUrl
+                req_uri = "https://photoslibrary.googleapis.com/v1/mediaItems/{}".format(id)
+                try:
+                    r = requests.get(req_uri, headers = headers, timeout = 5)
+                    if r.status_code == 200:
+                        temp_json = r.json()
+                        if "baseUrl" in temp_json:
+                            temp_headers = {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36', # Api suggests to include gzip string in user-agent too !!
+                                'Accept-Encoding': 'gzip'
+                            }
+                            baseUrl = temp_json["baseUrl"]
+                            r = requests.get("{}=d".format(baseUrl), headers = temp_headers, allow_redirects=False, timeout = 10)
+                            if r.status_code == 200:
+                                raw_data = r.content
+                        else:
+                            print("Couldnot locate baseUrl")
+                            raw_data = None
+                    else:
+                        raw_data = None
+                
+                except (ConnectionError, Timeout) as e:
+                    print("Connection error..")
+                    raw_data = None
+
+                # update cache.
+                if raw_data is not None:
+                    if len(self.cache) >= self.cache_max_size:
+                        _ = self.cache.popitem(last = False)
+                    self.cache[id] = raw_data
+            
+            return raw_data
+    
+    def empty_queue(self):
+        with self.lock:
+            delattr(self, "download_status_queue") # kind of assertion too.. 
+            self.download_status_queue = Queue()
