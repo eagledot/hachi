@@ -32,8 +32,8 @@ sys.path.insert(0,"./ml")
 import clip_python_module as clip
 import faceEmbeddings_python_module as pipeline
 
-def generate_endpoint(directory_path) -> str:
-    statusEndpoint = os.path.abspath(directory_path).replace("/", "-")
+def generate_endpoint(directory_path:str) -> str:
+    statusEndpoint = directory_path.replace("/", "-")
     statusEndpoint = statusEndpoint.replace('\\',"-")
     return statusEndpoint
 
@@ -349,10 +349,12 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
                     error_trace = "Failed to start downloading for {}".format(remote_protocol)
                     return 
                 while True:
-                    
                     if indexStatus.is_cancel_request_active(client_id):
-                        googlePhotos.stop_download() # TODO: no guarantee it indeed has stopped for now..
-                        error_trace = "Downloading stopped on user request"
+                        status = googlePhotos.stop_download()
+                        if status == False:
+                            error_trace = "Couldnot stopped downloading. POTENTIAL BUG"
+                        else:
+                            error_trace = "Downloading stopped on user request"
                         return
                            
                     download_status = googlePhotos.get_downloading_status()
@@ -621,15 +623,23 @@ def getRawData(data_hash:str, use_preview_data:bool = True) -> any:
     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
 @app.route("/getRawDataFull/<data_hash>", methods = ["GET"])
-def getRawDataFull(data_hash:str) -> any:
+def getRawDataFull(data_hash:str) -> flask.Response:
     hash_2_metaData = metaIndex.query(data_hashes = data_hash)
     temp_meta = hash_2_metaData[data_hash]
     resource_type = temp_meta["resource_type"]
     resource_extension = temp_meta["resource_extension"]
+    resource_directory = temp_meta["resource_directory"]
     absolute_path = temp_meta["absolute_path"]
 
-    with open(absolute_path, "rb") as f:
-        raw_data = f.read()
+    raw_data = None
+    if absolute_path.strip().lower() == "remote":
+        remote_meta = temp_meta["remote"]
+        if resource_directory == "google_photos":
+            raw_data = googlePhotos.get_raw_data(remote_meta)
+        del remote_meta
+    else:
+        with open(absolute_path, "rb") as f:
+            raw_data = f.read()
     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
 @app.route("/tagPerson", methods = ["POST"])
