@@ -182,6 +182,7 @@ function next_valid_index(ix){
     return result;
 }
 
+let loadTimeoutId;
 function update_image_card(ix){
     // this takes care of updating correct data in image_card_data.
     // even if we have invalid indices as a result of some threshold or filtering operation.
@@ -218,7 +219,9 @@ function update_image_card(ix){
     // TODO: handle null values, to be easily displayed in markup code, when needed.
     image_card_data.ix = current_ix;
     image_card_data.data_hash = image_data.list_dataHash[image_data_ix];
-
+    if(interface_state["image_card_fullscreen"] === true){
+      loadTimeoutId = setTimeout(() => {full_image_loaded = false; console.log("set timeout...")}, 400) // after 400 milliseconds..
+    }
     image_card_data.height = Number(image_data.list_metaData[image_data_ix]["height"])
     image_card_data.width = Number(image_data.list_metaData[image_data_ix]["width"])
     image_card_data.face_bboxes = image_data.list_metaData[image_data_ix]["face_bboxes"]
@@ -257,6 +260,7 @@ function update_image_card_previous(){
 }
 
 let scaled_face_bboxes = [];  // to hold the array of scaled face bboxes, according to dimensions of image being currently shown.
+let full_image_loaded = true;
 function scale_face_bboxes(node){
 
   let card_rects = node.target.getClientRects()[0];
@@ -286,8 +290,12 @@ function scale_face_bboxes(node){
       result.push(temp_bbox);
     }
   }
-  console.log(result);
   scaled_face_bboxes = result;
+  
+  if(loadTimeoutId){
+    clearTimeout(loadTimeoutId);
+  }
+  full_image_loaded = true;
 
 }
 
@@ -421,8 +429,14 @@ function checkSomething(e){
             <div class = "relative flex">  
                 <!-- object cover would  -->
                 <img on:load={scale_face_bboxes} class="object-cover h-screen w-auto" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
-            
-                <!-- TODO: calculate scale -->
+                
+                <!--  Todo: make loading icon better, being lazy.. -->
+                {#if full_image_loaded == false}
+                  <img class="object-cover h-screen w-full bg-black absolute top-0 left-0"  alt="">
+                  <svg class="animate-spin h-5 w-5 mr-3 bg-indigo-500 top-10 left-50 absolute" viewBox="0 0 24 24"></svg>
+                {/if}
+
+                  <!-- TODO: calculate scale -->
                 {#each scaled_face_bboxes as box, i}
                     <div on:click={(e) => {tag_interface = {"active":true,"top": box.top - 28, "left": box.left}; current_box_ix  = Number(e.target.attributes["data-ix"].value)}} data-ix = {i} class="absolute text-white cursor-pointer border-solid border-2 border-green-300 hover:opacity-40 hover:bg-green-300 bg-transparent" style = "top: {box.top}px ; left: {box.left}px; width: {box.width}px; height: {box.height}px"></div>
                 {/each}
