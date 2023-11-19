@@ -466,6 +466,13 @@ def indexStart(batch_size = 1):
     if os.path.exists(index_root_dir) and not os.path.isdir(index_root_dir):
         index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, if it a valid file path on server.
     if os.path.exists(index_root_dir) or index_root_dir in appConfig["supported_remote_protocols"]:
+        
+        # check if extension is ready!
+        if index_root_dir in appConfig["supported_remote_protocols"]:
+            status, reason = check_extension_status(index_root_dir)
+            if status == False:
+                return flask.jsonify({"success":False, "reason": reason})
+
         client_id = generate_endpoint(index_root_dir)    # NOTE: client_id, would be equivalent to indexing directory, since there is ONE 2 ONE mapping is expected for client and indexing directory at any time.
 
         indexing_active = indexStatus.is_active(client_id)
@@ -816,6 +823,23 @@ def statusGAuthFlow():
         return flask.jsonify(GAuthFlowStatus)
 
 ############################################################################
+def check_extension_status(remote_protocol:str) -> Tuple[bool, str]:
+    if remote_protocol not in appConfig["supported_remote_protocols"]:
+        return (False, "Not a supported protocol")
+    else:
+        if remote_protocol == "google_photos":
+            status = googlePhotos.get_client_info()
+            if "is_activated" in status:
+                if status["is_activated"] == True:
+                    return (True, "")
+                else:
+                    return (False, "Not activated yet. Please link a google account first.")
+            else:
+                return (False, "Not activated yet. Please link a google account first.")
+        else:
+            return (False, "Not a supported protocol")
+
+#######################################
 
 if __name__ == "__main__":
 
