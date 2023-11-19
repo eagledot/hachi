@@ -13,7 +13,7 @@
 	
 <details>
 	<summary>Indexing</summary>
-    ![indexing_card](/assets/screenshot_indexing.png "indexing screenshot")
+    <img src = "/assets/screenshot_indexing.png" alt="screenshot indexing">
 </details>
 
 ## Features:
