@@ -130,7 +130,7 @@ class GooglePhotos(object):
             result = True
         return result
     
-    def update_access_token(self) -> Tuple[bool, Optional[str]]:
+    def update_access_token(self) -> Dict:
 
         result = {'success':False, 'reason':None}
         data = {
@@ -171,7 +171,10 @@ class GooglePhotos(object):
                 "finished":False,
                 "details":"getting new token!"
             })
-            status, reason = self.update_access_token()
+            temp_result = self.update_access_token()
+            status = temp_result["success"]
+            reason = temp_result["reason"]
+
             if status == False:
                 self.download_status_queue.put({
                     "finished":True,
