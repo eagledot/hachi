@@ -9,12 +9,11 @@
 
 ![image_card](/assets/screenshot_image_card.png "image card screenshot")
 
-![indexing_card](/assets/screenshot_indexing.png "indexing screenshot")
-
 ### More screenshots:
 	
 <details>
 	<summary>Indexing</summary>
+    ![indexing_card](/assets/screenshot_indexing.png "indexing screenshot")
 </details>
 
 ## Features:
