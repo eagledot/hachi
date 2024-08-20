@@ -5,9 +5,9 @@
 </h1>
 
 ## Screenshots:
-![query](/assets/screenshot_query.png "query screenshot")
+![query](/images/assets/screenshot_query.png "query screenshot")
 
-![image_card](/assets/screenshot_image_card.png "image card screenshot")
+![image_card](/image/assets/screenshot_image_card.png "image card screenshot")
 
 ### More screenshots:
 	
