@@ -13,7 +13,7 @@
 	
 <details>
 	<summary>Indexing</summary>
-    <img src = "/assets/screenshot_indexing.png" alt="screenshot indexing">
+    <img src = "/images/assets/screenshot_indexing.png" alt="screenshot indexing">
 </details>
 
 ## Features:
