@@ -7,7 +7,7 @@
 ## Screenshots:
 ![query](/images/assets/screenshot_query.png "query screenshot")
 
-![image_card](/image/assets/screenshot_image_card.png "image card screenshot")
+![image_card](/images/assets/screenshot_image_card.png "image card screenshot")
 
 ### More screenshots:
 	
