@@ -1,0 +1,26 @@
+# This block is for global option,must be the first block you want to have some global functionality
+#{
+#    debug
+#}
+
+http://localhost:5000 {
+
+	encode zstd gzip
+ 
+	handle /* {
+		root * ./static
+		file_server
+	}
+
+	handle /video/* {
+		uri strip_prefix /video
+		file_server * {
+			root {http.request.uri.query.video_directory}  # ?video_directory=./movies
+		}
+	}
+	
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy * 127.0.0.1:8200 
+	}
+}
