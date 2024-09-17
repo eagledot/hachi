@@ -16,3 +16,6 @@ hachiConfig.json
 *.json
 *.jpg
 *.png
+
+*.bin/
+*.python_modules/
