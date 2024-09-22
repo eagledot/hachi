@@ -141,6 +141,8 @@ class FuzzySearch(object):
 
         
         for temp_d in data.split(" "):  # 
+            if len(temp_d) == 0:
+                continue
             key = temp_d[0]
 
             # generate LSH hash
