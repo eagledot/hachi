@@ -33,13 +33,11 @@ IMAGE_PREVIEW_DATA_PATH = appConfig["image_preview_data_path"]
 IMAGE_INDEX_SHARD_SIZE = appConfig["image_index_shard_size"]
 TOP_K_SHARD = appConfig["topK_per_shard"]
 
-sys.path.insert(0,"./index")
 from image_index import ImageIndex
 from face_index import compare_face_embeddings
 from meta_index import MetaIndex, collect_resources
 from global_data_cache import GlobalDataCache
 
-sys.path.insert(0,"./ml")
 import clip_python_module as clip
 import faceEmbeddings_python_module as pipeline
 
