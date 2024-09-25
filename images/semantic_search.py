@@ -1,11 +1,22 @@
-# imports
+import sys
 import os
+
+PYTHON_MODULES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_modules")
+IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".")
+IMAGE_APP_INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "index")
+IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "ml")
+
+sys.path.insert(0, IMAGE_APP_PATH)
+sys.path.insert(0, IMAGE_APP_INDEX_PATH)
+sys.path.insert(0, IMAGE_APP_ML_PATH)
+sys.path.insert(0, PYTHON_MODULES_PATH)
+
+# imports
 from typing import Optional, Union, Tuple, List, Iterable, Dict
 from threading import RLock
 import threading
 import time
 from collections import OrderedDict
-import sys
 import uuid
 import traceback
 
@@ -173,11 +184,11 @@ def generate_text_embedding(query:str):
 
 
 print("[Debug]: Loading Model, may take a few seconds.")
-clip.load_text_transformer("./data/ClipTextTransformer.bin")
-clip.load_vit_b32Q("./data/ClipViTB32.bin")
+clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformer.bin"))
+clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32.bin"))
 
 print("[Debug]: ")
-pipeline.load_model("./data/pipelineRetinaface.bin")
+pipeline.load_model(os.path.join(IMAGE_APP_PATH, "data", "pipelineRetinaface.bin"))
 
 imageIndex = ImageIndex(shard_size = IMAGE_INDEX_SHARD_SIZE, embedding_size = IMAGE_EMBEDDING_SIZE)
 print("Created Image index")
@@ -737,6 +748,10 @@ def getPreviewPerson(person_id):
         #TODO:
         return "some other poster..."       
 
+@app.route("/ping", methods = ["GET"])
+def ping():
+    """To check the python app/server liveness!"""
+    return "ok"
 
 ################
 # Extension specific routes
