@@ -1,5 +1,16 @@
 <script>
 
+// on svelte components... it is difficult to handle../ so what..
+// what we are supposed to do then..
+window.onresize = function (){
+  if (interface_state){
+    if (interface_state.image_card_fullscreen == true){
+        let target = document.getElementById("content_full_screen")
+        scale_face_bboxes(target);
+    }
+  }
+}
+
 // just want to raise an event when query full data has been received.
 // then can generate filter data page by page.
 // on more items click can generate again the event..
@@ -261,9 +272,9 @@ function update_image_card_previous(){
 
 let scaled_face_bboxes = [];  // to hold the array of scaled face bboxes, according to dimensions of image being currently shown.
 let full_image_loaded = true;
-function scale_face_bboxes(node){
+function scale_face_bboxes(target){
 
-  let card_rects = node.target.getClientRects()[0];
+  let card_rects = target.getClientRects()[0];
   let card_width = card_rects.width;
   let card_height = card_rects.height;
 
@@ -271,13 +282,14 @@ function scale_face_bboxes(node){
   let original_bboxes = image_card_data.face_bboxes;
   if(original_bboxes){
 
-
     let image_width = image_card_data.width;
     let image_height = image_card_data.height;
+    // console.log("original resolution: ", image_height, image_height);
+    // console.log("current resolution: ", card_rects);
 
     for(let i = 0; i < original_bboxes.length; i++){
       let temp_bbox = structuredClone(original_bboxes[i])        // [x1, y1, x2, y2]
-     
+  
       let w_scale = Number(card_width) / (Number(image_width) + 1e-4);
       let h_scale = Number(card_height) / (Number(image_height) + 1e-4);      
 
@@ -428,7 +440,7 @@ function checkSomething(e){
         <div class = "fixed top-0 left-0 bg-black h-screen w-screen flex justify-center items-center">
             <div class = "relative flex">  
                 <!-- object cover would  -->
-                <img on:load={scale_face_bboxes} class="object-cover h-screen w-auto" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
+                <img id = "content_full_screen" on:load={(e) => scale_face_bboxes(e.target)} class="object-cover h-auto w-auto" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
                 
                 <!--  Todo: make loading icon better, being lazy.. -->
                 {#if full_image_loaded == false}
