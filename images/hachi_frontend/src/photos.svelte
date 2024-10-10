@@ -440,7 +440,7 @@ function checkSomething(e){
         <div class = "fixed top-0 left-0 bg-black h-screen w-screen flex justify-center items-center">
             <div class = "relative flex">  
                 <!-- object cover would  -->
-                <img id = "content_full_screen" on:load={(e) => scale_face_bboxes(e.target)} class="object-cover h-auto w-auto" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
+                <img id = "content_full_screen" on:load={(e) => scale_face_bboxes(e.target)} class="object-cover h-auto w-auto max-h-screen" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
                 
                 <!--  Todo: make loading icon better, being lazy.. -->
                 {#if full_image_loaded == false}
