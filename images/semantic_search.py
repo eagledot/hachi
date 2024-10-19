@@ -594,7 +594,14 @@ def query():
     # NOTE: we now append data_hashes and absolute path to globalDatacache to start loading raw-data in the background if not already there.
     temp_dict = OrderedDict()
     for k,meta_data in metaIndex.query(data_hashes= final_result.keys()).items():
-        temp_dict[k] = meta_data["absolute_path"]
+
+        #leverage preview data if possible..
+        preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH,k,".jpg")
+        if os.path.exists(preview_path):
+            temp_dict[k] = preview_path
+        else:
+            temp_dict[k] = meta_data["absolute_path"]
+
     dataCache.append(data_hash = temp_dict.keys(), absolute_path = temp_dict.values())
 
     temp = {}
@@ -622,20 +629,31 @@ def getSuggestion() -> Dict[str, List[str]]:
     return flask.jsonify(result)
 
 @app.route("/getRawData/<data_hash>", methods = ["GET"])
-def getRawData(data_hash:str, use_preview_data:bool = True) -> any:
+def getRawData(data_hash:str) -> any:
     
     hash_2_metaData = metaIndex.query(data_hashes = data_hash)
     temp_meta = hash_2_metaData[data_hash]
     resource_type = temp_meta["resource_type"]
-    if use_preview_data:
+
+    #leverage preview data if possible by default:
+    preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.jpg".format(data_hash)) 
+    if os.path.exists(preview_path):
         resource_extension = ".jpg"
-        absolute_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.jpg".format(data_hash))
+        absolute_path = preview_path
     else:
         resource_extension = temp_meta["resource_extension"]
-        absolute_path = temp_meta["absolute_path"] # replace it with the "preview folder", so that data is instead read from preview
+        absolute_path = temp_meta["absolute_path"]
+
+    # if use_preview_data:
+    #     resource_extension = ".jpg"
+    #     absolute_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.jpg".format(data_hash))
+    # else:
+    #     resource_extension = temp_meta["resource_extension"]
+    #     absolute_path = temp_meta["absolute_path"] # replace it with the "preview folder", so that data is instead read from preview
     
     #NOTE: use resource
     raw_data = dataCache.get(data_hash, absolute_path)
+    del absolute_path
     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
 @app.route("/getRawDataFull/<data_hash>", methods = ["GET"])
