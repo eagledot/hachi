@@ -160,15 +160,21 @@ IMAGE_EMBEDDING_SIZE = 512  # depends on the model architecture.
 TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
 FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
 
-def generate_image_embedding(image_path:str, is_bgr:bool = True, center_crop = False) -> Optional[np.array]:
+def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
+    # for simulating, (TODO: better simulation setup, if get time) 
     # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
-    image_data = cv2.imread(image_path)
+    if isinstance(image,str):
+        assert os.path.exists(image)
+        image_data = cv2.imread(image)
+        is_bgr = True # "If using opencv, is_bgr would be true."
+    else:
+        image_data = image
+    
     if image_data is None:
         return None
-    
-    assert is_bgr == True, "If using opencv, is_bgr would be true."
-    image_features = clip.encode_image(image_data, is_bgr = True, center_crop = False)
+
+    image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
     assert image_features.size == IMAGE_EMBEDDING_SIZE
     return image_features
 
