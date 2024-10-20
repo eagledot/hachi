@@ -227,15 +227,19 @@ sessionId_to_config = {}      # a mapping to save some user specific settings fo
 personId_to_avgEmbedding = {} # we seek to create average embedding for a group/id a face can belong to, only for a single session.
 global_lock = threading.RLock()
 
-def generate_image_preview(data_hash, absolute_path:Optional[str], face_bboxes:Optional[List[List[int]]], person_ids:List[str]):
-
-    preview_max_width = 640
-    if absolute_path is None:
-        raw_data = np.zeros((480,640), dtype = np.uint8)
-        print("No original resource path found!!, so creating a black image resource..")
+def generate_image_preview(data_hash, image:Union[str, np.ndarray], face_bboxes:Optional[List[List[int]]], person_ids:List[str]):
+    """ Generate image previews and face-previews
+    NOTE: it does take up space and create previews, but it is optional but on by default.
+    SSDs may be fast enough to serve data directly from  disk.. but for HDDs it reduces the latency quite a bit
+    """
+    if isinstance(image, str):
+        assert os.path.exists(image), "Doesn't make sense, atleast if indexed, absolute path must exist!"
+        raw_data = cv2.imread(image)
     else:
-        raw_data = cv2.imread(absolute_path)
+        raw_data = image
+    del image
     
+    preview_max_width = 640
     h,w,c = raw_data.shape
     ratio = h/w
 
@@ -338,9 +342,9 @@ def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str
         imageIndex.update(data_hash, data_embedding = image_embedding)
         if generate_preview_data:
             if face_bboxes.shape[0] > 0:
-                generate_image_preview(data_hash, absolute_path, meta_data["face_bboxes"], person_ids=meta_data["person"])
+                generate_image_preview(data_hash, image = absolute_path, face_bboxes = meta_data["face_bboxes"], person_ids=meta_data["person"])
             else:
-                generate_image_preview(data_hash, absolute_path, None, person_ids=[])
+                generate_image_preview(data_hash, iamge = absolute_path, face_bboxes = None, person_ids=[])
                 
 def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = False, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
