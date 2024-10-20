@@ -75,7 +75,9 @@ def parse_query(query:str) -> Dict[str, List[str]]:
 
 
 class IndexStatus(object):
-    """ A dedicated Class to implement indexing  book-keeping."""
+    """ A dedicated Class to implement indexing  book-keeping.
+    TODO: not good enough abstraction.. would update this later as current abstraction is based on client ids and much stable. 
+    """
 
     def __init__(self) -> None:
         self.status_dict = dict()
@@ -112,14 +114,20 @@ class IndexStatus(object):
 
     def get_status(self, endpoint:str):
         result = {}
-        result["is_active"] = self.is_active(endpoint)
+        result["is_active"] = self.is_active(endpoint)  # i think not used anymore on the client side.. USE NEWER VERSION of status class.
 
         with self.lock:
-            result["done"] = self.status_dict[endpoint]["done"]
-            result["current_directory"] = self.status_dict[endpoint]["current_directory"]
-            result["eta"] = self.status_dict[endpoint]["eta"]
-            result["progress"] = self.status_dict[endpoint]["progress"]
-            result["details"] = self.status_dict[endpoint]["details"]
+            if self.status_dict.get(endpoint,False) == False:
+                # sometimes when client dies without clearing localstorage, then we indicate last indexing done!)
+                result["done"] = True
+                result["details"] = "SUCCESS"
+                print("[WARNING]: seems like server has no information for: {}, may application stopped before clearning local storage".format(endpoint))
+            else:
+                result["done"] = self.status_dict[endpoint]["done"]
+                result["current_directory"] = self.status_dict[endpoint]["current_directory"]
+                result["eta"] = self.status_dict[endpoint]["eta"]
+                result["progress"] = self.status_dict[endpoint]["progress"]
+                result["details"] = self.status_dict[endpoint]["details"]
         return result
     
     def is_active(self, endpoint:str):
@@ -128,8 +136,12 @@ class IndexStatus(object):
 
     def remove_endpoint(self, endpoint):
         with self.lock:
-            assert self.status_dict[endpoint]["done"] == True
-            self.status_dict.pop(endpoint)
+            if self.status_dict.get(endpoint,False) == False:
+                # phantom request.. possibly due to client-side syncing issues..not clearing of local storage.
+                pass
+            else:
+                assert self.status_dict[endpoint]["done"] == True
+                self.status_dict.pop(endpoint)
     
     def indicate_cancellation(self, endpoint)->  bool:
         with self.lock:
@@ -169,7 +181,7 @@ def generate_face_embedding(image_path:str, is_bgr:bool = True, conf_threshold:f
         return None
     
     assert is_bgr == True, "If using opencv, is_bgr would be true."
-    face_bboxes, face_embeddings =  pipeline.detect_embedding(image_data, is_bgr = is_bgr, conf_threshold = conf_threshold)
+    face_bboxes, face_embeddings,_,_ =  pipeline.detect_embedding(image_data, is_bgr = is_bgr, conf_threshold = conf_threshold)
     assert face_embeddings.shape[1] == FACE_EMBEDDING_SIZE
     return face_bboxes, face_embeddings
 
