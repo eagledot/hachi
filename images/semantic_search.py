@@ -181,7 +181,7 @@ def generate_face_embedding(image_path:str, is_bgr:bool = True, conf_threshold:f
         return None
     
     assert is_bgr == True, "If using opencv, is_bgr would be true."
-    face_bboxes, face_embeddings,_,_ =  pipeline.detect_embedding(image_data, is_bgr = is_bgr, conf_threshold = conf_threshold)
+    face_bboxes, face_embeddings =  pipeline.detect_embedding(image_data, is_bgr = is_bgr, conf_threshold = conf_threshold)
     assert face_embeddings.shape[1] == FACE_EMBEDDING_SIZE
     return face_bboxes, face_embeddings
 
