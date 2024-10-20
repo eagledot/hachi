@@ -178,15 +178,20 @@ def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, c
     assert image_features.size == IMAGE_EMBEDDING_SIZE
     return image_features
 
-def generate_face_embedding(image_path:str, is_bgr:bool = True, conf_threshold:float = 0.85) -> Optional[np.array]:
-    # TODO: call actual model.
+def generate_face_embedding(image:Union[str, np.ndarray] , is_bgr:bool = True, conf_threshold:float = 0.85) -> Optional[tuple[np.ndarray, np.ndarray]]:
+    # for simulation (TODO: better simulation when get time !)
     # return np.random.uniform(size = (1, FACE_EMBEDDING_SIZE)).astype(np.float32)
 
-    image_data = cv2.imread(image_path)
-    if image_data is None:
-        return None
-    
-    assert is_bgr == True, "If using opencv, is_bgr would be true."
+    if isinstance(image, str):
+        assert os.path.exists(image)
+        image_data = cv2.imread(image)
+        is_bgr = True  # for opencv is_bgr would be true.
+        if image_data is None:
+            return None
+    else:
+        assert image_data is not None, "not supposed to be passed as NONE..check you mess!"
+        image_data = image
+        
     face_bboxes, face_embeddings =  pipeline.detect_embedding(image_data, is_bgr = is_bgr, conf_threshold = conf_threshold)
     assert face_embeddings.shape[1] == FACE_EMBEDDING_SIZE
     return face_bboxes, face_embeddings
