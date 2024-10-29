@@ -6,7 +6,7 @@ window.onresize = function (){
   if (interface_state){
     if (interface_state.image_card_fullscreen == true){
         let target = document.getElementById("content_full_screen")
-        scale_face_bboxes(target);
+        handleFullImageLoad(target);
     }
   }
 }
@@ -271,46 +271,9 @@ function update_image_card_previous(){
 }
 
 let scaled_face_bboxes = [];  // to hold the array of scaled face bboxes, according to dimensions of image being currently shown.
+let person_aliases = [];      // to hold the corresponding  person id. to face bboxes.
+
 let full_image_loaded = true;
-function scale_face_bboxes(target){
-
-  let card_rects = target.getClientRects()[0];
-  let card_width = card_rects.width;
-  let card_height = card_rects.height;
-
-  let result = [];
-  let original_bboxes = image_card_data.face_bboxes;
-  if(original_bboxes){
-
-    let image_width = image_card_data.width;
-    let image_height = image_card_data.height;
-    // console.log("original resolution: ", image_height, image_height);
-    // console.log("current resolution: ", card_rects);
-
-    for(let i = 0; i < original_bboxes.length; i++){
-      let temp_bbox = structuredClone(original_bboxes[i])        // [x1, y1, x2, y2]
-  
-      let w_scale = Number(card_width) / (Number(image_width) + 1e-4);
-      let h_scale = Number(card_height) / (Number(image_height) + 1e-4);      
-
-      temp_bbox.top = (temp_bbox[1])*h_scale;
-      temp_bbox.height = (temp_bbox[3] - temp_bbox[1])*h_scale;
-
-      temp_bbox.left = (temp_bbox[0])*w_scale;
-      temp_bbox.width = (temp_bbox[2] - temp_bbox[0])*w_scale;
-
-      result.push(temp_bbox);
-    }
-  }
-  scaled_face_bboxes = result;
-  
-  if(loadTimeoutId){
-    clearTimeout(loadTimeoutId);
-  }
-  full_image_loaded = true;
-
-}
-
 let current_score_threshold = 0 // to hold the current value of threshold.
 function scoresThresholdChange() {
 
@@ -415,6 +378,76 @@ async function editMetaData(node){
   
 }
 
+function handleFullImageLoad(target){
+  let url = "/api/getfaceBboxIdMapping/" + image_card_data.data_hash;
+  
+  // append cluster ids as a single string..
+  let formdata = new FormData();
+  let cluster_ids = ""
+  for(let i = 0; i <= image_card_data.person_ids.length; i++){
+    cluster_ids = cluster_ids + image_card_data.person_ids[i];
+    cluster_ids = cluster_ids + "|" // separator
+  }
+  formdata.append("cluster_ids", cluster_ids);
+
+  fetch(url, {
+    "method":"POST",
+    "body": formdata,
+  }).then((response) => {
+    if(response.ok == true){
+      response.json().then((data) => {
+        // data is supposed to be an array of (face-bbox, cluster_id) tuples/array.
+
+        // get target dimensions to get correct scale.
+        let card_rects = target.getClientRects()[0];
+        let card_width = card_rects.width;
+        let card_height = card_rects.height;
+        
+        // original image-resolution.
+        let image_width = image_card_data.width;
+        let image_height = image_card_data.height;
+
+        let result = [];
+        person_aliases = []; // empty this first !
+        for(let i = 0; i<= data.length; i++){
+          // TODO: should not return an undefined value BACKEND.. check logic.. when free!
+          if (data[i] == null){
+            continue;
+          }
+          
+          // collect (x1, y1, x2, y2) and person_id
+          let x1 = Number(data[i].x1)
+          let y1 = Number(data[i].y1)
+          let x2 = Number(data[i].x2)
+          let y2 = Number(data[i].y2)
+          let person_id = data[i].person_id;
+
+          // estimate scales (based on the div/card dimensions/rects)
+          let w_scale = Number(card_width) / (Number(image_width) + 1e-4);
+          let h_scale = Number(card_height) / (Number(image_height) + 1e-4); 
+          
+          // generate scaled bbox.
+          var temp_bbox = {};
+          temp_bbox.top = (y1)*h_scale;
+          temp_bbox.height = (y2 - y1)*h_scale;
+          temp_bbox.left = (x1)*w_scale;
+          temp_bbox.width = (x2 - x1)*w_scale;
+
+          result.push(temp_bbox)
+          person_aliases.push(person_id);
+        }
+      scaled_face_bboxes = result; // supposed to be reactive to start drawing these.
+      if(loadTimeoutId){
+        clearTimeout(loadTimeoutId);
+      }
+      full_image_loaded = true;
+    })
+    }
+
+  })
+
+}
+
 function checkSomething(e){
   // flag set would only be after query is finished, only when more_results button is clicked
   if (flag_set){
@@ -440,7 +473,7 @@ function checkSomething(e){
         <div class = "fixed top-0 left-0 bg-black h-screen w-screen flex justify-center items-center">
             <div class = "relative flex">  
                 <!-- object cover would  -->
-                <img id = "content_full_screen" on:load={(e) => scale_face_bboxes(e.target)} class="object-cover h-auto w-auto max-h-screen" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
+                <img id = "content_full_screen" on:load={(e) => handleFullImageLoad(e.target)} class="object-cover h-auto w-auto max-h-screen" src={"/api/getRawDataFull/" + image_card_data.data_hash} alt="">
                 
                 <!--  Todo: make loading icon better, being lazy.. -->
                 {#if full_image_loaded == false}
@@ -454,8 +487,8 @@ function checkSomething(e){
                 {/each}
 
                 {#if tag_interface.active}
-                <div class="absolute flex h-auto w-240 bg-blue-300" style = "top: {tag_interface.top}px ; left: {tag_interface.left}px;">  
-                    <input autofocus value = {image_card_data.person_ids[current_box_ix]} class = "flex-none placeholder-gray-800  w-200 text-xl text-black py-2 bg-blue-300 bg-blue-300 border-none" on:keyup={updatePersonId} placeholder="Enter person id" type="text"/>
+                <div class="absolute flex h-auto w-240 bg-blue-300" style = "top: {tag_interface.top}px ; left: {tag_interface.left}px;">                      
+                    <input autofocus value = {person_aliases[current_box_ix]} class = "flex-none placeholder-gray-800  w-200 text-xl text-black py-2 bg-blue-300 bg-blue-300 border-none" on:keyup={updatePersonId} placeholder="Enter person id" type="text"/>
                     <div on:click={() => {tag_interface.active = false;}} class="grow text-black hover:bg-blue-500 cursor-pointer text-xl px-2">X</div>
                 </div>
                 {/if}
