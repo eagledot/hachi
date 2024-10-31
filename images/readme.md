@@ -89,7 +89,16 @@ Developers can choose to build their own corresponding ``DLLs`` based on the ins
   In future, idea is to use ``image-encoder`` only during indexing, which should save us about 350 Mb RAM usage.
 </details>
 
+<details>
+  <summary><h3>Machine Learning</h3></summary>
+  Machine learning portion currently is comprised of <b>CLIP</b>, and a Face-recognition pipeline, based on the following code repositories.
+  * https://github.com/biubug6/Pytorch_Retinface (for face detection and landmarks prediction).
+  * https://github.com/TreB1eN/insightFace_Pytorch (for face recognition)
+  * https://github.com/openai/clip                 (CLIP image and text encoders)
 
+  Compiled models shipped along are modified (and fine-tuned) versions, built upon the work mentioned above and are written completely in Nim for production deployment.
+  `__init__` files in `ML` directory should be modified in case a user wants to use a custom/new model in-place of default models, or open an issue in case needs help !
+  
 
 ## FAQs:
 
