@@ -19,3 +19,6 @@ hachiConfig.json
 
 *.bin/
 *.python_modules/
+
+desktop_app/
+research_exp
