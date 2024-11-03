@@ -1,3 +1,6 @@
+# maybe we can use relative imports to make it work with LSP and easier to read.
+# also just later change the workingdirectory "." in-place for "./images", that should be enough !
+
 import sys
 import os
 
@@ -18,6 +21,7 @@ import threading
 import time
 from collections import OrderedDict
 import uuid
+import base64
 import traceback
 
 import cv2
@@ -25,7 +29,7 @@ from flask import Flask
 import flask
 import numpy as np
 
-from config import appConfig
+from .config import appConfig
 
 # config:
 IMAGE_PERSON_PREVIEW_DATA_PATH = appConfig["image_person_preview_data_path"]
@@ -34,12 +38,12 @@ IMAGE_INDEX_SHARD_SIZE = appConfig["image_index_shard_size"]
 TOP_K_SHARD = appConfig["topK_per_shard"]
 
 from image_index import ImageIndex
-from face_index import compare_face_embeddings
+from face_clustering import FaceIndex
 from meta_index import MetaIndex, collect_resources
 from global_data_cache import GlobalDataCache
 
 import clip_python_module as clip
-import faceEmbeddings_python_module as pipeline
+#import faceEmbeddings_python_module as pipeline
 
 def generate_endpoint(directory_path:str) -> str:
     statusEndpoint = directory_path.replace("/", "-")
@@ -178,24 +182,6 @@ def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, c
     assert image_features.size == IMAGE_EMBEDDING_SIZE
     return image_features
 
-def generate_face_embedding(image:Union[str, np.ndarray] , is_bgr:bool = True, conf_threshold:float = 0.85) -> Optional[tuple[np.ndarray, np.ndarray]]:
-    # for simulation (TODO: better simulation when get time !)
-    # return np.random.uniform(size = (1, FACE_EMBEDDING_SIZE)).astype(np.float32)
-
-    if isinstance(image, str):
-        assert os.path.exists(image)
-        image_data = cv2.imread(image)
-        is_bgr = True  # for opencv is_bgr would be true.
-        if image_data is None:
-            return None
-    else:
-        assert image_data is not None, "not supposed to be passed as NONE..check you mess!"
-        image_data = image
-        
-    face_bboxes, face_embeddings =  pipeline.detect_embedding(image_data, is_bgr = is_bgr, conf_threshold = conf_threshold)
-    assert face_embeddings.shape[1] == FACE_EMBEDDING_SIZE
-    return face_bboxes, face_embeddings
-
 def generate_text_embedding(query:str):
     # return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
 
@@ -208,19 +194,20 @@ print("[Debug]: Loading Model, may take a few seconds.")
 clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformer.bin"))
 clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32.bin"))
 
-print("[Debug]: ")
-pipeline.load_model(os.path.join(IMAGE_APP_PATH, "data", "pipelineRetinaface.bin"))
-
 imageIndex = ImageIndex(shard_size = IMAGE_INDEX_SHARD_SIZE, embedding_size = IMAGE_EMBEDDING_SIZE)
 print("Created Image index")
 
 metaIndex = MetaIndex()
 print("Created meta Index")
 
+faceIndex = FaceIndex(embedding_size = FACE_EMBEDDING_SIZE)
+print("Created Face Index")
+
 indexStatus = IndexStatus()
 
-dataCache = GlobalDataCache()   # a global data cache to serve raw-data.
-
+# TODO: better to do everything through cache or caches..
+dataCache = GlobalDataCache()   # a global data cache to serve raw-data for previews.
+# dataCacheFull = GlobalDataCache()   # a global data cache to serve raw-data for original resources!
 
 # config/data-structures
 sessionId_to_config = {}      # a mapping to save some user specific settings for a session.
@@ -243,36 +230,14 @@ def generate_image_preview(data_hash, image:Union[str, np.ndarray], face_bboxes:
     h,w,c = raw_data.shape
     ratio = h/w
 
-    margin = 60
-    if face_bboxes is not None:
-        for i, bbox in enumerate(face_bboxes):
-
-            temp_person_id = person_ids[i]
-            temp_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH,"{}.jpg".format(temp_person_id))
-            if os.path.exists(temp_path):
-                continue
-
-            x1 = int(bbox[0])
-            y1 = int(bbox[1])
-            x2 = int(bbox[2])
-            y2 = int(bbox[3])
-
-            # apply some margin as well. 
-            x1 = max(0, x1 - margin)
-            x2 = min(w-1, x2 + margin)
-            y1 = max(0, y1 - margin)
-            y2 = min(h-1, y2 + margin)
-
-            raw_data_face = raw_data[y1:y2, x1:x2, :]
-            cv2.imwrite(temp_path, raw_data_face)
-    
     # calculate new height, width keep aspect ratio fixed.
     new_width = min(w, preview_max_width)
     new_height = int(ratio * new_width)
 
     # resize, and save to disk in compressed jpeg format.
     raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
-    cv2.imwrite(os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.jpg".format(data_hash)), raw_data_resized)
+    quality = 90
+    cv2.imwrite(os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.webp".format(data_hash)), raw_data_resized,[int(cv2.IMWRITE_WEBP_QUALITY),quality])
 
 def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str, generate_preview_data:bool = True, remote_protocol:Optional[str] = None):
     hash_2_metaData = metaIndex.extract_image_metaData(resources_batch)       # extra meta data
@@ -283,51 +248,20 @@ def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str
         if is_indexed:
             continue
         
+        # read raw-data only once.. and share it for image-clip,face and previews
+        frame = cv2.imread(absolute_path)
+        if frame is None:
+            print("[WARNING]: Invalid data for {}".format(absolute_path))
+            continue
+        is_bgr = True
+
         # generate image embeddings
-        image_embedding = generate_image_embedding(image_path=absolute_path, center_crop=False)
+        image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
         if image_embedding is None:
             print("Invalid data for {}".format(absolute_path))
             continue
-
-        face_bboxes, face_embeddings = generate_face_embedding(image_path=absolute_path)
-        if face_bboxes.shape[0] > 0:
-            meta_data["face_bboxes"] = []
-            for bbox in face_bboxes:
-                x1 = str(int(bbox[0]))
-                y1 = str(int(bbox[1]))
-                x2 = str(int(bbox[2]))
-                y2 = str(int(bbox[3]))
-                meta_data["face_bboxes"].append([x1, y1, x2, y2])
-
-            with global_lock:
-                # assign each face_embedding to a group.
-                for temp_embedding in face_embeddings:
-                    id_2_assign = None
-
-                    worst_score = 10
-                    for id in personId_to_avgEmbedding:
-                        avg_embedding = personId_to_avgEmbedding[id]
-                        _, temp_scores = compare_face_embeddings(temp_embedding, avg_embedding.reshape(1, -1))
-                        score = temp_scores.ravel().item()
-                        if score <= 1.12:    # be conservative.. (for now no reliable way to detect sunglasses, that harms the average embedding if included..)
-                            if (score < worst_score):
-                                worst_score = score
-                                id_2_assign = id
-                                                
-                    if id_2_assign is None:
-                        # if no match is found, we create a new id.
-                        id_2_assign = "{}_{}".format(prefix_personId, len(personId_to_avgEmbedding) + 1)
-                        personId_to_avgEmbedding[id_2_assign] = temp_embedding
-                    else:
-                        personId_to_avgEmbedding[id_2_assign] = np.concatenate([personId_to_avgEmbedding[id_2_assign].reshape(1,-1), temp_embedding.reshape(1,-1)], axis = 0).mean(axis = 0)
-
-                    if meta_data["person"] is not None:
-                        meta_data["person"].append(id_2_assign)
-                    else:
-                        meta_data["person"] = [id_2_assign]
-        else:
-            meta_data["person"] = ["no person detected"]
-
+        
+        meta_data["person"] = ["no_person_detected"] # it is supposed to be updated, after clusters finalizing.
         # sync/update both the indices.
         meta_data["is_indexed"] = True
 
@@ -340,12 +274,14 @@ def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str
         
         metaIndex.update(data_hash, meta_data)
         imageIndex.update(data_hash, data_embedding = image_embedding)
-        if generate_preview_data:
-            if face_bboxes.shape[0] > 0:
-                generate_image_preview(data_hash, image = absolute_path, face_bboxes = meta_data["face_bboxes"], person_ids=meta_data["person"])
-            else:
-                generate_image_preview(data_hash, iamge = absolute_path, face_bboxes = None, person_ids=[])
-                
+        faceIndex.update(
+            frame = frame,
+            absolute_path = absolute_path,
+            resource_hash = data_hash,
+            is_bgr = True)
+        
+        generate_image_preview(data_hash, image = frame, face_bboxes = None, person_ids=[])                
+
 def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = False, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
     try:
@@ -365,6 +301,7 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
 
             # reset/remove old indices data.
             indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
+            faceIndex.reset()
             imageIndex.reset()
             metaIndex.reset()
 
@@ -475,10 +412,16 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
                 eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
                 eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
 
+        # Since info is available on finalizing..we now update this info in meta-index!
+        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Finalizing Clusters..")
+        cluster_meta_info = faceIndex.save() # TODO: actually implement save and load on the disk..
+        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "updating metaIndex...")
+        for resource_hash, cluster_ids in cluster_meta_info.items():
+            metaIndex.modify_meta_data(resource_hash, {"person": list(cluster_ids)})
+        
     except Exception:
         error_trace = traceback.format_exc() # uses sys.exception() as the exception
     finally:
-        # finally save the index/db to disk.
         metaIndex.save()
         imageIndex.save()
         indexStatus.set_done(client_id, error_trace)
@@ -544,12 +487,28 @@ def getIndexStatus(endpoint:str):
         return flask.jsonify({"success":True})
     return flask.jsonify(indexStatus.get_status(endpoint))
 
+@app.route("/getSuggestion", methods = ["POST"])
+def getSuggestion() -> Dict[str, List[str]]:
 
+    attribute = flask.request.form.get("attribute")
+    query = flask.request.form.get("query")
+    result = {}
+    if attribute in metaIndex.fuzzy_search_attributes:
+        result[attribute] = metaIndex.suggest(attribute, query)
+    return flask.jsonify(result)
+
+##########################################
 @app.route("/query", methods = ["POST"])
 def query():
+    """
+    Main routine to return query results.
+    Multiple attributes are allowed in the query to make it possible to match-and-mix queries.
+    This version of query is simpler than older one.f/
+    In case a deterministic/meta attribute is provided, "Semantic query" acts as a re-ranker only.
+    Otherwise only non-deterministic streaming "semantic search" is done. 
+    """
     
     flag = False
-   
     top_k = TOP_K_SHARD
     query_start = flask.request.form["query_start"].strip().lower()
     query = flask.request.form["query"]
@@ -559,12 +518,121 @@ def query():
     else:
         client_id = flask.request.form["client_id"]
 
+    # except "query" all are meta-attributes ..for now!
     image_attributes = parse_query(query)
-    final_result = OrderedDict()
+    meta_attributes_list = [x for x in image_attributes if x != "query"]
+    print("Meta attributes: {}".format(meta_attributes_list))
+    rerank_approach = len(meta_attributes_list) > 0
+    if not rerank_approach:
+        # TODO: use top_k to limit the results being sent ..
+        # we stream the data as we process a single shard..
+        # keep querying the image-index/shards until done. # this means pure semantic query.
+        current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+        text_embedding = generate_text_embedding(current_query)
+        flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+        
+        temp = {}
+        temp["meta_data"] = []
+        temp["data_hash"] = []
+        temp["score"] = []
+        temp_something = metaIndex.query(data_hashes= image_hash2scores.keys())
+        for k,v in temp_something.items():
+            temp["meta_data"].append(v)
+            temp["data_hash"].append(k)
+            score = max(image_hash2scores[k])
+            temp["score"].append(str(score))
+            del score
+        temp["query_completed"] = (not flag)
+        return flask.jsonify(temp)
+    else:
+        and_keys = set()
+        key_score = dict()        
+        # process/collect the keys/resource-hashes for all the meta-attributes.
+        for i,attribute in enumerate(meta_attributes_list):
+            
+            or_keys = set()  # OR operation like collection
+            for value in image_attributes[attribute]:
+                # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
+                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
+                for hash in hashes_2_metaData:
+                    or_keys.add(hash)
+
+                    # collect scores too.. for all possible keys/hashes
+                    if not (hash in key_score):
+                        key_score[hash] = 1
+                    else:
+                        key_score[hash] += 1
+
+            # AND operation. (among independent attributes)!
+            if i == 0:        
+                and_keys = or_keys
+                if len(and_keys) == 0:
+                    break  # shouldn't any more.. since one CRITERIA fully failed.. so more intersection would also be empty!
+            else:
+                and_keys = and_keys & or_keys
+            del or_keys
+
+        print("Total hashes: {}  for {}".format(len(and_keys), image_attributes))
+
+        # for all the hashes/resources. collect the meta-data and return (if no query)
+        # if "query/semantic" then just re-rank!
+        temp = {}
+        temp["meta_data"] = []
+        temp["data_hash"] = []
+        temp["score"] = []
+
+        # temp_something = metaIndex.query(data_hashes= final_result.keys())
+        temp_something = metaIndex.query(data_hashes = and_keys)
+        for k,v in temp_something.items():
+            temp["meta_data"].append(v)
+            temp["data_hash"].append(k)
+            temp["score"].append(key_score[k])
+            # temp["score"].append(1)   # equal score for all the
+        
+        if "query" in image_attributes:
+            # print("Re-ranking....")
+            current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+            text_embedding = generate_text_embedding(current_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
+            # try to do this for only and_keys..
+            # if not faster, cannot be slow from default comparison of all embeddings?
+            flag, image_hash2scores = imageIndex.query(
+                    text_embedding,
+                    key = and_keys,
+                    client_key = client_id)
+            assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
+
+            # update the scores.
+            assert len(image_hash2scores) == len(temp["data_hash"]), "it should be as image index must have same number of unique resource hashes as in meta-index"
+            for i in range(len(temp["data_hash"])):
+                temp_hash = temp["data_hash"][i]
+                # TODO: ensure that array is  being returned because of earlier face-embeddings.
+                # where for a data-hash multiple scores could be returned..
+                temp["score"][i] = str(temp["score"][i] * max(image_hash2scores[temp_hash]))
+                del temp_hash
+
+        temp["query_completed"] = True
+        return flask.jsonify(temp)
+
+
+    # extract "query" value.
+    # and do the semantic.
+    # if len(meta_attributes) > 0:
+    # simple.
+    # else:
+    # go on about doing semantic search only..
+    # no need to boost score or stuff ?
+    # it would make it very simple ??
+
+    return flask.jsonify(temp)
+                    
+                
 
     if "query" in image_attributes:
         current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+        
+        # do not need to call it again.. am i calling it again and again .. for same client-id/query-id?
         text_embedding = generate_text_embedding(current_query)
+        
         flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
         
         temp_count = 0
@@ -623,7 +691,7 @@ def query():
     for k,meta_data in metaIndex.query(data_hashes= final_result.keys()).items():
 
         #leverage preview data if possible..
-        preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH,k,".jpg")
+        preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.webp".format(k))
         if os.path.exists(preview_path):
             temp_dict[k] = preview_path
         else:
@@ -645,15 +713,8 @@ def query():
     temp["client_id"] = client_id
     return flask.jsonify(temp) # jsonify it.    
 
-@app.route("/getSuggestion", methods = ["POST"])
-def getSuggestion() -> Dict[str, List[str]]:
 
-    attribute = flask.request.form.get("attribute")
-    query = flask.request.form.get("query")
-    result = {}
-    if attribute in metaIndex.fuzzy_search_attributes:
-        result[attribute] = metaIndex.suggest(attribute, query)
-    return flask.jsonify(result)
+##############
 
 @app.route("/getRawData/<data_hash>", methods = ["GET"])
 def getRawData(data_hash:str) -> any:
@@ -663,11 +724,13 @@ def getRawData(data_hash:str) -> any:
     resource_type = temp_meta["resource_type"]
 
     #leverage preview data if possible by default:
-    preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.jpg".format(data_hash)) 
+    preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.webp".format(data_hash)) 
+    # preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.jpg".format(data_hash)) 
     if os.path.exists(preview_path):
-        resource_extension = ".jpg"
+        resource_extension = ".webp"
         absolute_path = preview_path
     else:
+        print("[WARNING xxxxxxxxxxxx]: no preview_path for {} {}".format(absolute_path, data_hash))
         resource_extension = temp_meta["resource_extension"]
         absolute_path = temp_meta["absolute_path"]
 
@@ -741,7 +804,7 @@ def tagPerson():
 @app.route("/editMetaData", methods = ["POST"])
 def editMetaData():
     """ Supposed to update/modify meta-index upon an user request"""
-
+    
     temp_meta_data = {}
     for k,v in flask.request.form.items():
         if "data_hash" not in k.lower():
@@ -780,16 +843,57 @@ def getMetaStats():
     result = metaIndex.get_stats()
     return flask.jsonify(result)
 
-@app.route("/getPreviewPerson/<person_id>", methods = ["GET"])
-def getPreviewPerson(person_id):
-    temp_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(person_id))
-    if os.path.exists(temp_path):
-        with open(temp_path, "rb")  as f:
-            temp_raw_data = f.read()
-        return flask.Response(temp_raw_data, mimetype = "{}/{}".format("image", "jpg"))
+@app.route("/getPreviewPerson/<cluster_id>", methods = ["GET"])
+def getPreviewCluster(cluster_id):
+    # TODO: remove this if/else block, cluster_id must go through FaceIndex/Clusters 
+    # TODO: have to add a cluster for no detection too...
+    if cluster_id.lower() == "no_person_detected":
+        flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
+        raw_data = poster.tobytes()
+        del flag, poster
+        return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
     else:
-        #TODO:
-        return "some other poster..."       
+        c = faceIndex.get(cluster_id)
+        png_data = c.preview_data
+        del c
+        raw_data= base64.b64decode(png_data)
+        return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
+
+@app.route("/getfaceBboxIdMapping/<resource_hash>", methods = ["POST"])
+def getfaceBboxIdMapping(resource_hash:str):
+    """
+    generate/calculate a mapping from bbox to person_ids, for a given resource.
+    Returns an array of object/dicts . (with x1,y1,x2,y2, person_id) fields to easily plot bboxes with corresponding person id.
+    
+    Inputs:
+    resource_hash:
+    cluster_ids/person_ids:  already assigned during indexing. (client has this information already) 
+    """
+    
+    cluster_ids = flask.request.form.get("cluster_ids").strip("| ").split("|")
+
+    # TODO: reading full image data from cache if possible !
+    temp_meta = metaIndex.query(data_hashes = resource_hash)[resource_hash]
+    absolute_path = temp_meta["absolute_path"]
+    frame = cv2.imread(absolute_path) # bit costly, should come from cache if possible.
+    if frame is None:
+        return flask.jsonify([])
+    else:
+        bbox_ids = faceIndex.get_face_id_mapping(
+            image = frame,
+            is_bgr = True,
+            cluster_ids = cluster_ids
+        )
+        result = []
+        for (bbox, id) in bbox_ids:
+            result.append({
+                "x1":bbox[0],
+                "y1":bbox[1],
+                "x2":bbox[2],
+                "y2":bbox[3],
+                "person_id":str(id)
+            })
+    return flask.jsonify(result) 
 
 @app.route("/ping", methods = ["GET"])
 def ping():
