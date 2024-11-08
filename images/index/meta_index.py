@@ -265,6 +265,7 @@ class MetaIndex(object):
             assert os.path.isfile(resource_path), "{} ".format(resource_path)
             data_hash  = generate_data_hash(resource_path)
             if data_hash is None:
+                # TODO: warning atleast to indicate invalid hash...
                 continue
             
             if data_hash in self.hash_2_metaData: # check if already indexed.
@@ -338,6 +339,10 @@ class MetaIndex(object):
 
     def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
+        
+        TODO: can provide a count/limit to data_hashes,
+        TODO: remove deep-copy i think.. or let the caller decide
+        BUT ANYWAY we would be writing a new meta-index anyway..
         """
         result = {}
         if data_hashes is None:
@@ -351,6 +356,7 @@ class MetaIndex(object):
             
             with self.lock:
                 for h in data_hashes:
+                    # NOTE: not necessary to deepcopy i think most of the time.
                     result[h] = copy.deepcopy(self.hash_2_metaData[h])
 
         return result
@@ -432,3 +438,12 @@ class MetaIndex(object):
             result["image"]["unique_resource_directories_count"] = 0 if temp_count_directories is None else len(temp_count_directories)
 
         return result
+
+
+if __name__ == "__main__":
+    # Testing, there seemed a bug, where single "no_person_detected" was returned, instead of a list!
+    # may be parsing bug on browser side or server side.. couldn't ascertain, couldn't reproduce!
+    # just in case.. documenting here!
+    test = MetaIndex()
+    print(test.hash_2_metaData["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"])
+    print(test.query(data_hashes=["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"]))
