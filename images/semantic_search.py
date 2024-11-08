@@ -29,7 +29,7 @@ from flask import Flask
 import flask
 import numpy as np
 
-from .config import appConfig
+from config import appConfig
 
 # config:
 IMAGE_PERSON_PREVIEW_DATA_PATH = appConfig["image_person_preview_data_path"]
@@ -191,8 +191,8 @@ def generate_text_embedding(query:str):
 
 
 print("[Debug]: Loading Model, may take a few seconds.")
-clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformer.bin"))
-clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32.bin"))
+clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
+clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
 imageIndex = ImageIndex(shard_size = IMAGE_INDEX_SHARD_SIZE, embedding_size = IMAGE_EMBEDDING_SIZE)
 print("Created Image index")
@@ -507,12 +507,15 @@ def query():
     In case a deterministic/meta attribute is provided, "Semantic query" acts as a re-ranker only.
     Otherwise only non-deterministic streaming "semantic search" is done. 
     """
-    
+    # TODO: append the hashes to dataCache to start loading in the background!
+
     flag = False
     top_k = TOP_K_SHARD
     query_start = flask.request.form["query_start"].strip().lower()
     query = flask.request.form["query"]
 
+    # NOTE: client_id must be sent back to the client, DONOT forget!
+    # used by the imageIndex to send streaming results to the correct client!
     if query_start == "true":
         client_id = uuid.uuid4().hex           # must be unique for each query request.
     else:
@@ -521,29 +524,44 @@ def query():
     # except "query" all are meta-attributes ..for now!
     image_attributes = parse_query(query)
     meta_attributes_list = [x for x in image_attributes if x != "query"]
-    print("Meta attributes: {}".format(meta_attributes_list))
     rerank_approach = len(meta_attributes_list) > 0
+
+    # data to be sent back to client.  #TOOD: proper define interface/contract . So (poor man grpc like approach!)
+    query_completed = True  # by default.
+    temp = {}                                   
+    temp["meta_data"] = []
+    temp["data_hash"] = []
+    temp["score"] = []
     if not rerank_approach:
-        # TODO: use top_k to limit the results being sent ..
-        # we stream the data as we process a single shard..
-        # keep querying the image-index/shards until done. # this means pure semantic query.
+        # This means semantic query. (without any meta-attributes.)
         current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
         text_embedding = generate_text_embedding(current_query)
         flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
         
-        temp = {}
-        temp["meta_data"] = []
-        temp["data_hash"] = []
-        temp["score"] = []
-        temp_something = metaIndex.query(data_hashes= image_hash2scores.keys())
+        # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
+        top_keys = []
+        for i,k in enumerate(image_hash2scores):
+            top_keys.append(k)
+            del k
+            if i == top_k:
+                break
+        
+        temp_something = metaIndex.query(data_hashes= top_keys) # hash to metaData
+        del top_keys
         for k,v in temp_something.items():
             temp["meta_data"].append(v)
             temp["data_hash"].append(k)
             score = max(image_hash2scores[k])
             temp["score"].append(str(score))
-            del score
-        temp["query_completed"] = (not flag)
-        return flask.jsonify(temp)
+        
+        query_completed = (not flag)
+
+        # NOTE: start background loading of resources,(for now not being used)
+        # NOTE: since we create a preview anyway..(and python is not pure multi-threaded), so even without start loading in background it works fast enough!
+        # NOTE: we cache some recent resources anyway.. HAVE TO BENCHMARK the effect of background loading.
+        # note: better to move towards a system-language cache i think!
+        # dataCache.append(data_hash = temp["data_hash"], absolute_path = temp_absolute_paths)
+
     else:
         and_keys = set()
         key_score = dict()        
@@ -572,29 +590,16 @@ def query():
                 and_keys = and_keys & or_keys
             del or_keys
 
-        print("Total hashes: {}  for {}".format(len(and_keys), image_attributes))
-
-        # for all the hashes/resources. collect the meta-data and return (if no query)
-        # if "query/semantic" then just re-rank!
-        temp = {}
-        temp["meta_data"] = []
-        temp["data_hash"] = []
-        temp["score"] = []
-
-        # temp_something = metaIndex.query(data_hashes= final_result.keys())
         temp_something = metaIndex.query(data_hashes = and_keys)
         for k,v in temp_something.items():
             temp["meta_data"].append(v)
             temp["data_hash"].append(k)
             temp["score"].append(key_score[k])
-            # temp["score"].append(1)   # equal score for all the
         
         if "query" in image_attributes:
-            # print("Re-ranking....")
+            # here we just re-rank based on the semantic query thats it.
             current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
             text_embedding = generate_text_embedding(current_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
-            # try to do this for only and_keys..
-            # if not faster, cannot be slow from default comparison of all embeddings?
             flag, image_hash2scores = imageIndex.query(
                     text_embedding,
                     key = and_keys,
@@ -605,114 +610,15 @@ def query():
             assert len(image_hash2scores) == len(temp["data_hash"]), "it should be as image index must have same number of unique resource hashes as in meta-index"
             for i in range(len(temp["data_hash"])):
                 temp_hash = temp["data_hash"][i]
-                # TODO: ensure that array is  being returned because of earlier face-embeddings.
+                # TODO: ensure that an array instead of a single score is  being returned because of earlier face-embeddings.
                 # where for a data-hash multiple scores could be returned..
                 temp["score"][i] = str(temp["score"][i] * max(image_hash2scores[temp_hash]))
                 del temp_hash
 
-        temp["query_completed"] = True
-        return flask.jsonify(temp)
-
-
-    # extract "query" value.
-    # and do the semantic.
-    # if len(meta_attributes) > 0:
-    # simple.
-    # else:
-    # go on about doing semantic search only..
-    # no need to boost score or stuff ?
-    # it would make it very simple ??
-
-    return flask.jsonify(temp)
-                    
-                
-
-    if "query" in image_attributes:
-        current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
-        
-        # do not need to call it again.. am i calling it again and again .. for same client-id/query-id?
-        text_embedding = generate_text_embedding(current_query)
-        
-        flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
-        
-        temp_count = 0
-        for k,v in image_hash2scores.items():
-            if temp_count == top_k:
-                break
-            
-            if k not in final_result:
-                final_result[k] = max(v)
-                temp_count += 1
-            else:
-                final_result[k] += max(v)
-            
-        _ = image_attributes.pop("query")
-
-    if flag == False:    
-        final_result_attributes = {}
-        attribute_count = 0
-        for attribute in image_attributes:
-
-            temp = {}     # OR operation if more than value for an attribute.
-            for value in image_attributes[attribute]:
-
-                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
-                for h in hashes_2_metaData:
-                    temp[h] = 1   # # all have equal importance then !!!
-            
-            # fill current temp..
-            if(attribute_count == 0):
-                for k,score in temp.items():
-                    final_result_attributes[k] = score
-
-            # keep only common keys
-            if attribute_count > 0:
-                to_be_popped_keys = []
-                for k in final_result_attributes:
-                    if k in temp:  # for these we just keep them as they were.
-                        pass
-                    else:
-                        to_be_popped_keys.append(k)
-                
-                for k in to_be_popped_keys:
-                    _ = final_result_attributes.pop(k)
-
-            attribute_count += 1
-
-    if flag == False:
-        for k in final_result_attributes:
-            if k not in final_result:
-                final_result[k] = 10
-            else:
-                final_result[k] += 10  # boost the score for common.
-          
-    # NOTE: we now append data_hashes and absolute path to globalDatacache to start loading raw-data in the background if not already there.
-    temp_dict = OrderedDict()
-    for k,meta_data in metaIndex.query(data_hashes= final_result.keys()).items():
-
-        #leverage preview data if possible..
-        preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.webp".format(k))
-        if os.path.exists(preview_path):
-            temp_dict[k] = preview_path
-        else:
-            temp_dict[k] = meta_data["absolute_path"]
-
-    dataCache.append(data_hash = temp_dict.keys(), absolute_path = temp_dict.values())
-
-    temp = {}
-    temp["meta_data"] = []
-    temp["data_hash"] = []
-    temp["score"] = []
-    temp_something = metaIndex.query(data_hashes= final_result.keys())
-    for k,v in temp_something.items():
-        temp["meta_data"].append(v)
-        temp["data_hash"].append(k)
-        temp["score"].append(str(final_result[k]))
-    
-    temp["query_completed"] = (not flag)
+    assert len(temp["meta_data"]) == len(temp["data_hash"]) == len(temp["score"])
+    temp["query_completed"] = query_completed
     temp["client_id"] = client_id
-    return flask.jsonify(temp) # jsonify it.    
-
+    return flask.jsonify(temp)
 
 ##############
 
@@ -725,7 +631,6 @@ def getRawData(data_hash:str) -> any:
 
     #leverage preview data if possible by default:
     preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.webp".format(data_hash)) 
-    # preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.jpg".format(data_hash)) 
     if os.path.exists(preview_path):
         resource_extension = ".webp"
         absolute_path = preview_path
@@ -733,15 +638,7 @@ def getRawData(data_hash:str) -> any:
         print("[WARNING xxxxxxxxxxxx]: no preview_path for {} {}".format(absolute_path, data_hash))
         resource_extension = temp_meta["resource_extension"]
         absolute_path = temp_meta["absolute_path"]
-
-    # if use_preview_data:
-    #     resource_extension = ".jpg"
-    #     absolute_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.jpg".format(data_hash))
-    # else:
-    #     resource_extension = temp_meta["resource_extension"]
-    #     absolute_path = temp_meta["absolute_path"] # replace it with the "preview folder", so that data is instead read from preview
-    
-    #NOTE: use resource
+  
     raw_data = dataCache.get(data_hash, absolute_path)
     del absolute_path
     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
