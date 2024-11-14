@@ -115,14 +115,19 @@ proc `=sink`(a: var Column; b: Column) {.error.}
 ##  Front-end for accessing columns, all access goes through it. Responsible of syncing and locking mechanisms..to  handle concurrent read/writes !
 ##################################################################################
 
+# it supports adding/appending a new/fresh row, modifying an existing row/column, invalidating an existing row (not individual column) later!
+# any addition and deletion is done at row level, not column.
+# but modification(restricted) is available at [row, column] level...
 type
   MetaIndex = object
     capacity:Natural          # max number of elements/data for each column. (have to set during initialization)
     name:string               # a name for the meta index (just to identify easily, not required though !)
     columns:seq[Column]       # sequence of columns, easier to add a new column if schema changes !
     
-    # syncing/locking 
-    rowWriteInProgress:bool = false    # indicates if a row writing in progress, in case we add data column by column, and not add whole row at once  
+    # syncing/locking
+    rowPointer:Natural = 0           # points to the row index which would be appended/added next. 
+    fieldsCache:set[string]           # keeps temporary account of which fields/columns have been updated..so that we know all fields for a fresh row are there.
+    rowWriteInProgress:bool = false   # indicates if a row writing in progress, in case we add data column by column, and not add whole row at once  
     # locks:seq[something]            # a lock for each of the column to provide concurrent reading/writing if independent columns are request by different clients!
 
 proc init(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000):MetaIndex=
@@ -155,19 +160,22 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
 proc rowWriteStart(m:var MetaIndex)=
   # TODO: later may be acquire lock here..
   doAssert m.rowWriteInProgress == false, "expected to be false!"
+  m.fieldsCache = {}    # empty the field cache.
   m.rowWriteInProgress = true
 
 proc rowWriteEnd(m:var MetaIndex)=
   # TODO: later may be release lock in here..
   doAssert m.rowWriteInProgress == true, "expected to be true!"
-  # sanity check.
-  let expected_
-  for c in m.columns:
-  
+
+  # sanity check to make sure all the fields are written for this row!
+  for c in m.Columns:
+    doAssert c.label in m.fieldsCache
+
+  m.rowPointer += 1      
   m.rowWriteInProgress = false
 
 proc add[T:int32 | string](m:MetaIndex, column_index:Natural, column_data:T)=
-  doAsssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
+  doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
   
   var column = m.columns[column_index] # here it would try to copy right temporarily !
   if typedesc(column_data) is int32:
@@ -176,16 +184,22 @@ proc add[T:int32 | string](m:MetaIndex, column_index:Natural, column_data:T)=
     column.add_string(column_data)
   else:
     doAssert 1 == 0, "not expected, check your branching logic!"
+  m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
+
+proc add[T:int32|string](m:MetaIndex, column_label:string, column_data:T)=
+  # collect the column index using label as key.
+  let column_index = 0     # TODO
+  m.add(column_index, column_data)
 
 proc add_row(m:var MetaIndex, column_data:JsonNode)=
-  # to update  a row in single go..i think there is only one alternative.
+  # to append  a fresh row in single go..i think there is only one way to do with if columns are heterogenous.
   # resort to a serialized form, either custom or something like protobuf or Json.
   # Json is easier to read and also machine parseable. (have implementations in every language!)
-  # so for now lets do this
 
   # indicate rowWrite in progress..
   m.rowWriteStart()
-  
+  let curr_row_idx = m.rowPointer
+    
   assert column_data.kind == JObject
   # check that all keys are available.
   for i in 0..<len(m.columns):
@@ -199,17 +213,22 @@ proc add_row(m:var MetaIndex, column_data:JsonNode)=
 
     # only string and int data is allowed.. (TODO: how to keep it in sync with colData !)
     if value.kind == JInt:
-      c.add_int32(data = getInt(value).int32)
+      c.add_int32(row_idx = curr_row_idx, data = getInt(value).int32)
     elif value.kind == JString:
-      c.add_string(data = getStr(value))
+      c.add_string(row_idx = curr_row_idx, data = getStr(value))
     else:
       doAssert 1 == 0, "Unexpected value of type: "  & $value.kind 
 
-  # indicate rowWrite end..
+    m.fieldsCache.add(c.label)  # at the end, tallied to make sure all the fields have been updated for this row.
+
+  # following is also supposed to do sanity checks.
   m.rowWriteEnd()
 
- 
-      
+
+proc set_immutable()=
+  # can set a  particular column to be immutable, but not vice-versa!
+  discard
+
 proc query_indices(attribute:string, value:string)=
   # idea is that.. value can be None.
   # then all possible attributes/lables would be returned.
@@ -217,3 +236,10 @@ proc query_indices(attribute:string, value:string)=
   # and we return a sequence of 
   # we are supposed to return the number f 
   discard
+
+
+# how the example would look like.
+# init MetaIndex.
+# some Json data
+# add_row()
+# 
