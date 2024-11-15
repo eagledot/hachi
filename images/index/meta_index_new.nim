@@ -32,8 +32,15 @@ proc toMystring(s:string):MyString=
   # Note that string is just  a sequence of bytes in Nim(unless we associate a specific encoding with it)
   # this makes it easy while leveraging the raw-bytes. Note: len field give us the number of bytes , not UNICODE points/bytes.
   result.payload = cast[ptr UncheckedArray[char]](alloc0(s.len + 1)) # since Nim strings are null/0 terminated.
+  for i in 0..<s.len:
+    result.payload[i] = s[i]
   result.payload[s.len] = '\0'   # shouldn't need this we are zeroing memory using alloc0 !
   result.len = s.len
+  return result
+
+proc fromMyString(s:MyString):string=
+  doAssert not isNil(s.payload)
+  result = $(cast[cstring](s.payload))
   return result
 
 proc `[]`(s:MyString, index:int):char =
@@ -64,6 +71,27 @@ type
     immutable:bool = true  # can be set selectively for equivalent of a primarykey or foreign key !
     label:string
 
+proc toJson(c:Column, limit:Natural):JsonNode =
+  # JArray
+  # assuming that it would be easier to print a JsonNode.
+  result = JsonNode(kind:JArray)
+  if c.kind == colString:
+    let temp = cast[ptr UncheckedArray[MyString]](c.payload)
+    for i in 0..<limit:
+      let str = fromMyString(temp[i])
+      result.elems.add(JsonNode(kind:JString, str:str))
+      
+  elif c.kind == colInt32:
+    let temp = cast[ptr UncheckedArray[int32]](c.payload)
+    for i in 0..<limit:
+      let value = temp[i]
+      result.elems.add(JsonNode(kind:JInt, num:BiggestInt(value)))
+  
+  else:
+    doAssert 1 == 0, "not expected"
+  
+  return result
+       
 proc add_int32(c:var Column, row_idx:Natural, data:int32)=
   # add data to the columns, 
   # but how..
@@ -86,7 +114,6 @@ proc add_string(c:var Column, row_idx:Natural, data:string)=
 
   var arr = cast[ptr UncheckedArray[MyString]](c.payload)
   arr[row_idx] = toMyString(data)
-
 
 ###############################################################################
 ##  modifiy data API #####
@@ -155,9 +182,10 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
     else:
       # TODO: unreachable.. i.e induce error on this branch!
       discard
-    result.name = name
-    result.capacity = capacity
-    return result
+  
+  result.name = name
+  result.capacity = capacity
+  return result
 
 proc rowWriteStart(m:var MetaIndex)=
   # TODO: later may be acquire lock here..
@@ -234,6 +262,13 @@ proc set_immutable()=
   # can set a  particular column to be immutable, but not vice-versa!
   discard
 
+proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
+  result = JsonNode(kind:JObject)
+  let limit = min(m.rowPointer, count)
+  for c in m.columns:
+    result[c.label] = c.toJson(limit = limit)
+  return result
+
 proc query_indices(attribute:string, value:string)=
   # idea is that.. value can be None.
   # then all possible attributes/lables would be returned.
@@ -250,6 +285,7 @@ proc query_indices(attribute:string, value:string)=
 # 
 
 when isMainModule:
+  
   let
     hisName = "name"
     herAge:int32 = 43
@@ -262,16 +298,28 @@ when isMainModule:
     ]
 
   echo typeof(j)  # JsonNode
-  echo repr(j)
   
   
   var j2 = %* {"name": "Isaac", "books": ["Robot Dreams"]}
   j2["details"] = %* {"age":35, "pi":3.1415}
-  echo j2
+
 
   var j3 = %* {"name":"nain", "age":30}
   var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colString])
   
   
   m.add_row(column_data = j3)
-  echo m.rowPointer
+  m.add_row(column_data = %* {"name":"anubafdasd", "age":21})
+  
+  # echo m.rowPointer
+  # let c{.cursor.} = m.columns[0]
+  # echo c.label
+
+  # echo c.toJson(limit = 1)
+  
+  echo m.toJson().pretty()
+  echo $m.toJson()
+
+  let serial_json = $m.toJson()
+  echo typeof(serial_json)
+  echo parseJson(serial_json)
