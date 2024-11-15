@@ -16,6 +16,7 @@
 
 
 import std/json
+import sequtils
 
 ######################################################
 # compatible to nim string.(for most of use cases.) terminated by zero/null, sequence of bytes.. len gives us the number of bytes, not UNICODE points or any encoding for that matter.
@@ -25,7 +26,7 @@ type
     payload:ptr UncheckedArray[char]
     len:Natural
 proc `=copy`(a: var MyString, b:MyString) {.error.}
-proc `=sink`(a: var MyString; b: MyString) {.error.}
+# proc `=sink`(a: var MyString; b: MyString) {.error.}
 
 proc toMystring(s:string):MyString=
   # Note that string is just  a sequence of bytes in Nim(unless we associate a specific encoding with it)
@@ -83,9 +84,8 @@ proc add_string(c:var Column, row_idx:Natural, data:string)=
   assert not isNil(c.payload)
   assert c.kind == colString
 
-  var new_data = toMyString(data)
   var arr = cast[ptr UncheckedArray[MyString]](c.payload)
-  arr[row_idx] = new_data
+  arr[row_idx] = toMyString(data)
 
 
 ###############################################################################
@@ -122,11 +122,11 @@ type
   MetaIndex = object
     capacity:Natural          # max number of elements/data for each column. (have to set during initialization)
     name:string               # a name for the meta index (just to identify easily, not required though !)
-    columns:seq[Column]       # sequence of columns, easier to add a new column if schema changes !
+    columns:seq[Column] = @[]      # sequence of columns, easier to add a new column if schema changes !
     
     # syncing/locking
     rowPointer:Natural = 0           # points to the row index which would be appended/added next. 
-    fieldsCache:set[string]           # keeps temporary account of which fields/columns have been updated..so that we know all fields for a fresh row are there.
+    fieldsCache:seq[string]           # keeps temporary account of which fields/columns have been updated..so that we know all fields for a fresh row are there.
     rowWriteInProgress:bool = false   # indicates if a row writing in progress, in case we add data column by column, and not add whole row at once  
     # locks:seq[something]            # a lock for each of the column to provide concurrent reading/writing if independent columns are request by different clients!
 
@@ -145,10 +145,12 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
     let column_label = column_labels[i]
     let column_type = column_types[i]
     if column_type ==  colString:
-        let column = Column(kind:colString, label:column_label)  
+        var column = Column(kind:colString, label:column_label)  
+        column.payload = alloc0(capacity * sizeof(MyString))
         result.columns.add(column)
     elif column_type == colInt32:
-        let column = Column(kind:colInt32, label:column_label)
+        var column = Column(kind:colInt32, label:column_label)
+        column.payload = alloc0(capacity * sizeof(int32))
         result.columns.add(column)
     else:
       # TODO: unreachable.. i.e induce error on this branch!
@@ -160,7 +162,7 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
 proc rowWriteStart(m:var MetaIndex)=
   # TODO: later may be acquire lock here..
   doAssert m.rowWriteInProgress == false, "expected to be false!"
-  m.fieldsCache = {}    # empty the field cache.
+  m.fieldsCache = @[]    # empty the field cache.
   m.rowWriteInProgress = true
 
 proc rowWriteEnd(m:var MetaIndex)=
@@ -168,13 +170,15 @@ proc rowWriteEnd(m:var MetaIndex)=
   doAssert m.rowWriteInProgress == true, "expected to be true!"
 
   # sanity check to make sure all the fields are written for this row!
-  for c in m.Columns:
+  for c in m.columns:
     doAssert c.label in m.fieldsCache
 
   m.rowPointer += 1      
   m.rowWriteInProgress = false
 
 proc add[T:int32 | string](m:MetaIndex, column_index:Natural, column_data:T)=
+  # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
+  
   doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
   
   var column = m.columns[column_index] # here it would try to copy right temporarily !
@@ -184,10 +188,11 @@ proc add[T:int32 | string](m:MetaIndex, column_index:Natural, column_data:T)=
     column.add_string(column_data)
   else:
     doAssert 1 == 0, "not expected, check your branching logic!"
+  
   m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
 
 proc add[T:int32|string](m:MetaIndex, column_label:string, column_data:T)=
-  # collect the column index using label as key.
+  # append a new value/element to the column. (in case we want to complete current row by appending one value at a time)
   let column_index = 0     # TODO
   m.add(column_index, column_data)
 
@@ -204,7 +209,7 @@ proc add_row(m:var MetaIndex, column_data:JsonNode)=
   # check that all keys are available.
   for i in 0..<len(m.columns):
     # each key is either supposed to be num or string. (later when float32 may be fnum) 
-    var c = m.columns[i]
+    var c{.cursor.} = m.columns[i]     # temporary borrow !
     let key = c.label
 
     # TODO: indicate in one go if there are missing keys or any extra keys !
@@ -243,3 +248,30 @@ proc query_indices(attribute:string, value:string)=
 # some Json data
 # add_row()
 # 
+
+when isMainModule:
+  let
+    hisName = "name"
+    herAge:int32 = 43
+
+  # supposed to create JsonNode easily. 
+  var j = %*
+    [
+      { "name": hisName, "age": 30 },
+      { "name": "Susan", "age": herAge }
+    ]
+
+  echo typeof(j)  # JsonNode
+  echo repr(j)
+  
+  
+  var j2 = %* {"name": "Isaac", "books": ["Robot Dreams"]}
+  j2["details"] = %* {"age":35, "pi":3.1415}
+  echo j2
+
+  var j3 = %* {"name":"nain", "age":30}
+  var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colString])
+  
+  
+  m.add_row(column_data = j3)
+  echo m.rowPointer
