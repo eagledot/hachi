@@ -16,11 +16,13 @@
 
 
 import std/json
-import sequtils
+import strutils
 
 ######################################################
 # compatible to nim string.(for most of use cases.) terminated by zero/null, sequence of bytes.. len gives us the number of bytes, not UNICODE points or any encoding for that matter.
 #####################################################
+# may be i can use original (Nim) String here.. but don't want to mix the gc and ptr memory, as may have to reason every time !
+# also pointer/raw-memory is easierl to pass among threads without worrying about GC effects! 
 type
   MyString = object
     payload:ptr UncheckedArray[char]
@@ -134,6 +136,51 @@ proc modify_string(c:Column, row_idx:Natural, data:string)=
   let arr = cast[ptr UncheckedArray[MyString]](c.payload)
   arr[row_idx] = new_data
 ######################################################################################
+# querying API (These must be as fast as possibly, currently OK, all optimizations should be focussed on faster queries)
+#############################################################
+proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+  # returns the matching row indices in the 
+  # boundary: is provided by MetaIndex, telling it how many elements are currently in this/all columns.
+  
+  # This matches substring(query) in strings, if match is found, we collect the corresponding index.
+  # later actually merges this somehow with fuzzySearch, for now just roll with it!
+  
+  assert c.kind == colString
+  
+  let top_k = min(boundary, top_k)
+  result = newSeq[Natural](top_k)
+  # returns all the matching row indices. MetaIndex can take care if some of them are invalid or stuff!
+  # for now just check if a substring in string, (i know brute-forcing... but hoping it would be good enough for 100k strings if only column has much larger string)
+  # try to make it work, later would add fuzzy search .. when have time...(have to port it from python ...sighhhhhhhh)
+  var count = 0   # to count the number of matches found
+  let arr = cast[ptr UncheckedArray[MyString]](c.payload)
+  # exhaustive search but break when hit top_k.. for now all have same scores, so top_k doesn't make much sense !
+  for i in 0..<boundary:
+    # there is a function contains for matching substring and strings.
+    # have to convert mystring to Nim string, (to use standara library routines, as no way to temporary convert myString to string with no-cost!)
+    let data = fromMyString(arr[i])   # TODO: EXTRA copy here from mystring to string ,(Which i want to avoid, and directly find substring in myString later on!)
+    if data.contains(query):
+      result.add(i)
+      count += 1
+      if count == top_k:
+        break
+  return result
+
+proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+  result = newSeq[Natural](top_k)
+  let top_k = min(boundary, top_k)
+  var count = 0
+  let arr = cast[ptr UncheckedArray[int32]](c.payload)
+  for i in 0..<boundary:
+    if arr[i] == query:
+      result.add(i)
+      count += 1
+      if count == top_k:
+        break
+  return result
+
+################################################################################################################
+
 # preventing raw pointers copy, either do this or create a reference (Tracked pointer) to move this column object freely and let gc insert destructor call!
 proc `=copy`(a: var Column; b: Column) {.error.}
 proc `=sink`(a: var Column; b: Column) {.error.}    
@@ -269,13 +316,46 @@ proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
     result[c.label] = c.toJson(limit = limit)
   return result
 
-proc query_indices(attribute:string, value:string)=
-  # idea is that.. value can be None.
-  # then all possible attributes/lables would be returned.
-  # otherwise attribute/label and value pair must be provided.
-  # and we return a sequence of 
-  # we are supposed to return the number f 
+###################################
+## Querying #######################
+######################################
+proc query_indices(m:MetaIndex, attribute:string):seq[Natural]=
   discard
+
+proc query_string(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
+  # return all the matching indices in a column referred to by the attribute/label.
+  let c = m[attribute]  # get the column.
+  result = c.query_string(query = query, boundary = m.rowPointer, top_k = top_k) # query the column for matching candidates.
+  return result
+
+proc query_int32(m:MetaIndex, attribute:string, query:int32):seq[Natural]=
+  let c = m[attribute]
+  result = c.query_int32(query= query, boundary = m.rowPointer, top_k = top_k)
+  return result
+
+
+# we would want to 
+# search for an attribute/column.
+# search another..
+# do and or... or whatever with indices..
+# our duty for now is to return matching indices for a column, if you more than one query for that column. (do it more than once ! for now)
+# it is on user to do OR AND operations.. once done.. use a set of indices to collect the rows...
+# optionally can specify the labels to collect a subset of rows.
+
+proc collect_rows(m:MetaIndex, indices:varargs[Natural]):JsonNode=
+  # somehow find the desired indices/rows and then pass these to this routine to return and array.
+  result = JsonNode(kind:JArray)
+  for idx in indices:
+    for c in m.columns:
+      if c.kind == colString:
+        let arr = cast[ptr UncheckedArray[MyString]](c.payload)
+        result.elems.add(JsonNode(kind:JString, str: fromMyString(arr[idx])))
+      elif c.kind == colInt32:
+        let arr = cast[ptr UncheckedArray[int32]](c.payload)
+        result.elems.add(JsonNode(kind:JInt, num:BiggestInt(arr[idx])))
+      else:
+        doAssert 1 == 0
+  return result
 
 
 # how the example would look like.
