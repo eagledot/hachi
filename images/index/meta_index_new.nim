@@ -17,6 +17,7 @@
 
 import std/json
 import strutils
+import std/tables
 
 ######################################################
 # compatible to nim string.(for most of use cases.) terminated by zero/null, sequence of bytes.. len gives us the number of bytes, not UNICODE points or any encoding for that matter.
@@ -194,8 +195,14 @@ proc `=sink`(a: var Column; b: Column) {.error.}
 # but modification(restricted) is available at [row, column] level...
 type
   MetaIndex = object
+    # append only, no deletion! 
+
+    # actual order/column-id should not matter, as long as we provide correct mapping. (i.e key must match with column label)
+    fields:Table[string, Natural]  # mapping from the column's label to the id in the columns. (want it to be same even after loading from disk!)
     capacity:Natural          # max number of elements/data for each column. (have to set during initialization)
     name:string               # a name for the meta index (just to identify easily, not required though !)
+    
+    # append only, no deletion. (just invalidation may be)
     columns:seq[Column] = @[]      # sequence of columns, easier to add a new column if schema changes !
     
     # syncing/locking
@@ -229,9 +236,18 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
     else:
       # TODO: unreachable.. i.e induce error on this branch!
       discard
+
+    doAssert result.fields.hasKey(column_label) == false, "Expected unique labels for columns! got: " & $column_label & " more than once! "
+    result.fields[column_label] =  i   # save the mapping.
   
   result.name = name
   result.capacity = capacity
+  return result
+
+proc `[]`(m:MetaIndex, key:string):Column=
+  let idx = m.fields[key]
+  result = m.columns[idx]
+  assert result.label == key, "Expected " & $key & " but got: " & $result.label
   return result
 
 proc rowWriteStart(m:var MetaIndex)=
@@ -251,12 +267,12 @@ proc rowWriteEnd(m:var MetaIndex)=
   m.rowPointer += 1      
   m.rowWriteInProgress = false
 
-proc add[T:int32 | string](m:MetaIndex, column_index:Natural, column_data:T)=
+proc add[T:int32 | string](m:MetaIndex, column_label:Natural, column_data:T)=
   # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
   
   doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
   
-  var column = m.columns[column_index] # here it would try to copy right temporarily !
+  var column = m[column_label] # here it would try to copy right temporarily !
   if typedesc(column_data) is int32:
     column.add_int32(column_data)
   elif typedesc(column_data) is string:
@@ -266,11 +282,6 @@ proc add[T:int32 | string](m:MetaIndex, column_index:Natural, column_data:T)=
   
   m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
 
-proc add[T:int32|string](m:MetaIndex, column_label:string, column_data:T)=
-  # append a new value/element to the column. (in case we want to complete current row by appending one value at a time)
-  let column_index = 0     # TODO
-  m.add(column_index, column_data)
-
 proc add_row(m:var MetaIndex, column_data:JsonNode)=
   # to append  a fresh row in single go..i think there is only one way to do with if columns are heterogenous.
   # resort to a serialized form, either custom or something like protobuf or Json.
@@ -279,18 +290,12 @@ proc add_row(m:var MetaIndex, column_data:JsonNode)=
   # indicate rowWrite in progress..
   m.rowWriteStart()
   let curr_row_idx = m.rowPointer
-    
-  assert column_data.kind == JObject
-  # check that all keys are available.
-  for i in 0..<len(m.columns):
-    # each key is either supposed to be num or string. (later when float32 may be fnum) 
-    var c{.cursor.} = m.columns[i]     # temporary borrow !
-    let key = c.label
 
-    # TODO: indicate in one go if there are missing keys or any extra keys !
-    doAssert column_data.hasKey(key), "Expected key: " & $key
-    let value = column_data[key]
-
+  # fill the matching column fields with the JsonData. (making sure no extra or missing keys)
+  doAssert column_data.fields.len == m.fields.len , "Making sure no extra keys!"
+  for key, id in m.fields:
+    var c{.cursor.} = m[key]  # get the corresponding column.
+    let value = column_data[key]   # it makes sure all expected keys are available, i.e not missing keys
     # only string and int data is allowed.. (TODO: how to keep it in sync with colData !)
     if value.kind == JInt:
       c.add_int32(row_idx = curr_row_idx, data = getInt(value).int32)
@@ -328,7 +333,7 @@ proc query_string(m:MetaIndex, attribute:string, query:string, top_k:Natural = 1
   result = c.query_string(query = query, boundary = m.rowPointer, top_k = top_k) # query the column for matching candidates.
   return result
 
-proc query_int32(m:MetaIndex, attribute:string, query:int32):seq[Natural]=
+proc query_int32(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
   let c = m[attribute]
   result = c.query_int32(query= query, boundary = m.rowPointer, top_k = top_k)
   return result
