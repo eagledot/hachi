@@ -15,6 +15,13 @@
 # this is supposed to be simple metaindex to store (attribute, value) pairs
 
 
+# NOTES:
+# the point is that if i don't overwrite the data (unless very explicitly specified by parent MetaIndex),
+# we don't need to worry about overwriting/buggy-writes (as lmbd uses this principle), right.
+# then just we can move the pointers around, as asssuming all data collected is valid/required !
+# 
+
+
 import std/json
 import strutils
 import std/tables
@@ -29,7 +36,14 @@ type
     payload:ptr UncheckedArray[char]
     len:Natural
 proc `=copy`(a: var MyString, b:MyString) {.error.}
-# proc `=sink`(a: var MyString; b: MyString) {.error.}
+# proc `=sink`(a: var MyString; b: MyString) {.error.}    # sink also include `destroy/wasMoved` for a, so if not inferred correctly could loose resources'. Instead do it manually.(field by field when needed)
+
+proc `=destroy`(a:MyString)=
+  # NOTE: if sink is not set to error, provide a destroy routine must.. as sink would call it..(for manual memory it is must)
+  echo "string is being destroyed!"
+  if not isNil(a.payload):
+    dealloc(a.payload)
+  
 
 proc toMystring(s:string):MyString=
   # Note that string is just  a sequence of bytes in Nim(unless we associate a specific encoding with it)
@@ -57,6 +71,12 @@ type
   colType = enum
     colString
     colInt32
+
+    # but should help in case multiple values for a meta-data key. 
+    # for example like there could be multiple persons in an image, that we may need to store rights..
+    # helps in modelling one to many situations. ()
+    colArrayString   # one level nesting for string ... (donot know what is the best way), 
+      
     #colFloat32
 
 # good enough, start from here.. i guess
@@ -116,20 +136,20 @@ proc add_string(c:var Column, row_idx:Natural, data:string)=
   assert c.kind == colString
 
   var arr = cast[ptr UncheckedArray[MyString]](c.payload)
-  arr[row_idx] = toMyString(data)
+  arr[row_idx] = ensureMove toMyString(data)
 
 ###############################################################################
 ##  modifiy data API #####
 ################################################################################
 # NOTE: metaIndex (parent) is supposed to prevent invalid row_idx !
-proc modify_int32(c:Column, row_idx:Natural, data:int32)=
+proc modify_int32(c:var Column, row_idx:Natural, data:int32)=
   doAssert c.immutable == false, "Column: " & c.label & "is not mutable!"
   doAssert c.kind == colInt32
     
   let arr = cast[ptr UncheckedArray[int32]](c.payload)
   arr[row_idx] = data
 
-proc modify_string(c:Column, row_idx:Natural, data:string)=
+proc modify_string(c:var Column, row_idx:Natural, data:string)=
   doAssert c.immutable == false, "Column: " & $c.label & "is not mutable!"
   doAssert c.kind == colString
   
@@ -244,7 +264,8 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
   result.capacity = capacity
   return result
 
-proc `[]`(m:MetaIndex, key:string):Column=
+proc `[]`(m:MetaIndex, key:string):lent Column {.inline.} =
+  # i think we have to use borrow semantics if want to return column like this for read purposes, as copy is prohibited !
   let idx = m.fields[key]
   result = m.columns[idx]
   assert result.label == key, "Expected " & $key & " but got: " & $result.label
@@ -267,7 +288,7 @@ proc rowWriteEnd(m:var MetaIndex)=
   m.rowPointer += 1      
   m.rowWriteInProgress = false
 
-proc add[T:int32 | string](m:MetaIndex, column_label:Natural, column_data:T)=
+proc add[T:int32 | string](m:var MetaIndex, column_label:Natural, column_data:T)=
   # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
   
   doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
@@ -294,6 +315,8 @@ proc add_row(m:var MetaIndex, column_data:JsonNode)=
   # fill the matching column fields with the JsonData. (making sure no extra or missing keys)
   doAssert column_data.fields.len == m.fields.len , "Making sure no extra keys!"
   for key, id in m.fields:
+    # NOTE: compiler is doing its job, it wants to copy the column, but we prevent copy..(to keep only single copy of payload pointer)
+    # so we call cursor to silent the compiler (not do destructor/copy hooks... )
     var c{.cursor.} = m[key]  # get the corresponding column.
     let value = column_data[key]   # it makes sure all expected keys are available, i.e not missing keys
     # only string and int data is allowed.. (TODO: how to keep it in sync with colData !)
@@ -392,19 +415,26 @@ when isMainModule:
   var j3 = %* {"name":"nain", "age":30}
   var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colString])
   
-  
+
+  # adding some data/rows.
   m.add_row(column_data = j3)
   m.add_row(column_data = %* {"name":"anubafdasd", "age":21})
-  
+
+  # collect some rows, 
+  let collected_rows = m.collect_rows(indices = [Natural(1)])
+  echo "done"
+  echo collected_rows
+
+  echo m.collect_rows(indices = [Natural(0)])  
   # echo m.rowPointer
   # let c{.cursor.} = m.columns[0]
   # echo c.label
 
   # echo c.toJson(limit = 1)
   
-  echo m.toJson().pretty()
-  echo $m.toJson()
+  # echo m.toJson().pretty()
+  # echo $m.toJson()
 
-  let serial_json = $m.toJson()
-  echo typeof(serial_json)
-  echo parseJson(serial_json)
+  # let serial_json = $m.toJson()
+  # echo typeof(serial_json)
+  # echo parseJson(serial_json)
