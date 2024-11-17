@@ -71,13 +71,7 @@ type
   colType = enum
     colString
     colInt32
-
-    # but should help in case multiple values for a meta-data key. 
-    # for example like there could be multiple persons in an image, that we may need to store rights..
-    # helps in modelling one to many situations. ()
-    colArrayString   # one level nesting for string ... (donot know what is the best way), 
-      
-    #colFloat32
+    # colFloat32
 
 # good enough, start from here.. i guess
 # i think serialization should be easy .. if we decide to put a column on disk, and later read that column.
@@ -153,9 +147,8 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
   doAssert c.immutable == false, "Column: " & $c.label & "is not mutable!"
   doAssert c.kind == colString
   
-  var new_data = toMyString(data)
   let arr = cast[ptr UncheckedArray[MyString]](c.payload)
-  arr[row_idx] = new_data
+  arr[row_idx] = ensureMove toMystring(data)
 ######################################################################################
 # querying API (These must be as fast as possibly, currently OK, all optimizations should be focussed on faster queries)
 #############################################################
@@ -216,7 +209,7 @@ proc `=sink`(a: var Column; b: Column) {.error.}
 type
   MetaIndex = object
     # append only, no deletion! 
-
+    stringConcatenator = "|"                 # we may support multiple strings for colString columns, by concatenating into a single string using this string/character.
     # actual order/column-id should not matter, as long as we provide correct mapping. (i.e key must match with column label)
     fields:Table[string, Natural]  # mapping from the column's label to the id in the columns. (want it to be same even after loading from disk!)
     capacity:Natural          # max number of elements/data for each column. (have to set during initialization)
@@ -304,6 +297,12 @@ proc add[T:int32 | string](m:var MetaIndex, column_label:Natural, column_data:T)
   m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
 
 proc add_row(m:var MetaIndex, column_data:JsonNode)=
+  # TODO: support the JArray for fields, in case we want to store multiple strings for a field.
+  # one to many modelling, (for string data atleast).
+  # we can use | as the separator, to concatenate multiple strings together..
+  # and later split to maintain the notion of muliple strings packed together!
+  # idk what is the best solution but trying to make it work.
+  
   # to append  a fresh row in single go..i think there is only one way to do with if columns are heterogenous.
   # resort to a serialized form, either custom or something like protobuf or Json.
   # Json is easier to read and also machine parseable. (have implementations in every language!)
@@ -324,9 +323,23 @@ proc add_row(m:var MetaIndex, column_data:JsonNode)=
       c.add_int32(row_idx = curr_row_idx, data = getInt(value).int32)
     elif value.kind == JString:
       c.add_string(row_idx = curr_row_idx, data = getStr(value))
+    elif value.kind == JArray:
+      # we support array of string only at this point. (only one nesting level for strings.)
+      # to enable one to many modelling.
+      # but column is supposed to packed array of MyString type, so we create a single string from multiple strings.
+      # using | character !
+      var final_string = ""
+      if len(value) > 0:
+        var json_data = value[0]
+        doAssert json_data.kind == JString , "expected an array of strings for got: " & $json_data.kind
+        final_string = getStr(json_data)
+        for json_data in value[1..<len(value)]:
+          doAssert json_data.kind == JString
+          final_string = m.stringConcatenator  & getStr(json_data) 
+      c.add_string(row_idx = curr_row_idx, data = final_string)
     else:
       doAssert 1 == 0, "Unexpected value of type: "  & $value.kind 
-
+    
     m.fieldsCache.add(c.label)  # at the end, tallied to make sure all the fields have been updated for this row.
 
   # following is also supposed to do sanity checks.
