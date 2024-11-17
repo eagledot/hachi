@@ -209,7 +209,7 @@ proc `=sink`(a: var Column; b: Column) {.error.}
 type
   MetaIndex = object
     # append only, no deletion! 
-    stringConcatenator = "|"                 # we may support multiple strings for colString columns, by concatenating into a single string using this string/character.
+    stringConcatenator:string = "|"                 # we may support multiple strings for colString columns, by concatenating into a single string using this string/character.
     # actual order/column-id should not matter, as long as we provide correct mapping. (i.e key must match with column label)
     fields:Table[string, Natural]  # mapping from the column's label to the id in the columns. (want it to be same even after loading from disk!)
     capacity:Natural          # max number of elements/data for each column. (have to set during initialization)
@@ -232,7 +232,8 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
 
   # TODO: a mapping from the label to the index in the columns sequence.
   # so to quickly get the corresponding column.
-  
+
+  result = default(MetaIndex)
   var count:int = 0
   doAssert len(column_labels) == len(column_types)
   for i in 0..<len(column_labels):
@@ -252,7 +253,7 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[colTy
 
     doAssert result.fields.hasKey(column_label) == false, "Expected unique labels for columns! got: " & $column_label & " more than once! "
     result.fields[column_label] =  i   # save the mapping.
-  
+
   result.name = name
   result.capacity = capacity
   return result
@@ -328,14 +329,18 @@ proc add_row(m:var MetaIndex, column_data:JsonNode)=
       # to enable one to many modelling.
       # but column is supposed to packed array of MyString type, so we create a single string from multiple strings.
       # using | character !
+      
       var final_string = ""
       if len(value) > 0:
-        var json_data = value[0]
-        doAssert json_data.kind == JString , "expected an array of strings for got: " & $json_data.kind
-        final_string = getStr(json_data)
-        for json_data in value[1..<len(value)]:
+        doAssert value[0].kind == JString , "expected an array of strings for got: " & $value[0].kind
+        final_string = getStr(value[0])
+        doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
+        
+        # we not split it conditioned on m.stringConcatenator
+        for json_data in value.elems[1..<len(value.elems)]:
           doAssert json_data.kind == JString
-          final_string = m.stringConcatenator  & getStr(json_data) 
+          final_string = final_string & m.stringConcatenator  & getStr(json_data)
+      echo "final string: ", final_string 
       c.add_string(row_idx = curr_row_idx, data = final_string)
     else:
       doAssert 1 == 0, "Unexpected value of type: "  & $value.kind 
@@ -390,7 +395,15 @@ proc collect_rows(m:MetaIndex, indices:varargs[Natural]):JsonNode=
     for c in m.columns:
       if c.kind == colString:
         let arr = cast[ptr UncheckedArray[MyString]](c.payload)
-        result.elems.add(JsonNode(kind:JString, str: fromMyString(arr[idx])))
+        let data = fromMyString(arr[idx])
+        
+        if data.contains(m.stringConcatenator):
+          let new_node = JsonNode(kind:JArray)
+          for temp_str in data.split(m.stringConcatenator):
+            new_node.elems.add(JsonNode(kind:JString, str:temp_str))
+          result.elems.add(new_node)
+        else:
+          result.elems.add(JsonNode(kind:JString, str: fromMyString(arr[idx])))
       elif c.kind == colInt32:
         let arr = cast[ptr UncheckedArray[int32]](c.payload)
         result.elems.add(JsonNode(kind:JInt, num:BiggestInt(arr[idx])))
@@ -431,14 +444,13 @@ when isMainModule:
 
   # adding some data/rows.
   m.add_row(column_data = j3)
-  m.add_row(column_data = %* {"name":"anubafdasd", "age":21})
+  m.add_row(column_data = %* {"name":["anubafdasd","nain"], "age":21})
 
+
+  echo m["name"].toJson(limit = 2)
+  
   # collect some rows, 
-  let collected_rows = m.collect_rows(indices = [Natural(1)])
-  echo "done"
-  echo collected_rows
-
-  echo m.collect_rows(indices = [Natural(0)])  
+  echo m.collect_rows(indices = [Natural(1)])  
   # echo m.rowPointer
   # let c{.cursor.} = m.columns[0]
   # echo c.label
