@@ -68,10 +68,12 @@ proc `[]`(s:MyString, index:int):char =
 # Columns for our database/table
 ########################################
 type
-  colType = enum
+  colType* = enum
     colString
     colInt32
     # colFloat32
+    # colBool 
+    # colNull # donot want it not for now..?
 
 # good enough, start from here.. i guess
 # i think serialization should be easy .. if we decide to put a column on disk, and later read that column.
@@ -173,25 +175,29 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100)
     # there is a function contains for matching substring and strings.
     # have to convert mystring to Nim string, (to use standara library routines, as no way to temporary convert myString to string with no-cost!)
     let data = fromMyString(arr[i])   # TODO: EXTRA copy here from mystring to string ,(Which i want to avoid, and directly find substring in myString later on!)
+    echo "checking data: ", data
+    
     if data.contains(query):
-      result.add(i)
+      echo "yes"
+      result[count] = i
       count += 1
       if count == top_k:
         break
-  return result
+  return result[0..<count]
 
 proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
-  result = newSeq[Natural](top_k)
   let top_k = min(boundary, top_k)
+  result = newSeq[Natural](top_k) # allocate at once... 
+  # after this can even do pointer arithmetic to do away with [] ...but at last stages of optimization!
   var count = 0
   let arr = cast[ptr UncheckedArray[int32]](c.payload)
   for i in 0..<boundary:
     if arr[i] == query:
-      result.add(i)
+      result[count] = i
       count += 1
       if count == top_k:
         break
-  return result
+  return result[0..<count]
 
 ################################################################################################################
 
@@ -207,7 +213,7 @@ proc `=sink`(a: var Column; b: Column) {.error.}
 # any addition and deletion is done at row level, not column.
 # but modification(restricted) is available at [row, column] level...
 type
-  MetaIndex = object
+  MetaIndex* = object
     # append only, no deletion! 
     stringConcatenator:string = "|"                 # we may support multiple strings for colString columns, by concatenating into a single string using this string/character.
     # actual order/column-id should not matter, as long as we provide correct mapping. (i.e key must match with column label)
@@ -224,7 +230,7 @@ type
     rowWriteInProgress:bool = false   # indicates if a row writing in progress, in case we add data column by column, and not add whole row at once  
     # locks:seq[something]            # a lock for each of the column to provide concurrent reading/writing if independent columns are request by different clients!
 
-proc init(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000):MetaIndex=
+proc init*(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000):MetaIndex=
   # initialize the metaIndex based on the labels/column-names.
   # column_types: corresponding type for data being stored in each column.
   # note of python, we would create a  mapping from string to colType.
@@ -297,7 +303,7 @@ proc add[T:int32 | string](m:var MetaIndex, column_label:Natural, column_data:T)
   
   m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
 
-proc add_row(m:var MetaIndex, column_data:JsonNode)=
+proc add_row*(m:var MetaIndex, column_data:JsonNode)=
   # TODO: support the JArray for fields, in case we want to store multiple strings for a field.
   # one to many modelling, (for string data atleast).
   # we can use | as the separator, to concatenate multiple strings together..
@@ -336,10 +342,12 @@ proc add_row(m:var MetaIndex, column_data:JsonNode)=
         final_string = getStr(value[0])
         doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
         
-        # we not split it conditioned on m.stringConcatenator
+        # we now split it conditioned on m.stringConcatenator
         for json_data in value.elems[1..<len(value.elems)]:
           doAssert json_data.kind == JString
-          final_string = final_string & m.stringConcatenator  & getStr(json_data)
+          let data_str = getStr(json_data)
+          doAssert not data_str.contains(m.stringConcatenator)
+          final_string = final_string & m.stringConcatenator  & data_str
       echo "final string: ", final_string 
       c.add_string(row_idx = curr_row_idx, data = final_string)
     else:
@@ -362,19 +370,22 @@ proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
     result[c.label] = c.toJson(limit = limit)
   return result
 
+proc `$`*(m:MetaIndex, count:Natural = 10):string=
+  return m.toJson(count = count).pretty()
+
 ###################################
 ## Querying #######################
 ######################################
 proc query_indices(m:MetaIndex, attribute:string):seq[Natural]=
   discard
 
-proc query_string(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
+proc query_string*(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
   # return all the matching indices in a column referred to by the attribute/label.
   let c = m[attribute]  # get the column.
   result = c.query_string(query = query, boundary = m.rowPointer, top_k = top_k) # query the column for matching candidates.
   return result
 
-proc query_int32(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
+proc query_int32*(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
   let c = m[attribute]
   result = c.query_int32(query= query, boundary = m.rowPointer, top_k = top_k)
   return result
@@ -388,7 +399,7 @@ proc query_int32(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100
 # it is on user to do OR AND operations.. once done.. use a set of indices to collect the rows...
 # optionally can specify the labels to collect a subset of rows.
 
-proc collect_rows(m:MetaIndex, indices:varargs[Natural]):JsonNode=
+proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
   # somehow find the desired indices/rows and then pass these to this routine to return and array.
   result = JsonNode(kind:JArray)
   for idx in indices:
@@ -396,7 +407,9 @@ proc collect_rows(m:MetaIndex, indices:varargs[Natural]):JsonNode=
       if c.kind == colString:
         let arr = cast[ptr UncheckedArray[MyString]](c.payload)
         let data = fromMyString(arr[idx])
-        
+
+        # if stringConcatenator was used, we split it using that.. to return the data as i expected, i.e a container of strings. 
+        # we enforce that stringConcatenator is not present in string data when add_row is called, so if add was successful so would this !
         if data.contains(m.stringConcatenator):
           let new_node = JsonNode(kind:JArray)
           for temp_str in data.split(m.stringConcatenator):
@@ -445,9 +458,12 @@ when isMainModule:
   # adding some data/rows.
   m.add_row(column_data = j3)
   m.add_row(column_data = %* {"name":["anubafdasd","nain"], "age":21})
+  echo m   # good enough for a preview !
 
+  # then check if query is working
+  echo m.query_string(attribute = "name", query = "baf")
+  echo m.query_int32(attribute = "age", query = 31)
 
-  echo m["name"].toJson(limit = 2)
   
   # collect some rows, 
   echo m.collect_rows(indices = [Natural(1)])  
