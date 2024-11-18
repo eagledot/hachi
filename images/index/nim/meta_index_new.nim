@@ -70,9 +70,9 @@ proc `[]`(s:MyString, index:int):char =
 type
   colType* = enum
     colString
-    colInt32
-    # colFloat32
-    # colBool 
+    colInt32      # to handle int values..
+    colFloat32    # to handle float values..
+    colBool       # to handle boolean values..
     # colNull # donot want it not for now..?
 
 # good enough, start from here.. i guess
@@ -105,7 +105,19 @@ proc toJson(c:Column, limit:Natural):JsonNode =
     for i in 0..<limit:
       let value = temp[i]
       result.elems.add(JsonNode(kind:JInt, num:BiggestInt(value)))
+
+  elif c.kind == colBool:
+    let temp = cast[ptr UncheckedArray[uint8]](c.payload)
+    for i in 0..<limit:
+      let value = temp[i]
+      result.elems.add(JsonNode(kind:JBool, bval:bool(value)))
   
+  elif c.kind == colFloat32:
+    let temp = cast[ptr UncheckedArray[float32]](c.payload)
+    for i in 0..<limit:
+      let value = temp[i]
+      result.elems.add(JsonNode(kind:JFloat, fnum:value))
+
   else:
     doAssert 1 == 0, "not expected"
   
@@ -133,6 +145,24 @@ proc add_string(c:var Column, row_idx:Natural, data:string)=
 
   var arr = cast[ptr UncheckedArray[MyString]](c.payload)
   arr[row_idx] = ensureMove toMyString(data)
+ 
+proc add_float32(c:var Column, row_idx:Natural, data:float32)=
+  # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
+  # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
+  
+  assert not isNil(c.payload)
+  assert c.kind == colFloat32
+  var arr = cast[ptr UncheckedArray[float32]](c.payload)
+  arr[row_idx] = data
+
+proc add_bool(c:var Column, row_idx:Natural, data:bool)=
+  # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
+  # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
+  
+  assert not isNil(c.payload)
+  assert c.kind == colBool
+  var arr = cast[ptr UncheckedArray[uint8]](c.payload)
+  arr[row_idx] = uint8(data)
 
 ###############################################################################
 ##  modifiy data API #####
@@ -186,6 +216,8 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100)
   return result[0..<count]
 
 proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+  assert c.kind == colInt32
+  
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k) # allocate at once... 
   # after this can even do pointer arithmetic to do away with [] ...but at last stages of optimization!
@@ -198,6 +230,40 @@ proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):s
       if count == top_k:
         break
   return result[0..<count]
+ 
+proc query_float32(c:Column, query:float32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+  assert c.kind == colFloat32
+  
+  let top_k = min(boundary, top_k)
+  result = newSeq[Natural](top_k) # allocate at once... 
+  # after this can even do pointer arithmetic to do away with [] ...but at last stages of optimization!
+  var count = 0
+  let arr = cast[ptr UncheckedArray[float32]](c.payload)
+  for i in 0..<boundary:
+    if arr[i] == query:
+      result[count] = i
+      count += 1
+      if count == top_k:
+        break
+  return result[0..<count]
+
+proc query_bool(c:Column, query:bool, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+  assert c.kind == colBool
+  
+  let top_k = min(boundary, top_k)
+  result = newSeq[Natural](top_k) # allocate at once... 
+  # after this can even do pointer arithmetic to do away with [] ...but at last stages of optimization!
+  var count = 0
+  let arr = cast[ptr UncheckedArray[uint8]](c.payload)
+  let query = uint8(query)
+  for i in 0..<boundary:
+    if arr[i] == query:
+      result[count] = i
+      count += 1
+      if count == top_k:
+        break
+  return result[0..<count]
+
 
 ################################################################################################################
 
@@ -253,6 +319,14 @@ proc init*(name:string, column_labels:varargs[string], column_types:varargs[colT
         var column = Column(kind:colInt32, label:column_label)
         column.payload = alloc0(capacity * sizeof(int32))
         result.columns.add(column)
+    elif column_type == colFloat32:
+        var column = Column(kind:colFloat32, label:column_label)
+        column.payload = alloc0(capacity * sizeof(float32))
+        result.columns.add(column)
+    elif column_type == colBool:
+        var column = Column(kind:colBool, label:column_label)
+        column.payload = alloc0(capacity * sizeof(uint8))
+        result.columns.add(column)    
     else:
       # TODO: unreachable.. i.e induce error on this branch!
       discard
@@ -298,6 +372,10 @@ proc add[T:int32 | string](m:var MetaIndex, column_label:Natural, column_data:T)
     column.add_int32(column_data)
   elif typedesc(column_data) is string:
     column.add_string(column_data)
+  elif typedesc(column_data) is float32:
+    column.add_float32(column_data)
+  elif typedesc(column_data) is bool:
+    column.add_bool(column_data)
   else:
     doAssert 1 == 0, "not expected, check your branching logic!"
   
@@ -330,6 +408,10 @@ proc add_row*(m:var MetaIndex, column_data:JsonNode)=
       c.add_int32(row_idx = curr_row_idx, data = getInt(value).int32)
     elif value.kind == JString:
       c.add_string(row_idx = curr_row_idx, data = getStr(value))
+    elif value.kind == JFloat:
+      c.add_float32(row_idx = curr_row_idx, data = getFloat(value).float32)
+    elif value.kind == JBool:
+      c.add_bool(row_idx = curr_row_idx, data = getBool(value))
     elif value.kind == JArray:
       # we support array of string only at this point. (only one nesting level for strings.)
       # to enable one to many modelling.
