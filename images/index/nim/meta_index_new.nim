@@ -363,20 +363,39 @@ proc rowWriteEnd(m:var MetaIndex)=
   m.rowPointer += 1      
   m.rowWriteInProgress = false
 
-proc add[T:int32 | string](m:var MetaIndex, column_label:Natural, column_data:T)=
+proc add(m:var MetaIndex, column_label:string, data:JsonNode)=
   # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
   
   doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
+  let curr_row_idx = m.rowPointer
+
   
-  var column = m[column_label] # here it would try to copy right temporarily !
-  if typedesc(column_data) is int32:
-    column.add_int32(column_data)
-  elif typedesc(column_data) is string:
-    column.add_string(column_data)
-  elif typedesc(column_data) is float32:
-    column.add_float32(column_data)
-  elif typedesc(column_data) is bool:
-    column.add_bool(column_data)
+  var column{.cursor.} = m[column_label] # here it would try to copy right temporarily !
+  if data.kind == JInt:
+    column.add_int32(row_idx = curr_row_idx, getInt(data).int32)
+  elif data.kind == JString:
+    column.add_string(row_idx = curr_row_idx, getStr(data))
+  elif data.kind ==  JFloat:
+    column.add_float32(row_idx = curr_row_idx, getFloat(data).float32)
+  elif data.kind  == JBool:
+    column.add_bool(row_idx = curr_row_idx, getBool(data))
+  elif data.kind == JArray:
+    # only array of strings is allowed, to model one to many mappings.
+     
+    var final_string = ""
+    if len(data) > 0:
+      doAssert data[0].kind == JString , "expected an array of strings for got: " & $data[0].kind
+      final_string = getStr(data[0])
+      doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
+        
+      # we now split it conditioned on m.stringConcatenator
+      for json_data in data[1..<len(data)]:
+        doAssert json_data.kind == JString
+        let data_str = getStr(json_data)
+        doAssert not data_str.contains(m.stringConcatenator)
+        final_string = final_string & m.stringConcatenator  & data_str 
+    column.add_string(row_idx = curr_row_idx, data = final_string)
+  
   else:
     doAssert 1 == 0, "not expected, check your branching logic!"
   
@@ -426,13 +445,13 @@ proc add_row*(m:var MetaIndex, column_data:JsonNode)=
         doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
         
         # we now split it conditioned on m.stringConcatenator
-        for json_data in value.elems[1..<len(value.elems)]:
+        for json_data in value[1..<len(value)]:
           doAssert json_data.kind == JString
           let data_str = getStr(json_data)
           doAssert not data_str.contains(m.stringConcatenator)
           final_string = final_string & m.stringConcatenator  & data_str
       echo "final string: ", final_string 
-      c.add_string(row_idx = curr_row_idx, data = final_string)
+      c.add_string(row_idx = curr_row_idx, data = final_string) 
     else:
       doAssert 1 == 0, "Unexpected value of type: "  & $value.kind 
     
@@ -514,7 +533,7 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
   return result
 
  
-proc save(m:MetaIndex, path:string)=
+proc save*(m:MetaIndex, path:string)=
   # save somehow this to to 
   # but what should should i save..
   # we can get a sjon
@@ -532,7 +551,7 @@ proc save(m:MetaIndex, path:string)=
   f.write(write_data) 
   f.close()
 
-proc load(path:string):MetaIndex=
+proc load*(path:string):MetaIndex=
   # based on the path, we will load/generate a fresh MetaIndex.
   # how to load...
 
@@ -558,19 +577,32 @@ proc load(path:string):MetaIndex=
   var column_types:seq[colType]
   for k, column_json in json_schema:
     column_labels.add(k)
+
+
+    doAssert column_json.kind == JArray, "each column is supposed to be an array of type str/int/float/bool"
     # assuming one to one mapping.
-    if column_json.kind == Jstring:
+    if column_json[0].kind == Jstring:
       column_types.add(colString)
-    elif column_json.kind == JInt:
+    elif column_json[0].kind == JInt:
       column_types.add(colInt32)
-    elif column_json.kind == JFloat:
+    elif column_json[0].kind == JFloat:
       column_types.add(colFloat32)
-    elif column_json.kind == JBool:
+    elif column_json[0].kind == JBool:
       column_types.add(colBool)
     else:
       doAssert 1 == 0, "unexpected type: "  & $column_json.kind
   
-  result = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = column_types, rowPointer = rowPointer)
+  result = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = column_types)
+  
+  # populate row by row
+  for row_idx in 0..<rowPointer:
+    # populate column by column.
+    result.rowWriteStart()
+    for label in column_labels:
+      result.add(label, json_schema[label][rowIdx])  
+    result.rowWriteEnd()
+    
+  doAssert result.rowPointer == rowPointer , "expected: " & $result.rowPointer & " got: " & $rowPointer
   return result
 
 # how the example would look like.
@@ -599,22 +631,31 @@ when isMainModule:
   j2["details"] = %* {"age":35, "pi":3.1415}
 
 
-  var j3 = %* {"name":"nain", "age":30}
-  var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colString])
+  var j3 = %* {"names":"nain", "age":30}
+  var m = init(name = "test", column_labels = ["age", "names"], column_types = [colInt32, colString])
   
 
   # adding some data/rows.
   m.add_row(column_data = j3)
-  m.add_row(column_data = %* {"name":["anubafdasd","nain"], "age":21})
+  m.add_row(column_data = %* {"names":["anubafdasd","nain"], "age":21})
   echo m   # good enough for a preview !
 
   # then check if query is working
-  echo m.query_string(attribute = "name", query = "baf")
+  echo m.query_string(attribute = "names", query = "baf")
   echo m.query_int32(attribute = "age", query = 31)
 
   
   # collect some rows, 
-  echo m.collect_rows(indices = [Natural(1)])  
+  echo m.collect_rows(indices = [Natural(1)])
+
+  # save
+  m.save("./test_meta_save.json")
+
+  echo "written to disk !!"
+  var m2 = load("./test_meta_save.json")
+  echo "loaded from disk!!"
+
+  echo m2    
   # echo m.rowPointer
   # let c{.cursor.} = m.columns[0]
   # echo c.label
