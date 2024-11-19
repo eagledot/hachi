@@ -87,7 +87,7 @@ type
     
     # allocate enough memory for payload during metaIndex initialization!
     payload:pointer = nil  # packed array of int32/MyString/float32. (condition on the type field, we can know which) and using size to know the number of values/elements. 
-    immutable:bool = true  # can be set selectively for equivalent of a primarykey or foreign key !
+    immutable:bool = false  # can be set selectively for equivalent of a primarykey or foreign key !
     label:string
 
 proc toJson(c:Column, limit:Natural):JsonNode =
@@ -284,17 +284,20 @@ type
     stringConcatenator:string = "|"                 # we may support multiple strings for colString columns, by concatenating into a single string using this string/character.
     # actual order/column-id should not matter, as long as we provide correct mapping. (i.e key must match with column label)
     fields:Table[string, Natural]  # mapping from the column's label to the id in the columns. (want it to be same even after loading from disk!)
-    capacity:Natural          # max number of elements/data for each column. (have to set during initialization)
-    name:string               # a name for the meta index (just to identify easily, not required though !)
+    dbCapacity:Natural          # max number of elements/data for each column. (have to set during initialization)
+    dbName:string               # a name for the meta index (just to identify easily, not required though !)
     
     # append only, no deletion. (just invalidation may be)
     columns:seq[Column] = @[]      # sequence of columns, easier to add a new column if schema changes !
     
     # syncing/locking
-    rowPointer:Natural = 0           # points to the row index which would be appended/added next. 
+    dbRowPointer:Natural = 0           # points to the row index which would be appended/added next. 
     fieldsCache:seq[string]           # keeps temporary account of which fields/columns have been updated..so that we know all fields for a fresh row are there.
     rowWriteInProgress:bool = false   # indicates if a row writing in progress, in case we add data column by column, and not add whole row at once  
     # locks:seq[something]            # a lock for each of the column to provide concurrent reading/writing if independent columns are request by different clients!
+
+
+const reserved_literals = ["dbName", "dbCapacity", "dbRowPointer"]
 
 proc init*(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000, rowPointer:Natural = 0):MetaIndex=
   # initialize the metaIndex based on the labels/column-names.
@@ -311,6 +314,8 @@ proc init*(name:string, column_labels:varargs[string], column_types:varargs[colT
   for i in 0..<len(column_labels):
     let column_label = column_labels[i]
     let column_type = column_types[i]
+    doAssert not (column_label in reserved_literals), $column_label & "is reserved. Use a different label/identifier for column!"
+
     if column_type ==  colString:
         var column = Column(kind:colString, label:column_label)  
         column.payload = alloc0(capacity * sizeof(MyString))
@@ -334,9 +339,9 @@ proc init*(name:string, column_labels:varargs[string], column_types:varargs[colT
     doAssert result.fields.hasKey(column_label) == false, "Expected unique labels for columns! got: " & $column_label & " more than once! "
     result.fields[column_label] =  i   # save the mapping.
 
-  result.name = name
-  result.capacity = capacity
-  result.rowPointer = rowPointer
+  result.dbName = name
+  result.dbCapacity = capacity
+  result.dbRowPointer = rowPointer
   return result
 
 proc `[]`(m:MetaIndex, key:string):lent Column {.inline.} =
@@ -360,14 +365,14 @@ proc rowWriteEnd(m:var MetaIndex)=
   for c in m.columns:
     doAssert c.label in m.fieldsCache
 
-  m.rowPointer += 1      
+  m.dbRowPointer += 1      
   m.rowWriteInProgress = false
 
 proc add(m:var MetaIndex, column_label:string, data:JsonNode)=
   # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
   
   doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
-  let curr_row_idx = m.rowPointer
+  let curr_row_idx = m.dbRowPointer
 
   
   var column{.cursor.} = m[column_label] # here it would try to copy right temporarily !
@@ -414,7 +419,7 @@ proc add_row*(m:var MetaIndex, column_data:JsonNode)=
 
   # indicate rowWrite in progress..
   m.rowWriteStart()
-  let curr_row_idx = m.rowPointer
+  let curr_row_idx = m.dbRowPointer
 
   # fill the matching column fields with the JsonData. (making sure no extra or missing keys)
   doAssert column_data.fields.len == m.fields.len , "Making sure no extra keys!"
@@ -460,6 +465,47 @@ proc add_row*(m:var MetaIndex, column_data:JsonNode)=
   # following is also supposed to do sanity checks.
   m.rowWriteEnd()
 
+template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode)=
+  # only string and int data is allowed.. (TODO: how to keep it in sync with colData !)
+  if data_t.kind == JInt:
+    c_t.add_int32(row_idx = row_idx_t, getInt(data_t).int32)
+  elif data_t.kind == JString:
+    c_t.add_string(row_idx = row_idx_t, data = getStr(data_t))
+  elif data_t.kind == JFloat:
+    c_t.add_float32(row_idx = row_idx_t, data = getFloat(data_t).float32)
+  elif data_t.kind == JBool:
+    c_t.add_bool(row_idx = row_idx_t, data = getBool(data_t))
+  elif data_t.kind == JArray:
+    # we support array of string only at this point. (only one nesting level for strings.)
+    # to enable one to many modelling.
+    # but column is supposed to packed array of MyString type, so we create a single string from multiple strings.
+    # using | character !
+    
+    var final_string = ""
+    if len(data_t) > 0:
+      doAssert data_t[0].kind == JString , "expected an array of strings for got: " & $data_t[0].kind
+      final_string = getStr(data_t[0])
+      doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
+      
+      # we now split it conditioned on m.stringConcatenator
+      for json_data in data_t[1..<len(data_t)]:
+        doAssert json_data.kind == JString
+        let data_str = getStr(json_data)
+        doAssert not data_str.contains(m.stringConcatenator)
+        final_string = final_string & m.stringConcatenator  & data_str
+    echo "final string: ", final_string 
+    c.add_string(row_idx = row_idx, data = final_string) 
+  else:
+    doAssert 1 == 0, "Unexpected data of type: "  & $data_t.kind 
+
+
+proc modify_row(m:MetaIndex, row_idx:Natural, meta_data:JsonNode)=
+  # a subset of fields to be modified with new data for given row.
+  doAssert meta_data.kind == JObject
+  for key, column_data in meta_data:
+    var c{.cursor.} = m[key]
+    # doAssert c.immutable == false  # TODO
+    populateColumnImpl(c, row_idx, column_data)
 
 proc set_immutable()=
   # can set a  particular column to be immutable, but not vice-versa!
@@ -467,7 +513,7 @@ proc set_immutable()=
 
 proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
   result = JsonNode(kind:JObject)
-  let limit = min(m.rowPointer, count)
+  let limit = min(m.dbRowPointer, count)
   for c in m.columns:
     result[c.label] = c.toJson(limit = limit)
   return result
@@ -484,12 +530,12 @@ proc query_indices(m:MetaIndex, attribute:string):seq[Natural]=
 proc query_string*(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
   # return all the matching indices in a column referred to by the attribute/label.
   let c = m[attribute]  # get the column.
-  result = c.query_string(query = query, boundary = m.rowPointer, top_k = top_k) # query the column for matching candidates.
+  result = c.query_string(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
   return result
 
 proc query_int32*(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
   let c = m[attribute]
-  result = c.query_int32(query= query, boundary = m.rowPointer, top_k = top_k)
+  result = c.query_int32(query= query, boundary = m.dbRowPointer, top_k = top_k)
   return result
 
 
@@ -539,12 +585,12 @@ proc save*(m:MetaIndex, path:string)=
   # we can get a sjon
 
   # this contains all columns.. json data.
-  var json_schema = m.toJson(count = m.rowPointer)
+  var json_schema = m.toJson(count = m.dbRowPointer)
 
   # we populate all remaining fields too.. to enough to load later from persistent storage..
-  json_schema["rowPointer"] = JsonNode(kind:JInt, num:BiggestInt(m.rowPointer)) 
-  json_schema["name"] = JsonNode(kind:JString, str:m.name)
-  json_schema["capacity"] = JsonNode(kind:JInt, num:BiggestInt(m.capacity))
+  json_schema["dbRowPointer"] = JsonNode(kind:JInt, num:BiggestInt(m.dbRowPointer)) 
+  json_schema["dbName"] = JsonNode(kind:JString, str:m.dbName)
+  json_schema["dbCapacity"] = JsonNode(kind:JInt, num:BiggestInt(m.dbCapacity))
 
   let write_data = $json_schema
   var f = open(path, fmWrite)   # string are just bytes and written as such in Nim. encoding may make sense at read-time but json module handles that! 
@@ -562,14 +608,14 @@ proc load*(path:string):MetaIndex=
   assert json_schema.kind == JObject
   
   let
-    capacity = getInt(json_schema["capacity"]).Natural
-    name = getStr(json_schema["name"])
-    rowPointer = getInt(json_schema["rowPointer"]).Natural  
+    capacity = getInt(json_schema["dbCapacity"]).Natural
+    name = getStr(json_schema["dbName"])
+    rowPointer = getInt(json_schema["dbRowPointer"]).Natural  
 
   # delete/pop redundant keys..
-  json_schema.fields.del("capacity")
-  json_schema.fields.del("name")
-  json_schema.fields.del("rowPointer")
+  json_schema.fields.del("dbCapacity")
+  json_schema.fields.del("dbName")
+  json_schema.fields.del("dbRowPointer")
 
   # TODO: assuming one to one dependence with from json kind to colkind..
   # we predict the colKind.. later can be more verbose/rigid.
@@ -602,7 +648,7 @@ proc load*(path:string):MetaIndex=
       result.add(label, json_schema[label][rowIdx])  
     result.rowWriteEnd()
     
-  doAssert result.rowPointer == rowPointer , "expected: " & $result.rowPointer & " got: " & $rowPointer
+  doAssert result.dbRowPointer == rowPointer , "expected: " & $result.dbRowPointer & " got: " & $rowPointer
   return result
 
 # how the example would look like.
@@ -631,17 +677,17 @@ when isMainModule:
   j2["details"] = %* {"age":35, "pi":3.1415}
 
 
-  var j3 = %* {"names":"nain", "age":30}
-  var m = init(name = "test", column_labels = ["age", "names"], column_types = [colInt32, colString])
+  var j3 = %* {"name":"nain", "age":30}
+  var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colString])
   
 
   # adding some data/rows.
   m.add_row(column_data = j3)
-  m.add_row(column_data = %* {"names":["anubafdasd","nain"], "age":21})
+  m.add_row(column_data = %* {"name":["anubafdasd","nain"], "age":21})
   echo m   # good enough for a preview !
 
   # then check if query is working
-  echo m.query_string(attribute = "names", query = "baf")
+  echo m.query_string(attribute = "name", query = "baf")
   echo m.query_int32(attribute = "age", query = 31)
 
   
@@ -654,7 +700,6 @@ when isMainModule:
   echo "written to disk !!"
   var m2 = load("./test_meta_save.json")
   echo "loaded from disk!!"
-
   echo m2    
   # echo m.rowPointer
   # let c{.cursor.} = m.columns[0]
