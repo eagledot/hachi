@@ -296,7 +296,7 @@ type
     rowWriteInProgress:bool = false   # indicates if a row writing in progress, in case we add data column by column, and not add whole row at once  
     # locks:seq[something]            # a lock for each of the column to provide concurrent reading/writing if independent columns are request by different clients!
 
-proc init*(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000):MetaIndex=
+proc init*(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000, rowPointer:Natural = 0):MetaIndex=
   # initialize the metaIndex based on the labels/column-names.
   # column_types: corresponding type for data being stored in each column.
   # note of python, we would create a  mapping from string to colType.
@@ -336,6 +336,7 @@ proc init*(name:string, column_labels:varargs[string], column_types:varargs[colT
 
   result.name = name
   result.capacity = capacity
+  result.rowPointer = rowPointer
   return result
 
 proc `[]`(m:MetaIndex, key:string):lent Column {.inline.} =
@@ -502,10 +503,75 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
       elif c.kind == colInt32:
         let arr = cast[ptr UncheckedArray[int32]](c.payload)
         result.elems.add(JsonNode(kind:JInt, num:BiggestInt(arr[idx])))
+      elif c.kind == colFloat32:
+        let arr = cast[ptr UncheckedArray[float32]](c.payload)
+        result.elems.add(JsonNode(kind:JFloat, fnum:float(arr[idx])))
+      elif c.kind == colBool:
+        let arr = cast[ptr UncheckedArray[uint8]](c.payload)
+        result.elems.add(JsonNode(kind:JBool, bval:bool(arr[idx])))
       else:
         doAssert 1 == 0
   return result
 
+ 
+proc save(m:MetaIndex, path:string)=
+  # save somehow this to to 
+  # but what should should i save..
+  # we can get a sjon
+
+  # this contains all columns.. json data.
+  var json_schema = m.toJson(count = m.rowPointer)
+
+  # we populate all remaining fields too.. to enough to load later from persistent storage..
+  json_schema["rowPointer"] = JsonNode(kind:JInt, num:BiggestInt(m.rowPointer)) 
+  json_schema["name"] = JsonNode(kind:JString, str:m.name)
+  json_schema["capacity"] = JsonNode(kind:JInt, num:BiggestInt(m.capacity))
+
+  let write_data = $json_schema
+  var f = open(path, fmWrite)   # string are just bytes and written as such in Nim. encoding may make sense at read-time but json module handles that! 
+  f.write(write_data) 
+  f.close()
+
+proc load(path:string):MetaIndex=
+  # based on the path, we will load/generate a fresh MetaIndex.
+  # how to load...
+
+  let f = open(path, fmRead)
+  let raw_data = f.readAll()
+  f.close()
+  var json_schema = parseJson(raw_data)
+  assert json_schema.kind == JObject
+  
+  let
+    capacity = getInt(json_schema["capacity"]).Natural
+    name = getStr(json_schema["name"])
+    rowPointer = getInt(json_schema["rowPointer"]).Natural  
+
+  # delete/pop redundant keys..
+  json_schema.fields.del("capacity")
+  json_schema.fields.del("name")
+  json_schema.fields.del("rowPointer")
+
+  # TODO: assuming one to one dependence with from json kind to colkind..
+  # we predict the colKind.. later can be more verbose/rigid.
+  var column_labels:seq[string]
+  var column_types:seq[colType]
+  for k, column_json in json_schema:
+    column_labels.add(k)
+    # assuming one to one mapping.
+    if column_json.kind == Jstring:
+      column_types.add(colString)
+    elif column_json.kind == JInt:
+      column_types.add(colInt32)
+    elif column_json.kind == JFloat:
+      column_types.add(colFloat32)
+    elif column_json.kind == JBool:
+      column_types.add(colBool)
+    else:
+      doAssert 1 == 0, "unexpected type: "  & $column_json.kind
+  
+  result = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = column_types, rowPointer = rowPointer)
+  return result
 
 # how the example would look like.
 # init MetaIndex.
