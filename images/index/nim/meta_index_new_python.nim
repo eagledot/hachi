@@ -5,6 +5,8 @@
 # that is handled by MetaIndex nim, so python side always gets whats expected !
 # no float values for now..(can easily do so .. if all things work out)
 
+# NOTE: no concept of primary key, user can choose to assume one... and keep following that.
+# any key/column can be made immutable.. to prevent buggy writes !
 
 # extra filter/preprocessing should be done on python size based on the application needs.
 # MetaIndex provides necessary querying and population (put/append) routines. to easily update using Json/dict data from python side.
@@ -34,7 +36,15 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[strin
   m = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = nim_column_types)
   echo "i think done!"
   echo m
-  
+
+proc load(path:string){.exportpy.} =
+  # load directly from the json stored on the disk!
+  # can be used in-place of the init... if already saved.. write if else on the python side ... as needed!
+  m = ensureMove load(path)
+
+proc save(path:string){.exportpy.}=
+  # write the json encoding of the database to the disk.
+  m.save(path)
 
 # update
 proc put(data:string){.exportpy.}=
@@ -47,12 +57,12 @@ proc put(data:string){.exportpy.}=
 # query.
 proc query(query:string):string {.exportpy.} = 
   # query is supposed to be jsonEncoded string, with column names as keys.
-
-
-  # we can also return an object, whose each key is a column name and values are row indices.i
+  # returns:
+    # we return an array of row_indices, matched for given query. (in Json encoded form.) on python json.loads() should be enough !
+  
+  # we return a serialized object (json string), whose each key is a column name and values are row indices.
   # based on the indices... python can do some OR And like operations if needed.
   # later then use those indices to collect the rows easily..
-
 
   var result = JsonNode(kind:JObject)
   let query_params = parseJson(query)
@@ -77,8 +87,20 @@ proc query(query:string):string {.exportpy.} =
 proc collect_rows(indices:varargs[Natural]):string {.exportpy.}=
   # TODO: see if we can do this from python using a list of ints!!  
   result = $m.collect_rows(indices = indices)
-      
+
+# modify
+# what would modification look like?
+# idea is to be able to modify/overwrite a (mutable) column in case we collect fresh data.
+proc modify(indices:varargs[Natural], meta_data:string)=
+  ## Inputs:
+    # indices: are the (valid) row indices.. it on user to collect them by calling query routine.
+    # meta_data: new key/value pairs . where key is the column label and value would be new data to be updated..
   
+  # we would do some checks.. and i think then can do this.
+
+  # should be a call to modify_row here
+
+  discard
       
   
     
