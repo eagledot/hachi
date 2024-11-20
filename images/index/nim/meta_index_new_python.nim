@@ -16,9 +16,7 @@
 
 import std/json
 import nimpy
-
 import ./meta_index_new
-
 
 # init
 var m:MetaIndex  # update this..
@@ -48,11 +46,12 @@ proc save(path:string){.exportpy.}=
 
 # update
 proc put(data:string){.exportpy.}=
+  # can put/append a dict as a row into the database at once.
+  # NOTE: expects all the keys to be there.. provide a default value if needed , cannot be null/none.
   # data : JsonEncoded string/bytes.
-  let json_obj = parseJson(data)  # pass it to thei
-  echo "got json as: ", json_obj
-  m.add_row(json_obj)
-  echo m 
+
+  let json_obj = parseJson(data)
+  m.add_row(json_obj) # can sink the json_obj i think.. or compiler does this automatically...
 
 # query.
 proc query(query:string):string {.exportpy.} = 
@@ -73,6 +72,10 @@ proc query(query:string):string {.exportpy.} =
       indices = m.query_string(attribute = key, query = getStr(value))
     elif value.kind == JInt:
       indices = m.query_int32(attribute = key, query = getInt(value).int32)
+    elif value.kind == JFloat:
+      indices = m.query_float32(attribute = key, query = getFloat(value).float32)
+    elif value.kind == JBool:
+      indices = m.query_bool(attribute = key, query = getBool(value))    
     else:
       doAssert 1 == 0, "not expected type: " & $value.kind
 
@@ -82,7 +85,7 @@ proc query(query:string):string {.exportpy.} =
       temp.elems.add(JsonNode(kind:Jint, num:BiggestInt(ix)))
     result[key] = ensureMove temp
 
-  return $result  # is this good enough.. to convert a jsonNode to string!
+  return $result  # calling $ seems enough to generate string/serialized repr from a JsonNode!
 
 proc collect_rows(indices:varargs[Natural]):string {.exportpy.}=
   # TODO: see if we can do this from python using a list of ints!!  
@@ -91,16 +94,14 @@ proc collect_rows(indices:varargs[Natural]):string {.exportpy.}=
 # modify
 # what would modification look like?
 # idea is to be able to modify/overwrite a (mutable) column in case we collect fresh data.
-proc modify(indices:varargs[Natural], meta_data:string)=
+proc modify(row_idx:Natural, meta_data:string)=
   ## Inputs:
-    # indices: are the (valid) row indices.. it on user to collect them by calling query routine.
-    # meta_data: new key/value pairs . where key is the column label and value would be new data to be updated..
+    # row_idx, a valid row index, it on user to collect that/them by calling query routine.
+    # meta_data: new key/value pairs . where key is the column label and value would be new data to be updated.
   
-  # we would do some checks.. and i think then can do this.
+  let meta_data = parseJson(meta_data)
+  m.modify_row(row_idx = row_idx, meta_data = meta_data)
 
-  # should be a call to modify_row here
-
-  discard
       
   
     
