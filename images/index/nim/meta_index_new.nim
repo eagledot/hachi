@@ -40,7 +40,7 @@ proc `=copy`(a: var MyString, b:MyString) {.error.}
 
 proc `=destroy`(a:MyString)=
   # NOTE: if sink is not set to error, provide a destroy routine must.. as sink would call it..(for manual memory it is must)
-  echo "string is being destroyed!"
+  # echo "string is being destroyed!"
   if not isNil(a.payload):
     dealloc(a.payload)
   
@@ -160,7 +160,7 @@ proc add_bool(c:var Column, row_idx:Natural, data:bool)=
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
   
   assert not isNil(c.payload)
-  assert c.kind == colBool
+  assert c.kind == colBool, "got type: " & $c.kind
   var arr = cast[ptr UncheckedArray[uint8]](c.payload)
   arr[row_idx] = uint8(data)
 
@@ -399,7 +399,7 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, 
         let data_str = getStr(json_data)
         doAssert not data_str.contains(concatenator_t)
         final_string = final_string & concatenator_t  & data_str
-    echo "final string: ", final_string 
+    # echo "final string: ", final_string 
     c_t.add_string(row_idx = row_idx_t, data = final_string) 
   else:
     doAssert 1 == 0, "Unexpected data of type: "  & $data_t.kind 
@@ -442,7 +442,7 @@ proc add_row*(m:var MetaIndex, column_data:JsonNode)=
   # following is also supposed to do sanity checks.
   m.rowWriteEnd()
 
-proc modify_row(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
+proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
   # a subset of fields to be modified with new data for given row.
   doAssert meta_data.kind == JObject
   for key, column_data in meta_data:
@@ -467,9 +467,6 @@ proc `$`*(m:MetaIndex, count:Natural = 10):string=
 ###################################
 ## Querying #######################
 ######################################
-proc query_indices(m:MetaIndex, attribute:string):seq[Natural]=
-  discard
-
 proc query_string*(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
   # return all the matching indices in a column referred to by the attribute/label.
   let c = m[attribute]  # get the column.
@@ -479,6 +476,18 @@ proc query_string*(m:MetaIndex, attribute:string, query:string, top_k:Natural = 
 proc query_int32*(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
   let c = m[attribute]
   result = c.query_int32(query= query, boundary = m.dbRowPointer, top_k = top_k)
+  return result
+
+proc query_float32*(m:MetaIndex, attribute:string, query:float32, top_k:Natural = 100):seq[Natural]=
+  # return all the matching indices in a column referred to by the attribute/label.
+  let c = m[attribute]  # get the column.
+  result = c.query_float32(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
+  return result
+
+proc query_bool*(m:MetaIndex, attribute:string, query:bool, top_k:Natural = 100):seq[Natural]=
+  # return all the matching indices in a column referred to by the attribute/label.
+  let c = m[attribute]  # get the column.
+  result = c.query_bool(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
   return result
 
 
@@ -491,9 +500,10 @@ proc query_int32*(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 10
 # optionally can specify the labels to collect a subset of rows.
 
 proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
-  # somehow find the desired indices/rows and then pass these to this routine to return and array.
+  # somehow find the desired indices/rows and then pass these to this routine to return an array.
   result = JsonNode(kind:JArray)
   for idx in indices:
+    var result_temp = JsonNode(kind:JObject)
     for c in m.columns:
       if c.kind == colString:
         let arr = cast[ptr UncheckedArray[MyString]](c.payload)
@@ -505,20 +515,31 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
           let new_node = JsonNode(kind:JArray)
           for temp_str in data.split(m.stringConcatenator):
             new_node.elems.add(JsonNode(kind:JString, str:temp_str))
-          result.elems.add(new_node)
+          # result.elems.add(new_node)
+          result_temp[c.label] = new_node
         else:
-          result.elems.add(JsonNode(kind:JString, str: fromMyString(arr[idx])))
+          # result.elems.add(JsonNode(kind:JString, str: fromMyString(arr[idx])))
+          result_temp[c.label] = JsonNode(kind:JString, str: fromMyString(arr[idx]))
+
       elif c.kind == colInt32:
         let arr = cast[ptr UncheckedArray[int32]](c.payload)
-        result.elems.add(JsonNode(kind:JInt, num:BiggestInt(arr[idx])))
+        # result.elems.add(JsonNode(kind:JInt, num:BiggestInt(arr[idx])))
+        result_temp[c.label] = JsonNode(kind:JInt, num:BiggestInt(arr[idx]))
+
       elif c.kind == colFloat32:
         let arr = cast[ptr UncheckedArray[float32]](c.payload)
-        result.elems.add(JsonNode(kind:JFloat, fnum:float(arr[idx])))
+        # result.elems.add(JsonNode(kind:JFloat, fnum:float(arr[idx])))
+        result_temp[c.label] = JsonNode(kind:JFloat, fnum:float(arr[idx]))
+
       elif c.kind == colBool:
         let arr = cast[ptr UncheckedArray[uint8]](c.payload)
-        result.elems.add(JsonNode(kind:JBool, bval:bool(arr[idx])))
+        # result.elems.add(JsonNode(kind:JBool, bval:bool(arr[idx])))
+        result_temp[c.label] = JsonNode(kind:JBool, bval:bool(arr[idx]))
+
       else:
         doAssert 1 == 0
+    
+    result.elems.add(result_temp)
   return result
 
  

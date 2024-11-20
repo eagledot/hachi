@@ -16,7 +16,7 @@
 
 import std/json
 import nimpy
-import ./meta_index_new
+import meta_index_new
 
 # init
 var m:MetaIndex  # update this..
@@ -28,6 +28,10 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[strin
       nim_column_types.add(colString)
     elif py_type == "int32":
       nim_column_types.add(colInt32)
+    elif py_type == "float32":
+      nim_column_types.add(colFloat32)
+    elif py_type == "bool":
+      nim_column_types.add(colBool)
     else:
       doAssert 1 == 0, "only types accepted are int32 and string from python side, but got: " & $py_type
 
@@ -38,7 +42,7 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[strin
 proc load(path:string){.exportpy.} =
   # load directly from the json stored on the disk!
   # can be used in-place of the init... if already saved.. write if else on the python side ... as needed!
-  m = ensureMove load(path)
+  m = ensureMove meta_index_new.load(path)
 
 proc save(path:string){.exportpy.}=
   # write the json encoding of the database to the disk.
