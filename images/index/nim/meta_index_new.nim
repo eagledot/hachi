@@ -368,104 +368,10 @@ proc rowWriteEnd(m:var MetaIndex)=
   m.dbRowPointer += 1      
   m.rowWriteInProgress = false
 
-proc add(m:var MetaIndex, column_label:string, data:JsonNode)=
-  # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
-  
-  doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
-  let curr_row_idx = m.dbRowPointer
-
-  
-  var column{.cursor.} = m[column_label] # here it would try to copy right temporarily !
-  if data.kind == JInt:
-    column.add_int32(row_idx = curr_row_idx, getInt(data).int32)
-  elif data.kind == JString:
-    column.add_string(row_idx = curr_row_idx, getStr(data))
-  elif data.kind ==  JFloat:
-    column.add_float32(row_idx = curr_row_idx, getFloat(data).float32)
-  elif data.kind  == JBool:
-    column.add_bool(row_idx = curr_row_idx, getBool(data))
-  elif data.kind == JArray:
-    # only array of strings is allowed, to model one to many mappings.
-     
-    var final_string = ""
-    if len(data) > 0:
-      doAssert data[0].kind == JString , "expected an array of strings for got: " & $data[0].kind
-      final_string = getStr(data[0])
-      doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
-        
-      # we now split it conditioned on m.stringConcatenator
-      for json_data in data[1..<len(data)]:
-        doAssert json_data.kind == JString
-        let data_str = getStr(json_data)
-        doAssert not data_str.contains(m.stringConcatenator)
-        final_string = final_string & m.stringConcatenator  & data_str 
-    column.add_string(row_idx = curr_row_idx, data = final_string)
-  
-  else:
-    doAssert 1 == 0, "not expected, check your branching logic!"
-  
-  m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
-
-proc add_row*(m:var MetaIndex, column_data:JsonNode)=
-  # TODO: support the JArray for fields, in case we want to store multiple strings for a field.
-  # one to many modelling, (for string data atleast).
-  # we can use | as the separator, to concatenate multiple strings together..
-  # and later split to maintain the notion of muliple strings packed together!
-  # idk what is the best solution but trying to make it work.
-  
-  # to append  a fresh row in single go..i think there is only one way to do with if columns are heterogenous.
-  # resort to a serialized form, either custom or something like protobuf or Json.
-  # Json is easier to read and also machine parseable. (have implementations in every language!)
-
-  # indicate rowWrite in progress..
-  m.rowWriteStart()
-  let curr_row_idx = m.dbRowPointer
-
-  # fill the matching column fields with the JsonData. (making sure no extra or missing keys)
-  doAssert column_data.fields.len == m.fields.len , "Making sure no extra keys!"
-  for key, id in m.fields:
-    # NOTE: compiler is doing its job, it wants to copy the column, but we prevent copy..(to keep only single copy of payload pointer)
-    # so we call cursor to silent the compiler (not do destructor/copy hooks... )
-    var c{.cursor.} = m[key]  # get the corresponding column.
-    let value = column_data[key]   # it makes sure all expected keys are available, i.e not missing keys
-    # only string and int data is allowed.. (TODO: how to keep it in sync with colData !)
-    if value.kind == JInt:
-      c.add_int32(row_idx = curr_row_idx, data = getInt(value).int32)
-    elif value.kind == JString:
-      c.add_string(row_idx = curr_row_idx, data = getStr(value))
-    elif value.kind == JFloat:
-      c.add_float32(row_idx = curr_row_idx, data = getFloat(value).float32)
-    elif value.kind == JBool:
-      c.add_bool(row_idx = curr_row_idx, data = getBool(value))
-    elif value.kind == JArray:
-      # we support array of string only at this point. (only one nesting level for strings.)
-      # to enable one to many modelling.
-      # but column is supposed to packed array of MyString type, so we create a single string from multiple strings.
-      # using | character !
-      
-      var final_string = ""
-      if len(value) > 0:
-        doAssert value[0].kind == JString , "expected an array of strings for got: " & $value[0].kind
-        final_string = getStr(value[0])
-        doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
-        
-        # we now split it conditioned on m.stringConcatenator
-        for json_data in value[1..<len(value)]:
-          doAssert json_data.kind == JString
-          let data_str = getStr(json_data)
-          doAssert not data_str.contains(m.stringConcatenator)
-          final_string = final_string & m.stringConcatenator  & data_str
-      echo "final string: ", final_string 
-      c.add_string(row_idx = curr_row_idx, data = final_string) 
-    else:
-      doAssert 1 == 0, "Unexpected value of type: "  & $value.kind 
-    
-    m.fieldsCache.add(c.label)  # at the end, tallied to make sure all the fields have been updated for this row.
-
-  # following is also supposed to do sanity checks.
-  m.rowWriteEnd()
-
 template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode)=
+  # populate a  column, given data as JsonNode.
+  
+  # TODO: use this ...
   # only string and int data is allowed.. (TODO: how to keep it in sync with colData !)
   if data_t.kind == JInt:
     c_t.add_int32(row_idx = row_idx_t, getInt(data_t).int32)
@@ -494,9 +400,48 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode)=
         doAssert not data_str.contains(m.stringConcatenator)
         final_string = final_string & m.stringConcatenator  & data_str
     echo "final string: ", final_string 
-    c.add_string(row_idx = row_idx, data = final_string) 
+    c_t.add_string(row_idx = row_idx_t, data = final_string) 
   else:
     doAssert 1 == 0, "Unexpected data of type: "  & $data_t.kind 
+
+
+proc add(m:var MetaIndex, column_label:string, data:JsonNode)=
+  # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
+  
+  doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
+  let curr_row_idx = m.dbRowPointer
+  var column{.cursor.} = m[column_label] # here it would try to copy right temporarily !
+  populateColumnImpl(column, curr_row_idx, data)
+  m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
+
+proc add_row*(m:var MetaIndex, column_data:JsonNode)=
+  # TODO: support the JArray for fields, in case we want to store multiple strings for a field.
+  # one to many modelling, (for string data atleast).
+  # we can use | as the separator, to concatenate multiple strings together..
+  # and later split to maintain the notion of muliple strings packed together!
+  # idk what is the best solution but trying to make it work.
+  
+  # to append  a fresh row in single go..i think there is only one way to do with if columns are heterogenous.
+  # resort to a serialized form, either custom or something like protobuf or Json.
+  # Json is easier to read and also machine parseable. (have implementations in every language!)
+
+  # indicate rowWrite in progress..
+  m.rowWriteStart()
+  let curr_row_idx = m.dbRowPointer
+
+  # fill the matching column fields with the JsonData. (making sure no extra or missing keys)
+  doAssert column_data.fields.len == m.fields.len , "Making sure no extra keys!"
+  for key, id in m.fields:
+    # NOTE: compiler is doing its job, it wants to copy the column, but we prevent copy..(to keep only single copy of payload pointer)
+    # so we call cursor to silent the compiler (not do destructor/copy hooks... )
+    var c{.cursor.} = m[key]  # get the corresponding column.
+    let value = column_data[key]   # it makes sure all expected keys are available, i.e not missing keys
+    populateColumnImpl(c, curr_row_idx, value)
+    m.fieldsCache.add(c.label)  # at the end, tallied to make sure all the fields have been updated for this row.
+
+  # following is also supposed to do sanity checks.
+  m.rowWriteEnd()
+
 
 
 proc modify_row(m:MetaIndex, row_idx:Natural, meta_data:JsonNode)=
@@ -626,7 +571,7 @@ proc load*(path:string):MetaIndex=
 
 
     doAssert column_json.kind == JArray, "each column is supposed to be an array of type str/int/float/bool"
-    # assuming one to one mapping.
+    # assuming one to one mapping. (i think can have a hook, for easy to and fro conversion b/w json and column kind, later.. after some reading!)
     if column_json[0].kind == Jstring:
       column_types.add(colString)
     elif column_json[0].kind == JInt:
