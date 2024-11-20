@@ -418,10 +418,33 @@ class MetaIndex(object):
 
     # TODO: name it append/put
     def update(self, data_hash:str, meta_data:dict):
-        # TODO: can initialized the backend when first time updated.
         with self.lock:
             if self.backend_is_initialized == False:
-                self.backend.init()  # todo: somehow.
+                # lazy initialization on first time update...
+                column_types = []
+                column_labels = []
+                for k,v in meta_data:
+                    assert isinstance(k, str)
+                    column_labels.append(k)
+                    if isinstance(v, str):
+                        column_types.append("string")
+                    elif isinstance(v, int):
+                        column_types.append("int32")
+                    elif isinstance(v, float):
+                        column_types.append("float32")
+                    elif isinstance(v, bool):
+                        column_types.append("bool")
+                    elif v is None:
+                        column_types.append("none")
+                    else:
+                        assert 1 == 0, "not expected type: {}".format(type(v))
+                
+                self.backend.init(
+                    name = self.name,
+                    column_labels = column_labels,
+                    column_types = column_types,
+                    capacity = self.capacity,
+                )
                 self.backend_is_initialized = True
             
             assert data_hash is not None
