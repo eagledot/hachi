@@ -368,11 +368,11 @@ proc rowWriteEnd(m:var MetaIndex)=
   m.dbRowPointer += 1      
   m.rowWriteInProgress = false
 
-template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode)=
+template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, concatenator_t:string)=
   # populate a  column, given data as JsonNode.
-  
-  # TODO: use this ...
-  # only string and int data is allowed.. (TODO: how to keep it in sync with colData !)
+  # NOTE: also supports flattened array of strings. Concatenated  into a single string using a separator like | and splitted into (original) strings, when collecting .
+  # multiple strings allowed helps in one to many modelling situations like say multiple artists for a song (where song is a document/resource). 
+
   if data_t.kind == JInt:
     c_t.add_int32(row_idx = row_idx_t, getInt(data_t).int32)
   elif data_t.kind == JString:
@@ -391,14 +391,14 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode)=
     if len(data_t) > 0:
       doAssert data_t[0].kind == JString , "expected an array of strings for got: " & $data_t[0].kind
       final_string = getStr(data_t[0])
-      doAssert not final_string.contains(m.stringConcatenator), m.stringConcatenator & " is reserved, we will add an option to ignor this..."  & final_string
+      doAssert not final_string.contains(concatenator_t), concatenator_t & " is reserved, we will add an option to ignor this..."  & final_string
       
-      # we now split it conditioned on m.stringConcatenator
+      # we now split it conditioned on string Concatenator
       for json_data in data_t[1..<len(data_t)]:
         doAssert json_data.kind == JString
         let data_str = getStr(json_data)
-        doAssert not data_str.contains(m.stringConcatenator)
-        final_string = final_string & m.stringConcatenator  & data_str
+        doAssert not data_str.contains(concatenator_t)
+        final_string = final_string & concatenator_t  & data_str
     echo "final string: ", final_string 
     c_t.add_string(row_idx = row_idx_t, data = final_string) 
   else:
@@ -411,7 +411,7 @@ proc add(m:var MetaIndex, column_label:string, data:JsonNode)=
   doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
   let curr_row_idx = m.dbRowPointer
   var column{.cursor.} = m[column_label] # here it would try to copy right temporarily !
-  populateColumnImpl(column, curr_row_idx, data)
+  populateColumnImpl(column, curr_row_idx, data, m.stringConcatenator)
   m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
 
 proc add_row*(m:var MetaIndex, column_data:JsonNode)=
@@ -436,21 +436,19 @@ proc add_row*(m:var MetaIndex, column_data:JsonNode)=
     # so we call cursor to silent the compiler (not do destructor/copy hooks... )
     var c{.cursor.} = m[key]  # get the corresponding column.
     let value = column_data[key]   # it makes sure all expected keys are available, i.e not missing keys
-    populateColumnImpl(c, curr_row_idx, value)
+    populateColumnImpl(c, curr_row_idx, value, m.stringConcatenator)
     m.fieldsCache.add(c.label)  # at the end, tallied to make sure all the fields have been updated for this row.
 
   # following is also supposed to do sanity checks.
   m.rowWriteEnd()
 
-
-
-proc modify_row(m:MetaIndex, row_idx:Natural, meta_data:JsonNode)=
+proc modify_row(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
   # a subset of fields to be modified with new data for given row.
   doAssert meta_data.kind == JObject
   for key, column_data in meta_data:
     var c{.cursor.} = m[key]
     # doAssert c.immutable == false  # TODO
-    populateColumnImpl(c, row_idx, column_data)
+    populateColumnImpl(c, row_idx, column_data, m.stringConcatenator)
 
 proc set_immutable()=
   # can set a  particular column to be immutable, but not vice-versa!
