@@ -217,19 +217,6 @@ class MetaIndex(object):
         # resources:
         self.lock = RLock()
 
-    # def __init__(self, index_directory:str = META_DATA_INDEX_DIRECTORY) -> None:
-    #     self.index_directory = os.path.abspath(index_directory)
-    #     if not os.path.exists(self.index_directory):
-    #         os.mkdir(self.index_directory)        
-
-    #     self.fuzzy_search_attributes = ["person", "place", "filename", "resource_directory"]  # TODO: add more fuzzy search attributes, must be a subset of fields from self._meta_data_template.
-
-    #     # resources.
-    #     if not hasattr(self, "lock"):        # would not want to recursively override an existing lock.
-    #         self.lock = RLock()
-    #     self.hash_2_metaData = self.load()   # for each data_hash, corresponding dict of meta-data.
-    #     self.fuzzy_search = self.load_fuzzy_search()                 #a collection  of fuzzyIndices.
-
     def _meta_data_template(self, resource_type:str)-> Dict[str, Any]:
         temp = {}
         assert resource_type in appConfig["allowed_resources"]
@@ -265,28 +252,6 @@ class MetaIndex(object):
 
         return temp
 
-    def update_fuzzy_search(self, data_hashes: Union[Iterable[str], str]) -> Dict:
-    
-        assert hasattr(self, "fuzzy_search")
-        if isinstance(data_hashes, str):
-            data_hashes = [data_hashes]
-        with self.lock:
-            
-            temp = self.fuzzy_search
-            for data_hash in data_hashes:
-                hash_2_metaData = self.query(data_hashes = data_hash)
-                for attribute in self.fuzzy_search_attributes:
-                    assert attribute in temp
-                    
-                    data = hash_2_metaData[data_hash][attribute]
-                    if data is not None:
-                        if isinstance(data, str):
-                            temp[attribute].add(data, auxiliaryData = data_hash)
-                        else:
-                            # since using for loop, and a set, allows "many to many" modelling.
-                            for d in data:
-                                temp[attribute].add(d, auxiliaryData = data_hash)
-    
     def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> Dict[str, Dict]:
         """Routine to extract valid metaData for image resource type.
 
@@ -331,66 +296,66 @@ class MetaIndex(object):
         return result
 
     
-    def get_original_data(self, attribute:str) -> Optional[Iterable[str]]:
-        # TODO: do away with this..
+    # def get_original_data(self, attribute:str) -> Optional[Iterable[str]]:
+    #     # TODO: do away with this..
         
-        result = None
-        with self.lock:
-            if attribute in self.fuzzy_search_attributes:
-                temp_index = self.fuzzy_search[attribute]
-                result = temp_index.get_original_data()
-        return result
+    #     result = None
+    #     with self.lock:
+    #         if attribute in self.fuzzy_search_attributes:
+    #             temp_index = self.fuzzy_search[attribute]
+    #             result = temp_index.get_original_data()
+    #     return result
 
-    def get_fuzzy_data(self, attribute:str, attribute_value:str) -> Optional[Iterable[str]]:
-
-        result = None
-        with self.lock:
-            if attribute in self.fuzzy_search_attributes:
-                temp_index = self.fuzzy_search[attribute]
-                result = temp_index.get_auxiliary_data(attribute_value)
-        return result
-
-    def suggest(self, fuzzy_attribute:str, fuzzy_query:str):
-        """ Supposed to provide suggestion for a given fuzzy attribute"""
+    def suggest(self, attribute:str, query:str):
+        """for now we just search substrings in the string, which a column of colString does by default!
+        later when fuzzy search is embedded, then can use that!
+        
+        """
         result = []
-        if fuzzy_attribute in self.fuzzy_search_attributes:
-            temp_index = self.fuzzy_search[fuzzy_attribute]
-            temp_result = temp_index.query(fuzzy_query)
-            result = list(temp_result)
-        return result
-
-    def _apply_filter(self, attribute:str, value:str) -> Dict[str, Dict]:
-        # TODO: discard it ...
-
-        result = {}
+        
         with self.lock:
-            assert isinstance(attribute, str) and isinstance(value, str)
-            temp_hashes = self.get_fuzzy_data(attribute, value)
-            if temp_hashes is not None:
-                for temp_hash in temp_hashes:
-                    result[temp_hash] = copy.deepcopy(self.hash_2_metaData[temp_hash])
-        return result    
+            # prepare query
+            query_json = json.dumps({attribute:query})
+            row_indices = json.loads(mBackend.query(query_json))[attribute] # get the rows, for which column/attribute has query as substring in it.
+
+            # collect rows
+            rows = json.loads(mBackend.collect_rows(row_indices))
+
+        # collect desired attribute aka suggestions.
+        for r in rows:
+            result.append(r[attribute])
+        return result
 
     def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
-
         NOTE: current meta-index treat data_hash as just another field.. so i func signature can be simplified.. TODO
-
         """
         # we want to return the rows/meta-data associated with data_hashes or from a specific column/attribute matching.
         # for example user may search for "place"[attribute]  for value "norway", 
         # then first collect the rows matching this pair.
+
+        # flow:  querying for now is allowed for one attribute/value pair.. (on python side we can do a for loop for data_hashes!)
+        # we find first the relevant row_indices for an attribute/value pair. since data_hash/resource_hash is just another column.
+        # in case of data_hash, we collect row_index for each such data_hash.
+        # once we row_indices, we can collect corresponding rows.
+
         if data_hashes is None:
             # create the query
             query = {attribute:attribute_value}
-            attr_2_rowIndices = self.backend.query(json.dumps(query)) # get corresponding row_indices.
+            result_json = mBackend.query(json.dumps(query)) # get corresponding row_indices.
             # get the meta-data/rows
+            attr_2_rowIndices = json.loads(result_json)
+            del result_json
+
             assert len(attr_2_rowIndices) == 1 , "expected only a single key: {}".format(attribute)
             row_indices = attr_2_rowIndices[attribute]
-            meta_array = json.loads(self.backend.collect_rows(attr_2_rowIndices[attribute]))
+
+            print(len(row_indices))
+            meta_array = json.loads(mBackend.collect_rows(attr_2_rowIndices[attribute]))
             result = {}
             for meta in meta_array:
                 result[meta["resource_hash"]] = meta
+            del meta_array
             return result
 
         else:
@@ -402,17 +367,20 @@ class MetaIndex(object):
                 # collect all possible row indices.
                 attribute = "resource_hash"
                 query = {attribute:data_hash}
-                attr_2_rowIndices = self.backend.query(json.dumps(query))
+                result_json = mBackend.query(json.dumps(query))
+                attr_2_rowIndices = json.loads(result_json)
+                del result_json
                 row_indices = row_indices + attr_2_rowIndices[attribute]
             
             # get the meta-data/rows
-            meta_array = json.loads(self.backend.collect_rows(row_indices))
+            meta_array = json.loads(mBackend.collect_rows(row_indices))
 
             result = {}  # hash to metaData as have been doing in initial version!
             for meta in meta_array:
                 result[meta["resource_hash"]] = meta
+            return result
 
-    # TODO: name it append/put
+    # TODO: name it append/put instead of update!
     def append(self, data_hash:str, meta_data:dict):
         assert data_hash is not None
 
@@ -449,8 +417,8 @@ class MetaIndex(object):
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
 
-                print(column_labels)
-                print(column_types)
+                # print(column_labels)
+                # print(column_types)
                     
                 mBackend.init(
                     name = self.name,
@@ -519,17 +487,26 @@ if __name__ == "__main__":
     
     print("done..")
 
-    count = 0
-    for data_hash, meta_data in stored_meta_data.items():
+    # it seems to work.. 
+    # count = 0
+    # for data_hash, meta_data in stored_meta_data.items():
+    #     test.append(data_hash, meta_data)
+    #     if count == 0:
+    #         print(data_hash)
+    #     count += 1
+    #     if count % 100 == 0:
+    #         print(count)
+    # test.save() # this also...
 
-        test.append(data_hash, meta_data)
+    # then query.. ?
+    result = test.query(data_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
+    print(result)
+    result = test.query(attribute = "filename", attribute_value = "insta_0")
+    for hash, meta in result.items():
+        print(meta["resource_hash"])
+        print(meta["absolute_path"])
 
-        count += 1
-        if count % 100 == 0:
-            print(count)
-    test.save()
     
-
     # Testing, there seemed a bug, where single "no_person_detected" was returned, instead of a list!
     # may be parsing bug on browser side or server side.. couldn't ascertain, couldn't reproduce!
     # just in case.. documenting here!
