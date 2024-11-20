@@ -24,6 +24,9 @@ from fuzzy_search import FuzzySearch
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
 from reverse_geocode import GeocodeIndex
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "./nim"))
+import meta_index_new_python as mBackend
+
 import get_image_size
 
 ALLOWED_RESOURCES = {       
@@ -187,7 +190,6 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]
 META_DATA_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./meta_indices")
 META_INDEX_FILE = os.path.join(META_DATA_INDEX_DIRECTORY, "meta_data.json")
 
-import meta_index_new_python as mBackend 
 class MetaIndex(object):
     # yeah try to work through newer backend for meta index.
     def __init__(self, name:str = "metaIndexV2", capacity:int = 50_000, index_directory:str = META_DATA_INDEX_DIRECTORY) -> None:
@@ -211,28 +213,22 @@ class MetaIndex(object):
         else:
             # lazy when first time update/put is called. we can have the column_labels and column_types available then..
             pass
-            # mBackend.init(name = "fdaf", capacity = 1_000) # TODO: correct arguments.
 
         # resources:
         self.lock = RLock()
 
-        # NOTE: for now self.hash_2_metaData..
-        # figure it out.. should be store resource hashes.
-        # we can make/assume resource hash as primary key or something..
-        # no fuzzy search for now... at a later stage would be embedded into the backend.
+    # def __init__(self, index_directory:str = META_DATA_INDEX_DIRECTORY) -> None:
+    #     self.index_directory = os.path.abspath(index_directory)
+    #     if not os.path.exists(self.index_directory):
+    #         os.mkdir(self.index_directory)        
 
-    def __init__(self, index_directory:str = META_DATA_INDEX_DIRECTORY) -> None:
-        self.index_directory = os.path.abspath(index_directory)
-        if not os.path.exists(self.index_directory):
-            os.mkdir(self.index_directory)        
+    #     self.fuzzy_search_attributes = ["person", "place", "filename", "resource_directory"]  # TODO: add more fuzzy search attributes, must be a subset of fields from self._meta_data_template.
 
-        self.fuzzy_search_attributes = ["person", "place", "filename", "resource_directory"]  # TODO: add more fuzzy search attributes, must be a subset of fields from self._meta_data_template.
-
-        # resources.
-        if not hasattr(self, "lock"):        # would not want to recursively override an existing lock.
-            self.lock = RLock()
-        self.hash_2_metaData = self.load()   # for each data_hash, corresponding dict of meta-data.
-        self.fuzzy_search = self.load_fuzzy_search()                 #a collection  of fuzzyIndices.
+    #     # resources.
+    #     if not hasattr(self, "lock"):        # would not want to recursively override an existing lock.
+    #         self.lock = RLock()
+    #     self.hash_2_metaData = self.load()   # for each data_hash, corresponding dict of meta-data.
+    #     self.fuzzy_search = self.load_fuzzy_search()                 #a collection  of fuzzyIndices.
 
     def _meta_data_template(self, resource_type:str)-> Dict[str, Any]:
         temp = {}
@@ -389,7 +385,7 @@ class MetaIndex(object):
             query = {attribute:attribute_value}
             attr_2_rowIndices = self.backend.query(json.dumps(query)) # get corresponding row_indices.
             # get the meta-data/rows
-            assert len(attr_2_rowIndices) == 1 , "expected only a single key: {}".format()
+            assert len(attr_2_rowIndices) == 1 , "expected only a single key: {}".format(attribute)
             row_indices = attr_2_rowIndices[attribute]
             meta_array = json.loads(self.backend.collect_rows(attr_2_rowIndices[attribute]))
             result = {}
@@ -417,29 +413,46 @@ class MetaIndex(object):
                 result[meta["resource_hash"]] = meta
 
     # TODO: name it append/put
-    def update(self, data_hash:str, meta_data:dict):
+    def append(self, data_hash:str, meta_data:dict):
+        assert data_hash is not None
+
         with self.lock:
+            assert ("resource_hash" in meta_data) == False, meta_data["resource_hash"]
+            meta_data["resource_hash"] = data_hash # we save resource_hash just as another field.
+            
+            # handle None..
+            for k,v in meta_data.items():
+                if v is None:
+                    # TODO: warning converting None to string type, as we donot allow null values in backend for now.
+                    meta_data[k] = "unknown"
+            
             if self.backend_is_initialized == False:
                 # lazy initialization on first time update...
                 column_types = []
                 column_labels = []
-                for k,v in meta_data:
+                for k,v in meta_data.items():
                     assert isinstance(k, str)
                     column_labels.append(k)
+                    
                     if isinstance(v, str):
                         column_types.append("string")
+                    elif isinstance(v, bool):  # order matters.. otherwise int can be matched!
+                        column_types.append("bool")
                     elif isinstance(v, int):
                         column_types.append("int32")
                     elif isinstance(v, float):
                         column_types.append("float32")
-                    elif isinstance(v, bool):
-                        column_types.append("bool")
-                    elif v is None:
-                        column_types.append("none")
+                    elif isinstance(v, Iterable):
+                        for elem in v:
+                            assert isinstance(elem, str), "only an iterable of strings is allowed currently"
+                        column_types.append("string")
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
-                
-                self.backend.init(
+
+                print(column_labels)
+                print(column_types)
+                    
+                mBackend.init(
                     name = self.name,
                     column_labels = column_labels,
                     column_types = column_types,
@@ -447,9 +460,9 @@ class MetaIndex(object):
                 )
                 self.backend_is_initialized = True
             
-            assert data_hash is not None
-            json_meta = json.dumps(meta_data)
-            self.backend.put(json_meta)
+            # TODO: set resource_hash column to be immutable (kind of primary key..)
+            json_meta = json.dumps(meta_data) # serialize !
+            mBackend.put(json_meta)
             del json_meta
     
     def modify_meta_data(self, data_hash:str, meta_data:Dict):
@@ -466,7 +479,7 @@ class MetaIndex(object):
     def save(self):
         with self.lock:
             # if no resource on python side just calling save on backend is enough i guess!
-            self.backend.save(self.meta_index_path)
+            mBackend.save(self.meta_index_path)
     
     def reset(self):
         # just (re)setting, rowPointer should be enough on backend
@@ -498,9 +511,28 @@ class MetaIndex(object):
 
 
 if __name__ == "__main__":
+    import pickle
+
+    test = MetaIndex()
+    with open("./meta_indices/meta_data.pkl", "rb") as f:
+        stored_meta_data = pickle.load(f)
+    
+    print("done..")
+
+    count = 0
+    for data_hash, meta_data in stored_meta_data.items():
+
+        test.append(data_hash, meta_data)
+
+        count += 1
+        if count % 100 == 0:
+            print(count)
+    test.save()
+    
+
     # Testing, there seemed a bug, where single "no_person_detected" was returned, instead of a list!
     # may be parsing bug on browser side or server side.. couldn't ascertain, couldn't reproduce!
     # just in case.. documenting here!
-    test = MetaIndex()
-    print(test.hash_2_metaData["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"])
-    print(test.query(data_hashes=["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"]))
+    # test = MetaIndex()
+    # print(test.hash_2_metaData["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"])
+    # print(test.query(data_hashes=["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"]))
