@@ -83,12 +83,12 @@ type
     # i.e we may not want to lock the the whole metaIndex when writing to a single column is done right! 
     # but have to figure out a lot of things/theory.. just here to remind me!
     # not writing a production database or something.. but yeah can choose to experiments like keeping a big column on disk on-demand and stuff like that!
-    kind:colType
+    kind*:colType
     
     # allocate enough memory for payload during metaIndex initialization!
     payload:pointer = nil  # packed array of int32/MyString/float32. (condition on the type field, we can know which) and using size to know the number of values/elements. 
     immutable:bool = false  # can be set selectively for equivalent of a primarykey or foreign key !
-    label:string
+    label*:string
 
 proc toJson(c:Column, limit:Natural):JsonNode =
   # JArray
@@ -205,7 +205,7 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100)
     # there is a function contains for matching substring and strings.
     # have to convert mystring to Nim string, (to use standara library routines, as no way to temporary convert myString to string with no-cost!)
     let data = fromMyString(arr[i])   # TODO: EXTRA copy here from mystring to string ,(Which i want to avoid, and directly find substring in myString later on!)
-    echo "checking data: ", data
+    # echo "checking data: ", data
     
     if data.contains(query):
       echo "yes"
@@ -288,7 +288,7 @@ type
     dbName:string               # a name for the meta index (just to identify easily, not required though !)
     
     # append only, no deletion. (just invalidation may be)
-    columns:seq[Column] = @[]      # sequence of columns, easier to add a new column if schema changes !
+    columns*:seq[Column] = @[]      # sequence of columns, easier to add a new column if schema changes !
     
     # syncing/locking
     dbRowPointer:Natural = 0           # points to the row index which would be appended/added next. 
