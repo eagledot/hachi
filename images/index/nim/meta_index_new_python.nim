@@ -15,26 +15,21 @@
 
 
 import std/json
+import std/tables
 import nimpy
 import meta_index_new
 
 # init
+let
+  pytype_2_coltype = newTable({"string":colString, "int32":colInt32, "float32":colFloat32, "bool":colBool})
+
 var m:MetaIndex  # update this..
 proc init(name:string, column_labels:varargs[string], column_types:varargs[string], capacity:Natural = 1_000){.exportpy.}=
   # initialize the metaIndex.
   var nim_column_types:seq[colType]
   for py_type in column_types:
-    if py_type == "string":
-      nim_column_types.add(colString)
-    elif py_type == "int32":
-      nim_column_types.add(colInt32)
-    elif py_type == "float32":
-      nim_column_types.add(colFloat32)
-    elif py_type == "bool":
-      nim_column_types.add(colBool)
-    else:
-      doAssert 1 == 0, "only types accepted are int32 and string from python side, but got: " & $py_type
-
+    nim_column_types.add(pytype_2_coltype[py_type])
+  
   m = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = nim_column_types)
   echo "i think done!"
   echo m
@@ -98,7 +93,7 @@ proc collect_rows(indices:varargs[Natural]):string {.exportpy.}=
 # modify
 # what would modification look like?
 # idea is to be able to modify/overwrite a (mutable) column in case we collect fresh data.
-proc modify(row_idx:Natural, meta_data:string)=
+proc modify(row_idx:Natural, meta_data:string){.exportpy.}=
   ## Inputs:
     # row_idx, a valid row index, it on user to collect that/them by calling query routine.
     # meta_data: new key/value pairs . where key is the column label and value would be new data to be updated.
@@ -106,6 +101,28 @@ proc modify(row_idx:Natural, meta_data:string)=
   let meta_data = parseJson(meta_data)
   m.modify_row(row_idx = row_idx, meta_data = meta_data)
 
-      
-  
+##############
+# meta-information about database itself.
+#####
+proc get_column_labels():string {.exportpy.}=
+  var labels = JsonNode(kind:JArray)
+  for c in m.columns:
+    labels.add(JsonNode(kind:JString, str:c.label))
+  return $labels
+
+proc get_column_types():string {.exportpy.}=
+  var py_types = JsonNode(kind:JArray)
+  for c in m.columns:
+    let temp = c.kind
+    for key, value in pytype_2_coltype:
+      if value == temp:
+        py_types.add(JsonNode(kind:JString, str:key))
+        break
+  return $py_types
+
+
+proc get_unique_count(attribute:string):Natural {.exportpy.}=
+  # returns the unique count for elements in a column. for quick stats calculation..
+  discard
+
     
