@@ -197,6 +197,8 @@ class MetaIndex(object):
         self.backend_is_initialized = False
         self.capacity = capacity
         self.name = name
+        self.column_labels = []
+        self.column_types = []
         
         # initialize the index directory .
         self.index_directory = os.path.abspath(index_directory)
@@ -209,6 +211,8 @@ class MetaIndex(object):
         # initialize the nim backend.
         if os.path.exists(self.meta_index_path):
             mBackend.load(self.meta_index_path)
+            self.column_labels = json.loads(mBackend.get_column_labels())
+            self.column_types = json.loads(mBackend.get_column_types())
             self.backend_is_initialized = True
         else:
             # lazy when first time update/put is called. we can have the column_labels and column_types available then..
@@ -309,6 +313,9 @@ class MetaIndex(object):
     def suggest(self, attribute:str, query:str):
         """for now we just search substrings in the string, which a column of colString does by default!
         later when fuzzy search is embedded, then can use that!
+
+        returns an array of strings/suggestions.
+        TODO: may use this only for string types!
         
         """
         result = []
@@ -381,7 +388,7 @@ class MetaIndex(object):
             return result
 
     # TODO: name it append/put instead of update!
-    def append(self, data_hash:str, meta_data:dict):
+    def update(self, data_hash:str, meta_data:dict):
         assert data_hash is not None
 
         with self.lock:
@@ -396,24 +403,24 @@ class MetaIndex(object):
             
             if self.backend_is_initialized == False:
                 # lazy initialization on first time update...
-                column_types = []
-                column_labels = []
+                assert self.column_types == []
+                assert self.column_labels == []
                 for k,v in meta_data.items():
                     assert isinstance(k, str)
-                    column_labels.append(k)
+                    self.column_labels.append(k)
                     
                     if isinstance(v, str):
-                        column_types.append("string")
+                        self.column_types.append("string")
                     elif isinstance(v, bool):  # order matters.. otherwise int can be matched!
-                        column_types.append("bool")
+                        self.column_types.append("bool")
                     elif isinstance(v, int):
-                        column_types.append("int32")
+                        self.column_types.append("int32")
                     elif isinstance(v, float):
-                        column_types.append("float32")
+                        self.column_types.append("float32")
                     elif isinstance(v, Iterable):
                         for elem in v:
                             assert isinstance(elem, str), "only an iterable of strings is allowed currently"
-                        column_types.append("string")
+                        self.column_types.append("string")
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
 
@@ -422,8 +429,8 @@ class MetaIndex(object):
                     
                 mBackend.init(
                     name = self.name,
-                    column_labels = column_labels,
-                    column_types = column_types,
+                    column_labels = self.column_labels,
+                    column_types = self.column_types,
                     capacity = self.capacity,
                 )
                 self.backend_is_initialized = True
@@ -438,11 +445,13 @@ class MetaIndex(object):
             # create a query. using this first we get the desired row_indices.
             # TODO: it can be speed up storing a mapping from resource_hash to row but extra work. (but donot want to create new resources either ! first benchmark this !)
             query = json.dumps({"resource_hash":data_hash})  
-            row_indices = self.backend.query(query) # first get the desired row_index that we need to update.
-            assert len(row_indices) == 1, "expected only 1 but got: {} for {}".format(row_indices, data_hash)
+            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
+            assert len(attr_2_rowIndices) == 1, "expected only 1 but got: {} for {}".format(attr_2_rowIndices, data_hash)
 
             # update it.
-            self.backend.modify(row_indices[0], json.dumps(meta_data))
+            print(attr_2_rowIndices)
+            row_indices = attr_2_rowIndices["resource_hash"]
+            mBackend.modify(row_indices[0], json.dumps(meta_data))
     
     def save(self):
         with self.lock:
@@ -454,29 +463,29 @@ class MetaIndex(object):
         pass        
 
     def get_stats(self):
-        """Some stats about the amount and type of data indexed, add more information in the future if needed."""
+        """Some stats about the amount and type of data indexed, add more information in the future if needed.
+        NOTE: for now just using the dummy value until port it to newer version!
+        
+        """
         result = {}
         for k in appConfig["allowed_resources"]:
             result[k] = {"count":0}  # add more fields in the future if needed.
-            result["available_resource_attributes"] = copy.deepcopy(self.fuzzy_search_attributes)
+            result["available_resource_attributes"] = ["person", "place", "filename", "resource_directory"]
+
 
         with self.lock:
             # update the count for each of the resource type.
-            for meta_data in self.hash_2_metaData.values():
-                if(meta_data["is_indexed"] == True):                           # if in this dict, is_indexed is supposed to be true ??
-                    result[meta_data["resource_type"]]["count"] += 1
+            # for meta_data in self.hash_2_metaData.values():
+            #     if(True):                           # if in this dict, is_indexed is supposed to be true ??
+            #         result[meta_data["resource_type"]]["count"] = 10
 
-            temp_count_person = self.get_original_data("person")
-            result["image"]["unique_people_count"] = 0 if temp_count_person is None else len(temp_count_person)
-
-            temp_count_place = self.get_original_data("place")
-            result["image"]["unique_place_count"] = 0 if temp_count_place is None else len(temp_count_place)
-    
-            temp_count_directories = self.get_original_data("resource_directory")
-            result["image"]["unique_resource_directories_count"] = 0 if temp_count_directories is None else len(temp_count_directories)
+            # NOTE: dummy values for now..
+            result["image"]["count"] = 100
+            result["image"]["unique_people_count"] = 10
+            result["image"]["unique_place_count"] = 10
+            result["image"]["unique_resource_directories_count"] = 10
 
         return result
-
 
 if __name__ == "__main__":
     import pickle
@@ -506,6 +515,19 @@ if __name__ == "__main__":
         print(meta["resource_hash"])
         print(meta["absolute_path"])
 
+    # modify say filename attribute for a given hash..
+    test.modify_meta_data(
+        data_hash = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f",
+        meta_data = {"filename": "random file name"})
+    
+    result = test.query(data_hashes="38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
+    for hash, meta in result.items():
+        print(meta["filename"])
+
+    test.save()
+
+    print(test.column_types)
+    print(test.column_labels)
     
     # Testing, there seemed a bug, where single "no_person_detected" was returned, instead of a list!
     # may be parsing bug on browser side or server side.. couldn't ascertain, couldn't reproduce!
