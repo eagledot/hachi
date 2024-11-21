@@ -21,6 +21,7 @@
 # then just we can move the pointers around, as asssuming all data collected is valid/required !
 # 
 
+# TODO: 64 bit aligned pointer during allocation !
 
 import std/json
 import strutils
@@ -75,6 +76,19 @@ type
     colBool       # to handle boolean values..
     # colNull # donot want it not for now..?
 
+# trying to support aliasing
+# we create a new version for a value in column, when user wants to modify it.
+# note we can support only one extra version..
+type
+  ColumnAlias = object
+    capacity:Natural
+    counter:Natural
+    row_indices:ptr UncheckedArray[Natural] # in case to help us ... which of the rows in a column have been aliased !
+    payload:pointer                  # column using this would know the payload type. # then based on matched.. we can collect the alias
+
+proc `=copy`(a:var ColumnAlias, b:ColumnAlias) {.error.}
+proc `=sink`(a:var ColumnAlias, b:ColumnAlias) {.error.}
+
 # good enough, start from here.. i guess
 # i think serialization should be easy .. if we decide to put a column on disk, and later read that column.
 type
@@ -89,6 +103,10 @@ type
     payload:pointer = nil  # packed array of int32/MyString/float32. (condition on the type field, we can know which) and using size to know the number of values/elements. 
     immutable:bool = false  # can be set selectively for equivalent of a primarykey or foreign key !
     label*:string
+
+    # alias
+    aliased:bool = false   # this we can use to condition on if we need to search alias version too..
+    alias:ColumnAlias
 
 proc toJson(c:Column, limit:Natural):JsonNode =
   # JArray
@@ -122,47 +140,98 @@ proc toJson(c:Column, limit:Natural):JsonNode =
     doAssert 1 == 0, "not expected"
   
   return result
-       
-proc add_int32(c:var Column, row_idx:Natural, data:int32)=
-  # add data to the columns, 
-  # but how..
-  # what we need to do ?
-  # then what?
 
-  # get the data for the addr.
-  assert c.kind == colInt32
-  assert not isNil(c.payload)
-  
-  var arr = cast[ptr UncheckedArray[int32]](c.payload)
-  arr[row_idx] = data
+proc aliasImpl(c_t:var Column, row_idx_t:Natural, type_t:typedesc)=
+  # i think it can model any number of versions/revisions.. since we are always appending.
+  # we can then scan and find the row indices if repeated more than it represents different versions..
+  let temp_payload = c_t.alias.payload
+  if isNil(temp_payload)=
+    # initializing alias..
+    let capacity = 1000
+    c_t.alias.payload = alloc0(capacity * sizeof(type_t))
+    c_t.alias.row_indices = alloc0(capacity * sizeof(Natural))
+    c_t.alias.counter = 0
+    c_t.alias.capacity = capacity
+  else:
+    assert c_t.aliased == true, "expected this to be true..."
+    if c_t.counter >= c_t.alias.capacity:
+      let old_capacity = c_t.alias.capacity
 
-proc add_string(c:var Column, row_idx:Natural, data:string)=
+      # reallocation of resources...
+      let new_capacity = old_capacity * 2
+      let temp = alloc0(new_capacity * sizeof(T))
+      copyMem(temp, temp_payload, old_capacity*sizeof(type_t)) # realloc.
+      dealloc(temp_payload) # free resources.
+
+      let temp_new = alloc0(new_capacity * sizeof(Natural))
+      copyMem(temp_new, c_t.alias.row_indices, old_capacity*sizeof(Natural))
+      dealloc(temp_new) # free resources..
+      
+      # update
+      c_t.alias.payload = temp
+      c_t.alias.capacity = new_capacity
+
+  # add alias for provided row_idx..
+  # we update both the new data, and corresponding row for which this data is being aliased to..
+  let counter = c_t.alias.counter
+  let arr = cast[ptr UncheckedArray[T]](c_t.alias.payload)
+  if type_t is string:
+    arr[counter] = ensureMove toMyString(data)
+  else:
+    arr[counter] = data
+  c_t.row_indices[counter] = row_idx_t  # add which 
+  c_t.aliased = true
+    
+proc add_int32(c:var Column, row_idx:Natural, data:int32, aliasing:bool = false, T:typedesc = int32)=
+
+  if aliasing == true:
+    aliasImpl(c, row_idx, T)
+  else:
+    assert c.kind == colInt32
+    assert not isNil(c.payload)
+    var arr = cast[ptr UncheckedArray[int32]](c.payload)
+    arr[row_idx] = data
+
+proc add_string(c:var Column, row_idx:Natural, data:string, aliasing:bool = false, T:typedesc = string)=
   # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
   
-  assert not isNil(c.payload)
-  assert c.kind == colString
+  if aliasing == true:
+    aliasImpl(c, row_idx, T)
+  else:
+    assert not isNil(c.payload)
+    assert c.kind == colString
+    var arr = cast[ptr UncheckedArray[MyString]](c.payload)
+    arr[row_idx] = ensureMove toMyString(data)
 
-  var arr = cast[ptr UncheckedArray[MyString]](c.payload)
-  arr[row_idx] = ensureMove toMyString(data)
- 
-proc add_float32(c:var Column, row_idx:Natural, data:float32)=
+proc add_float32(c:var Column, row_idx:Natural, data:float32, aliasing:bool = false, T:typedesc = float32)=
   # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
   
-  assert not isNil(c.payload)
-  assert c.kind == colFloat32
-  var arr = cast[ptr UncheckedArray[float32]](c.payload)
-  arr[row_idx] = data
+  # how to do aliasing..
+  # allocate some memory 
+  # add row_idx
+  # add new value..
+  if aliasing:
+    # overwriting/modifying is being considered as aliasing..
+    aliasImpl(c, row_idx, T)
+  else:
+    assert not isNil(c.payload)
+    assert c.kind == colFloat32
+    var arr = cast[ptr UncheckedArray[T]](c.payload)
+    arr[row_idx] = data
 
-proc add_bool(c:var Column, row_idx:Natural, data:bool)=
+proc add_bool(c:var Column, row_idx:Natural, data:bool, aliasing:bool = false, T:typedesc = bool)=
   # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
   
-  assert not isNil(c.payload)
-  assert c.kind == colBool, "got type: " & $c.kind
-  var arr = cast[ptr UncheckedArray[uint8]](c.payload)
-  arr[row_idx] = uint8(data)
+  if aliasing:
+    aliasImpl(c, row_idx, T)
+  else:
+    assert not isNil(c.payload)
+    assert c.kind == colBool, "got type: " & $c.kind
+    var arr = cast[ptr UncheckedArray[uint8]](c.payload)
+    arr[row_idx] = uint8(data)
 
 ###############################################################################
 ##  modifiy data API #####
@@ -368,6 +437,12 @@ proc rowWriteEnd(m:var MetaIndex)=
   m.dbRowPointer += 1      
   m.rowWriteInProgress = false
 
+template populateColumnAliasImpl()=
+  # it should be populating the alias memory of a column.
+  # we would know the row_idx for the column.
+  # then the value too..
+
+
 template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, concatenator_t:string)=
   # populate a  column, given data as JsonNode.
   # NOTE: also supports flattened array of strings. Concatenated  into a single string using a separator like | and splitted into (original) strings, when collecting .
@@ -451,6 +526,7 @@ proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
     populateColumnImpl(c, row_idx, column_data, m.stringConcatenator)
 
 proc set_immutable()=
+  # i am leaning towards aliasing rather than overwriting !
   # can set a  particular column to be immutable, but not vice-versa!
   discard
 
