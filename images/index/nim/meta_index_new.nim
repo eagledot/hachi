@@ -549,6 +549,8 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, 
         let data_str = getStr(json_data)
         doAssert not data_str.contains(concatenator_t)
         final_string = final_string & concatenator_t  & data_str
+      final_string = final_string & concatenator_t    # so that we can always know that it was an array even a single element and can send array back.
+      
     # echo "final string: ", final_string 
     c_t.add_string(row_idx = row_idx_t, data = final_string, aliasing = aliasing_t) 
   else:
@@ -666,7 +668,8 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
         if data.contains(m.stringConcatenator):
           let new_node = JsonNode(kind:JArray)
           for temp_str in data.split(m.stringConcatenator):
-            new_node.elems.add(JsonNode(kind:JString, str:temp_str))
+            if len(temp_str) > 0:
+              new_node.elems.add(JsonNode(kind:JString, str:temp_str))
           result_temp[c.label] = new_node
         else:
           # result_temp[c.label] = JsonNode(kind:JString, str: fromMyString(arr[idx]))
