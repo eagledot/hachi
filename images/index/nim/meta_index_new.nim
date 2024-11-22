@@ -327,12 +327,14 @@ template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string,
   var count = 0
   let arr = cast[ptr UncheckedArray[string]](c_t.payload)
   for row_idx in 0..<boundary_t:
+
+    # we search either in alias data or original data . i.e always latest version data..
     if alias_table.hasKey(row_idx):
       if alias_table[row_idx].contains(query_t):
         result_t[count] = row_idx
         count += 1
     else:
-      if alias_table[row_idx].contains(query_t):
+      if arr[row_idx].contains(query_t):
         result_t[count] = row_idx
         count += 1
     
@@ -428,7 +430,8 @@ type
 
 
 proc `=copy`(a:var MetaIndex, b:MetaIndex) {.error.}
-proc `=sink`(a:var MetaIndex, b:MetaIndex) {.error.}
+# proc `=sink`(a:var MetaIndex, b:MetaIndex) {.error.}
+# TODO: provide `=destroy`
 
 const reserved_literals = ["dbName", "dbCapacity", "dbRowPointer"]
 
@@ -760,8 +763,7 @@ proc load*(path:string):MetaIndex=
   doAssert result.dbRowPointer == rowPointer , "expected: " & $result.dbRowPointer & " got: " & $rowPointer
   return result
 
-
-proc get_unique*(m:MetaIndex, label:string):JsonNode=
+proc get_all*(m:MetaIndex, label:string):JsonNode=
   # an array of string/float32/bool/int32
   result = m[label].toJson(limit = m.dbRowPointer, split = true, splitter = m.stringConcatenator)
 
