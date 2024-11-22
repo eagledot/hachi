@@ -110,11 +110,13 @@ type
     aliased:bool = false   # this we can use to condition on if we need to search alias version too..
     alias:ColumnAlias
 
+
+proc `=copy`(a:var ColumnObj, b:ColumnObj) {.error.}
+proc `=sink`(a:var ColumnObj, b:ColumnObj) {.error.}
+
 type Column = ref ColumnObj
 
 proc checkAlias[T](c:Column):Table[Natural, T]=
-  # check if a particular row has been aliased/versioned.
-  # TODO: may be create a table.. for latest version for each the row !
   if c.aliased:  
     for ix in 0..<c.alias.counter:
       let key = c.alias.row_indices[ix]
@@ -122,19 +124,30 @@ proc checkAlias[T](c:Column):Table[Natural, T]=
       result[key] = value        # we keep overwriting, as latest version would be in the last for each key!
   return result
 
-proc toJson(c:Column, limit:Natural):JsonNode =
+proc toJson(c:Column, limit:Natural, split:bool = false, splitter:string = "|"):JsonNode =
   # JArray
   # assuming that it would be easier to print a JsonNode.
+
+  # ignore split, splitter only to be used to strings.. making it a bit easier to return expected array of strings...
+  # otherwise have to do it more place too..
+
+
   result = JsonNode(kind:JArray)
 
   if c.kind == colString:
-    # TODO: create alias table..
-    # let temp = cast[ptr UncheckedArray[MyString]](c.payload)
-    
+    let alias_table = checkAlias[string](c)
     let temp = cast[ptr UncheckedArray[string]](c.payload)
     for i in 0..<limit:
-      # let str = fromMyString(temp[i])
-      result.elems.add(JsonNode(kind:JString, str:temp[i]))
+      var value = temp[i]
+      if alias_table.hasKey(i):
+        value = alias_table[i]
+
+      if split == true and value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
+        # NOTE: it kind of flats the column... in case some rows had "value<splitter>value".. for easy access for unique values!!!
+        for v_s in value.split(splitter):
+          result.add(JsonNode(kind:Jstring, str:v_s))
+      else:
+        result.add(JsonNode(kind:JString, str:value))
       
   elif c.kind == colInt32:
     let alias_table = checkAlias[int32](c)
@@ -202,7 +215,12 @@ template aliasImpl(c_t:var Column, row_idx_t:Natural, data_t:typed, type_t:typed
   # we update both the new data, and corresponding row for which this data is being aliased to..
   let counter = c_t.alias.counter
   let arr = cast[ptr UncheckedArray[type_t]](c_t.alias.payload)
+
+  # echo "adding....", data_t
   arr[counter] = data_t
+  # echo arr[counter]
+
+
   c_t.alias.row_indices[counter] = row_idx_t  # add which 
   inc c_t.alias.counter
   c_t.aliased = true
@@ -223,16 +241,14 @@ proc add_string(c:var Column, row_idx:Natural, data:string, aliasing:bool = fals
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
   
   if aliasing == true:
-    discard # TODO
+    echo "modifying string..."
+    aliasImpl(c, row_idx, data, string)
   else:
     assert not isNil(c.payload)
     assert c.kind == colString
 
     var arr = cast[ptr UncheckedArray[string]](c.payload)
     arr[row_idx] = data
-
-    # var arr = cast[ptr UncheckedArray[MyString]](c.payload)
-    # arr[row_idx] = ensureMove toMyString(data)
 
 proc add_float32(c:var Column, row_idx:Natural, data:float32, aliasing:bool = false)=
   # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
@@ -285,24 +301,6 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
 ######################################################################################
 # querying API (These must be as fast as possibly, currently OK, all optimizations should be focussed on faster queries)
 #############################################################
-
-template queryAliasImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, type_t:typedesc)=
-  # we want to search in aliased/versioned data too, for a query along with original data..
-  # in case user modified some row in a  column, we scan the that modified data too.. in case query matches!
-  
-  let alias_table = checkAlias[type_t](c_t)
-  var count = 0
-  for row_idx,v in alias_table:
-    if query_t == v:
-      echo "mmmmmmmmmmmmmmmmmmmmmmmm", v, " ", row_idx
-      result_t[count] = row_idx
-      inc count
-  
-  # let payload_alias = cast[ptr UncheckedArray[type_t]](c_t.alias.payload)
-  # for alias_count in 0..<c_t.alias.counter:
-  #   if payload_alias[alias_count] == query_t:    
-  #     result_t.add(c_t.alias.row_indices[alias_count])     # we update this row_idx as a likely candidate
-
 template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, boundary_t, top_k_t:Natural, type_t:typedesc)=
   
   let alias_table = checkAlias[type_t](c_t)
@@ -323,19 +321,25 @@ template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, bounda
   
   return result[0..<count]
 
-
+template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural)=
+  
+  let alias_table = checkAlias[string](c_t)
+  var count = 0
+  let arr = cast[ptr UncheckedArray[string]](c_t.payload)
+  for row_idx in 0..<boundary_t:
+    if alias_table.hasKey(row_idx):
+      if alias_table[row_idx].contains(query_t):
+        result_t[count] = row_idx
+        count += 1
+    else:
+      if alias_table[row_idx].contains(query_t):
+        result_t[count] = row_idx
+        count += 1
     
-    
-  #   # if i already in result.. do not try to match. result first get populated from alias data.
-  #   # say "sam" was modified to "john", we shouldn't match for "sam"
-  #   if not (i in result_t):
-  #     if arr[i] == query_t:
-  #         result_t[count] = i
-  #         count += 1
-  #         if count == top_k:
-  #           break
-  # return result_t[0..<count]
-
+    if count == top_k:
+      break 
+  
+  return result[0..<count]
 
 proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100):seq[Natural]=
   # returns the matching row indices in the 
@@ -348,45 +352,40 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100)
   
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k)
-  # returns all the matching row indices. MetaIndex can take care if some of them are invalid or stuff!
-  # for now just check if a substring in string, (i know brute-forcing... but hoping it would be good enough for 100k strings if only column has much larger string)
-  # try to make it work, later would add fuzzy search .. when have time...(have to port it from python ...sighhhhhhhh)
-  var count = 0   # to count the number of matches found  
-  let arr = cast[ptr UncheckedArray[string]](c.payload)
-  # exhaustive search but break when hit top_k.. for now all have same scores, so top_k doesn't make much sense !
-  for i in 0..<boundary:
-    # TODO: may be can supply a pragma copy elision or something!    
-    let data = arr[i]  # TODO: i think compiler can figure out to not copy the whole string.. as using it for read access only!
-    if data.contains(query):
-      result[count] = i
-      count += 1
-      if count == top_k:
-        break
-  return result[0..<count]
+  queryStringImpl(result, c, query, boundary, top_k)
+
+
+
+
+
+  # # returns all the matching row indices. MetaIndex can take care if some of them are invalid or stuff!
+  # # for now just check if a substring in string, (i know brute-forcing... but hoping it would be good enough for 100k strings if only column has much larger string)
+  # # try to make it work, later would add fuzzy search .. when have time...(have to port it from python ...sighhhhhhhh)
+  # var count = 0   # to count the number of matches found  
+  # let arr = cast[ptr UncheckedArray[string]](c.payload)
+  # # exhaustive search but break when hit top_k.. for now all have same scores, so top_k doesn't make much sense !
+  # for i in 0..<boundary:
+  #   # TODO: may be can supply a pragma copy elision or something!    
+  #   let data = arr[i]  # TODO: i think compiler can figure out to not copy the whole string.. as using it for read access only!
+  #   if data.contains(query):
+  #     result[count] = i
+  #     count += 1
+  #     if count == top_k:
+  #       break
+  # return result[0..<count]
 
 proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
   assert c.kind == colInt32
   
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k) # allocate at once... 
-
-  # order matters, first check in alias data..
-  # queryAliasImpl(result, c, query, 0, offset_int32,)  # now also search in versioned data..
-
-  # echo "xxxxxxxxxxx  ", result
-
   queryImpl(result, c, query, boundary, top_k, int32)
-  echo "yyyyyyyyyyyyyyy  ", result
-
   
 proc query_float32(c:Column, query:float32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
   assert c.kind == colFloat32
   
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k) # allocate at once... 
-
-  # order matter... first alias then original.
-  queryAliasImpl(result, c, query, float32)  # now also search in versioned data..
   queryImpl(result, c, query, boundary, top_k, float32)
 
 proc query_bool(c:Column, query:bool, boundary:Natural, top_k:Natural = 100):seq[Natural]=
@@ -394,9 +393,6 @@ proc query_bool(c:Column, query:bool, boundary:Natural, top_k:Natural = 100):seq
   
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k) # allocate at once... 
-
-  # order matters...
-  queryAliasImpl(result, c, query, bool)
   queryImpl(result, c, query, boundary, top_k, bool)
 
 ################################################################################################################
@@ -764,11 +760,10 @@ proc load*(path:string):MetaIndex=
   doAssert result.dbRowPointer == rowPointer , "expected: " & $result.dbRowPointer & " got: " & $rowPointer
   return result
 
-# how the example would look like.
-# init MetaIndex.
-# some Json data
-# add_row()
-# 
+
+proc get_unique*(m:MetaIndex, label:string):JsonNode=
+  # an array of string/float32/bool/int32
+  result = m[label].toJson(limit = m.dbRowPointer, split = true, splitter = m.stringConcatenator)
 
 when isMainModule:
   
@@ -814,15 +809,20 @@ when isMainModule:
   # echo repr(cast[ptr array[1, int32]](m["age"].alias.payload))
   # echo repr(cast[ptr array[1, Natural]](m["age"].alias.row_indices))
 
-  echo m.query_int32(attribute = "age", query = 21)
-  echo m.query_int32(attribute = "age", query = 33)
-  m.modify_row(row_idx = 1, meta_data = %* {"age":34})
-  echo m.query_int32(attribute = "age", query = 33)
-  echo m.query_int32(attribute = "age", query = 34)
-
-
-
+  m.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
   echo m
+  m.modify_row(row_idx = 1, meta_data = %* {"name":"tyson"})
+  echo m
+
+  # just simply revert to original data.
+  # let x = m["name"]
+  # x.aliased = false
+  
+  echo m.get_unique("name")
+
+
+
+
 
 
 
