@@ -92,6 +92,18 @@ type
 proc `=copy`(a:var ColumnAlias, b:ColumnAlias) {.error.}
 proc `=sink`(a:var ColumnAlias, b:ColumnAlias) {.error.}
 
+proc reset(obj:var ColumnAlias)=
+
+  if not isNil(obj.row_indices):
+    dealloc(obj.row_indices)
+  if not isNil(obj.payload):
+    dealloc(obj.payload)
+  
+  obj.row_indices = nil
+  obj.payload = nil
+  obj.counter = 0
+  obj.capacity = 0
+
 # good enough, start from here.. i guess
 # i think serialization should be easy .. if we decide to put a column on disk, and later read that column.
 type
@@ -114,6 +126,24 @@ type
 
 proc `=copy`(a:var ColumnObj, b:ColumnObj) {.error.}
 proc `=sink`(a:var ColumnObj, b:ColumnObj) {.error.}
+
+proc `=destroy`(c:var ColumnObj)=
+  echo "Calling... for ", c.label
+  
+  reset(c.alias)
+  if not isNil(c.payload):
+    if c.kind == colString:
+      # deallocate GC allocate strings too..
+      let arr = cast[ptr UncheckedArray[string]](c.payload)
+      for i in 0..<1:  # TODO: how to get the number of strings/value stord.. only parent keeps it
+        reset(arr[i])  # this is GC allocated.. we must free this by calling reset manually.
+    
+    dealloc(c.payload)
+  
+  c.payload = nil
+  reset(c.label)
+
+
 
 type Column = ref ColumnObj
 
@@ -435,7 +465,7 @@ type
 
 proc `=copy`(a:var MetaIndex, b:MetaIndex) {.error.}
 # proc `=sink`(a:var MetaIndex, b:MetaIndex) {.error.}
-# TODO: provide `=destroy`
+# destroy is automatic as we provide our own destroy for Columnobj...
 
 const reserved_literals = ["dbName", "dbCapacity", "dbRowPointer"]
 
@@ -677,6 +707,7 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
   # somehow find the desired indices/rows and then pass these to this routine to return an array.
   result = JsonNode(kind:JArray)
   for idx in indices:
+    assert idx < m.dbRowPointer
     var result_temp = JsonNode(kind:JObject)
     for c in m.columns:
       # we use c.toJson to extract one row only ! (so don't have to write multiple implementations!)
@@ -692,6 +723,8 @@ proc save*(m:MetaIndex, path:string)=
   # save somehow this to to 
   # but what should should i save..
   # we can get a sjon
+
+  # TODO: save the ALIAS data too..
 
   # this contains all columns.. json data.
   var json_schema = m.toJson(count = m.dbRowPointer)
@@ -764,6 +797,12 @@ proc load*(path:string):MetaIndex=
 ###########################
 ##### helper routines #######
 #######################################
+proc reset*(m:var MetaIndex)=
+  # just deallocate the column alias's data, and reset the dbRowPointer.
+  # that should be enough.., in case a new instance is created `destroy` for column object can take care of releasing resources!
+  for c in m.columns:
+    reset(c.alias)
+  m.dbRowPointer = 0
 
 proc get_all*(m:MetaIndex, label:string, flatten:bool = false):JsonNode=
   # an array of string/float32/bool/int32
@@ -856,6 +895,17 @@ when isMainModule:
 
   echo m.get_all("name", flatten = true)
 
+  m.reset()
+  echo "reset"
+  echo m
+  m.add_row(column_data = %* {"name":["anubafdasd"], "age":21})
+  echo m
+  echo m.collect_rows(indices = [Natural(0)])
+
+
+
+
+
   # echo m.query(%* {"name":"nai"})
 
   # echo m.check(%* {"name":"ays"})
@@ -867,6 +917,10 @@ when isMainModule:
 
   # save
   m.save("./test_meta_save.json")
+
+
+  m = ensureMove init(name = "test2", column_labels = ["agse", "namse"], column_types = [colInt32, colString])  
+  echo m.dbRowPointer
 
   # echo "written to disk !!"
   # var m2 = load("./test_meta_save.json")
