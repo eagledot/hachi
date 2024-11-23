@@ -197,6 +197,8 @@ class MetaIndex(object):
         self.backend_is_initialized = False
         self.capacity = capacity
         self.name = name
+
+        # resources to be freed on reseting..
         self.column_labels = []
         self.column_types = []
         
@@ -269,12 +271,10 @@ class MetaIndex(object):
                 # TODO: warning atleast to indicate invalid hash...
                 continue
             
-            # TODO: major... some means to know which of the resources are already indexed..
-            # if data_hash in self.hash_2_metaData: # check if already indexed.
-            #     continue
+            # check if data_hash already indexed
             if mBackend.check(json.dumps({"resource_hash":data_hash})):
                 # for now it is bit slower.. we will make later the resource hash the primary key..
-                print("yes: {} exists already:".format(data_hash))
+                # print("yes: {} exists already:".format(data_hash))
                 continue
 
             try:
@@ -463,8 +463,16 @@ class MetaIndex(object):
             mBackend.save(self.meta_index_path)
     
     def reset(self):
-        # just (re)setting, rowPointer should be enough on backend
-        pass        
+        with self.lock:
+            if os.path.exists(self.meta_index_path):
+                os.remove(self.meta_index_path)
+            
+            # enough i guess and powerful, in process update the schema... so good for software updates!
+            self.column_labels = []
+            self.column_types = []
+            self.backend_is_initialized = False  # so when next time update is called... we will initialize it.
+            mBackend.reset()
+
     
     def get_unique(self, attribute:str) -> Iterable[Any]:
         data_all =  json.loads(mBackend.get_all_elements(attribute))
