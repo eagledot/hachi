@@ -64,26 +64,14 @@ proc query(query:string):string {.exportpy.} =
 
   var result = JsonNode(kind:JObject)
   let query_params = parseJson(query)
-  doAssert query_params.kind == JObject
   for key, value in query_params:
-    var indices:seq[Natural]
-    if value.kind == JString:
-      indices = m.query_string(attribute = key, query = getStr(value))
-    elif value.kind == JInt:
-      indices = m.query_int32(attribute = key, query = getInt(value).int32)
-    elif value.kind == JFloat:
-      indices = m.query_float32(attribute = key, query = getFloat(value).float32)
-    elif value.kind == JBool:
-      indices = m.query_bool(attribute = key, query = getBool(value))    
-    else:
-      doAssert 1 == 0, "not expected type: " & $value.kind
+    var indices = m.query(attribute_value = %* {key:value})
 
     # update the corresponding key with collected row indices.
     var temp = JsonNode(kind:JArray)
     for ix in indices:
       temp.elems.add(JsonNode(kind:Jint, num:BiggestInt(ix)))
     result[key] = ensureMove temp
-
   return $result  # calling $ seems enough to generate string/serialized repr from a JsonNode!
 
 proc collect_rows(indices:varargs[Natural]):string {.exportpy.}=
@@ -120,9 +108,16 @@ proc get_column_types():string {.exportpy.}=
         break
   return $py_types
 
+proc get_all_elements(attribute:string):string {.exportpy.}=
+  # an (flattened) array of all values for a given attribute!
+  # may contains duplicates... just flatten...
+  return $m.get_all(attribute, flatten = true)
 
-proc get_unique_count(attribute:string):Natural {.exportpy.}=
-  # returns the unique count for elements in a column. for quick stats calculation..
-  discard
+proc check(attribute_value:string):bool {.exportpy.}=
+  # checks if attribut value pair exits...
+  # would be faster in future.. if attribute is a primary-key/id
+  return m.check(parseJson(attribute_value))
+
+
 
     
