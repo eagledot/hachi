@@ -355,7 +355,7 @@ template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, bounda
   
   return result[0..<count]
 
-template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural)=
+template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural, exact_string_t:bool, splitter_t:string)=
   
   let alias_table = checkAlias[string](c_t)
   var count = 0
@@ -364,20 +364,34 @@ template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string,
 
     # we search either in alias data or original data . i.e always latest version data..
     if alias_table.hasKey(row_idx):
-      if alias_table[row_idx].contains(query_t):
-        result_t[count] = row_idx
-        count += 1
+      if exact_string_t == true:
+        for stored in alias_table[row_idx].split(splitter_t):
+          if stored == query_t:
+            result_t[count] = row_idx
+            count += 1
+            break
+      else:
+        if alias_table[row_idx].contains(query_t):
+          result_t[count] = row_idx
+          count += 1
     else:
-      if arr[row_idx].contains(query_t):
-        result_t[count] = row_idx
-        count += 1
-    
+      if exact_string_t == true:
+        for stored in arr[row_idx].split(splitter_t):
+          if stored == query_t:
+            result_t[count] = row_idx
+            count += 1
+            break
+      else:
+        if arr[row_idx].contains(query_t):
+          result_t[count] = row_idx
+          count += 1
+      
     if count == top_k:
       break 
   
   return result[0..<count]
 
-proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100, exact_string:bool = false, splitter:string = "|"):seq[Natural]=
   # returns the matching row indices in the 
   # boundary: is provided by MetaIndex, telling it how many elements are currently in this/all columns.
   
@@ -388,7 +402,7 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100)
   
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k)
-  queryStringImpl(result, c, query, boundary, top_k)
+  queryStringImpl(result, c, query, boundary, top_k, exact_string, splitter)
 
 
 
@@ -675,7 +689,7 @@ proc query_bool(m:MetaIndex, attribute:string, query:bool, top_k:Natural = 100):
   result = c.query_bool(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
   return result
 
-proc query*(m:MetaIndex, attribute_value:JsonNode, top_k:Natural = 100):seq[Natural]=
+proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, top_k:Natural = 100):seq[Natural]=
   doAssert attribute_value.kind == JObject
   doAssert len(attribute_value) == 1
   
@@ -684,7 +698,7 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, top_k:Natural = 100):seq[Natu
     let c = m[label]
 
     if c.kind == colString:
-      result = c.query_string(query = getStr(value), boundary = boundary, top_k = top_k)
+      result = c.query_string(query = getStr(value), boundary = boundary, top_k = top_k, exact_string = exact_string, splitter = m.stringConcatenator)
     elif c.kind == colInt32:
       result = c.query_int32(query = getInt(value).int32, boundary = boundary, top_k = top_k)
     elif c.kind == colBool:
