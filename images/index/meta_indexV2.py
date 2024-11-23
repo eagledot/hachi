@@ -269,7 +269,12 @@ class MetaIndex(object):
                 # TODO: warning atleast to indicate invalid hash...
                 continue
             
-            if data_hash in self.hash_2_metaData: # check if already indexed.
+            # TODO: major... some means to know which of the resources are already indexed..
+            # if data_hash in self.hash_2_metaData: # check if already indexed.
+            #     continue
+            if mBackend.check(json.dumps({"resource_hash":data_hash})):
+                # for now it is bit slower.. we will make later the resource hash the primary key..
+                print("yes: {} exists already:".format(data_hash))
                 continue
 
             try:
@@ -357,7 +362,6 @@ class MetaIndex(object):
             assert len(attr_2_rowIndices) == 1 , "expected only a single key: {}".format(attribute)
             row_indices = attr_2_rowIndices[attribute]
 
-            print(len(row_indices))
             meta_array = json.loads(mBackend.collect_rows(attr_2_rowIndices[attribute]))
             result = {}
             for meta in meta_array:
@@ -461,9 +465,16 @@ class MetaIndex(object):
     def reset(self):
         # just (re)setting, rowPointer should be enough on backend
         pass        
+    
+    def get_unique(self, attribute:str) -> Iterable[Any]:
+        data_all =  json.loads(mBackend.get_all_elements(attribute))
+        return set(data_all)
 
     def get_stats(self):
-        """Some stats about the amount and type of data indexed, add more information in the future if needed.
+        """
+        TODO: based on the new backend!
+        
+        Some stats about the amount and type of data indexed, add more information in the future if needed.
         NOTE: for now just using the dummy value until port it to newer version!
         
         """
@@ -491,15 +502,15 @@ if __name__ == "__main__":
     import pickle
 
     test = MetaIndex()
-    with open("./meta_indices/meta_data.pkl", "rb") as f:
-        stored_meta_data = pickle.load(f)
+    # with open("./meta_indices/meta_data_old.pkl", "rb") as f:
+    #     stored_meta_data = pickle.load(f)
     
-    print("done..")
+    # print("done..")
 
-    # it seems to work.. 
+    # # it seems to work.. 
     # count = 0
     # for data_hash, meta_data in stored_meta_data.items():
-    #     test.append(data_hash, meta_data)
+    #     test.update(data_hash, meta_data)
     #     if count == 0:
     #         print(data_hash)
     #     count += 1
@@ -508,27 +519,32 @@ if __name__ == "__main__":
     # test.save() # this also...
 
     # then query.. ?
-    result = test.query(data_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
+    # result = test.query(data_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
+    
+    result = test.query(attribute = "person", attribute_value = "cluster698a3640_0")
     print(result)
-    result = test.query(attribute = "filename", attribute_value = "insta_0")
-    for hash, meta in result.items():
-        print(meta["resource_hash"])
-        print(meta["absolute_path"])
+    # result = test.query(attribute = "filename", attribute_value = "insta_0")
+    # for hash, meta in result.items():
+    #     print(meta["resource_hash"])
+    #     print(meta["absolute_path"])
 
     # modify say filename attribute for a given hash..
-    test.modify_meta_data(
-        data_hash = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f",
-        meta_data = {"filename": "random file name"})
+    # test.modify_meta_data(
+    #     data_hash = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f",
+    #     meta_data = {"filename": "random file name"})
     
-    result = test.query(data_hashes="38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
-    for hash, meta in result.items():
-        print(meta["filename"])
+    # result = test.query(data_hashes="38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
+    # for hash, meta in result.items():
+    #     print(meta["filename"])
 
     test.save()
 
     print(test.column_types)
     print(test.column_labels)
     
+    # print(test.get_unique("resource_extension"))
+
+
     # Testing, there seemed a bug, where single "no_person_detected" was returned, instead of a list!
     # may be parsing bug on browser side or server side.. couldn't ascertain, couldn't reproduce!
     # just in case.. documenting here!
