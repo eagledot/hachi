@@ -128,7 +128,7 @@ proc `=copy`(a:var ColumnObj, b:ColumnObj) {.error.}
 proc `=sink`(a:var ColumnObj, b:ColumnObj) {.error.}
 
 proc `=destroy`(c:var ColumnObj)=
-  echo "Calling... for ", c.label
+  echo "[WARNING] XXXXXXXX find a way to add row count in column object, not freeeing GC memory!!!"
   
   reset(c.alias)
   if not isNil(c.payload):
@@ -155,7 +155,7 @@ proc checkAlias[T](c:Column):Table[Natural, T]=
       result[key] = value        # we keep overwriting, as latest version would be in the last for each key!
   return result
 
-proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, split_if_possible:bool = false, splitter:string = "|"):JsonNode =
+proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = "|", latest_version:bool = true):JsonNode =
   # JArray
   # assuming that it would be easier to print a JsonNode.
 
@@ -170,10 +170,12 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, split_if_possible:
     let temp = cast[ptr UncheckedArray[string]](c.payload)
     for i in row_start..<row_end:
       var value = temp[i]
-      if alias_table.hasKey(i):
-        value = alias_table[i]
 
-      if split_if_possible == true and value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
+      if latest_version:     # we get the latest by scanning the alias table (default)
+        if alias_table.hasKey(i):
+          value = alias_table[i]
+
+      if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
         # it means... it was an array when stored.
         var temp_node = JsonNode(kind:JArray)        
         for v_s in value.split(splitter):
@@ -188,8 +190,9 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, split_if_possible:
     let temp = cast[ptr UncheckedArray[int32]](c.payload)
     for i in row_start..<row_end:
       var value = temp[i]
-      if alias_table.hasKey(i):
-        value = alias_table[i]
+      if latest_version:     # we get the latest by scanning the alias table (default)
+        if alias_table.hasKey(i):
+          value = alias_table[i]
       result.elems.add(JsonNode(kind:JInt, num:BiggestInt(value)))
 
   elif c.kind == colBool:
@@ -197,8 +200,11 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, split_if_possible:
     let temp = cast[ptr UncheckedArray[bool]](c.payload)
     for i in row_start..<row_end:
       var value = temp[i]
-      if alias_table.hasKey(i):
-        value = alias_table[i]
+      
+      if latest_version:     # we get the latest by scanning the alias table (default)
+        if alias_table.hasKey(i):
+          value = alias_table[i]
+      
       result.elems.add(JsonNode(kind:JBool, bval:bool(value)))
   
   elif c.kind == colFloat32:
@@ -206,13 +212,63 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, split_if_possible:
     let temp = cast[ptr UncheckedArray[float32]](c.payload)
     for i in row_start..<row_end:
       var value = temp[i]
-      if alias_table.hasKey(i):
-        value = alias_table[i]
+
+      if latest_version:     # we get the latest by scanning the alias table (default)
+        if alias_table.hasKey(i):
+          value = alias_table[i]
+      
       result.elems.add(JsonNode(kind:JFloat, fnum:value))
 
   else:
     doAssert 1 == 0, "not expected"
-  
+
+  if c.aliased == true and latest_version == false:
+    
+    let alias_node = JsonNode(kind:JObject)  # with row_indices and row data as key
+    let row_indices_node = JsonNode(kind:JArray)
+    let row_data_node = JsonNode(kind:JArray)
+
+    let row_indices = cast[ptr UncheckedArray[Natural]](c.alias.row_indices)
+    for i in 0..<c.alias.counter:
+      row_indices_node.add(JsonNode(kind:Jint, num:BiggestInt(row_indices[i])))
+      
+      # either string or array of string as element in row_data node
+      if c.kind == colString:
+        let payload_data = cast[ptr UncheckedArray[string]](c.alias.payload)
+        let value = payload_data[i]
+        if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
+          # it means... it was an array when stored.
+          var temp_node = JsonNode(kind:JArray)        
+          for v_s in value.split(splitter):
+            if len(v_s) > 0:
+              temp_node.add(JsonNode(kind:Jstring, str:v_s))
+          row_data_node.add(temp_node)
+        else:
+          row_data_node.add(JsonNode(kind:JString, str:value))
+
+      elif c.kind == colFloat32:
+        let payload_data = cast[ptr UncheckedArray[float32]](c.alias.payload)
+        let value = payload_data[i]
+        row_data_node.add(JsonNode(kind:JFloat, fnum:float(value)))
+
+      elif c.kind == colBool:
+        let payload_data = cast[ptr UncheckedArray[bool]](c.alias.payload)
+        let value = payload_data[i]
+        row_data_node.add(JsonNode(kind:JBool, bval:bool(value)))
+
+      elif c.kind == colInt32:
+        let payload_data = cast[ptr UncheckedArray[int32]](c.alias.payload)
+        let value = payload_data[i]
+        row_data_node.add(JsonNode(kind:JInt, num:BiggestInt(value)))
+
+      else:
+        doAssert 1 == 0
+    doAssert len(row_data_node) == len(row_indices_node)
+
+    alias_node["row_indices"] = row_indices_node
+    alias_node["row_data"] = row_data_node
+
+    result.add(alias_node)
   return result
 
 template aliasImpl(c_t:var Column, row_idx_t:Natural, data_t:typed, type_t:typedesc)=
@@ -481,7 +537,7 @@ proc `=copy`(a:var MetaIndex, b:MetaIndex) {.error.}
 # proc `=sink`(a:var MetaIndex, b:MetaIndex) {.error.}
 # destroy is automatic as we provide our own destroy for Columnobj...
 
-const reserved_literals = ["dbName", "dbCapacity", "dbRowPointer"]
+const reserved_literals = ["dbName", "dbCapacity", "dbRowPointer", "alias"]
 
 proc init*(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000, rowPointer:Natural = 0):MetaIndex=
   # initialize the metaIndex based on the labels/column-names.
@@ -640,24 +696,31 @@ proc add_row*(m:var MetaIndex, column_data:JsonNode)=
   # following is also supposed to do sanity checks.
   m.rowWriteEnd()
 
-proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
+proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode, force:bool = false)=
+  # force:bool is here to actually overwrite the original data to model situations where data is being generated by backend process but may be at a later stage.
+  # in our case face-clustering is done later on but doesn't come from user side... so we want to use clusters as original data in this case!
+  # otherwise we create a new version of some field, rather than overwriting by default!
+
   # a subset of fields to be modified with new data for given row.
   doAssert meta_data.kind == JObject
   for key, column_data in meta_data:
-    echo "trying to modify: ", key
+    # echo "trying to modify: ", key
     var c = m[key]
-    populateColumnImpl(c, row_idx, column_data, m.stringConcatenator, aliasing_t = true)
+    var aliasing_t = true
+    if force == true:
+      aliasing_t = false  # just simply setting it to false to overwrite 
+    populateColumnImpl(c, row_idx, column_data, m.stringConcatenator, aliasing_t = aliasing_t)
 
 proc set_immutable()=
   # i am leaning towards aliasing rather than overwriting !
   # can set a  particular column to be immutable, but not vice-versa!
   discard
 
-proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
+proc toJson(m:MetaIndex, count:Natural = 10, latest_version:bool = true):JsonNode =
   result = JsonNode(kind:JObject)
   let limit = min(m.dbRowPointer, count)
   for c in m.columns:
-    result[c.label] = c.toJson(row_end = limit)
+    result[c.label] = c.toJson(row_end = limit, latest_version = latest_version)
   return result
 
 proc `$`*(m:MetaIndex, count:Natural = 10):string=
@@ -666,28 +729,28 @@ proc `$`*(m:MetaIndex, count:Natural = 10):string=
 ###################################
 ## Querying #######################
 ######################################
-proc query_string(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
-  # return all the matching indices in a column referred to by the attribute/label.
-  let c = m[attribute]  # get the column.
-  result = c.query_string(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
-  return result
+# proc query_string(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
+#   # return all the matching indices in a column referred to by the attribute/label.
+#   let c = m[attribute]  # get the column.
+#   result = c.query_string(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
+#   return result
 
-proc query_int32(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
-  let c = m[attribute]
-  result = c.query_int32(query= query, boundary = m.dbRowPointer, top_k = top_k)
-  return result
+# proc query_int32(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
+#   let c = m[attribute]
+#   result = c.query_int32(query= query, boundary = m.dbRowPointer, top_k = top_k)
+#   return result
 
-proc query_float32(m:MetaIndex, attribute:string, query:float32, top_k:Natural = 100):seq[Natural]=
-  # return all the matching indices in a column referred to by the attribute/label.
-  let c = m[attribute]  # get the column.
-  result = c.query_float32(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
-  return result
+# proc query_float32(m:MetaIndex, attribute:string, query:float32, top_k:Natural = 100):seq[Natural]=
+#   # return all the matching indices in a column referred to by the attribute/label.
+#   let c = m[attribute]  # get the column.
+#   result = c.query_float32(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
+#   return result
 
-proc query_bool(m:MetaIndex, attribute:string, query:bool, top_k:Natural = 100):seq[Natural]=
-  # return all the matching indices in a column referred to by the attribute/label.
-  let c = m[attribute]  # get the column.
-  result = c.query_bool(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
-  return result
+# proc query_bool(m:MetaIndex, attribute:string, query:bool, top_k:Natural = 100):seq[Natural]=
+#   # return all the matching indices in a column referred to by the attribute/label.
+#   let c = m[attribute]  # get the column.
+#   result = c.query_bool(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
+#   return result
 
 proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, top_k:Natural = 100):seq[Natural]=
   doAssert attribute_value.kind == JObject
@@ -715,7 +778,7 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, to
 # do and or... or whatever with indices..
 # our duty for now is to return matching indices for a column, if you more than one query for that column. (do it more than once ! for now)
 # it is on user to do OR AND operations.. once done.. use a set of indices to collect the rows...
-# optionally can specify the labels to collect a subset of rows.
+# optionally can specify the labels to collect a subset of rows.n
 
 proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
   # somehow find the desired indices/rows and then pass these to this routine to return an array.
@@ -726,9 +789,9 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
     for c in m.columns:
       # we use c.toJson to extract one row only ! (so don't have to write multiple implementations!)
       if c.kind == colString:
-        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, split_if_possible = true, splitter = m.stringConcatenator)[0])
+        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, splitter = m.stringConcatenator)[0])
       else:
-        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, split_if_possible = false)[0])
+        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1)[0])
     result.add(result_temp)
   return result
 
@@ -822,7 +885,7 @@ proc get_all*(m:MetaIndex, label:string, flatten:bool = false):JsonNode=
   # an array of string/float32/bool/int32
   # may not be unique, more like flattened.. even if an array was provided for a row, like name = ["sam","ra"] .
   # return all possible values for a label... have to remove duplicates by user !
-  result = m[label].toJson(row_end = m.dbRowPointer, split_if_possible = true, splitter = m.stringConcatenator)
+  result = m[label].toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator)
   if flatten:
     var temp = JsonNode(kind:JArray)
     for elem in result:
@@ -874,6 +937,7 @@ when isMainModule:
   var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colString])
   
 
+
   # adding some data/rows.
   m.add_row(column_data = j3)
   m.add_row(column_data = %* {"name":["anubafdasd"], "age":21})
@@ -890,51 +954,19 @@ when isMainModule:
   # modification
   #proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
   m.modify_row(row_idx = 1, meta_data = %* {"age":33})
-  # echo repr(m["age"])
-  # echo repr(cast[ptr array[1, int32]](m["age"].alias.payload))
-  # echo repr(cast[ptr array[1, Natural]](m["age"].alias.row_indices))
-
   m.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
-  echo m
   m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
-  echo m
 
-  # just simply revert to original data.
-  # let x = m["name"]
-  # x.aliased = false
-  
-  # echo m.get_unique("name")
+  echo m
   echo m.collect_rows(indices = [Natural(1)])
-  echo m.get_all("name")
 
-  echo m.get_all("name", flatten = true)
-
-  m.reset()
-  echo "reset"
+  echo m.toJson(latest_version = false)
   echo m
-  m.add_row(column_data = %* {"name":["anubafdasd"], "age":21})
-  echo m
-  echo m.collect_rows(indices = [Natural(0)])
-
-
-
-
-
-  # echo m.query(%* {"name":"nai"})
-
-  # echo m.check(%* {"name":"ays"})
-
-
-
-
 
 
   # save
-  m.save("./test_meta_save.json")
+  # m.save("./test_meta_save.json")
 
-
-  m = ensureMove init(name = "test2", column_labels = ["agse", "namse"], column_types = [colInt32, colString])  
-  echo m.dbRowPointer
 
   # echo "written to disk !!"
   # var m2 = load("./test_meta_save.json")
