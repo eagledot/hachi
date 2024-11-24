@@ -29,6 +29,8 @@ import meta_index_new_python as mBackend
 
 import get_image_size
 
+CASE_INSENSITIVE = True  # later make decision in app_config
+
 ALLOWED_RESOURCES = {       
     "audio": set([".mp3", ".aac"]),                              # TODO:
     "video": set([".mp4", ".avi", ".mkv"]),                     # opencv should allow to read almost all type of video containers and codecs
@@ -272,10 +274,11 @@ class MetaIndex(object):
                 continue
             
             # check if data_hash already indexed
-            if mBackend.check(json.dumps({"resource_hash":data_hash})):
-                # for now it is bit slower.. we will make later the resource hash the primary key..
-                # print("yes: {} exists already:".format(data_hash))
-                continue
+            if self.backend_is_initialized == True:
+                if mBackend.check(json.dumps({"resource_hash":data_hash})):
+                    # for now it is bit slower.. we will make later the resource hash the primary key..
+                    # print("yes: {} exists already:".format(data_hash))
+                    continue
 
             try:
                 (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
@@ -300,8 +303,15 @@ class MetaIndex(object):
             temp_exif_data = get_exif_data(resource_path=resource_path, resource_type = "image")
             for k,v in temp_exif_data.items():
                 temp[k] = v
-                                        
-            result[data_hash] = temp
+
+            new_temp = temp
+            if CASE_INSENSITIVE:
+                # by default we do this... atleast it would match.. rather than providing no results due to case mismatching.
+                for k,v in temp.items():  # forgot if allowed to write while reading from a dict/list!
+                    if isinstance(v, str):
+                        new_temp[k.lower()] = v.lower()
+            del temp
+            result[data_hash] = new_temp
         return result
 
     
@@ -319,26 +329,25 @@ class MetaIndex(object):
         """for now we just search substrings in the string, which a column of colString does by default!
         later when fuzzy search is embedded, then can use that!
 
-        returns an array of strings/suggestions.
-        TODO: may use this only for string types!
-        
-        """
+        NOTE: for now must be a valid attribute and of type string, if any condition fails we return empty list
+        """ 
         result = []
-        
         with self.lock:
-            # prepare query
-            query_json = json.dumps({attribute:query})
-            row_indices = json.loads(mBackend.query(query_json))[attribute] # get the rows, for which column/attribute has query as substring in it.
+            attr_2_type = self.get_attribute_2_type()
+            if attribute in attr_2_type and attr_2_type[attribute] == "string":
+                # prepare query
+                query_json = json.dumps({attribute:query})
+                row_indices = json.loads(mBackend.query(query_json))[attribute] # get the rows, for which column/attribute has query as substring in it.
 
-            # collect rows
-            rows = json.loads(mBackend.collect_rows(row_indices))
+                # collect rows
+                rows = json.loads(mBackend.collect_rows(row_indices))
+                for r in rows:
+                    result.append(r[attribute])
+            else:
+                print("[WARNING]: attribute {} should have been a valid attribute and should be of type string for now!".format(attribute))
+            return result
 
-        # collect desired attribute aka suggestions.
-        for r in rows:
-            result.append(r[attribute])
-        return result
-
-    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None) -> Dict[str, Dict]:
+    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None, exact_string:bool = False) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
         NOTE: current meta-index treat data_hash as just another field.. so i func signature can be simplified.. TODO
         """
@@ -354,7 +363,7 @@ class MetaIndex(object):
         if data_hashes is None:
             # create the query
             query = {attribute:attribute_value}
-            result_json = mBackend.query(json.dumps(query)) # get corresponding row_indices.
+            result_json = mBackend.query(json.dumps(query), exact_string = exact_string) # get corresponding row_indices.
             # get the meta-data/rows
             attr_2_rowIndices = json.loads(result_json)
             del result_json
@@ -378,7 +387,7 @@ class MetaIndex(object):
                 # collect all possible row indices.
                 attribute = "resource_hash"
                 query = {attribute:data_hash}
-                result_json = mBackend.query(json.dumps(query))
+                result_json = mBackend.query(json.dumps(query), exact_string = exact_string)
                 attr_2_rowIndices = json.loads(result_json)
                 del result_json
                 row_indices = row_indices + attr_2_rowIndices[attribute]
@@ -393,6 +402,7 @@ class MetaIndex(object):
 
     # TODO: name it append/put instead of update!
     def update(self, data_hash:str, meta_data:dict):
+        # TODO: make the decision of lowering...
         assert data_hash is not None
 
         with self.lock:
@@ -448,14 +458,22 @@ class MetaIndex(object):
         with self.lock:
             # create a query. using this first we get the desired row_indices.
             # TODO: it can be speed up storing a mapping from resource_hash to row but extra work. (but donot want to create new resources either ! first benchmark this !)
+            
+            new_meta = meta_data
+            if CASE_INSENSITIVE:
+                for k, v in meta_data.items():
+                    assert v is not None
+                    if isinstance(v, str):
+                        new_meta[k.lower()] = v.lower()
+            del meta_data
+
             query = json.dumps({"resource_hash":data_hash})  
             attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
             assert len(attr_2_rowIndices) == 1, "expected only 1 but got: {} for {}".format(attr_2_rowIndices, data_hash)
 
             # update it.
-            print(attr_2_rowIndices)
             row_indices = attr_2_rowIndices["resource_hash"]
-            mBackend.modify(row_indices[0], json.dumps(meta_data))
+            mBackend.modify(row_indices[0], json.dumps(new_meta))
     
     def save(self):
         with self.lock:
@@ -477,6 +495,10 @@ class MetaIndex(object):
     def get_unique(self, attribute:str) -> Iterable[Any]:
         data_all =  json.loads(mBackend.get_all_elements(attribute))
         return set(data_all)
+
+    def get_attribute_2_type(self):
+        return {self.column_labels[i]:self.column_types[i] for i in range(len(self.column_labels))}
+
 
     def get_stats(self):
         """
@@ -529,11 +551,12 @@ if __name__ == "__main__":
     # then query.. ?
     # result = test.query(data_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
     
-    result = test.query(attribute = "person", attribute_value = "cluster698a3640_0")
-    print(result)
+    result = test.query(attribute = "filename", attribute_value = "insta_bk0S3J5hejJ_0.jpg", exact_string=True)
+    # temp = test.get_unique("filename")
+    # print(len(temp))
     # result = test.query(attribute = "filename", attribute_value = "insta_0")
-    # for hash, meta in result.items():
-    #     print(meta["resource_hash"])
+    for hash, meta in result.items():
+        print(meta["filename"])
     #     print(meta["absolute_path"])
 
     # modify say filename attribute for a given hash..
