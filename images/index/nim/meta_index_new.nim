@@ -171,7 +171,7 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
     for i in row_start..<row_end:
       var value = temp[i]
 
-      if latest_version:     # we get the latest by scanning the alias table (default)
+      if latest_version == true:
         if alias_table.hasKey(i):
           value = alias_table[i]
 
@@ -190,7 +190,7 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
     let temp = cast[ptr UncheckedArray[int32]](c.payload)
     for i in row_start..<row_end:
       var value = temp[i]
-      if latest_version:     # we get the latest by scanning the alias table (default)
+      if latest_version:
         if alias_table.hasKey(i):
           value = alias_table[i]
       result.elems.add(JsonNode(kind:JInt, num:BiggestInt(value)))
@@ -201,7 +201,7 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
     for i in row_start..<row_end:
       var value = temp[i]
       
-      if latest_version:     # we get the latest by scanning the alias table (default)
+      if latest_version:
         if alias_table.hasKey(i):
           value = alias_table[i]
       
@@ -213,62 +213,62 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
     for i in row_start..<row_end:
       var value = temp[i]
 
-      if latest_version:     # we get the latest by scanning the alias table (default)
+      if latest_version:
         if alias_table.hasKey(i):
           value = alias_table[i]
-      
+        
       result.elems.add(JsonNode(kind:JFloat, fnum:value))
 
   else:
     doAssert 1 == 0, "not expected"
 
-  if c.aliased == true and latest_version == false:
+  # if c.aliased == true and latest_version == false:
     
-    let alias_node = JsonNode(kind:JObject)  # with row_indices and row data as key
-    let row_indices_node = JsonNode(kind:JArray)
-    let row_data_node = JsonNode(kind:JArray)
+  #   let alias_node = JsonNode(kind:JObject)  # with row_indices and row data as key
+  #   let row_indices_node = JsonNode(kind:JArray)
+  #   let row_data_node = JsonNode(kind:JArray)
 
-    let row_indices = cast[ptr UncheckedArray[Natural]](c.alias.row_indices)
-    for i in 0..<c.alias.counter:
-      row_indices_node.add(JsonNode(kind:Jint, num:BiggestInt(row_indices[i])))
+  #   let row_indices = cast[ptr UncheckedArray[Natural]](c.alias.row_indices)
+  #   for i in 0..<c.alias.counter:
+  #     row_indices_node.add(JsonNode(kind:Jint, num:BiggestInt(row_indices[i])))
       
-      # either string or array of string as element in row_data node
-      if c.kind == colString:
-        let payload_data = cast[ptr UncheckedArray[string]](c.alias.payload)
-        let value = payload_data[i]
-        if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
-          # it means... it was an array when stored.
-          var temp_node = JsonNode(kind:JArray)        
-          for v_s in value.split(splitter):
-            if len(v_s) > 0:
-              temp_node.add(JsonNode(kind:Jstring, str:v_s))
-          row_data_node.add(temp_node)
-        else:
-          row_data_node.add(JsonNode(kind:JString, str:value))
+  #     # either string or array of string as element in row_data node
+  #     if c.kind == colString:
+  #       let payload_data = cast[ptr UncheckedArray[string]](c.alias.payload)
+  #       let value = payload_data[i]
+  #       if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
+  #         # it means... it was an array when stored.
+  #         var temp_node = JsonNode(kind:JArray)        
+  #         for v_s in value.split(splitter):
+  #           if len(v_s) > 0:
+  #             temp_node.add(JsonNode(kind:Jstring, str:v_s))
+  #         row_data_node.add(temp_node)
+  #       else:
+  #         row_data_node.add(JsonNode(kind:JString, str:value))
 
-      elif c.kind == colFloat32:
-        let payload_data = cast[ptr UncheckedArray[float32]](c.alias.payload)
-        let value = payload_data[i]
-        row_data_node.add(JsonNode(kind:JFloat, fnum:float(value)))
+  #     elif c.kind == colFloat32:
+  #       let payload_data = cast[ptr UncheckedArray[float32]](c.alias.payload)
+  #       let value = payload_data[i]
+  #       row_data_node.add(JsonNode(kind:JFloat, fnum:float(value)))
 
-      elif c.kind == colBool:
-        let payload_data = cast[ptr UncheckedArray[bool]](c.alias.payload)
-        let value = payload_data[i]
-        row_data_node.add(JsonNode(kind:JBool, bval:bool(value)))
+  #     elif c.kind == colBool:
+  #       let payload_data = cast[ptr UncheckedArray[bool]](c.alias.payload)
+  #       let value = payload_data[i]
+  #       row_data_node.add(JsonNode(kind:JBool, bval:bool(value)))
 
-      elif c.kind == colInt32:
-        let payload_data = cast[ptr UncheckedArray[int32]](c.alias.payload)
-        let value = payload_data[i]
-        row_data_node.add(JsonNode(kind:JInt, num:BiggestInt(value)))
+  #     elif c.kind == colInt32:
+  #       let payload_data = cast[ptr UncheckedArray[int32]](c.alias.payload)
+  #       let value = payload_data[i]
+  #       row_data_node.add(JsonNode(kind:JInt, num:BiggestInt(value)))
 
-      else:
-        doAssert 1 == 0
-    doAssert len(row_data_node) == len(row_indices_node)
+  #     else:
+  #       doAssert 1 == 0
+  #   doAssert len(row_data_node) == len(row_indices_node)
 
-    alias_node["row_indices"] = row_indices_node
-    alias_node["row_data"] = row_data_node
+  #   alias_node["row_indices"] = row_indices_node
+  #   alias_node["row_data"] = row_data_node
 
-    result.add(alias_node)
+  #   result.add(alias_node)
   return result
 
 template aliasImpl(c_t:var Column, row_idx_t:Natural, data_t:typed, type_t:typedesc)=
@@ -666,7 +666,7 @@ proc add(m:var MetaIndex, column_label:string, data:JsonNode)=
   
   doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
   let curr_row_idx = m.dbRowPointer
-  var column = m[column_label] # here it would try to copy right temporarily !
+  var column = m[column_label]
   populateColumnImpl(column, curr_row_idx, data, m.stringConcatenator)
   m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
 
@@ -716,11 +716,11 @@ proc set_immutable()=
   # can set a  particular column to be immutable, but not vice-versa!
   discard
 
-proc toJson(m:MetaIndex, count:Natural = 10, latest_version:bool = true):JsonNode =
+proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
   result = JsonNode(kind:JObject)
   let limit = min(m.dbRowPointer, count)
   for c in m.columns:
-    result[c.label] = c.toJson(row_end = limit, latest_version = latest_version)
+    result[c.label] = c.toJson(row_end = limit)
   return result
 
 proc `$`*(m:MetaIndex, count:Natural = 10):string=
@@ -797,14 +797,66 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
 
  
 proc save*(m:MetaIndex, path:string)=
-  # save somehow this to to 
-  # but what should should i save..
-  # we can get a sjon
-
-  # TODO: save the ALIAS data too..
 
   # this contains all columns.. json data.
-  var json_schema = m.toJson(count = m.dbRowPointer)
+  let json_schema = JsonNode(kind:JObject)
+  for c in m.columns:
+    json_schema[c.label] = c.toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator,  latest_version = false)
+  
+  ##########################################################
+  # saving aliasing data tooo
+  # alias object would be the last element for already stored data if column is aliased
+  # while loading we make use of fact that m.dbRowpointer is less than len of array if aliased.
+  #######################################
+
+  let splitter = m.stringConcatenator
+  for c in m.columns:
+    if c.aliased == true:
+      
+      let alias_node = JsonNode(kind:JObject)  # with row_indices and row data as key
+      let row_indices_node = JsonNode(kind:JArray)
+      let row_data_node = JsonNode(kind:JArray)
+
+      let row_indices = cast[ptr UncheckedArray[Natural]](c.alias.row_indices)
+      for i in 0..<c.alias.counter:
+        row_indices_node.add(JsonNode(kind:Jint, num:BiggestInt(row_indices[i])))
+        
+        # either string or array of string as element in row_data node
+        if c.kind == colString:
+          let payload_data = cast[ptr UncheckedArray[string]](c.alias.payload)
+          let value = payload_data[i]
+          if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
+            # it means... it was an array when stored.
+            var temp_node = JsonNode(kind:JArray)        
+            for v_s in value.split(splitter):
+              if len(v_s) > 0:
+                temp_node.add(JsonNode(kind:Jstring, str:v_s))
+            row_data_node.add(temp_node)
+          else:
+            row_data_node.add(JsonNode(kind:JString, str:value))
+
+        elif c.kind == colFloat32:
+          let payload_data = cast[ptr UncheckedArray[float32]](c.alias.payload)
+          let value = payload_data[i]
+          row_data_node.add(JsonNode(kind:JFloat, fnum:float(value)))
+
+        elif c.kind == colBool:
+          let payload_data = cast[ptr UncheckedArray[bool]](c.alias.payload)
+          let value = payload_data[i]
+          row_data_node.add(JsonNode(kind:JBool, bval:bool(value)))
+
+        elif c.kind == colInt32:
+          let payload_data = cast[ptr UncheckedArray[int32]](c.alias.payload)
+          let value = payload_data[i]
+          row_data_node.add(JsonNode(kind:JInt, num:BiggestInt(value)))
+
+        else:
+          doAssert 1 == 0
+      doAssert len(row_data_node) == len(row_indices_node)
+
+      alias_node["row_indices"] = row_indices_node
+      alias_node["row_data"] = row_data_node
+      json_schema[c.label].add(alias_node)
 
   # we populate all remaining fields too.. to enough to load later from persistent storage..
   json_schema["dbRowPointer"] = JsonNode(kind:JInt, num:BiggestInt(m.dbRowPointer)) 
@@ -846,7 +898,7 @@ proc load*(path:string):MetaIndex=
 
     doAssert column_json.kind == JArray, "each column is supposed to be an array of type str/int/float/bool"
     # assuming one to one mapping. (i think can have a hook, for easy to and fro conversion b/w json and column kind, later.. after some reading!)
-    if column_json[0].kind == Jstring:
+    if column_json[0].kind == Jstring:  # for now using first value to determin type, later can store the kind also !
       column_types.add(colString)
     elif column_json[0].kind == JInt:
       column_types.add(colInt32)
@@ -866,7 +918,27 @@ proc load*(path:string):MetaIndex=
     for label in column_labels:
       result.add(label, json_schema[label][rowIdx])  
     result.rowWriteEnd()
-    
+
+  # also populate alias data..
+  # ok, we can model it as modifying data. ( which appends data to alias payload, for which we created aliasing)
+  for label in column_labels:
+    # figure out if aliased! lets assume yes.
+    let is_aliased = (len(json_schema[label]) > rowPointer)
+    if is_aliased:
+      assert len(json_schema[label]) == rowPointer + 1  # last entry is alias object is aliased. 
+      
+      let alias_obj = json_schema[label][rowPointer] # last value would be alias object.
+      let row_indices = alias_obj["row_indices"] # array of JsonNodes of type JInt
+      let row_data = alias_obj["row_data"] # array of JsonNodes  of column type or array of strings, when coltype is string
+
+      for count in 0..<len(row_indices):
+        let row_ix = getInt(row_indices[count])
+        let row_data = row_data[count]
+        
+        let row_meta_data = JsonNode(kind:JObject)
+        row_meta_data[label] = row_data
+        result.modify_row(row_idx = row_ix, meta_data = row_meta_data)
+  
   doAssert result.dbRowPointer == rowPointer , "expected: " & $result.dbRowPointer & " got: " & $rowPointer
   return result
 
@@ -960,12 +1032,25 @@ when isMainModule:
   echo m
   echo m.collect_rows(indices = [Natural(1)])
 
-  echo m.toJson(latest_version = false)
-  echo m
-
+  echo m.toJson()
 
   # save
-  # m.save("./test_meta_save.json")
+  m.save("./test_meta_save.json")
+
+  var m2 = load("./test_meta_save.json")
+  echo m2.toJson()
+  echo m2
+  echo m
+
+  m2.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
+  # echo m2
+  # echo m2.toJson()
+  m2.modify_row(row_idx = 1, meta_data = %* {"name":"iownyou"}, force = true)
+  echo m2.toJson()
+  m2.save("./test_meta_save.json")
+  
+
+
 
 
   # echo "written to disk !!"
