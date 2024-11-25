@@ -31,8 +31,6 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[strin
     nim_column_types.add(pytype_2_coltype[py_type])
   
   m = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = nim_column_types)
-  echo "i think done!"
-  echo m
 
 proc load(path:string){.exportpy.} =
   # load directly from the json stored on the disk!
@@ -81,13 +79,13 @@ proc collect_rows(indices:varargs[Natural]):string {.exportpy.}=
 # modify
 # what would modification look like?
 # idea is to be able to modify/overwrite a (mutable) column in case we collect fresh data.
-proc modify(row_idx:Natural, meta_data:string){.exportpy.}=
+proc modify(row_idx:Natural, meta_data:string, force:bool = false){.exportpy.}=
   ## Inputs:
     # row_idx, a valid row index, it on user to collect that/them by calling query routine.
     # meta_data: new key/value pairs . where key is the column label and value would be new data to be updated.
   
   let meta_data = parseJson(meta_data)
-  m.modify_row(row_idx = row_idx, meta_data = meta_data)
+  m.modify_row(row_idx = row_idx, meta_data = meta_data, force = force)
 
 ##############
 # meta-information about database itself.
