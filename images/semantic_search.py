@@ -47,6 +47,8 @@ from global_data_cache import GlobalDataCache
 import clip_python_module as clip
 #import faceEmbeddings_python_module as pipeline
 
+USER_CLUSTER_ID_2_ORIGINAL = {} # a session cache to help ..
+
 def generate_endpoint(directory_path:str) -> str:
     statusEndpoint = directory_path.replace("/", "-")
     statusEndpoint = statusEndpoint.replace('\\',"-")
@@ -679,45 +681,34 @@ def getRawDataFull(data_hash:str) -> flask.Response:
 
 @app.route("/tagPerson", methods = ["POST"])
 def tagPerson():
-    # TODO: based on the new backend!!
-    # how ... given the old cluster id 
-    # we want to do [x_old_1, x_old_2] -> [x_new_1, x_old_2] ? when replacing x_new_1 with x_old_1
-    # modify({"person": new_array})
-    # first find all the rows where x_old_1 is present.
-    # 
+    """
+    tag a person. (update cluster id  with a user provided label.)
+    It cannot be modelled cleanly, as lots of images may have that cluster/person (along with other persons/clusters) so we go through all of those image and replace old id with new id with correct index!
+    current logic seems sound and working as intended!
+    """
+    new_person_id = flask.request.form["new_person_id"].strip()
+    old_person_id = flask.request.form["old_person_id"].strip()
+    # we make sure new tag/cluster is not already present, so there is never some ambiguity.
+    if new_person_id in metaIndex.get_unique(attribute = "person"):
+        return flask.jsonify({"success":False, "reason":"{} already present, choose a different tag".format(new_person_id)})
 
-    result = {"success":False, "reason":"unknown"}
-
-    new_person_id = flask.request.form["new_person_id"].strip().lower()
-    old_person_id = flask.request.form["old_person_id"].strip().lower()
-
-    hash_2_metaData = metaIndex.query(attribute="person", attribute_value=old_person_id)
-    for curr_data_hash in hash_2_metaData:
-        temp_meta_data = hash_2_metaData[curr_data_hash]
-
-        # if more than one face of same person in an image, replace all of them.
-        for i,d in enumerate(temp_meta_data["person"]):
-            if d == old_person_id:
-                temp_meta_data["person"][i] = new_person_id        
-        metaIndex.modify_meta_data(curr_data_hash, temp_meta_data)
-
-    metaIndex.save()
-    result["success"] = True
-    result["reason"] = "Meta data successfully updated."
-
-    with global_lock:
-        # NOTE: this personId to avgEmbedding persists only for a session, for new photos in next session user may have to specify person id once atleast.
-        if old_person_id in personId_to_avgEmbedding:
-            personId_to_avgEmbedding[new_person_id] = personId_to_avgEmbedding[old_person_id]
-            personId_to_avgEmbedding.pop(old_person_id)
-
-        temp_person_preview_path = os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(old_person_id))
-        if os.path.exists(temp_person_preview_path):
-            new_path =  os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, "{}.jpg".format(new_person_id))
-            if not os.path.exists(new_path): 
-                os.rename(temp_person_preview_path, new_path)
+    # we find all the rows/resource where old person id is present.
+    # we replace old person id with new person_id for each such resource !
+    hash_2_metaData = metaIndex.query(attribute = "person", attribute_value = old_person_id)
+    for hash, meta_data in hash_2_metaData.items():
+        old_array = meta_data["person"]
+        new_person_meta = {"person":[]}
+        for p in (old_array):
+            if p == old_person_id:
+                new_person_meta["person"].append(new_person_id)
+            else:
+                new_person_meta["person"].append(p)
+        metaIndex.modify_meta_data(data_hash = hash, meta_data = new_person_meta)
+    
+    result = {"success":True, "reason":""}
+    metaIndex.save() # write to disk too..
     return flask.jsonify(result)
-
+   
 @app.route("/editMetaData", methods = ["POST"])
 def editMetaData():
     """ Supposed to update/modify meta-index upon an user request"""
@@ -729,20 +720,13 @@ def editMetaData():
             temp_meta_data[k] = v
 
     data_hash = flask.request.form["data_hash"]
-
     metaIndex.modify_meta_data(data_hash, temp_meta_data)
     metaIndex.save()
-
     return flask.jsonify({"success":True})
-
 
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
-    # NOTE: it is bad.. basically querying all the meta-data
-    # just be returning unique values for an attribute..
-    # TODO: handle this.. here should return only the unique values for an attribute only..
-    # and then later user can call query metaData with this attribute and a value.. to get the desired meta-data for that person.
-
+    # get the unique/all possible values for an attribute!
     result = metaIndex.get_unique(attribute)
     return flask.jsonify(list(result))
 
@@ -757,42 +741,95 @@ def getMeta(attribute:str, value:Any):
     temp["score"] = [1 for _ in range(len(result))]
     return temp
 
-
-
-
-    # result = {} 
-    # possible_values =  metaIndex.get_original_data(attribute = attribute)
-    # for value in possible_values:
-    #     hash_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
-    #     for k,v  in hash_2_metaData.items():
-    #         if k is not None:  # it is not supposed to be None!!
-    #             result[k] = v
-
-    # temp = {}
-    # temp["data_hash"]= list(result.keys())
-    # temp["meta_data"] = [result[k] for k in temp["data_hash"]]
-    # temp["score"] = [1 for _ in range(len(temp["data_hash"]))]
-    # temp[attribute] = list(possible_values)
-
-    # return flask.jsonify(temp)
-
 @app.route("/getMetaStats", methods = ["GET"])
 def getMetaStats():
     """Supposed to return some stats about meta-data indexed, like number of images/text etc."""
     result = metaIndex.get_stats()
     return flask.jsonify(result)
 
+def get_original_cluster_id(cluster_id):
+    """
+    Given a cluster id get the corresponding original cluster id
+    """
+    if ("cluster_" in cluster_id.lower()):
+       return cluster_id
+      
+    # first get the original data even user changed it.
+    original_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = False)
+    new_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = True)
+    # note we have to do extra work, we try to reason which original cluster id was mapped to new one.
+    # i donot want to save extra info.. so we figure out at first try we save it for this session..
+    # for further tries!
+    # try to find mapping.
+    # first find ix.
+
+    print("got: {}\n".format(cluster_id))
+
+    desired_ix = None
+    desired_hash = None
+    for hash, new_meta in new_hash_2_metadata.items():
+        for i,p in enumerate(new_meta["person"]):
+            if p == cluster_id:
+                desired_ix = i
+                desired_hash = hash
+                break
+        del new_meta
+        break
+    assert desired_ix is not None, "should have found it!"
+
+    # find the original...
+    original_cluster_id = original_hash_2_metadata[desired_hash]["person"][desired_ix]
+    print("found original cluster_id {}".format(original_cluster_id))
+    return original_cluster_id
+
 @app.route("/getPreviewPerson/<cluster_id>", methods = ["GET"])
 def getPreviewCluster(cluster_id):
+    if cluster_id not in USER_CLUSTER_ID_2_ORIGINAL:
+        original_cluster_id = get_original_cluster_id(cluster_id)
+        # update session mappping for future reference
+        USER_CLUSTER_ID_2_ORIGINAL[cluster_id] = original_cluster_id
+    else:
+        original_cluster_id = USER_CLUSTER_ID_2_ORIGINAL[cluster_id]
+
+    #     # first get the original data even user changed it.
+    #     original_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = False)
+    #     new_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = True)
+    #     # note we have to do extra work, we try to reason which original cluster id was mapped to new one.
+    #     # i donot want to save extra info.. so we figure out at first try we save it for this session..
+    #     # for further tries!
+    #     # try to find mapping.
+    #     # first find ix.
+
+    #     desired_ix = None
+    #     desired_hash = None
+    #     for hash, new_meta in new_hash_2_metadata.items():
+    #         for i,p in enumerate(new_meta["person"]):
+    #             if p == cluster_id:
+    #                 desired_ix = i
+    #                 desired_hash = hash
+    #                 break
+    #         del new_meta
+    #         break
+    #     assert desired_ix is not None, "should have found it!"
+
+    #     # find the original...
+    #     original_cluster_id = original_hash_2_metadata[desired_hash]["person"][desired_ix]
+    #     print("found original cluster_id {}".format(original_cluster_id))
+        
+    #     # update session mappping.
+    #     USER_CLUSTER_ID_2_ORIGINAL[cluster_id] = original_cluster_id
+    
+    # del cluster_id
+
     # TODO: remove this if/else block, cluster_id must go through FaceIndex/Clusters 
     # TODO: have to add a cluster for no detection too...
-    if cluster_id.lower() == "no_person_detected":
+    if original_cluster_id.lower() == "no_person_detected":
         flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
         raw_data = poster.tobytes()
         del flag, poster
         return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
     else:
-        c = faceIndex.get(cluster_id)
+        c = faceIndex.get(original_cluster_id)
         png_data = c.preview_data
         del c
         raw_data= base64.b64decode(png_data)
@@ -810,6 +847,10 @@ def getfaceBboxIdMapping(resource_hash:str):
     """
     
     cluster_ids = flask.request.form.get("cluster_ids").strip("| ").split("|")
+    new_cluster_ids = []    
+    for c_id in cluster_ids:
+        new_cluster_ids.append(get_original_cluster_id(c_id))
+    del cluster_ids
 
     # TODO: reading full image data from cache if possible !
     temp_meta = metaIndex.query(data_hashes = resource_hash)[resource_hash]
@@ -818,13 +859,14 @@ def getfaceBboxIdMapping(resource_hash:str):
     if frame is None:
         return flask.jsonify([])
     else:
+        # TODO: should return user specified id rather than original cluster id.
         bbox_ids = faceIndex.get_face_id_mapping(
             image = frame,
             is_bgr = True,
-            cluster_ids = cluster_ids
+            cluster_ids = new_cluster_ids
         )
         result = []
-        for (bbox, id) in bbox_ids:
+        for (bbox, id) in bbox_ids:            
             result.append({
                 "x1":bbox[0],
                 "y1":bbox[1],
