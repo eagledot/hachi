@@ -906,8 +906,11 @@ proc load*(path:string):MetaIndex=
       column_types.add(colFloat32)
     elif column_json[0].kind == JBool:
       column_types.add(colBool)
+    elif column_json[0].kind == JArray:
+      # for now only array of strings is allowed!
+      column_types.add(colString)
     else:
-      doAssert 1 == 0, "unexpected type: "  & $column_json.kind
+      doAssert 1 == 0, "unexpected type: "  & $column_json.kind & " for " & $k
   
   result = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = column_types)
   
