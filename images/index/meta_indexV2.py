@@ -337,7 +337,7 @@ class MetaIndex(object):
             if attribute in attr_2_type and attr_2_type[attribute] == "string":
                 # prepare query
                 query_json = json.dumps({attribute:query})
-                row_indices = json.loads(mBackend.query(query_json))[attribute] # get the rows, for which column/attribute has query as substring in it.
+                row_indices = json.loads(mBackend.query(query_json), exact_string = False, top_k = 100)[attribute] # get the rows, for which column/attribute has query as substring in it.
 
                 # collect rows
                 rows = json.loads(mBackend.collect_rows(row_indices))
@@ -347,7 +347,7 @@ class MetaIndex(object):
                 print("[WARNING]: attribute {} should have been a valid attribute and should be of type string for now!".format(attribute))
             return result
 
-    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None, exact_string:bool = False) -> Dict[str, Dict]:
+    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None, exact_string:bool = True) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
         NOTE: current meta-index treat data_hash as just another field.. so i func signature can be simplified.. TODO
         """
@@ -363,7 +363,7 @@ class MetaIndex(object):
         if data_hashes is None:
             # create the query
             query = {attribute:attribute_value}
-            result_json = mBackend.query(json.dumps(query), exact_string = exact_string) # get corresponding row_indices.
+            result_json = mBackend.query(json.dumps(query)) # get corresponding row_indices.
             # get the meta-data/rows
             attr_2_rowIndices = json.loads(result_json)
             del result_json
@@ -387,7 +387,7 @@ class MetaIndex(object):
                 # collect all possible row indices.
                 attribute = "resource_hash"
                 query = {attribute:data_hash}
-                result_json = mBackend.query(json.dumps(query), exact_string = exact_string)
+                result_json = mBackend.query(json.dumps(query))
                 attr_2_rowIndices = json.loads(result_json)
                 del result_json
                 row_indices = row_indices + attr_2_rowIndices[attribute]
@@ -413,7 +413,7 @@ class MetaIndex(object):
             for k,v in meta_data.items():
                 if v is None:
                     # TODO: warning converting None to string type, as we donot allow null values in backend for now.
-                    meta_data[k] = "unknown"
+                    meta_data[k] = "UNK"
             
             if self.backend_is_initialized == False:
                 # lazy initialization on first time update...
