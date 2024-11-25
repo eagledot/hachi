@@ -10,11 +10,12 @@
     }
 
     // updated/fulfilled on mount.
-    let image_data = {
-        "list_metaData": [],
-        "list_score": [],
-        "list_dataHash": [],
-    }
+    // TODO: delete as redundant
+    // let image_data = {
+    //     "list_metaData": [],
+    //     "list_score": [],
+    //     "list_dataHash": [],
+    // }
 
     // people data to be fulfilled on the click. for chosen person.
     let people_data = {
@@ -34,22 +35,32 @@
     onMount(() =>{
         // we get the data for all the places at once only on mount. Needs to refresh to show very recent data or mount again.
 
-        data_downloaded = false;
+        data_downloaded = false;  // NOTE: we are downloading all the meta-data at once.. when meta-index gets bigger it would be problem!
+        // instead on a person click.. get the corresponding.. meta-data for that person only..
 
         // get the corresponding data for all places.
         fetch("/api/getGroup/person").
         then((response) => {
             response.json().then((data) => {
-            let data_length = data["meta_data"].length;
-            for(let i = 0; i < data_length; i++){
-                image_data.list_dataHash.push(data["data_hash"][i]);
-                image_data.list_score.push(data["score"][i]);
-                image_data.list_metaData.push(data["meta_data"][i]);
-            }
+            
+            // just assume an array of unique values for person.
+            state.people = data;
+            original_person_ids = data;  // to keep reference to original data!
             data_downloaded = true;
-            state.people = data["person"];
-            original_person_ids = state.people;
-            });
+            
+            // older code...
+            // let data_length = data["meta_data"].length;
+            // for(let i = 0; i < data_length; i++){
+            //     image_data.list_dataHash.push(data["data_hash"][i]);
+            //     image_data.list_score.push(data["score"][i]);
+            //     image_data.list_metaData.push(data["meta_data"][i]);
+            // }
+            // data_downloaded = true;
+            // state.people = data["person"];
+            // original_person_ids = state.people;
+            
+        
+        });
         
         });
     })
@@ -58,33 +69,71 @@
         console.log("destroying... people..");
     })
 
-    async function handleClick(person_id){
+    function handleClick(person_id){
+        // NOTE: to modify this to collect the meta-data for this person only.
+        // make a request to get the corresponding rows/meta info and then set photos_interface_active to true only..
 
-        photos_interface_active = false;
-
-        people_data = {
-        "list_metaData": [],
-        "list_score": [],
-        "list_dataHash": [],
-        "done":false,
-        "progress":0
-        }
-
-        for(let i = 0; i<image_data.list_dataHash.length; i++){
-
-            if(image_data.list_metaData[i]["person"].includes(person_id)){
-                people_data.list_metaData.push(image_data.list_metaData[i]);
-                people_data.list_dataHash.push(image_data.list_dataHash[i]);
-                people_data.list_score.push(image_data.list_score[i]);
+        // here handle clicking by getting the meta-data for a specific person!
+        fetch("/api/getMeta/person/" + person_id.toString()).
+        then((response) =>{
+            response.json().then((temp_meta_data) => {
+                photos_interface_active = false;
+                people_data = {
+                "list_metaData": [],
+                "list_score": [],
+                "list_dataHash": [],
+                "done":false,
+                "progress":0
+                }
                 
-            }
-        }
-        people_data.done = true;  // should be enough to indicate svelte to render photos interface.
-        photos_interface_active = true;
-        if(original_person_ids){
-            state.people = original_person_ids;
-        }
-        query_results_available.update((value) => structuredClone(people_data));
+
+                let count = (temp_meta_data["data_hash"]).length // any key all have equal length.
+                for(let i = 0; i<count; i++){
+                    // should be no need for this if condition .. as we collects meta data for this person id anyway!
+                        console.log('pushing tooooooo')
+                        people_data.list_metaData.push(temp_meta_data["meta_data"][i]);
+                        people_data.list_dataHash.push(temp_meta_data["data_hash"][i]);
+                        people_data.list_score.push(temp_meta_data["score"][i]);
+                    }
+                
+                people_data.done = true;  // should be enough to indicate svelte to render photos interface.
+                photos_interface_active = true;
+                if(original_person_ids){
+                    state.people = original_person_ids;
+                }
+                query_results_available.update((value) => structuredClone(people_data));  // idk how much structuredClone effects but keep it so for now!
+        
+                })
+        })
+
+        
+        // older code..
+
+        // photos_interface_active = false;
+
+        // people_data = {
+        // "list_metaData": [],
+        // "list_score": [],
+        // "list_dataHash": [],
+        // "done":false,
+        // "progress":0
+        // }
+
+        // for(let i = 0; i<image_data.list_dataHash.length; i++){
+
+        //     if(image_data.list_metaData[i]["person"].includes(person_id)){
+        //         people_data.list_metaData.push(image_data.list_metaData[i]);
+        //         people_data.list_dataHash.push(image_data.list_dataHash[i]);
+        //         people_data.list_score.push(image_data.list_score[i]);
+                
+        //     }
+        // }
+        // people_data.done = true;  // should be enough to indicate svelte to render photos interface.
+        // photos_interface_active = true;
+        // if(original_person_ids){
+        //     state.people = original_person_ids;
+        // }
+        // query_results_available.update((value) => structuredClone(people_data));
 
     }
 
