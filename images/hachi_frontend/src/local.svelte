@@ -32,23 +32,36 @@
     let data_downloaded = true; // not exactly being used for now.. (may be used during destroy .. to prevent )
     let original_local_directories; // keeping a reference, in case of search for local directories.
     onMount(() =>{
-        // we get the data for all the places at once only on mount. Needs to refresh to show very recent data or mount again.
-
-        data_downloaded = false;
-
+        
+        
         // get the corresponding data for all places.
         fetch("/api/getGroup/resource_directory").
         then((response) => {
             response.json().then((data) => {
-            let data_length = data["meta_data"].length;
-            for(let i = 0; i < data_length; i++){
-                image_data.list_dataHash.push(data["data_hash"][i]);
-                image_data.list_score.push(data["score"][i]);
-                image_data.list_metaData.push(data["meta_data"][i]);
-            }
+            
+            // just assume an array of unique values for person.
+            state.local_directories = data;
             data_downloaded = true;
-            state.local_directories = data["resource_directory"];
-            original_local_directories = state.local_directories;
+        
+        
+        // we get the data for all the places at once only on mount. Needs to refresh to show very recent data or mount again.
+
+        // data_downloaded = false;
+
+        // // get the corresponding data for all places.
+        // fetch("/api/getGroup/resource_directory").
+        // then((response) => {
+        //     response.json().then((data) => {
+        //     let data_length = data["meta_data"].length;
+        //     for(let i = 0; i < data_length; i++){
+        //         image_data.list_dataHash.push(data["data_hash"][i]);
+        //         image_data.list_score.push(data["score"][i]);
+        //         image_data.list_metaData.push(data["meta_data"][i]);
+        //     }
+        //     data_downloaded = true;
+        //     state.local_directories = data["resource_directory"];
+        //     original_local_directories = state.local_directories;
+        // 
             });
         
         });
@@ -57,36 +70,67 @@
     onDestroy(() => {
     })
 
-    async function handleClick(attribute){
+    function handleClick(attribute){
 
-        photos_interface_active = false;
-
-        directory_data = {
-        "list_metaData": [],
-        "list_score": [],
-        "list_dataHash": [],
-        "done":false,
-        "progress":0,
-        }
         
-        console.log("looking for attribute ",attribute)
-        for(let i = 0; i<image_data.list_dataHash.length; i++){
-
-            if(image_data.list_metaData[i]["resource_directory"].toLowerCase().includes(attribute)){
-                directory_data.list_metaData.push(image_data.list_metaData[i]);
-                directory_data.list_dataHash.push(image_data.list_dataHash[i]);
-                directory_data.list_score.push(image_data.list_score[i]);
+        fetch("/api/getMeta/resource_directory/" + attribute.toString().toLowerCase()).
+        then((response) =>{
+            response.json().then((temp_meta_data) => {
+                photos_interface_active = false;
+                directory_data = {
+                "list_metaData": [],
+                "list_score": [],
+                "list_dataHash": [],
+                "done":false,
+                "progress":0
+                }
                 
-            }
-        }
-        directory_data.done = true;  // should be enough to indicate svelte to render photos interface.
-        console.log(directory_data)
+
+                let count = (temp_meta_data["data_hash"]).length // any key all have equal length.
+                console.log(count)
+                for(let i = 0; i<count; i++){
+                    // should be no need for this if condition .. as we collects meta data for this person id anyway!
+                        directory_data.list_metaData.push(temp_meta_data["meta_data"][i]);
+                        directory_data.list_dataHash.push(temp_meta_data["data_hash"][i]);
+                        directory_data.list_score.push(temp_meta_data["score"][i]);
+                    }
+                
+                directory_data.done = true;  // should be enough to indicate svelte to render photos interface.
+                photos_interface_active = true;
+                query_results_available.update((value) => structuredClone(directory_data));  // idk how much structuredClone effects but keep it so for now!
         
-        photos_interface_active = true;
-        if(original_local_directories){
-            state.local_directories = original_local_directories;
-        }
-        query_results_available.update((value) => structuredClone(directory_data));
+                })
+        })
+
+        
+        // photos_interface_active = false;
+
+        // directory_data = {
+        // "list_metaData": [],
+        // "list_score": [],
+        // "list_dataHash": [],
+        // "done":false,
+        // "progress":0,
+        // }
+        
+        // console.log("looking for attribute ",attribute)
+        // for(let i = 0; i<image_data.list_dataHash.length; i++){
+
+        //     if(image_data.list_metaData[i]["resource_directory"].toLowerCase().includes(attribute)){
+        //         directory_data.list_metaData.push(image_data.list_metaData[i]);
+        //         directory_data.list_dataHash.push(image_data.list_dataHash[i]);
+        //         directory_data.list_score.push(image_data.list_score[i]);
+                
+        //     }
+        // }
+        // directory_data.done = true;  // should be enough to indicate svelte to render photos interface.
+        // console.log(directory_data)
+        
+        // photos_interface_active = true;
+        // if(original_local_directories){
+        //     state.local_directories = original_local_directories;
+        // }
+        // query_results_available.update((value) => structuredClone(directory_data));
 
     }
 
