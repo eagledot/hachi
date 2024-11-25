@@ -454,7 +454,7 @@ class MetaIndex(object):
             mBackend.put(json_meta)
             del json_meta
     
-    def modify_meta_data(self, data_hash:str, meta_data:Dict):
+    def modify_meta_data(self, data_hash:str, meta_data:Dict, force:bool = False):
         with self.lock:
             # create a query. using this first we get the desired row_indices.
             # TODO: it can be speed up storing a mapping from resource_hash to row but extra work. (but donot want to create new resources either ! first benchmark this !)
@@ -473,7 +473,7 @@ class MetaIndex(object):
 
             # update it.
             row_indices = attr_2_rowIndices["resource_hash"]
-            mBackend.modify(row_indices[0], json.dumps(new_meta))
+            mBackend.modify(row_indices[0], json.dumps(new_meta), force = force)
     
     def save(self):
         with self.lock:
@@ -551,12 +551,12 @@ if __name__ == "__main__":
     # then query.. ?
     # result = test.query(data_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
     
-    result = test.query(attribute = "filename", attribute_value = "insta_bk0S3J5hejJ_0.jpg", exact_string=True)
+    # result = test.query(attribute = "filename", attribute_value = "insta_bk0S3J5hejJ_0.jpg", exact_string=True)
     # temp = test.get_unique("filename")
     # print(len(temp))
     # result = test.query(attribute = "filename", attribute_value = "insta_0")
-    for hash, meta in result.items():
-        print(meta["filename"])
+    # for hash, meta in result.items():
+    #     print(meta["filename"])
     #     print(meta["absolute_path"])
 
     # modify say filename attribute for a given hash..
