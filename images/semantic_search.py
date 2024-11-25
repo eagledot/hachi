@@ -583,7 +583,7 @@ def query():
                 print("searching in {}  for {}".format(attribute,value))
 
                 # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
-                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value, exact_string = True)                
+                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)                
                 
                 for hash in hashes_2_metaData:
                     or_keys.add(hash)
@@ -604,7 +604,7 @@ def query():
             del or_keys
 
         # TODO: isn't and keys is a subset of or keys, we already have meta-data, do away with this another query call !
-        temp_something = metaIndex.query(data_hashes = and_keys, exact_string = True)
+        temp_something = metaIndex.query(data_hashes = and_keys)
         for k,v in temp_something.items():
             temp["meta_data"].append(v)
             temp["data_hash"].append(k)
@@ -750,7 +750,7 @@ def getGroup(attribute:str):
 def getMeta(attribute:str, value:Any):
 
     # TODO: for now force value to be of string type.. or convert into expected type.. for backend.
-    result = metaIndex.query(attribute = attribute, attribute_value = value, exact_string = True) # exact make sure we match full string rather than substring.
+    result = metaIndex.query(attribute = attribute, attribute_value = value) # exact make sure we match full string rather than substring.
     temp = {}
     temp["data_hash"]= list(result.keys())
     temp["meta_data"] = [result[k] for k in temp["data_hash"]]
