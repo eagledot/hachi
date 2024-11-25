@@ -314,7 +314,7 @@ function updatePersonId(node){
 
     let new_person_id = node.target.value; // new person id
     let data_hash = image_card_data.data_hash;
-    let old_person_id = image_card_data["person_ids"][current_box_ix];
+    let old_person_id = person_aliases[current_box_ix];
 
     if(node.key == "Enter"){
 
@@ -334,7 +334,15 @@ function updatePersonId(node){
         }
         else{
         // use a notification to display success.
-        alert("Success");
+        response.json().
+        then((data) =>{
+          if (data["success"] == true){
+            alert("Success");
+          }
+          else{
+            alert(data["reason"]);
+          }
+        })
         }
     })
 
@@ -384,7 +392,8 @@ function handleFullImageLoad(target){
   // append cluster ids as a single string..
   let formdata = new FormData();
   let cluster_ids = ""
-  for(let i = 0; i <= image_card_data.person_ids.length; i++){
+
+  for(let i = 0; i < image_card_data.person_ids.length; i++){
     cluster_ids = cluster_ids + image_card_data.person_ids[i];
     cluster_ids = cluster_ids + "|" // separator
   }
@@ -409,11 +418,7 @@ function handleFullImageLoad(target){
 
         let result = [];
         person_aliases = []; // empty this first !
-        for(let i = 0; i<= data.length; i++){
-          // TODO: should not return an undefined value BACKEND.. check logic.. when free!
-          if (data[i] == null){
-            continue;
-          }
+        for(let i = 0; i< data.length; i++){
           
           // collect (x1, y1, x2, y2) and person_id
           let x1 = Number(data[i].x1)
