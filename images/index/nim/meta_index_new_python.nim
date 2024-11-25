@@ -51,8 +51,10 @@ proc put(data:string){.exportpy.}=
   m.add_row(json_obj) # can sink the json_obj i think.. or compiler does this automatically...
 
 # query.
-proc query(query:string, exact_string:bool = false):string {.exportpy.} = 
+proc query(query:string, exact_string:bool = true, top_k:Natural = 0):string {.exportpy.} = 
   # query is supposed to be jsonEncoded string, with column names as keys.
+  # top_k as 0 means all possible matches. (during suggestion we can set it to 100 or something.)
+  # exact_string: i.e match exact string or substring is enough, (default is true)
   # returns:
     # we return an array of row_indices, matched for given query. (in Json encoded form.) on python json.loads() should be enough !
   
@@ -63,7 +65,7 @@ proc query(query:string, exact_string:bool = false):string {.exportpy.} =
   var result = JsonNode(kind:JObject)
   let query_params = parseJson(query)
   for key, value in query_params:
-    var indices = m.query(attribute_value = %* {key:value}, exact_string = exact_string)
+    var indices = m.query(attribute_value = %* {key:value}, exact_string = exact_string, top_k = top_k)
 
     # update the corresponding key with collected row indices.
     var temp = JsonNode(kind:JArray)

@@ -753,6 +753,11 @@ proc `$`*(m:MetaIndex, count:Natural = 10):string=
 #   return result
 
 proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, top_k:Natural = 100):seq[Natural]=
+  
+  var top_k = top_k
+  if top_k == 0:
+    top_k = high(int32)
+  
   doAssert attribute_value.kind == JObject
   doAssert len(attribute_value) == 1
   
