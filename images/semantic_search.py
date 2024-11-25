@@ -15,7 +15,7 @@ sys.path.insert(0, IMAGE_APP_ML_PATH)
 sys.path.insert(0, PYTHON_MODULES_PATH)
 
 # imports
-from typing import Optional, Union, Tuple, List, Iterable, Dict
+from typing import Optional, Union, Tuple, List, Iterable, Dict, Any
 from threading import RLock
 import threading
 import time
@@ -39,7 +39,9 @@ TOP_K_SHARD = appConfig["topK_per_shard"]
 
 from image_index import ImageIndex
 from face_clustering import FaceIndex
-from meta_index import MetaIndex, collect_resources
+# from meta_index import MetaIndex, collect_resources
+from meta_indexV2 import MetaIndex, collect_resources
+
 from global_data_cache import GlobalDataCache
 
 import clip_python_module as clip
@@ -60,7 +62,7 @@ def parse_query(query:str) -> Dict[str, List[str]]:
     and_character = "&"    # assuming mutliple attributes are separated by this character.
     separator_character = "="
 
-    temp_query = query.strip().lower().split(and_character)
+    temp_query = query.strip().lower().split(and_character) # TODO: may be make decision for lowering.. in the app config. later.. for now case insenstive meta-data is stored!
     imageAttributes_2_values = {}
     for x in temp_query:
         temp_x = x.strip().split(separator_character)
@@ -199,6 +201,10 @@ print("Created Image index")
 
 metaIndex = MetaIndex()
 print("Created meta Index")
+# all_filename = metaIndex.get_unique("filename")
+# print(len(all_filename))
+# print(metaIndex.query(attribute = "filename", attribute_value = "insta_bk0s3j5hejj_0.jpg"))
+# assert "insta_bk0s3j5hejj_0.jpg" in all_filename
 
 faceIndex = FaceIndex(embedding_size = FACE_EMBEDDING_SIZE)
 print("Created Face Index")
@@ -272,7 +278,7 @@ def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str
             meta_data["resource_directory"] = "google_photos"
             meta_data["absolute_path"] = "remote"
         
-        metaIndex.update(data_hash, meta_data)
+        metaIndex.update(data_hash, meta_data) # TODO: append instead of update for clearer semantics!
         imageIndex.update(data_hash, data_embedding = image_embedding)
         faceIndex.update(
             frame = frame,
@@ -417,7 +423,7 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
         cluster_meta_info = faceIndex.save() # TODO: actually implement save and load on the disk..
         indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "updating metaIndex...")
         for resource_hash, cluster_ids in cluster_meta_info.items():
-            metaIndex.modify_meta_data(resource_hash, {"person": list(cluster_ids)})
+            metaIndex.modify_meta_data(resource_hash, {"person": list(cluster_ids)}, force = True)
         
     except Exception:
         error_trace = traceback.format_exc() # uses sys.exception() as the exception
@@ -490,11 +496,16 @@ def getIndexStatus(endpoint:str):
 @app.route("/getSuggestion", methods = ["POST"])
 def getSuggestion() -> Dict[str, List[str]]:
 
-    attribute = flask.request.form.get("attribute")
     query = flask.request.form.get("query")
     result = {}
-    if attribute in metaIndex.fuzzy_search_attributes:
-        result[attribute] = metaIndex.suggest(attribute, query)
+    attribute = flask.request.form.get("attribute")
+    result[attribute] = metaIndex.suggest(attribute, query)
+
+    # query = flask.request.form.get("query")
+    # result = {}
+    # attr_2_type = metaIndex.get_attribute_2_type()
+    # if attribute in attr_2_type:
+    #     result[attribute] = metaIndex.suggest(attribute, query)
     return flask.jsonify(result)
 
 ##########################################
@@ -566,12 +577,14 @@ def query():
         and_keys = set()
         key_score = dict()        
         # process/collect the keys/resource-hashes for all the meta-attributes.
-        for i,attribute in enumerate(meta_attributes_list):
-            
+        for i,attribute in enumerate(meta_attributes_list):        
             or_keys = set()  # OR operation like collection
             for value in image_attributes[attribute]:
+                print("searching in {}  for {}".format(attribute,value))
+
                 # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
-                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
+                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value, exact_string = True)                
+                
                 for hash in hashes_2_metaData:
                     or_keys.add(hash)
 
@@ -590,7 +603,8 @@ def query():
                 and_keys = and_keys & or_keys
             del or_keys
 
-        temp_something = metaIndex.query(data_hashes = and_keys)
+        # TODO: isn't and keys is a subset of or keys, we already have meta-data, do away with this another query call !
+        temp_something = metaIndex.query(data_hashes = and_keys, exact_string = True)
         for k,v in temp_something.items():
             temp["meta_data"].append(v)
             temp["data_hash"].append(k)
@@ -665,6 +679,12 @@ def getRawDataFull(data_hash:str) -> flask.Response:
 
 @app.route("/tagPerson", methods = ["POST"])
 def tagPerson():
+    # TODO: based on the new backend!!
+    # how ... given the old cluster id 
+    # we want to do [x_old_1, x_old_2] -> [x_new_1, x_old_2] ? when replacing x_new_1 with x_old_1
+    # modify({"person": new_array})
+    # first find all the rows where x_old_1 is present.
+    # 
 
     result = {"success":False, "reason":"unknown"}
 
@@ -704,6 +724,7 @@ def editMetaData():
     
     temp_meta_data = {}
     for k,v in flask.request.form.items():
+        # collect key/attribute, value pairs to be updated..
         if "data_hash" not in k.lower():
             temp_meta_data[k] = v
 
@@ -717,22 +738,43 @@ def editMetaData():
 
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
+    # NOTE: it is bad.. basically querying all the meta-data
+    # just be returning unique values for an attribute..
+    # TODO: handle this.. here should return only the unique values for an attribute only..
+    # and then later user can call query metaData with this attribute and a value.. to get the desired meta-data for that person.
 
-    result = {} 
-    possible_values =  metaIndex.get_original_data(attribute = attribute)
-    for value in possible_values:
-        hash_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
-        for k,v  in hash_2_metaData.items():
-            if k is not None:  # it is not supposed to be None!!
-                result[k] = v
+    result = metaIndex.get_unique(attribute)
+    return flask.jsonify(list(result))
 
+@app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
+def getMeta(attribute:str, value:Any):
+
+    # TODO: for now force value to be of string type.. or convert into expected type.. for backend.
+    result = metaIndex.query(attribute = attribute, attribute_value = value, exact_string = True) # exact make sure we match full string rather than substring.
     temp = {}
     temp["data_hash"]= list(result.keys())
     temp["meta_data"] = [result[k] for k in temp["data_hash"]]
-    temp["score"] = [1 for _ in range(len(temp["data_hash"]))]
-    temp[attribute] = list(possible_values)
+    temp["score"] = [1 for _ in range(len(result))]
+    return temp
 
-    return flask.jsonify(temp)
+
+
+
+    # result = {} 
+    # possible_values =  metaIndex.get_original_data(attribute = attribute)
+    # for value in possible_values:
+    #     hash_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)
+    #     for k,v  in hash_2_metaData.items():
+    #         if k is not None:  # it is not supposed to be None!!
+    #             result[k] = v
+
+    # temp = {}
+    # temp["data_hash"]= list(result.keys())
+    # temp["meta_data"] = [result[k] for k in temp["data_hash"]]
+    # temp["score"] = [1 for _ in range(len(temp["data_hash"]))]
+    # temp[attribute] = list(possible_values)
+
+    # return flask.jsonify(temp)
 
 @app.route("/getMetaStats", methods = ["GET"])
 def getMetaStats():
