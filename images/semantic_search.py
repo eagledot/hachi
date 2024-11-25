@@ -847,10 +847,9 @@ def getfaceBboxIdMapping(resource_hash:str):
     """
     
     cluster_ids = flask.request.form.get("cluster_ids").strip("| ").split("|")
-    new_cluster_ids = []    
+    orig_cluster_ids = []    
     for c_id in cluster_ids:
-        new_cluster_ids.append(get_original_cluster_id(c_id))
-    del cluster_ids
+        orig_cluster_ids.append(get_original_cluster_id(c_id))
 
     # TODO: reading full image data from cache if possible !
     temp_meta = metaIndex.query(data_hashes = resource_hash)[resource_hash]
@@ -860,10 +859,12 @@ def getfaceBboxIdMapping(resource_hash:str):
         return flask.jsonify([])
     else:
         # TODO: should return user specified id rather than original cluster id.
+        # if i can make bbox_ids have same order as passed.. then it is easier.
+        # to get use supplied ids to send back!
         bbox_ids = faceIndex.get_face_id_mapping(
             image = frame,
             is_bgr = True,
-            cluster_ids = new_cluster_ids
+            cluster_ids = orig_cluster_ids
         )
         result = []
         for (bbox, id) in bbox_ids:            
