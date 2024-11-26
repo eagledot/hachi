@@ -235,31 +235,7 @@ class MetaIndex(object):
         temp["resource_type"] = resource_type
         return temp
         
-    def load_fuzzy_search(self, attributes_list:Optional[List[str]] = "__all__") -> Dict:
-        temp = {}
-        if hasattr(self, "fuzzy_search"):
-            temp = self.fuzzy_search
-        
-        if attributes_list == "__all__":  # what should i use to indicat something like * ??
-            attributes_list = self.fuzzy_search_attributes
-        
-        for updated_attribute in attributes_list:
-            if updated_attribute in self.fuzzy_search_attributes:
-                
-                temp[updated_attribute] = FuzzySearch()
-
-                for data_hash, meta_data in self.hash_2_metaData.items():
-                    data = meta_data[updated_attribute]  # like for place attribute, this would allow fuzzy search across all possible PLACES for images
-                    if data is not None:
-                        if isinstance(data, str):
-                            temp[updated_attribute].add(data, auxiliaryData = data_hash) # auxiliary data is data_hash in this case, since using set, it allows one to many modelling.
-                        else:
-                            # since using for loop, and a set, allows "many to many" modelling.
-                            for d in data:
-                                temp[updated_attribute].add(d, auxiliaryData = data_hash)
-
-        return temp
-
+    
     def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> Dict[str, Dict]:
         """Routine to extract valid metaData for image resource type.
 
@@ -315,15 +291,7 @@ class MetaIndex(object):
         return result
 
     
-    # def get_original_data(self, attribute:str) -> Optional[Iterable[str]]:
-    #     # TODO: do away with this..
-        
-    #     result = None
-    #     with self.lock:
-    #         if attribute in self.fuzzy_search_attributes:
-    #             temp_index = self.fuzzy_search[attribute]
-    #             result = temp_index.get_original_data()
-    #     return result
+
 
     def suggest(self, attribute:str, query:str):
         """for now we just search substrings in the string, which a column of colString does by default!
@@ -332,6 +300,9 @@ class MetaIndex(object):
         NOTE: for now must be a valid attribute and of type string, if any condition fails we return empty list
         """ 
         result = []
+        if self.backend_is_initialized == False:
+            return result
+
         with self.lock:
             attr_2_type = self.get_attribute_2_type()
             if attribute in attr_2_type and attr_2_type[attribute] == "string":
@@ -364,6 +335,8 @@ class MetaIndex(object):
         # we find first the relevant row_indices for an attribute/value pair. since data_hash/resource_hash is just another column.
         # in case of data_hash, we collect row_index for each such data_hash.
         # once we row_indices, we can collect corresponding rows.
+        if self.backend_is_initialized == False:
+            return {}
 
         if data_hashes is None:
             # create the query
@@ -461,6 +434,9 @@ class MetaIndex(object):
     
     def modify_meta_data(self, data_hash:str, meta_data:Dict, force:bool = False):
         with self.lock:
+            if self.backend_is_initialized == False:
+                return 
+
             # create a query. using this first we get the desired row_indices.
             # TODO: it can be speed up storing a mapping from resource_hash to row but extra work. (but donot want to create new resources either ! first benchmark this !)
             
@@ -482,11 +458,15 @@ class MetaIndex(object):
     
     def save(self):
         with self.lock:
+            assert self.backend_is_initialized == True
             # if no resource on python side just calling save on backend is enough i guess!
             mBackend.save(self.meta_index_path)
     
     def reset(self):
         with self.lock:
+            if self.backend_is_initialized == False:
+                return
+            
             if os.path.exists(self.meta_index_path):
                 os.remove(self.meta_index_path)
             
@@ -498,6 +478,9 @@ class MetaIndex(object):
 
     
     def get_unique(self, attribute:str) -> Iterable[Any]:
+        if self.backend_is_initialized == False:
+            return set()
+
         data_all =  json.loads(mBackend.get_all_elements(attribute))
         return set(data_all)
 
@@ -516,10 +499,16 @@ class MetaIndex(object):
 
 
         with self.lock:
-            result["image"]["count"] = len(self.get_unique("resource_hash"))
-            result["image"]["unique_people_count"] = len(self.get_unique("person"))
-            result["image"]["unique_place_count"] = len(self.get_unique("place"))
-            result["image"]["unique_resource_directories_count"] = len(self.get_unique("resource_directory"))
+            if self.backend_is_initialized == False:
+                result["image"]["count"] = 0
+                result["image"]["unique_people_count"] = 0
+                result["image"]["unique_place_count"] = 0
+                result["image"]["unique_resource_directories_count"] = 0
+            else:
+                result["image"]["count"] = len(self.get_unique("resource_hash"))
+                result["image"]["unique_people_count"] = len(self.get_unique("person"))
+                result["image"]["unique_place_count"] = len(self.get_unique("place"))
+                result["image"]["unique_resource_directories_count"] = len(self.get_unique("resource_directory"))
 
         return result
 
