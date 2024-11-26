@@ -791,38 +791,7 @@ def getPreviewCluster(cluster_id):
     else:
         original_cluster_id = USER_CLUSTER_ID_2_ORIGINAL[cluster_id]
 
-    #     # first get the original data even user changed it.
-    #     original_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = False)
-    #     new_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = True)
-    #     # note we have to do extra work, we try to reason which original cluster id was mapped to new one.
-    #     # i donot want to save extra info.. so we figure out at first try we save it for this session..
-    #     # for further tries!
-    #     # try to find mapping.
-    #     # first find ix.
-
-    #     desired_ix = None
-    #     desired_hash = None
-    #     for hash, new_meta in new_hash_2_metadata.items():
-    #         for i,p in enumerate(new_meta["person"]):
-    #             if p == cluster_id:
-    #                 desired_ix = i
-    #                 desired_hash = hash
-    #                 break
-    #         del new_meta
-    #         break
-    #     assert desired_ix is not None, "should have found it!"
-
-    #     # find the original...
-    #     original_cluster_id = original_hash_2_metadata[desired_hash]["person"][desired_ix]
-    #     print("found original cluster_id {}".format(original_cluster_id))
-        
-    #     # update session mappping.
-    #     USER_CLUSTER_ID_2_ORIGINAL[cluster_id] = original_cluster_id
-    
-    # del cluster_id
-
-    # TODO: remove this if/else block, cluster_id must go through FaceIndex/Clusters 
-    # TODO: have to add a cluster for no detection too...
+    # TODO: have to add a cluster for no detection too... not a priority(i think have added just to incorporate)
     if original_cluster_id.lower() == "no_person_detected":
         flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
         raw_data = poster.tobytes()
@@ -858,22 +827,21 @@ def getfaceBboxIdMapping(resource_hash:str):
     if frame is None:
         return flask.jsonify([])
     else:
-        # TODO: should return user specified id rather than original cluster id.
-        # if i can make bbox_ids have same order as passed.. then it is easier.
-        # to get use supplied ids to send back!
+        # NOTE: bbox_ids preserves the order for provided cluster_ids, hence can easily to get the newest persond id in cluster_ids list provided as argument.
         bbox_ids = faceIndex.get_face_id_mapping(
             image = frame,
             is_bgr = True,
             cluster_ids = orig_cluster_ids
         )
+        assert len(bbox_ids) == len(cluster_ids)
         result = []
-        for (bbox, id) in bbox_ids:            
+        for ix, (bbox, id) in enumerate(bbox_ids):            
             result.append({
                 "x1":bbox[0],
                 "y1":bbox[1],
                 "x2":bbox[2],
                 "y2":bbox[3],
-                "person_id":str(id)
+                "person_id": cluster_ids[ix]   # if order was same from get_face_id function.
             })
     return flask.jsonify(result) 
 
