@@ -337,7 +337,7 @@ class MetaIndex(object):
             if attribute in attr_2_type and attr_2_type[attribute] == "string":
                 # prepare query
                 query_json = json.dumps({attribute:query})
-                row_indices = json.loads(mBackend.query(query_json), exact_string = False, top_k = 100)[attribute] # get the rows, for which column/attribute has query as substring in it.
+                row_indices = json.loads(mBackend.query(query_json, exact_string = False, top_k = 100))[attribute] # get the rows, for which column/attribute has query as substring in it.
 
                 # collect rows
                 rows = json.loads(mBackend.collect_rows(row_indices))
@@ -347,8 +347,13 @@ class MetaIndex(object):
                 print("[WARNING]: attribute {} should have been a valid attribute and should be of type string for now!".format(attribute))
             return result
 
-    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None, exact_string:bool = True) -> Dict[str, Dict]:
+    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None,  latest_version:bool = True) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
+        
+        latest_version: bool, can be set to false to collect original version, 
+        NOTE: we still match with the latest version to get matching indices, but can choose to collect original version of data!
+        # useful when match againt user provided data, but may need original version to query some auxiliary data like face clusters (which have no info about user updates)
+        
         NOTE: current meta-index treat data_hash as just another field.. so i func signature can be simplified.. TODO
         """
         # we want to return the rows/meta-data associated with data_hashes or from a specific column/attribute matching.
@@ -371,7 +376,7 @@ class MetaIndex(object):
             assert len(attr_2_rowIndices) == 1 , "expected only a single key: {}".format(attribute)
             row_indices = attr_2_rowIndices[attribute]
 
-            meta_array = json.loads(mBackend.collect_rows(attr_2_rowIndices[attribute]))
+            meta_array = json.loads(mBackend.collect_rows(attr_2_rowIndices[attribute], latest_version = latest_version))
             result = {}
             for meta in meta_array:
                 result[meta["resource_hash"]] = meta
@@ -393,7 +398,7 @@ class MetaIndex(object):
                 row_indices = row_indices + attr_2_rowIndices[attribute]
             
             # get the meta-data/rows
-            meta_array = json.loads(mBackend.collect_rows(row_indices))
+            meta_array = json.loads(mBackend.collect_rows(row_indices, latest_version = latest_version))
 
             result = {}  # hash to metaData as have been doing in initial version!
             for meta in meta_array:
@@ -502,11 +507,7 @@ class MetaIndex(object):
 
     def get_stats(self):
         """
-        TODO: based on the new backend!
-        
         Some stats about the amount and type of data indexed, add more information in the future if needed.
-        NOTE: for now just using the dummy value until port it to newer version!
-        
         """
         result = {}
         for k in appConfig["allowed_resources"]:
@@ -515,16 +516,10 @@ class MetaIndex(object):
 
 
         with self.lock:
-            # update the count for each of the resource type.
-            # for meta_data in self.hash_2_metaData.values():
-            #     if(True):                           # if in this dict, is_indexed is supposed to be true ??
-            #         result[meta_data["resource_type"]]["count"] = 10
-
-            # NOTE: dummy values for now..
-            result["image"]["count"] = 100
-            result["image"]["unique_people_count"] = 10
-            result["image"]["unique_place_count"] = 10
-            result["image"]["unique_resource_directories_count"] = 10
+            result["image"]["count"] = len(self.get_unique("resource_hash"))
+            result["image"]["unique_people_count"] = len(self.get_unique("person"))
+            result["image"]["unique_place_count"] = len(self.get_unique("place"))
+            result["image"]["unique_resource_directories_count"] = len(self.get_unique("resource_directory"))
 
         return result
 
