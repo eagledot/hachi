@@ -763,8 +763,6 @@ def get_original_cluster_id(cluster_id):
     # try to find mapping.
     # first find ix.
 
-    print("got: {}\n".format(cluster_id))
-
     desired_ix = None
     desired_hash = None
     for hash, new_meta in new_hash_2_metadata.items():
@@ -779,7 +777,6 @@ def get_original_cluster_id(cluster_id):
 
     # find the original...
     original_cluster_id = original_hash_2_metadata[desired_hash]["person"][desired_ix]
-    print("found original cluster_id {}".format(original_cluster_id))
     return original_cluster_id
 
 @app.route("/getPreviewPerson/<cluster_id>", methods = ["GET"])
