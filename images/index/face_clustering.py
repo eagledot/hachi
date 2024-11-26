@@ -520,6 +520,9 @@ class FaceIndex(object):
             elif id == self.no_face_detected_id:
                 # we skip it too... (for now i think no_face_detected_id is not used!)
                 continue
+            elif id == self.no_info_id:
+                # we assign this later, to any unassigned bboxes,otherwise current logic could assign undesired bboxes to this id.
+                continue
             else:
                 temp_mapping[ix] = self.id_to_cluster[id]
         
@@ -531,11 +534,8 @@ class FaceIndex(object):
             for bbox_ix, (bbox, embedding) in enumerate(zip(bboxes, embeddings)):
                 if bbox_ix in to_skip:
                     continue
-            
-                if c.id == self.no_info_id:  # this is uncharted territory !
-                    score = 1000  # high enough. (to be considered in the last)
-                else:
-                    score = min([compare_face_embedding(m, embedding) for m in c.master_embeddings])
+                assert c.id != self.no_face_detected_id and c.id != self.no_info_id            
+                score = min([compare_face_embedding(m, embedding) for m in c.master_embeddings])
                 scores.append((bbox_ix,score))
                 del score, bbox_ix
             
@@ -551,6 +551,16 @@ class FaceIndex(object):
                 # assing a bbox to exactly one person in the image!
                 to_skip.add(best_bbox_ix)
 
+        # we assign any unassign bboxes to no-info id. (this makes sense if one to one mapping is assumed!)
+        for bbox_ix,bbox in enumerate(bboxes):
+            if not (bbox_ix in to_skip):
+                for ix, temp_id in enumerate(cluster_ids):
+                    if temp_id == self.no_info_id:
+                        assert final_bboxes_ids[ix] is None
+                        final_bboxes_ids[ix] = ([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])], temp_id)
+                        break
+            del bbox_ix, bbox
+
         # rarely may fail to have a bbox for each of persons !
         collect_ix = []
         for ix,x in enumerate(final_bboxes_ids):
@@ -560,6 +570,9 @@ class FaceIndex(object):
         for ix in collect_ix:
             final_bboxes_ids[ix] = ([int(0), int(0), int(1), int(1)], cluster_ids[ix]) # kind of an empty bbox!
         del collect_ix
+
+
+
         return final_bboxes_ids
 
     def get(self, cluster_id) -> Cluster:
