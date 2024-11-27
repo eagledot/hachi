@@ -1,3 +1,5 @@
+# TODO: better wrap this configuration... 
+# TODO: make it (static) easier to parse.. (no evaluations should be here!!)
 import os
 import json
 from typing import Dict, Optional
@@ -5,9 +7,9 @@ from copy import deepcopy
 import hashlib
 
 # json config
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "./hachiConfig.json")
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "hachiConfig.json")
 
-IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./preview_image")
+IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview_image")
 if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PREVIEW_DATA_PATH)
 
@@ -15,7 +17,7 @@ IMAGE_PERSON_PREVIEW_DATA_PATH = os.path.join(IMAGE_PREVIEW_DATA_PATH, "preview_
 if not os.path.exists(IMAGE_PERSON_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
 
-IMAGE_INDEX_SHARD_SIZE = 1200
+IMAGE_INDEX_SHARD_SIZE = 1200  # should be around 10_000, for dataset with around 50k or more images !
 TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
 
 # allowed resources.
@@ -34,6 +36,7 @@ SUPPORTED_REMOTE_PROTOCOLS = [
 TO_SKIP_PATHS = [os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview_image")]  # Children would also be excluded from indexing.
 
 # meta Index properties.
+# TODO: CHANGE in schema must be detected, it may invalidate the previously store metaIndex !
 IMAGE_META_DATA_ATTRIBUTES =      {
     "is_indexed",                 # bool
     "is_favourite",
@@ -44,10 +47,8 @@ IMAGE_META_DATA_ATTRIBUTES =      {
     "resource_extension",         
     "resource_type",
     "place",                     
-    # "place_alt" ,             
-    "face_bboxes",               
+    # "face_bboxes",               
     "person",                    
-    # "person_alt",              
     "description",
     "albums",
     "tags"
@@ -115,4 +116,4 @@ class Config(object):
         with open(CONFIG_PATH, "w") as f:
             json.dump(self.app, f)
 
-appConfig = Config().app  # refer this everywhere
+appConfig = Config().app  # refer this everywhere, MAKE SURE IT IS INITALIZED
