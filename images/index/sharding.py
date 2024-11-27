@@ -193,7 +193,7 @@ class CommonIndex(object):
 
     def get_shard_row(self, data_hashes:List[str]) -> Dict[str, Dict[int, List[int]]]:
 
-        data_hashes = set(data_hashes)
+        data_hashes = set(data_hashes) # TODO: why i did that?, just use it directly i guess. 
         hash_2_idx = {}
         for k,v in self.idx_2_hash.items():
             if v in hash_2_idx:
