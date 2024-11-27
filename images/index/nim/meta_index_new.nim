@@ -753,7 +753,7 @@ proc `$`*(m:MetaIndex, count:Natural = 10):string=
 #   return result
 
 proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, top_k:Natural = 100):seq[Natural]=
-  
+  # attribute_value: key/label value pairs, value is value is match for corresponding column.
   var top_k = top_k
   if top_k == 0:
     top_k = high(int32)
@@ -785,7 +785,12 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, to
 # it is on user to do OR AND operations.. once done.. use a set of indices to collect the rows...
 # optionally can specify the labels to collect a subset of rows.n
 
-proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
+proc collect_rows*(m:MetaIndex, indices:varargs[Natural], latest_version:bool = true):JsonNode=
+  # latest version is useful in case we want to collect the original data rather than latest version.
+  # Note we can match against the latest version during query but still want to collect the original vesion.
+  # for example face clusters are supposed to be indexed using original ids.
+  # but user searched for new tag say `sam`, in this case we can query to get relevant row indices, but actual data we may want is original.
+  
   # somehow find the desired indices/rows and then pass these to this routine to return an array.
   result = JsonNode(kind:JArray)
   for idx in indices:
@@ -794,13 +799,12 @@ proc collect_rows*(m:MetaIndex, indices:varargs[Natural]):JsonNode=
     for c in m.columns:
       # we use c.toJson to extract one row only ! (so don't have to write multiple implementations!)
       if c.kind == colString:
-        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, splitter = m.stringConcatenator)[0])
+        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, splitter = m.stringConcatenator, latest_version = latest_version))[0]
       else:
-        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1)[0])
+        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, latest_version = latest_version))[0]
     result.add(result_temp)
   return result
 
- 
 proc save*(m:MetaIndex, path:string)=
 
   # this contains all columns.. json data.
