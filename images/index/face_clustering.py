@@ -57,7 +57,8 @@ def cluster_to_json(c:Cluster) -> dict:
 # Assumption: for a session hyperparameters are assumed to be invariant
 Auxclusterdata = namedtuple("Auxclusterdata",field_names = [
     "absolute_path", 
-    "face_index",    
+    "face_index",
+    "face_preview",    
     "feasibility",     
     "resource_hash"
 ])
@@ -200,10 +201,17 @@ class FaceIndex(object):
             
                     
             # store temporary data for later finalizing.
+            # why not store the face-data here .... yeah it takes some extra memory.. but has a limit accoriding to max embeddings count!
+            # much faster to calculate !
             temp_data = Auxclusterdata(
                 resource_hash = resource_hash,
                 absolute_path = absolute_path,
                 face_index = i,
+                face_preview = self.__get_face_preview(
+                    frame = frame,
+                    bboxes = bboxes,
+                    face_index = i
+                ),
                 feasibility = feasibility
             )
             self.aux_data.append(temp_data)
@@ -226,15 +234,18 @@ class FaceIndex(object):
         
         del embeddings, n_bboxes
     
-    def __get_face_preview(self, absolute_path:os.PathLike, face_index:int):
+    # def __get_face_preview(self, absolute_path:os.PathLike, face_index:int):
+    
+    def __get_face_preview(self, frame:np.ndarray, bboxes:np.ndarray, face_index:int):
+    
         """face preview to be used as face for each cluster!
         face_index: int, tells which face master embedding actually belongs to..(stable enough across a session)
         """
         
-        frame = cv2.imread(absolute_path) # i know its costly, but would need to done for only a few times.
-        assert frame is not None
+        # frame = cv2.imread(absolute_path) # i know its costly, but would need to done for only a few times.
+        # assert frame is not None
         h,w,c = frame.shape
-        bboxes, _, _, _ = pipeline.detect_embedding(frame, is_bgr = True, conf_threshold = self.confidence)
+        # bboxes, _, _, _ = pipeline.detect_embedding(frame, is_bgr = True, conf_threshold = self.confidence)
         bbox = bboxes[face_index]
         
         
@@ -265,6 +276,7 @@ class FaceIndex(object):
         prefix = ""
         return "{}{}".format(prefix, preview_base64.decode("ascii"))
 
+    # @profile
     def __create_new_clusters(self):
         # TODO: make it faster, after correctness testing on a large set of images!
         embeddings_ref = self.embeddings_storage[:self.embeddings_count] # current stored embeddings.
@@ -320,15 +332,18 @@ class FaceIndex(object):
             # get the face_index for which group[0] master embedding belongs to frame (referred to by absolute path)
             face_index = self.aux_data[group[0]].face_index  # # just pick a face corresponding to a master embeddings !
             absolute_path = self.aux_data[group[0]].absolute_path # pick the corresponding frame/photo.
-            
+            face_preview = self.aux_data[group[0]].face_preview
+
             c = Cluster(
                 master_embeddings = master_e[:self.max_master_embeddings_count],
                 id = "{}_{}".format(cluster_prefix, i),   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough,                
                 resource_hashes = hashes,
-                preview_data = self.__get_face_preview(face_index = face_index, absolute_path = absolute_path),
+                preview_data = face_preview,
+                # preview_data = self.__get_face_preview(face_index = face_index, absolute_path = absolute_path),
                 label = None # later can be provided by a user.                
             )
             del i
+            del face_preview
             
             to_delete_ids = set()  # to keep track of which of nonmaster embeddings has been asigned.            
             for idx in follower_ids:
@@ -418,7 +433,7 @@ class FaceIndex(object):
                     temp[hash] = set()
                 temp[hash].add(id)
         return temp
-
+    
     def __finalize(self):
         """finalize the current clusters creation and merge process.
         And reset the temporary storage to start storing new embeddings.
@@ -570,9 +585,6 @@ class FaceIndex(object):
         for ix in collect_ix:
             final_bboxes_ids[ix] = ([int(0), int(0), int(1), int(1)], cluster_ids[ix]) # kind of an empty bbox!
         del collect_ix
-
-
-
         return final_bboxes_ids
 
     def get(self, cluster_id) -> Cluster:
@@ -594,22 +606,22 @@ if __name__ == "__main__":
     # kernprof -l -v <face_clustering.py> # put @profile on the routine.
 
     # have to disable pipeline , otherwise complaints of dnnl.dll missing..(not in this directory)
-    someIndex = FaceIndex(embedding_size = 512, index_directory="D://akshay")
+    someIndex = FaceIndex(embedding_size = 512)
     print(someIndex)
-    # images_folder = "D://scripting_python/instagram_photos"
-    # filenames = os.listdir(images_folder)[:] 
-    # for filename in filenames:
-    #     absolute_path = os.path.join(images_folder, filename)
-    #     frame = cv2.imread(absolute_path)
-    #     if frame is None:
-    #         print("not a valid image ! {}".format(absolute_path))
-    #     else:
-    #         someIndex.update(
-    #             frame = frame,
-    #             absolute_path = absolute_path,
-    #             resource_hash = uuid.uuid4(),  # just a random for now.
-    #             # resource_hash = generate_data_hash(absolute_path),
-    #             is_bgr = True
-    #         )
+    images_folder = "D://scripting_python/instagram_photos"
+    filenames = os.listdir(images_folder)[:200] 
+    for filename in filenames:
+        absolute_path = os.path.join(images_folder, filename)
+        frame = cv2.imread(absolute_path)
+        if frame is None:
+            print("not a valid image ! {}".format(absolute_path))
+        else:
+            someIndex.update(
+                frame = frame,
+                absolute_path = absolute_path,
+                resource_hash = uuid.uuid4().hex,  # just a random for now.
+                is_bgr = True
+            )
+    someIndex.save()
     
 
