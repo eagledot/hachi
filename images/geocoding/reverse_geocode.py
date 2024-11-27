@@ -68,7 +68,7 @@ class GeocodeIndex(object):
             gps_longitude = float(gps_longitude)
         
         if (gps_latitude is None) or (gps_longitude is None):
-            return "no location information"
+            return "UNK"
 
         temp_arr = np.array([gps_latitude, gps_longitude]).astype("float32").reshape(1,2)
         distance = (self.lat_long - temp_arr)
