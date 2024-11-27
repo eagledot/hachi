@@ -37,10 +37,14 @@
 
     $: if (filter_metaData){
 
+        console.log("take this!!")
+        console.log(filter_metaData);
+
         let temp_places = filter_metaData.map((v,i) => {if(v.place) {return v.place}});
         let temp_person = [];
         filter_metaData.map((v, i) => {
             if(v.person)
+                console.log(v.person);
                 {v.person.forEach((x) => temp_person.push(x))}
         })
 

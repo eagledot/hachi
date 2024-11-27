@@ -90,7 +90,6 @@
                 let count = (temp_meta_data["data_hash"]).length // any key all have equal length.
                 for(let i = 0; i<count; i++){
                     // should be no need for this if condition .. as we collects meta data for this person id anyway!
-                        console.log('pushing tooooooo')
                         people_data.list_metaData.push(temp_meta_data["meta_data"][i]);
                         people_data.list_dataHash.push(temp_meta_data["data_hash"][i]);
                         people_data.list_score.push(temp_meta_data["score"][i]);
@@ -98,6 +97,7 @@
                 
                 people_data.done = true;  // should be enough to indicate svelte to render photos interface.
                 photos_interface_active = true;
+           
                 if(original_person_ids){
                     state.people = original_person_ids;
                 }

@@ -14,7 +14,8 @@ onMount(() => {
       {
       
       let http_endpoint = "/api/getIndexStatus/" + current_statusEndpoint;
-      index_cancel_button.disabled = false;
+      // disable both for now! based on the response we could update the status!
+      index_cancel_button.disabled = true;
       index_start_button.disabled = true;
 
       pollEndpointNew(http_endpoint);
@@ -56,11 +57,14 @@ let pollEndpointTimeoutId;
       {method: "GET"});
     let data = await response.json();
 
-    let status_available = data["is_active"]
+    // let status_available = data["is_active"]
+    let status_available = true // weird logic it has become on server side..otherwise need a lot of code change ..
+    // it conditions on data["done"], in case client localstorage is not cleared it demands for status..server just set it to done, if no info available
 
     if (status_available == true){
       
       if (data["done"] == true){
+        
 
         let final_status = data["details"]
         let formData = new FormData();
@@ -87,6 +91,7 @@ let pollEndpointTimeoutId;
         unique_place_count.update((value) => Number(temp_stats["image"]["unique_place_count"]));
 
         index_start_button.disabled = false;
+        index_start_button.innerText = "Start";
 
         //reset states.
         current_statusEndpoint = null;            // to store the current status endpoint to check indexing status, only atmax one such endpoint would be allowed for each client.
@@ -105,7 +110,10 @@ let pollEndpointTimeoutId;
 
         return;
       }
-
+      
+      if (index_cancel_button.innerText == "Cancel"){
+        index_cancel_button.disabled = false;
+      }
       index_progress = data["progress"];
       eta = data["eta"];
       extra_details = data["details"];
@@ -120,7 +128,6 @@ let pollEndpointTimeoutId;
 
 
     }
-    
   }
 
   let complete_rescan = false;   // bind to checkbox.
@@ -159,9 +166,7 @@ let pollEndpointTimeoutId;
 
     async function cancelIndex(){
         if (current_statusEndpoint)
-        {   
-            // localStorage.removeItem("stored_indexing_endpoint")
-            
+        {               
             index_cancel_button.disabled = true;
             index_cancel_button.innerText = "Cancelling... Please wait."
             let url = "/api/indexCancel/" + current_statusEndpoint
@@ -170,8 +175,11 @@ let pollEndpointTimeoutId;
                 method: "GET",
                 })
             
-            localStorage.removeItem("stored_indexing_endpoint")
-            current_statusEndpoint = null;
+            // For now api just request cancellation... actual DONE is still to be done.
+            // when ["done"] in getStatus is done..then only it should happen right !!
+            // localStorage.removeItem("stored_indexing_endpoint")
+            // current_statusEndpoint = null;
+
             if (!response.ok) {
                 alert("Error occured while cancelling index. Contact administrator.")
                 throw new Error(response);
