@@ -55,15 +55,13 @@ def tokenize(
 
 # load text module.
 def load_text_transformer(weightsFile: str):
-    clip_model.load_text_transformer(weightsFile)
-
+    clip_model.load_text_transformer(weightsFile, from_stream = True)
 
 def load_vit_b32Q(weightsFile: str):
-    clip_model.load_vit_b32Q(weightsFile)
-
+    clip_model.load_vit_b32Q(weightsFile, from_stream = True)
 
 def load_vit_b32(weightsFile: str):
-    clip_model.load_vit_b32(weightsFile)
+    clip_model.load_vit_b32(weightsFile, from_stream = True)
 
 
 # image features.

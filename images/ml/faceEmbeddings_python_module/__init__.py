@@ -4,11 +4,11 @@
 from . import faceEmbeddings_python_module as pipeline
 import numpy as np
 
-def load_model(weightFile:str):
+def load_model(weightFile:str, from_stream:bool = True):
     # Initialize the pipeline and load the weights.
     # Must be called before atleast Once, before calling detect_embedding.
 
-    pipeline.load_model(weightFile)
+    pipeline.load_model(weightFile, from_stream)
 
 def detect_embedding(frame, is_bgr:bool = False, conf_threshold:float = 0.9, nms_threshold:int = 0.45, max_count:int = 50, embedding_dim:int = 512) -> int:
     """
@@ -27,12 +27,16 @@ def detect_embedding(frame, is_bgr:bool = False, conf_threshold:float = 0.9, nms
 
     bboxes = np.empty((max_count, 4), dtype = np.float32)
     embeddings = np.empty((max_count, embedding_dim), dtype = np.float32)
+    landmarks = np.empty((max_count, 10), dtype = np.float32)
+    matrices = np.empty((max_count, 3,2), dtype = np.float32)
 
     assert len(frame.shape) == 3 ," Expected [H,W,C] uint8 format."
     assert frame.dtype == np.uint8, "Must be Uint8 data."
 
-    num_faces_detected = pipeline.detect_embedding(frame, bboxes, embeddings, conf_threshold, nms_threshold, is_bgr)
-    print("{} Faces detected".format(num_faces_detected))
+    num_faces_detected = pipeline.detect_embedding(frame, bboxes, embeddings, landmarks, matrices, conf_threshold, nms_threshold, is_bgr)
+    # print("{} Faces detected".format(num_faces_detected))
     
-    return bboxes[:num_faces_detected,:].copy(), embeddings[:num_faces_detected,:].copy()
+    # NOTE: no need to copy.. since creating a fresh every time inside the routine anyway !
+    return bboxes[:num_faces_detected,:], embeddings[:num_faces_detected,:], landmarks[:num_faces_detected,:] , matrices[:num_faces_detected,:]
+    # return bboxes[:num_faces_detected,:].copy(), embeddings[:num_faces_detected,:].copy(), landmarks[:num_faces_detected,:].copy() , matrices[:num_faces_detected,:].copy()
 
