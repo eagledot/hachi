@@ -74,9 +74,9 @@ proc query(query:string, exact_string:bool = true, top_k:Natural = 0):string {.e
     result[key] = ensureMove temp
   return $result  # calling $ seems enough to generate string/serialized repr from a JsonNode!
 
-proc collect_rows(indices:varargs[Natural]):string {.exportpy.}=
+proc collect_rows(indices:varargs[Natural], latest_version:bool = true):string {.exportpy.}=
   # TODO: see if we can do this from python using a list of ints!!  
-  result = $m.collect_rows(indices = indices)
+  result = $m.collect_rows(indices = indices, latest_version = latest_version)
 
 # modify
 # what would modification look like?
