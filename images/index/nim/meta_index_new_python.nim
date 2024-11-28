@@ -107,11 +107,18 @@ proc get_column_labels():string {.exportpy.}=
 proc get_column_types():string {.exportpy.}=
   var py_types = JsonNode(kind:JArray)
   for c in m.columns:
-    let temp = c.kind
+
+    # TODO: its a patch..should be an api/routine to get base kind!
+    var temp = c.kind
+    if temp == colArrayString:
+      temp = colString
+    
     for key, value in pytype_2_coltype:
       if value == temp:
         py_types.add(JsonNode(kind:JString, str:key))
         break
+  echo $py_types
+
   return $py_types
 
 proc get_all_elements(attribute:string):string {.exportpy.}=
