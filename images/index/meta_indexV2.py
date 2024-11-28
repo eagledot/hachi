@@ -304,7 +304,7 @@ class MetaIndex(object):
             return result
 
         with self.lock:
-            attr_2_type = self.get_attribute_2_type()
+            attr_2_type = self.get_attribute_2_type() # TODO: create a mapping as field rather than function call!
             if attribute in attr_2_type and attr_2_type[attribute] == "string":
                 # prepare query
                 query_json = json.dumps({attribute:query})
@@ -318,6 +318,7 @@ class MetaIndex(object):
                 print("[WARNING]: attribute {} should have been a valid attribute and should be of type string for now!".format(attribute))
             return result
 
+    # @profile
     def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None,  latest_version:bool = True) -> Dict[str, Dict]:
         """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
         
@@ -341,16 +342,18 @@ class MetaIndex(object):
         if data_hashes is None:
             # create the query
             query = {attribute:attribute_value}
-            result_json = mBackend.query(json.dumps(query)) # get corresponding row_indices.
+            
+            json_query = json.dumps(query)
+            result_json  = mBackend.query(json_query)
             # get the meta-data/rows
             attr_2_rowIndices = json.loads(result_json)
             del result_json
 
             assert len(attr_2_rowIndices) == 1 , "expected only a single key: {}".format(attribute)
             row_indices = attr_2_rowIndices[attribute]
-
-            meta_array = json.loads(mBackend.collect_rows(attr_2_rowIndices[attribute], latest_version = latest_version))
+            
             result = {}
+            meta_array = json.loads(mBackend.collect_rows(attr_2_rowIndices[attribute], latest_version = latest_version))
             for meta in meta_array:
                 result[meta["resource_hash"]] = meta
             del meta_array
@@ -370,12 +373,13 @@ class MetaIndex(object):
                 del result_json
                 row_indices = row_indices + attr_2_rowIndices[attribute]
             
-            # get the meta-data/rows
-            meta_array = json.loads(mBackend.collect_rows(row_indices, latest_version = latest_version))
 
             result = {}  # hash to metaData as have been doing in initial version!
+            # get the meta-data/rows
+            meta_array = json.loads(mBackend.collect_rows(row_indices, latest_version = latest_version))
             for meta in meta_array:
                 result[meta["resource_hash"]] = meta
+
             return result
 
     # TODO: name it append/put instead of update!
@@ -552,11 +556,28 @@ if __name__ == "__main__":
     # for hash, meta in result.items():
     #     print(meta["filename"])
 
-    test.save()
+    # test.save()
+
+    print(test.backend_is_initialized)
+    import time
+    all_hashes = test.get_unique("resource_hash")
+
+
+    # test.suggest(attribute="person", query ="some")
+
+    sample = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f"
+    tic = time.time()
+    for i in range(100):
+        result = test.query(data_hashes = sample)
+    print("[QUERYING]: {}ms".format((time.time()- tic)*1000))
+    result = test.query(data_hashes = sample)
+    print(result)
+
 
     print(test.column_types)
     print(test.column_labels)
-    
+    print(len(test.column_labels))
+    print(len(test.column_types))
     # print(test.get_unique("resource_extension"))
 
 
