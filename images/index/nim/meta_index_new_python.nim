@@ -62,17 +62,18 @@ proc query(query:string, exact_string:bool = true, top_k:Natural = 0):string {.e
   # based on the indices... python can do some OR And like operations if needed.
   # later then use those indices to collect the rows easily..
 
-  var result = JsonNode(kind:JObject)
+  var some_result = JsonNode(kind:JObject)
   let query_params = parseJson(query)
   for key, value in query_params:
     var indices = m.query(attribute_value = %* {key:value}, exact_string = exact_string, top_k = top_k)
-
+    
+    # var indices = @[Natural(2),4,51,123,11]
     # update the corresponding key with collected row indices.
     var temp = JsonNode(kind:JArray)
     for ix in indices:
       temp.elems.add(JsonNode(kind:Jint, num:BiggestInt(ix)))
-    result[key] = ensureMove temp
-  return $result  # calling $ seems enough to generate string/serialized repr from a JsonNode!
+    some_result[key] = temp # Note: using ensureMove was causing leak,  i think don't play well with references!
+  result = $(some_result)
 
 proc collect_rows(indices:varargs[Natural], latest_version:bool = true):string {.exportpy.}=
   # TODO: see if we can do this from python using a list of ints!!  
