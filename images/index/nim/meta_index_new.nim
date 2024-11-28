@@ -77,6 +77,13 @@ type
     colInt32      # to handle int values..
     colFloat32    # to handle float values..
     colBool       # to handle boolean values..
+
+    # dummy for now.. so that we can be faster queryStringImpl .. calling `split` has high cost ... in a tight loop.
+    colArrayString # for now just to indicate..so that we can know in advance if we need to split any of string to match them individually.
+    # dynamism has its cost..
+
+
+
     # colNull # donot want it not for now..?
 
 # trying to support aliasing
@@ -165,7 +172,7 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
 
   result = JsonNode(kind:JArray)
 
-  if c.kind == colString:
+  if c.kind == colString  or c.kind == colArrayString:
     let alias_table = checkAlias[string](c)
     let temp = cast[ptr UncheckedArray[string]](c.payload)
     for i in row_start..<row_end:
@@ -220,7 +227,7 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
       result.elems.add(JsonNode(kind:JFloat, fnum:value))
 
   else:
-    doAssert 1 == 0, "not expected"
+    doAssert 1 == 0, "not expected" & $c.kind
 
   # if c.aliased == true and latest_version == false:
     
@@ -335,7 +342,7 @@ proc add_string(c:var Column, row_idx:Natural, data:string, aliasing:bool = fals
     aliasImpl(c, row_idx, data, string)
   else:
     assert not isNil(c.payload)
-    assert c.kind == colString
+    assert c.kind == colString or c.kind == colArrayString
 
     var arr = cast[ptr UncheckedArray[string]](c.payload)
     arr[row_idx] = data
@@ -410,7 +417,12 @@ template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, bounda
   return result[0..<count]
 
 template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural, exact_string_t:bool, splitter_t:string)=
-  
+
+  # NOTE: i understand lots of if and else branching leading to harm the branch-predictor, but i have to search both new versions and original too..
+  # NOTE: after checking if string or arrayString, split function bottleneck effects only few columns . (pure string columns are much faster to search for)
+  # note: have to be careful using statements like `let a = <another string>` can lead to copy even if read only use, compiler cannot figure out always!
+  # TODO: keep only exact matching in this ... for substring matching use a separate implementation .. to reduce branching in for loop!
+
   let alias_table = checkAlias[string](c_t)
   var count = 0
   let arr = cast[ptr UncheckedArray[string]](c_t.payload)
@@ -419,22 +431,37 @@ template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string,
     # we search either in alias data or original data . i.e always latest version data..
     if alias_table.hasKey(row_idx):
       if exact_string_t == true:
-        for stored in alias_table[row_idx].split(splitter_t):
-          if stored == query_t:
-            result_t[count] = row_idx
-            count += 1
-            break
+        
+        # call split...only if have an idea that array of strings was supplied to it during some addition/modification.
+        if c_t.kind == colArrayString:
+          for stored in alias_table[row_idx].split(splitter_t):
+            if stored == query_t:
+              result_t[count] = row_idx
+              count += 1
+              break
+        else:
+          if arr[row_idx] == query_t:
+              result_t[count] = row_idx
+              count += 1
+
       else:
         if alias_table[row_idx].contains(query_t):
           result_t[count] = row_idx
           count += 1
     else:
       if exact_string_t == true:
-        for stored in arr[row_idx].split(splitter_t):
-          if stored == query_t:
+
+        # using this ..we know that no splitter in any of strings.! 
+        if c_t.kind != colArrayString:
+          if arr[row_idx] == query_t:
             result_t[count] = row_idx
             count += 1
-            break
+        else:
+          for stored in arr[row_idx].split(splitter_t):
+            if stored == query_t:
+              result_t[count] = row_idx
+              count += 1
+              break
       else:
         if arr[row_idx].contains(query_t):
           result_t[count] = row_idx
@@ -453,30 +480,26 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100,
   # later actually merges this somehow with fuzzySearch, for now just roll with it!
   
   assert c.kind == colString
-  
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k)
   queryStringImpl(result, c, query, boundary, top_k, exact_string, splitter)
 
-
-
-
-
-  # # returns all the matching row indices. MetaIndex can take care if some of them are invalid or stuff!
-  # # for now just check if a substring in string, (i know brute-forcing... but hoping it would be good enough for 100k strings if only column has much larger string)
-  # # try to make it work, later would add fuzzy search .. when have time...(have to port it from python ...sighhhhhhhh)
-  # var count = 0   # to count the number of matches found  
+  # var count = 0
   # let arr = cast[ptr UncheckedArray[string]](c.payload)
-  # # exhaustive search but break when hit top_k.. for now all have same scores, so top_k doesn't make much sense !
-  # for i in 0..<boundary:
-  #   # TODO: may be can supply a pragma copy elision or something!    
-  #   let data = arr[i]  # TODO: i think compiler can figure out to not copy the whole string.. as using it for read access only!
-  #   if data.contains(query):
-  #     result[count] = i
-  #     count += 1
-  #     if count == top_k:
-  #       break
+  # for row_idx in 0..<boundary:
+  #   # not using cursor would creat a copy for value, which we don't want.
+  #   let value{.cursor.} = arr[row_idx] # compiler doesn't figure this out automatically!
+  #   # if arr[row_idx] == query:  # this compiler can figure out !!
+  #   if value == query:
+  #     result[count] = row_idx
+  #     count = count + 1
+  #   if count == top_k:
+  #     break
   # return result[0..<count]
+
+  # can i just through alias then..
+
+  
 
 proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
   assert c.kind == colInt32
@@ -628,7 +651,9 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, 
   if data_t.kind == JInt:
     c_t.add_int32(row_idx = row_idx_t, getInt(data_t).int32, aliasing = aliasing_t)
   elif data_t.kind == JString:
-    c_t.add_string(row_idx = row_idx_t, data = getStr(data_t), aliasing = aliasing_t)
+    let temp_data = getStr(data_t)
+    assert not (temp_data.contains(concatenator_t)), "not expected to contain concatenator_t, it is reserved."
+    c_t.add_string(row_idx = row_idx_t, data = temp_data, aliasing = aliasing_t)
   elif data_t.kind == JFloat:
     c_t.add_float32(row_idx = row_idx_t, data = getFloat(data_t).float32, aliasing = aliasing_t)
   elif data_t.kind == JBool:
@@ -653,7 +678,8 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, 
         final_string = final_string & concatenator_t  & data_str
       final_string = final_string & concatenator_t    # so that we can always know that it was an array even a single element and can send array back.
       
-    # echo "final string: ", final_string 
+    # here indicate that this column possibly contains array of strings..
+    c_t.kind = colArrayString # TODO: make it a proc/api . Donot change once assigned without a warning!
     c_t.add_string(row_idx = row_idx_t, data = final_string, aliasing = aliasing_t) 
   else:
     doAssert 1 == 0, "Unexpected data of type: "  & $data_t.kind 
@@ -762,7 +788,7 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, to
   let boundary = m.dbRowPointer
   for label, value in attribute_value:
     let c = m[label]
-    if c.kind == colString:
+    if c.kind == colString or c.kind == colArrayString:
       result = c.query_string(query = getStr(value), boundary = boundary, top_k = top_k, exact_string = exact_string, splitter = m.stringConcatenator)
     elif c.kind == colInt32:
       result = c.query_int32(query = getInt(value).int32, boundary = boundary, top_k = top_k)
@@ -828,7 +854,7 @@ proc save*(m:MetaIndex, path:string)=
         row_indices_node.add(JsonNode(kind:Jint, num:BiggestInt(row_indices[i])))
         
         # either string or array of string as element in row_data node
-        if c.kind == colString:
+        if c.kind == colString or c.kind == colArrayString:
           let payload_data = cast[ptr UncheckedArray[string]](c.alias.payload)
           let value = payload_data[i]
           if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
@@ -857,7 +883,7 @@ proc save*(m:MetaIndex, path:string)=
           row_data_node.add(JsonNode(kind:JInt, num:BiggestInt(value)))
 
         else:
-          doAssert 1 == 0
+          doAssert 1 == 0, "not expected " & $c.kind
       doAssert len(row_data_node) == len(row_indices_node)
 
       alias_node["row_indices"] = row_indices_node
@@ -1021,7 +1047,7 @@ when isMainModule:
 
   # adding some data/rows.
   m.add_row(column_data = j3)
-  m.add_row(column_data = %* {"name":["anubafdasd"], "age":21})
+  m.add_row(column_data = %* {"name":"nain", "age":21})
   echo m   # good enough for a preview !
 
   # then check if query is working
@@ -1034,17 +1060,18 @@ when isMainModule:
 
   # modification
   #proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
-  m.modify_row(row_idx = 1, meta_data = %* {"age":33})
-  m.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
-  m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
+  # m.modify_row(row_idx = 1, meta_data = %* {"age":33})
+  # m.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
+  # m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
 
-  echo m
   echo m.collect_rows(indices = [Natural(1)])
-
   echo m.toJson()
-
+  echo m["name"].kind
+  m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
+  echo m["name"].kind
   # save
   m.save("./test_meta_save.json")
+  echo m
 
   var m2 = load("./test_meta_save.json")
   echo m2.toJson()
@@ -1058,6 +1085,7 @@ when isMainModule:
   echo m2.toJson()
   m2.save("./test_meta_save.json")
   
+  echo m2
 
 
 
