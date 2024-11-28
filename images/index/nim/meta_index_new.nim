@@ -147,7 +147,7 @@ proc `=destroy`(c:var ColumnObj)=
 
 type Column = ref ColumnObj
 
-proc checkAlias[T](c:Column):Table[Natural, T]=
+proc checkAlias[T](c:Column):Table[Natural, T]{.inline.}=
   if c.aliased:  
     for ix in 0..<c.alias.counter:
       let key = c.alias.row_indices[ix]
@@ -385,9 +385,7 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
   doAssert c.kind == colString
   let arr = cast[ptr UncheckedArray[string]](c.payload)
   arr[row_idx] = data
-  
-  # let arr = cast[ptr UncheckedArray[MyString]](c.payload)
-  # arr[row_idx] = ensureMove toMystring(data)
+
 ######################################################################################
 # querying API (These must be as fast as possibly, currently OK, all optimizations should be focussed on faster queries)
 #############################################################
@@ -764,7 +762,6 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, to
   let boundary = m.dbRowPointer
   for label, value in attribute_value:
     let c = m[label]
-
     if c.kind == colString:
       result = c.query_string(query = getStr(value), boundary = boundary, top_k = top_k, exact_string = exact_string, splitter = m.stringConcatenator)
     elif c.kind == colInt32:
