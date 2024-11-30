@@ -523,7 +523,7 @@ class FaceIndex(object):
         else:
             frame  = image        
         
-        final_bboxes_ids = [None for id in cluster_ids]
+        final_bboxes_ids = [None for _ in range(len(cluster_ids))]
         temp_mapping = {}  # index to clusters
 
         # create a mapping from original indices to cluster and filter unxpected ids. (should be rare)
@@ -553,6 +553,9 @@ class FaceIndex(object):
                 score = min([compare_face_embedding(m, embedding) for m in c.master_embeddings])
                 scores.append((bbox_ix,score))
                 del score, bbox_ix
+            # print(scores)
+            # print(bboxes)
+            # print(c.id)
             
             if len(scores) > 0:
                 sorted_data = sorted(scores, key = lambda x: x[1], reverse = False)
@@ -570,8 +573,7 @@ class FaceIndex(object):
         for bbox_ix,bbox in enumerate(bboxes):
             if not (bbox_ix in to_skip):
                 for ix, temp_id in enumerate(cluster_ids):
-                    if temp_id == self.no_info_id:
-                        assert final_bboxes_ids[ix] is None
+                    if temp_id == self.no_info_id and final_bboxes_ids[ix] is None: # no need for and actually both are equivalent for now!
                         final_bboxes_ids[ix] = ([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])], temp_id)
                         break
             del bbox_ix, bbox
