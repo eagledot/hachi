@@ -3,6 +3,7 @@
 
 import sys
 import os
+import time
 
 PYTHON_MODULES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_modules")
 IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".")
@@ -502,15 +503,12 @@ def getSuggestion() -> Dict[str, List[str]]:
     result = {}
     attribute = flask.request.form.get("attribute")
     result[attribute] = metaIndex.suggest(attribute, query)
-
-    # query = flask.request.form.get("query")
-    # result = {}
-    # attr_2_type = metaIndex.get_attribute_2_type()
-    # if attribute in attr_2_type:
-    #     result[attribute] = metaIndex.suggest(attribute, query)
+    
     return flask.jsonify(result)
 
 ##########################################
+
+experiment_cache = {} # some data to store over a single query, (like text-embeddings). Later hold image-embeddings when able to do re-ranking also!
 @app.route("/query", methods = ["POST"])
 def query():
     """
@@ -548,7 +546,13 @@ def query():
     if not rerank_approach:
         # This means semantic query. (without any meta-attributes.)
         current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
-        text_embedding = generate_text_embedding(current_query)
+        
+        if client_id not in experiment_cache:
+            text_embedding = generate_text_embedding(current_query)
+            experiment_cache[client_id] = {"text-embeddings": text_embedding}
+        else:
+            text_embedding = experiment_cache[client_id]["text-embeddings"]
+        
         flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
         
         # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
@@ -558,8 +562,9 @@ def query():
             del k
             if i == top_k:
                 break
-        
+                
         temp_something = metaIndex.query(data_hashes= top_keys) # hash to metaData
+        
         del top_keys
         for k,v in temp_something.items():
             temp["meta_data"].append(v)
@@ -582,7 +587,6 @@ def query():
         for i,attribute in enumerate(meta_attributes_list):        
             or_keys = set()  # OR operation like collection
             for value in image_attributes[attribute]:
-                print("searching in {}  for {}".format(attribute,value))
 
                 # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
                 hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)                
@@ -634,6 +638,9 @@ def query():
     assert len(temp["meta_data"]) == len(temp["data_hash"]) == len(temp["score"])
     temp["query_completed"] = query_completed
     temp["client_id"] = client_id
+
+    if query_completed == True and client_id in experiment_cache:
+        _ = experiment_cache.pop(client_id)
     return flask.jsonify(temp)
 
 ##############
@@ -727,13 +734,23 @@ def editMetaData():
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
     # get the unique/all possible values for an attribute!
+    if attribute == "resource_directory":
+        new_result = []
+        for x in metaIndex.get_unique(attribute):
+            new_result.append(x.replace("\\","/"))  # its a mess handling on js side for me atleast!
+        return flask.jsonify(new_result)
+    
     result = metaIndex.get_unique(attribute)
     return flask.jsonify(list(result))
 
 @app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
 def getMeta(attribute:str, value:Any):
 
+    if attribute == "resource_directory":
+        value  = os.path.abspath(value.replace("|", "//"))
+
     # TODO: for now force value to be of string type.. or convert into expected type.. for backend.
+    # TODO: check path matching for LINUX.. due to slashes orientation may fail to... so have to check it..
     result = metaIndex.query(attribute = attribute, attribute_value = value) # exact make sure we match full string rather than substring.
     temp = {}
     temp["data_hash"]= list(result.keys())
@@ -749,7 +766,11 @@ def getMetaStats():
 
 def get_original_cluster_id(cluster_id):
     """
-    Given a cluster id get the corresponding original cluster id
+    Given a cluster id get the corresponding original cluster id.
+    Note: a bit costly as we have to scan all the data, (along with alia/versioned data), having to call query twice.
+    But we store a mapping, resulting in faster subsequent call to getPreviewcluster .
+    
+    NOTE: trying to understand the limits of meta backend without resorting to index/new-datastructure to speed up things!  
     """
     if ("cluster_" in cluster_id.lower()):
        return cluster_id
@@ -757,12 +778,6 @@ def get_original_cluster_id(cluster_id):
     # first get the original data even user changed it.
     original_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = False)
     new_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = True)
-    # note we have to do extra work, we try to reason which original cluster id was mapped to new one.
-    # i donot want to save extra info.. so we figure out at first try we save it for this session..
-    # for further tries!
-    # try to find mapping.
-    # first find ix.
-
     desired_ix = None
     desired_hash = None
     for hash, new_meta in new_hash_2_metadata.items():
@@ -777,6 +792,7 @@ def get_original_cluster_id(cluster_id):
 
     # find the original...
     original_cluster_id = original_hash_2_metadata[desired_hash]["person"][desired_ix]
+    del original_hash_2_metadata, new_hash_2_metadata
     return original_cluster_id
 
 @app.route("/getPreviewPerson/<cluster_id>", methods = ["GET"])
