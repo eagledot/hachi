@@ -338,7 +338,7 @@ proc add_string(c:var Column, row_idx:Natural, data:string, aliasing:bool = fals
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
   
   if aliasing == true:
-    echo "modifying string..."
+    # echo "modifying string..."
     aliasImpl(c, row_idx, data, string)
   else:
     assert not isNil(c.payload)
