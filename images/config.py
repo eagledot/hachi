@@ -18,7 +18,7 @@ if not os.path.exists(IMAGE_PERSON_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
 
 # TODO: to incorporate changed shard size even some images are indexed... in future.. would need to remember what i did!
-IMAGE_INDEX_SHARD_SIZE = 1200  # should be around 10_000, for dataset with around 50k or more images !
+IMAGE_INDEX_SHARD_SIZE = 10_000  # should be around 10_000, for dataset with around 50k or more images !
 TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
 
 # allowed resources.
