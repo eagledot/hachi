@@ -72,8 +72,10 @@
 
     function handleClick(attribute){
 
-        
-        fetch("/api/getMeta/resource_directory/" + attribute.toString().toLowerCase()).
+        let filename = attribute.toString().toLowerCase()
+        filename = filename.replaceAll("/", "|") // to convert back on server side without tripping bad-urls!
+
+        fetch("/api/getMeta/resource_directory/" + filename).
         then((response) =>{
             response.json().then((temp_meta_data) => {
                 photos_interface_active = false;
@@ -147,9 +149,9 @@ function handleSearch(node){
     {
         state.local_directories  = [];       // set this is to empty.
         original_local_directories.forEach(
-            (person_id) => {
-            if(person_id.toLowerCase().includes(current_query)){
-                state.local_directories.push(person_id);
+            (directory_id) => {
+            if(directory_id.toLowerCase().includes(current_query)){
+                state.local_directories.push(directory_id);
             }}
         )        
         }
