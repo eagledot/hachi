@@ -310,10 +310,22 @@ class MetaIndex(object):
                 query_json = json.dumps({attribute:query})
                 row_indices = json.loads(mBackend.query(query_json, exact_string = False, top_k = 100))[attribute] # get the rows, for which column/attribute has query as substring in it.
 
-                # collect rows
+                # collect rows, TODO: should be able to just ask for a single attribute too..but still ok, since we select row_indices for desired attribute.
                 rows = json.loads(mBackend.collect_rows(row_indices))
+                temp_result = set()
                 for r in rows:
-                    result.append(r[attribute])
+                    temp_value = r[attribute]
+
+                    # flatten and de-duplicate
+                    if not isinstance(temp_value, list):
+                        temp_result.add(temp_value)
+                    else:
+                        for x in temp_value:
+                            if query in x:   # current logic return the full original array stored along with the query matched, so we want the relevant element/elements only.
+                                # for example ["cluster_xx", "<queryxx>"], we want queryxx only!
+                                temp_result.add(x)
+                
+                return list(temp_result)                        
             else:
                 print("[WARNING]: attribute {} should have been a valid attribute and should be of type string for now!".format(attribute))
             return result
@@ -563,27 +575,16 @@ if __name__ == "__main__":
     all_hashes = test.get_unique("resource_hash")
 
 
-    # test.suggest(attribute="person", query ="some")
-
-    sample = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f"
-    tic = time.time()
-    for i in range(100):
-        result = test.query(data_hashes = sample)
-    print("[QUERYING]: {}ms".format((time.time()- tic)*1000))
-    result = test.query(data_hashes = sample)
-    print(result)
+    print(test.suggest(attribute="person", query ="some"))
+    print("\n")
+    print(test.suggest(attribute="person", query ="bedi"))
 
 
-    print(test.column_types)
-    print(test.column_labels)
-    print(len(test.column_labels))
-    print(len(test.column_types))
+    # sample = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f"
+    # tic = time.time()
+    # for i in range(100):
+    #     result = test.query(data_hashes = sample)
+    # print("[QUERYING]: {}ms".format((time.time()- tic)*1000))
+    # result = test.query(data_hashes = sample)
+    # print(result)
     # print(test.get_unique("resource_extension"))
-
-
-    # Testing, there seemed a bug, where single "no_person_detected" was returned, instead of a list!
-    # may be parsing bug on browser side or server side.. couldn't ascertain, couldn't reproduce!
-    # just in case.. documenting here!
-    # test = MetaIndex()
-    # print(test.hash_2_metaData["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"])
-    # print(test.query(data_hashes=["2c3e0c137dda126466dcf909a130c5fd8c8e84902eda99b72a2675dec1e77f18"]))
