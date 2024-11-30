@@ -440,12 +440,13 @@ template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string,
               count += 1
               break
         else:
-          if arr[row_idx] == query_t:
+          if alias_table[row_idx] == query_t:
               result_t[count] = row_idx
               count += 1
 
       else:
-        if alias_table[row_idx].contains(query_t):
+        if alias_table[row_idx].contains(query_t): # we just match substring, doesn't care other values stored like <xxx>|<yyy> for <xxx>
+          # echo "matching " & $query_t & "  in " & alias_table[row_idx]
           result_t[count] = row_idx
           count += 1
     else:
@@ -464,6 +465,7 @@ template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string,
               break
       else:
         if arr[row_idx].contains(query_t):
+          # echo "matching " & $query_t & "  in " & arr[row_idx]
           result_t[count] = row_idx
           count += 1
       
@@ -479,7 +481,7 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100,
   # This matches substring(query) in strings, if match is found, we collect the corresponding index.
   # later actually merges this somehow with fuzzySearch, for now just roll with it!
   
-  assert c.kind == colString
+  assert c.kind == colString or c.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k)
   queryStringImpl(result, c, query, boundary, top_k, exact_string, splitter)
