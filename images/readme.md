@@ -42,7 +42,8 @@
 2. Python 3 (Tested with versions >= 3.8)
 3. Download ``source.zip``  from latest [release](https://github.com/eagledot/hachi/releases) or ``git clone https://github.com/eagledot/hachi.git``
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
-5. Collect Model Weights by downloading ``data.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.0/data.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data`` , such that now ``./data`` directory has 3 ``.bin`` files in it.
+5. ``cd`` into the `images` directory .
+5. Collect Model Weights by downloading ``dataV2.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.0/data.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data``(i.e. data folder in curretn directory) , such that now ``./data`` directory has 3 ``.bin`` files in it.
 6. Run command ``pip install -r requirements.txt``   ( This would install ``opencv-python``, ``numpy``, ``flask``, ``regex``, ``ftfy``, ``plum-py`` python packages, if not found .)
 
     ### Extra steps (for Linux distributions Only.)
@@ -56,9 +57,9 @@
         *   ``sudo apt-get install openblas-dev``  (Ubuntu/Debian)
 
 ## Usage:
-1. ``cd`` into the downloaded directory.
-2.  Run command: ``caddy run``
-3. Run command: ``python semantic_search.py``  OR ``python3 semantic_search.py``
+1. make sure current working directory is `<root>/images` .
+2.  Run command: ``caddy run``                  # this will start caddy as frontend proxy
+3. Run command: ``python semantic_search.py``  OR ``python3 semantic_search.py``  (wait for flask/server to be started)
 4. Visit [http://localhost:5000](http://localhost:5000)
 
 ## Development:
