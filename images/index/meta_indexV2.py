@@ -18,9 +18,6 @@ from config import appConfig
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
 from exif import Image
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../fuzzy_search"))
-from fuzzy_search import FuzzySearch
-
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
 from reverse_geocode import GeocodeIndex
 
@@ -432,8 +429,6 @@ class MetaIndex(object):
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
 
-                # print(column_labels)
-                # print(column_types)
                     
                 mBackend.init(
                     name = self.name,
