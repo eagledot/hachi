@@ -41,19 +41,19 @@
 
 1. Install [Caddy](https://caddyserver.com/docs/install) (Open source webserver, For serving static files and out of the box HTTPS configuration, if needed.)
 2. Python 3 (Tested with versions >= 3.8)
-3. Download ``source.zip``  from latest [release](https://github.com/eagledot/hachi/releases) or ``git clone https://github.com/eagledot/hachi.git``
+3. Download latest code for [main branch](https://github.com/eagledot/hachi.git) or ``git clone https://github.com/eagledot/hachi.git``
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
 5. ``cd`` into the `images` directory .
-5. Collect Model Weights by downloading ``dataV2.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.3/dataV2.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data``(i.e. data folder in curretn directory) , such that now ``./data`` directory has 3 ``.bin`` files in it.
-6. Run command ``pip install -r requirements.txt``   ( This would install ``opencv-python``, ``numpy``, ``flask``, ``regex``, ``ftfy``, ``plum-py`` python packages, if not found .)
+6. Collect Model Weights by downloading ``dataV2.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.3/dataV2.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data``(i.e. data folder in curretn directory) , such that now ``./data`` directory has 3 ``.bin`` files in it.
+7. Run command ``pip install -r requirements.txt``   ( This would install ``opencv-python``, ``numpy``, ``flask``, ``regex``, ``ftfy``, ``plum-py`` python packages, if not found .)
 
     ### Extra steps (for Linux distributions Only.)
 
-    7. Run command ``conda install -c conda-forge onednn-cpu-omp=2.6.0`` ( conda is the most sane way i could find to install onednn shared library, without getting frustrated due to GlibC mismatching.)
+    8. Run command ``conda install -c conda-forge onednn-cpu-omp=2.6.0`` ( conda is the most sane way i could find to install onednn shared library, without getting frustrated due to GlibC mismatching.)
 
         * update the ``LD_LIBRARY_PATH`` to make ``dynamic linker`` search for ``shared objects`` in the Conda path (if     not already done!)
 
-    8. Install ``openblas`` if not already included/installed with your OS.
+    9. Install ``openblas`` if not already included/installed with your OS.
         *   ``sudo dnf install openblas-devel`` (Fedora)
         *   ``sudo apt-get install openblas-dev``  (Ubuntu/Debian)
 
