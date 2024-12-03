@@ -34,7 +34,8 @@
 
 ## Supported OS:
 * Windows (Tested on 10/11).
-* Linux   (GlibC >= 2.27)         [ Run command ``ldd --version`` to check glibc version.]
+* Linux   (GlibC >= 2.27)         [ Run command ``ldd --version`` to check glibc version.]  (minimal testing, may have minor issues due to cross compilation. Open issue if encounter a bug!)
+
 
 ## Install (one-time process):
 
