@@ -21,7 +21,7 @@
 - **End-2-end interface**: Index any media just by providing a path to a local directory/folder and start querying. No complex configurations. 
 - **Face-recognition**: Face Detection and Recognition.
 - **Fast**: Start Getting Results in milliseconds. All Indices are stored on user's system.
-- **Minimal Requirements**: Any consumer Grade CPU with AVX2 instructions enabled and minimal software dependencies. (No dependence on deep-learning frameworks like ``pytorch``/``tensorflow``.)
+- **Minimal Requirements**: Any consumer Grade CPU with AVX2 instructions enabled and minimal software dependencies. (No dependence on deep-learning frameworks like ``pytorch``/``tensorflow``/``onnx`` .)
 - **Private**: Fully self hosted on users' system with **no** dependence on outside Network in any manner.
 
 ## Hardware requirements:
@@ -41,7 +41,7 @@
 
 1. Install [Caddy](https://caddyserver.com/docs/install) (Open source webserver, For serving static files and out of the box HTTPS configuration, if needed.)
 2. Python 3 (Tested with versions >= 3.8)
-3. Download latest code for [main branch](https://github.com/eagledot/hachi.git) or ``git clone https://github.com/eagledot/hachi.git``
+3. Download latest code for [main branch](https://github.com/eagledot/hachi/archive/refs/heads/main.zip) or ``git clone https://github.com/eagledot/hachi.git``
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
 5. ``cd`` into the `images` directory .
 6. Collect Model Weights by downloading ``dataV2.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.3/dataV2.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data``(i.e. data folder in curretn directory) , such that now ``./data`` directory has 3 ``.bin`` files in it.
