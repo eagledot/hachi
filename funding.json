@@ -1,0 +1,79 @@
+{
+    "version": "v1.0.0",
+    "entity": {
+        "type": "individual",
+        "role": "owner",
+        "name": "Anubhav Nain",
+        "email": "anubhav@eagledot.xyz",
+        "phone": "",
+        "description": "Independent open source developer",
+        "webpageUrl": {
+            "url": "https://github.com/eagledot/hachi"
+        }
+    },
+    "projects": [
+        {
+            "guid": "hachi",
+            "name": "hachi",
+            "description":"Semantic and meta-data search engine for personal media from grounds up. Written in Nim and Python",
+            "webpageUrl": {
+                "url": "https://github.com/eagledot/hachi"
+            },
+            "repositoryUrl": {
+                "url": "https://github.com/eagledot/hachi"
+            },
+            "licenses": [
+                "spdx:GPL-3.0"
+            ],
+            "tags": [
+                "search",
+                "ml",
+                "images",
+                "face-recognition",
+                "semantic",
+                "document-search"
+            ]
+        }
+    ],
+    "funding": {
+        "channels": [
+            {
+                "guid": "buymeacoffee-supporters",
+                "type": "payment-provider",
+                "address": "https://buymeacoffee.com/eagledot",
+                "description": "Support Hachi development through one time donations!"
+            },
+
+            {
+                "guid": "bank",
+                "type": "bank",
+                "address": "anubhav@eagledot.xyz",
+                "description": "Please reach out if you'd like to donate. Thanks!"
+            }
+        ],
+        "plans": [
+            {
+                "guid": "one-time-donation",
+                "status": "active",
+                "name": "One-time Donation",
+                "description": "Make a one-time donation to support the ongoing development and maintenance of Hachi",
+                "amount": 5,
+                "currency": "USD",
+                "frequency": "one-time",
+                "channels": [
+                    "buymeacoffee-supporters"
+                ]
+            },
+            {
+                "guid": "floss-funding",
+                "status": "active",
+                "name": "FLOSS funding",
+                "amount": 0,
+                "currency": "USD",
+                "frequency": "one-time",
+                "channels": ["bank"]
+            }
+            
+        ]
+    }
+}
