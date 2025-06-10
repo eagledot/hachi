@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Folder Photos - Hachi</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Modal and grid styles will be injected by components */
+    </style>
+</head>
+<body>
+    <!-- Navbar will be inserted here by Layout -->
+    
+    <main id="main">
+        <div class="container mx-auto px-4 py-8 max-w-7xl">
+            <!-- Header with back button and folder info -->
+            <header class="mb-8">
+                <div class="flex items-center mb-4">
+                    <button id="back-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 mr-4">
+                        ← Back to Folders
+                    </button>
+                </div>
+                
+                <div class="flex items-center space-x-4 mb-6">
+                    <div class="text-gray-400 text-6xl">📁</div>
+                    <div>
+                        <h1 id="folder-name" class="text-4xl font-bold text-gray-900 mb-2"></h1>
+                        <p id="folder-photo-count" class="text-gray-600 text-lg"></p>
+                        <p id="folder-path" class="text-gray-500 text-sm mt-1 font-mono"></p>
+                    </div>
+                </div>
+            </header><!-- Loading indicator -->
+            <div id="loading-indicator" class="hidden">
+                <div class="flex justify-center items-center py-12">
+                    <div class="flex items-center space-x-2">
+                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <span class="text-gray-600 text-lg">Loading photos...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error message -->
+            <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-red-800" id="error-text"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- No photos message -->
+            <div id="no-photos" class="hidden text-center py-12">
+                <div class="text-gray-400 text-6xl mb-4">📷</div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No photos found</h3>  
+                <p class="text-gray-500">This folder doesn't contain any photos</p>
+            </div>            <!-- Photos section header -->
+            <section class="mb-6">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">Photos</h2>
+                
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <!-- Mobile Filter Toggle Button -->
+                    <div class="lg:hidden">
+                        <button id="mobile-filter-toggle" class="w-full flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
+                                </svg>
+                                <span class="font-medium text-gray-900">Filters</span>
+                            </span>
+                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Left Sidebar - Filters -->
+                    <aside id="photo-filter-container" class="hidden lg:block w-full lg:w-80 lg:flex-shrink-0">
+                        <!-- Photo filters will be injected here -->
+                    </aside>
+                    
+                    <!-- Main Content Area - Photo Grid -->
+                    <main class="flex-1 min-w-0">
+                        <div id="photo-grid-container">
+                            <!-- Photo grid components will be injected here -->
+                        </div>
+                    </main>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Modal will be injected here by ImageModalComponent -->
+
+    <script type="module" src="/src/folder-photos-page.ts"></script>
+</body>
+</html>
