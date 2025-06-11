@@ -10,23 +10,34 @@ meta_bp = Blueprint('meta_routes', __name__)
 @meta_bp.route("/getMeta/<attribute>/<value>", methods=["GET"])
 def getMeta(attribute: str, value: Any) -> Response:
     """
-    Retrieve metadata and associated data hashes for a specific attribute-value pair.
+    Retrieve metadata and associated data hashes for a specific attribute-value pair with pagination.
     
     This endpoint performs exact matching on metadata attributes and returns
-    all resources that have the specified attribute value.
+    all resources that have the specified attribute value, with support for pagination.
     
     URL Parameters:
         attribute (str): The metadata attribute to query (e.g., "person", "location", "date")
         value (str): The value to match for the specified attribute
     
+    Query Parameters:
+        page (int, optional): Page number (1-based, default: 1)
+        page_size (int, optional): Number of results per page (default: 50, max: 1000)
+    
     Returns:
         JSON response with:
-        - data_hash (list): List of data hashes matching the criteria
-        - meta_data (list): Complete metadata objects for each matching resource
+        - data_hash (list): List of data hashes for current page
+        - meta_data (list): Complete metadata objects for current page
         - score (list): Relevance scores (always 1.0 for exact matches)
+        - pagination (dict): Pagination metadata including:
+            - current_page (int): Current page number
+            - page_size (int): Results per page
+            - total_results (int): Total number of matching results
+            - total_pages (int): Total number of pages
+            - has_next (bool): Whether there are more pages
+            - has_prev (bool): Whether there are previous pages
     
     Error Conditions:
-        - 400: Missing or invalid attribute/value parameters
+        - 400: Missing or invalid attribute/value parameters, invalid pagination parameters
         - 404: No results found for the specified criteria
         - 500: Internal error during metadata query
     
@@ -35,6 +46,7 @@ def getMeta(attribute: str, value: Any) -> Response:
         - Handles special cases like resource_directory path normalization
         - URL-decodes parameters to handle special characters
         - Returns consistent score of 1.0 for all exact matches
+        - Supports efficient pagination for large result sets
     """
     try:
         # Validate parameters
@@ -50,6 +62,31 @@ def getMeta(attribute: str, value: Any) -> Response:
         if not attribute or not value:
             return jsonify({
                 "error": "Empty attribute or value parameters"
+            }), 400
+        
+        # Extract and validate pagination parameters
+        try:
+            page = int(request.args.get('page', 1))
+            page_size = int(request.args.get('page_size', 50))
+            
+            if page < 1:
+                return jsonify({
+                    "error": "Page number must be >= 1"
+                }), 400
+            
+            if page_size < 1:
+                return jsonify({
+                    "error": "Page size must be >= 1"
+                }), 400
+            
+            if page_size > 1000:
+                return jsonify({
+                    "error": "Page size cannot exceed 1000"
+                }), 400
+                
+        except ValueError as e:
+            return jsonify({
+                "error": f"Invalid pagination parameters: {str(e)}"
             }), 400
         
         # Handle special case: resource_directory path normalization
@@ -71,29 +108,69 @@ def getMeta(attribute: str, value: Any) -> Response:
         except Exception as e:
             print(f"[ERROR]: Failed to query metadata for {attribute}='{value}': {e}")
             return jsonify({
-                "error": f"Failed to query metadata: {str(e)}"
-            }), 500
+                "error": f"Failed to query metadata: {str(e)}"            }), 500
         
         # Check if any results were found
         if not result:
+            pagination = {
+                "current_page": page,
+                "page_size": page_size,
+                "total_results": 0,
+                "total_pages": 0,
+                "has_next": False,
+                "has_prev": False
+            }
             return jsonify({
                 "data_hash": [],
                 "meta_data": [],
                 "score": [],
+                "pagination": pagination,
                 "message": f"No results found for {attribute}='{value}'"
             }), 404
+
+        # Calculate pagination metrics
+        total_results = len(result)
+        total_pages = (total_results + page_size - 1) // page_size  # Ceiling division
         
-        # Build response structure
-        data_hashes = list(result.keys())
-        meta_data = [result[hash_id] for hash_id in data_hashes]
-        scores = [1.0] * len(result)  # Exact matches always have score 1.0
+        # Validate page number against total pages
+        if page > total_pages:
+            return jsonify({
+                "error": f"Page {page} exceeds total pages ({total_pages})"
+            }), 400
         
-        print(f"[INFO]: Found {len(result)} results for {attribute}='{value}'")
+        # Calculate pagination slice indices
+        start_idx = (page - 1) * page_size
+        end_idx = min(start_idx + page_size, total_results)
+        
+        # Build response structure with pagination
+        all_data_hashes = list(result.keys())
+        all_meta_data = [result[hash_id] for hash_id in all_data_hashes]
+        all_scores = [1.0] * total_results  # Exact matches always have score 1.0
+        
+        # Apply pagination slicing
+        paginated_data_hashes = all_data_hashes[start_idx:end_idx]
+        paginated_meta_data = all_meta_data[start_idx:end_idx]
+        paginated_scores = all_scores[start_idx:end_idx]
+        
+        # Build pagination metadata
+        pagination = {
+            "current_page": page,
+            "page_size": page_size,
+            "total_results": total_results,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
+            "start_index": start_idx + 1,  # 1-based for user display
+            "end_index": end_idx
+        }
+        
+        print(f"[INFO]: Found {total_results} results for {attribute}='{value}', returning page {page}/{total_pages} ({len(paginated_data_hashes)} items)")
         
         return jsonify({
-            "data_hash": data_hashes,
-            "meta_data": meta_data,
-            "score": scores
+            "data_hash": paginated_data_hashes,
+            "meta_data": paginated_meta_data,
+            "score": paginated_scores,
+            "pagination": pagination
         })
         
     except Exception as e:
