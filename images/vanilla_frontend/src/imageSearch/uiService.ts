@@ -1,7 +1,6 @@
 // UI service for managing DOM updates and interactions
 import type { HachiImageData } from './types';
 import { SearchApiService } from './apiService';
-import { html } from '../utils';
 
 export class UIService {
   private container: HTMLElement;
@@ -226,118 +225,47 @@ export class UIService {
     this.photoGrid.innerHTML = '';
     this.photoGrid.appendChild(fragment);
   }  /**
-   * Creates a photo element
+   * Creates a photo element - optimized for performance
    */  
   private createPhotoElement(photo: HachiImageData, onPhotoClick: (photo: HachiImageData) => void): HTMLElement {
     const div = document.createElement('div');
-    div.className = 'group relative h-full bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer';
+    div.className = 'group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer';
     div.style.height = '180px'; // Fixed height for consistency
     div.setAttribute('data-photo-id', photo.id);
-        // Container for the image to enable better hover effects
-    const imgContainer = document.createElement('div');
-    imgContainer.className = 'w-full h-full overflow-hidden relative break-inside-avoid';    // Create modern skeleton loading placeholder
-    const loadingPlaceholder = document.createElement('div');
-    loadingPlaceholder.className = 'absolute inset-0 image-skeleton overflow-hidden rounded-lg';
-    loadingPlaceholder.innerHTML = html`
-      <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer"></div>
-      <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-50/80 to-slate-100/80 backdrop-blur-sm">
-        <div class="flex flex-col items-center space-y-4 text-center">
-          <div class="relative flex items-center justify-center">
-            <!-- Main image icon with subtle animation -->
-            <div class="relative">
-              <svg class="w-10 h-10 text-slate-400 transition-all duration-1000 ease-in-out" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M4 4h16v16H4V4zm2 2v12h12V6H6zm2 2h8v8H8V8zm2 2v4h4v-4h-4z"/>
-                <path d="M8 8h8v8H8z" fill="none" stroke="currentColor" stroke-width="0.5" opacity="0.3"/>
-              </svg>
-              <!-- Animated pulse dot -->
-              <div class="absolute -top-1 -right-1 w-3 h-3 bg-blue-500/80 rounded-full animate-ping"></div>
-              <div class="absolute -top-1 -right-1 w-3 h-3 bg-blue-600 rounded-full"></div>
-            </div>
-          </div>
-          <!-- Loading text with elegant typography -->
-          <div class="space-y-1">
-            <div class="text-sm font-medium text-slate-600 tracking-wide">Loading image</div>
-            <div class="flex space-x-1 justify-center">
-              <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></div>
-              <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
-              <div class="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
 
     const img = document.createElement('img');
     const imageUrl = SearchApiService.getPreviewImageUrl(photo.id);
-      img.src = imageUrl;
-    img.alt = ''; // Empty alt text to prevent showing filename while loading
-    img.className = 'absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-all duration-500 ease-in-out opacity-0 scale-105'; // Start with opacity-0 and slight scale
-    img.loading = 'lazy';    // Add error handling
+    
+    img.src = imageUrl;
+    img.alt = photo.metadata?.filename || '';
+    img.className = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200';
+    img.loading = 'lazy';
+
+    // Simple error handling without animations
     img.onerror = () => {
-      console.error('Failed to load image:', imageUrl);
-      // Smooth transition to error state
-      loadingPlaceholder.style.opacity = '0';
-      loadingPlaceholder.style.transition = 'opacity 300ms ease-out';
-      
-      img.style.opacity = '1';
-      img.style.transform = 'scale(1)';
-      img.style.transition = 'opacity 400ms ease-out, transform 400ms ease-out';
       img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
-      img.alt = photo.metadata?.filename || 'Image not found';
-      
-      // Remove loading placeholder after animation
-      setTimeout(() => {
-        loadingPlaceholder.classList.add('hidden');
-      }, 300);
-    };
-      img.onload = () => {
-      // Smooth transition from loading to loaded state
-      setTimeout(() => {
-        loadingPlaceholder.style.opacity = '0';
-        loadingPlaceholder.style.transform = 'scale(0.95)';
-        loadingPlaceholder.style.transition = 'opacity 300ms ease-out, transform 300ms ease-out';
-        
-        img.style.opacity = '1';
-        img.style.transform = 'scale(1)';
-        img.style.transition = 'opacity 400ms ease-out, transform 400ms ease-out';
-        img.alt = photo.metadata?.filename || 'Image';
-        
-        // Remove loading placeholder after animation
-        setTimeout(() => {
-          loadingPlaceholder.classList.add('hidden');
-        }, 300);
-      }, 100); // Small delay to ensure smooth transition
+      img.alt = 'Image not found';
     };
 
-    // Create a nice overlay gradient at the bottom for text
-    const gradientOverlay = document.createElement('div');
-    gradientOverlay.className = 'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent h-24 transition-opacity duration-300';
-    // Add score badge for debugging (top-right corner)
+    // Add score badge only if needed for debugging
     if (this.showScores && photo.score !== undefined && photo.score !== null) {
       const scoreBadge = document.createElement('div');
-      scoreBadge.className = 'score-badge absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg z-10';
+      scoreBadge.className = 'absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded shadow z-10';
       scoreBadge.textContent = Number(photo.score).toFixed(3);
       div.appendChild(scoreBadge);
     }
 
-    // Add a subtle view icon that appears on hover
+    // Simple hover overlay
+    const hoverOverlay = document.createElement('div');
+    hoverOverlay.className = 'absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100';
+    
     const viewIcon = document.createElement('div');
-    viewIcon.className = 'absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300';
+    viewIcon.className = 'text-white bg-black/50 rounded-full p-2';
+    viewIcon.innerHTML = `<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
     
-    const iconCircle = document.createElement('div');
-    iconCircle.className = 'bg-white/25 backdrop-blur-sm p-3 rounded-full';
-    
-    const icon = document.createElement('div');
-    icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="white" viewBox="0 0 24 24">
-      <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
-    </svg>`;
-    
-    iconCircle.appendChild(icon);
-    viewIcon.appendChild(iconCircle);    imgContainer.appendChild(loadingPlaceholder);
-    imgContainer.appendChild(img);
-    div.appendChild(imgContainer);
-    div.appendChild(gradientOverlay);
-    div.appendChild(viewIcon);
+    hoverOverlay.appendChild(viewIcon);
+    div.appendChild(img);
+    div.appendChild(hoverOverlay);
 
     div.addEventListener('click', (e) => {
       e.preventDefault();
@@ -504,29 +432,29 @@ export class UIService {
           <span class="col-span-2 text-gray-500">${item.value}</span>
         </div>
       `).join('');
-      
-    // Add people section with avatar images if people are available
+        // Add people section with avatar images if people are available
     const hasPeople = metadata.person && 
                       metadata.person.length > 0 && 
                       !metadata.person.every(p => p === "no_person_detected" || p === "no_categorical_info");      if (hasPeople) {
-      const peopleHtml = html`
+      const peopleAvatars = metadata.person?.filter(personId => 
+        personId !== "no_person_detected" && personId !== "no_categorical_info"
+      ).map(personId => {
+        const avatarUrl = SearchApiService.getPersonImageUrl(personId);
+        return `
+          <div class="flex flex-col items-center">
+            <img src="${avatarUrl}" alt="${personId}" 
+              class="w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors" 
+              title="Click to view ${personId}'s photos"
+              data-person-id="${personId}"/>
+          </div>
+        `;
+      }).join('') || '';
+      
+      const peopleHtml = `
         <div class="py-1 border-b border-gray-800">
           <span class="font-semibold text-gray-800">People:</span>
           <div class="flex flex-wrap gap-2 mt-1" data-people-container="true">
-            ${metadata.person?.filter(personId => 
-              personId !== "no_person_detected" && personId !== "no_categorical_info"
-            ).map(personId => {
-              const avatarUrl = SearchApiService.getPersonImageUrl(personId);
-              return html`
-                <div class="flex flex-col items-center">
-                  <img src="${avatarUrl}" alt="${personId}" 
-                    class="w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors" 
-                    title="Click to view ${personId}'s photos"
-                    data-person-id="${personId}"/>
-                  <!-- <span class="text-xs text-gray-500 mt-1 max-w-[60px] truncate">${personId}</span> -->
-                </div>
-              `;
-            }).join('')}
+            ${peopleAvatars}
           </div>
         </div>
       `;
