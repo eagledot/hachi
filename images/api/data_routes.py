@@ -4,8 +4,8 @@ import cv2
 import numpy as np
 from flask import Blueprint, Response
 
-from ..semantic_search import metaIndex, dataCache, IMAGE_PREVIEW_DATA_PATH
-from ..semantic_search import googlePhotos, faceIndex, USER_CLUSTER_ID_2_ORIGINAL, get_original_cluster_id
+from semantic_search import metaIndex, dataCache, IMAGE_PREVIEW_DATA_PATH
+from semantic_search import googlePhotos, faceIndex, USER_CLUSTER_ID_2_ORIGINAL, get_original_cluster_id
 
 data_bp = Blueprint('data_routes', __name__)
 

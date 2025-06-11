@@ -2,7 +2,7 @@ import os
 import threading
 from flask import Blueprint, request, jsonify
 
-from ..semantic_search import appConfig, indexStatus, generate_endpoint, check_extension_status, indexing_thread
+from semantic_search import appConfig, indexStatus, generate_endpoint, check_extension_status, indexing_thread
 
 indexing_bp = Blueprint('indexing_routes', __name__)
 

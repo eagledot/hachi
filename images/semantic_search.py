@@ -963,6 +963,7 @@ dataCache = GlobalDataCache()   # a global data cache to serve raw-data for prev
 # config/data-structures
 sessionId_to_config = {}      # a mapping to save some user specific settings for a session.
 personId_to_avgEmbedding = {} # we seek to create average embedding for a group/id a face can belong to, only for a single session.
+experiment_cache = {}         # a cache to store text embeddings per client session for search optimization
 global_lock = threading.RLock()
 
 def generate_image_preview(
@@ -1528,19 +1529,8 @@ def indexing_thread(
 ############
 app = Flask(__name__, static_folder = None, static_url_path= None)
 app.secret_key = "Fdfasfdasdfasfasdfas"
-
-# Import and register blueprints
-from .api.data_routes import data_bp
-from .api.meta_routes import meta_bp
-from .api.search_routes import search_bp
-from .api.indexing_routes import indexing_bp
-from .api.google_photos_routes import gphotos_bp
-
-app.register_blueprint(data_bp)
-app.register_blueprint(meta_bp)
-app.register_blueprint(search_bp)
-app.register_blueprint(indexing_bp)
-app.register_blueprint(gphotos_bp)
+from flask_cors import CORS
+CORS(app)
 
 def get_original_cluster_id(cluster_id: str) -> Optional[str]:
     """
@@ -1991,7 +1981,23 @@ def get_protocol_status_summary() -> Dict[str, Dict[str, Any]]:
 
 #######################################
 
+def register_blueprints():
+    """Register Flask blueprints. Called after all modules are initialized."""
+    from api.data_routes import data_bp
+    from api.meta_routes import meta_bp
+    from api.search_routes import search_bp
+    from api.indexing_routes import indexing_bp
+    from api.google_photos_routes import gphotos_bp
+
+    app.register_blueprint(data_bp)
+    app.register_blueprint(meta_bp)
+    app.register_blueprint(search_bp)
+    app.register_blueprint(indexing_bp)
+    app.register_blueprint(gphotos_bp)
+
 if __name__ == "__main__":
+    # Register blueprints only when running as main script
+    register_blueprints()
 
     port = 8200
 

@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from flask import Blueprint, request, jsonify, Response
 from urllib.parse import unquote
 
-from ..semantic_search import metaIndex, faceIndex, get_original_cluster_id
+from semantic_search import metaIndex, faceIndex, get_original_cluster_id
 from datetime import datetime
 
 meta_bp = Blueprint('meta_routes', __name__)

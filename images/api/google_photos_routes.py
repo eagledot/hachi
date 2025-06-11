@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify, Response
 import requests
 import os
 
-from ..semantic_search import (
+from semantic_search import (
     googlePhotos, global_lock, GAuthFlowStatus,
     read_gClient_secret, write_gClient_credentials
 )
@@ -302,8 +302,7 @@ def oAuthCallback() -> Response:
                 GAuthFlowStatus["finished"] = True
             
             return f"Network error during authentication: {str(e)}"
-        
-        # Store credentials securely
+          # Store credentials securely
         try:
             write_gClient_credentials(token_response, password=None)
             print("[INFO]: Successfully stored OAuth credentials")
@@ -319,7 +318,7 @@ def oAuthCallback() -> Response:
         # Reinitialize Google Photos client with new credentials
         try:
             global googlePhotos
-            from ..semantic_search import GooglePhotos
+            from semantic_search import GooglePhotos
             googlePhotos = GooglePhotos()
             print("[INFO]: Successfully reinitialized Google Photos client")
         except Exception as e:
