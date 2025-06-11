@@ -44,11 +44,48 @@
                     <aside id="photo-filter-container" class="hidden lg:block w-full lg:w-80 lg:flex-shrink-0">
                         <!-- Photo filters will be injected here -->
                     </aside>
-                    
-                    <!-- Main Content Area - Photo Grid -->
+                      <!-- Main Content Area - Photo Grid -->
                     <main class="flex-1 min-w-0">
                         <div id="photo-grid-container">
                             <!-- Photo grid components will be injected here -->
+                        </div>
+                        
+                        <!-- Pagination Controls -->
+                        <div id="pagination-container" class="hidden mt-8 mb-6">
+                            <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                                <!-- Pagination Info -->
+                                <div class="text-sm text-gray-600">
+                                    <span id="pagination-info">Showing 1-100 of 25000 photos</span>
+                                </div>
+                                
+                                <!-- Pagination Controls -->
+                                <div class="flex items-center space-x-4">
+                                    <button 
+                                        id="prev-page-btn"
+                                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                        disabled
+                                    >
+                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                        </svg>
+                                        Previous
+                                    </button>
+                                    
+                                    <span id="page-info" class="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-50 rounded-lg">
+                                        Page 1 of 250
+                                    </span>
+                                    
+                                    <button 
+                                        id="next-page-btn"
+                                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                    >
+                                        Next
+                                        <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </main>
                 </div>
