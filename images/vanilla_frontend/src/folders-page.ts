@@ -60,6 +60,14 @@ class FoldersApp {
         this.loadMoreFolders();
       });
     }
+
+    // Refresh button
+    const refreshBtn = document.getElementById("refresh-btn");
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", () => {
+        this.refreshFolders();
+      });
+    }
   }
   private async loadFolders(): Promise<void> {
     this.isLoading = true;
@@ -500,6 +508,59 @@ class FoldersApp {
     const errorDiv = document.getElementById("error-message");
     if (errorDiv) {
       errorDiv.classList.add("hidden");
+    }
+  }  private async refreshFolders(): Promise<void> {
+    // Disable the refresh button and show loading state
+    const refreshBtn = document.getElementById("refresh-btn") as HTMLButtonElement;
+    const refreshIcon = document.getElementById("refresh-icon");
+    
+    if (refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.classList.add("opacity-50", "cursor-not-allowed");
+    }
+    
+    if (refreshIcon) {
+      refreshIcon.classList.add("animate-spin");
+    }
+
+    // Show loading indicator and hide error messages
+    this.showLoading(true);
+    this.hideError();
+    this.isLoading = true;
+
+    try {
+      // Clear the cache
+      await folderCache.clearCache();
+      console.log("Folder cache cleared successfully");
+        // Reset the current state
+      this.folders = [];
+      this.filteredFolders = [];
+      this.currentPage = 1;
+      
+      // Hide load more button immediately after pagination reset
+      this.updateLoadMoreButton();// Reload folders from API
+      await this.loadFoldersFromAPI();
+      
+    } catch (error) {
+      console.error("Error refreshing folders:", error);
+      this.showError(
+        `Failed to refresh folders: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      // Re-enable the refresh button and stop loading state
+      this.isLoading = false;
+      this.showLoading(false);
+      
+      if (refreshBtn) {
+        refreshBtn.disabled = false;
+        refreshBtn.classList.remove("opacity-50", "cursor-not-allowed");
+      }
+      
+      if (refreshIcon) {
+        refreshIcon.classList.remove("animate-spin");
+      }
     }
   }
 }
