@@ -442,249 +442,262 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
 app = Flask(__name__, static_folder = None, static_url_path= None)
 app.secret_key = "Fdfasfdasdfasfasdfas"
 
-@app.route("/indexStart", methods = ["POST"])        
-def indexStart(batch_size = 1):
+# Import and register blueprints
+from .api.data_routes import data_bp
+from .api.meta_routes import meta_bp
+from .api.search_routes import search_bp
+from .api.indexing_routes import indexing_bp
+from .api.google_photos_routes import gphotos_bp
 
-    index_root_dir = flask.request.form.get("image_directory_path")
-    complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
-    complete_rescan_arg = False
-    if complete_rescan == "true":
-        complete_rescan_arg = True
+app.register_blueprint(data_bp)
+app.register_blueprint(meta_bp)
+app.register_blueprint(search_bp)
+app.register_blueprint(indexing_bp)
+app.register_blueprint(gphotos_bp)
+
+# @app.route("/indexStart", methods = ["POST"])        
+# def indexStart(batch_size = 1):
+
+#     index_root_dir = flask.request.form.get("image_directory_path")
+#     complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
+#     complete_rescan_arg = False
+#     if complete_rescan == "true":
+#         complete_rescan_arg = True
     
-    if os.path.exists(index_root_dir) and not os.path.isdir(index_root_dir):
-        index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, if it a valid file path on server.
-    if os.path.exists(index_root_dir) or index_root_dir in appConfig["supported_remote_protocols"]:
+#     if os.path.exists(index_root_dir) and not os.path.isdir(index_root_dir):
+#         index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, if it a valid file path on server.
+#     if os.path.exists(index_root_dir) or index_root_dir in appConfig["supported_remote_protocols"]:
         
-        # check if extension is ready!
-        if index_root_dir in appConfig["supported_remote_protocols"]:
-            status, reason = check_extension_status(index_root_dir)
-            if status == False:
-                return flask.jsonify({"success":False, "reason": reason})
+#         # check if extension is ready!
+#         if index_root_dir in appConfig["supported_remote_protocols"]:
+#             status, reason = check_extension_status(index_root_dir)
+#             if status == False:
+#                 return flask.jsonify({"success":False, "reason": reason})
 
-        client_id = generate_endpoint(index_root_dir)    # NOTE: client_id, would be equivalent to indexing directory, since there is ONE 2 ONE mapping is expected for client and indexing directory at any time.
+#         client_id = generate_endpoint(index_root_dir)    # NOTE: client_id, would be equivalent to indexing directory, since there is ONE 2 ONE mapping is expected for client and indexing directory at any time.
 
-        indexing_active = indexStatus.is_active(client_id)
-        if indexing_active:
-            return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
+#         indexing_active = indexStatus.is_active(client_id)
+#         if indexing_active:
+#             return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
 
-        indexStatus.add_endpoint_for_indexing(client_id)
-        threading.Thread(target = indexing_thread, args = (index_root_dir, client_id, complete_rescan_arg) ).start()
-        return flask.jsonify({"success":True, "statusEndpoint":client_id, "reason": "Indexing successfully started at entpoint"})
-    else:
-        print("{} Doesn't exist on server side".format(index_root_dir))
-        return flask.jsonify({"success":False, "reason":"Path {} Doesn't exist of Server side".format(index_root_dir)})
+#         indexStatus.add_endpoint_for_indexing(client_id)
+#         threading.Thread(target = indexing_thread, args = (index_root_dir, client_id, complete_rescan_arg) ).start()
+#         return flask.jsonify({"success":True, "statusEndpoint":client_id, "reason": "Indexing successfully started at entpoint"})
+#     else:
+#         print("{} Doesn't exist on server side".format(index_root_dir))
+#         return flask.jsonify({"success":False, "reason":"Path {} Doesn't exist of Server side".format(index_root_dir)})
 
-@app.route("/indexCancel/<endpoint>", methods = ["GET"])
-def indexCancel(endpoint:str):
-    """raise a cancellation request to cancel an ongoing indexing.
-    """
+# @app.route("/indexCancel/<endpoint>", methods = ["GET"])
+# def indexCancel(endpoint:str):
+#     """raise a cancellation request to cancel an ongoing indexing.
+#     """
 
-    result = indexStatus.indicate_cancellation(endpoint)                     # raise cancellation request, should be read by indexing thread.
-    if not result:
-        return {"success":False, "reason":"Endpoint {} Doesn't exist on server side"}
-    else:
-        return {"success":True, "reason":"Endpoint {} cancellation request raised successfully".format(endpoint)}
+#     result = indexStatus.indicate_cancellation(endpoint)                     # raise cancellation request, should be read by indexing thread.
+#     if not result:
+#         return {"success":False, "reason":"Endpoint {} Doesn't exist on server side"}
+#     else:
+#         return {"success":True, "reason":"Endpoint {} cancellation request raised successfully".format(endpoint)}
 
-@app.route("/getIndexStatus/<endpoint>", methods = ["GET", "POST"])
-def getIndexStatus(endpoint:str):
+# @app.route("/getIndexStatus/<endpoint>", methods = ["GET", "POST"])
+# def getIndexStatus(endpoint:str):
 
-    if flask.request.method == "POST":
-        ack = flask.request.form.get("ack", None)
-        if ack == "true":
-            # it should mean that client acknowledged the DONE status for indexing.
-            indexStatus.remove_endpoint(endpoint)
-        return flask.jsonify({"success":True})
-    return flask.jsonify(indexStatus.get_status(endpoint))
+#     if flask.request.method == "POST":
+#         ack = flask.request.form.get("ack", None)
+#         if ack == "true":
+#             # it should mean that client acknowledged the DONE status for indexing.
+#             indexStatus.remove_endpoint(endpoint)
+#         return flask.jsonify({"success":True})
+#     return flask.jsonify(indexStatus.get_status(endpoint))
 
-@app.route("/getSuggestion", methods = ["POST"])
-def getSuggestion() -> Dict[str, List[str]]:
+# @app.route("/getSuggestion", methods = ["POST"])
+# def getSuggestion() -> Dict[str, List[str]]:
 
-    query = flask.request.form.get("query")
-    result = {}
-    attribute = flask.request.form.get("attribute")
-    result[attribute] = metaIndex.suggest(attribute, query)
+#     query = flask.request.form.get("query")
+#     result = {}
+#     attribute = flask.request.form.get("attribute")
+#     result[attribute] = metaIndex.suggest(attribute, query)
     
-    return flask.jsonify(result)
+#     return flask.jsonify(result)
 
 ##########################################
 
 experiment_cache = {} # some data to store over a single query, (like text-embeddings). Later hold image-embeddings when able to do re-ranking also!
-@app.route("/query", methods = ["POST"])
-def query():
-    """
-    Main routine to return query results.
-    Multiple attributes are allowed in the query to make it possible to match-and-mix queries.
-    This version of query is simpler than older one.f/
-    In case a deterministic/meta attribute is provided, "Semantic query" acts as a re-ranker only.
-    Otherwise only non-deterministic streaming "semantic search" is done. 
-    """
-    # TODO: append the hashes to dataCache to start loading in the background!
+# @app.route("/query", methods = ["POST"])
+# def query():
+#     """
+#     Main routine to return query results.
+#     Multiple attributes are allowed in the query to make it possible to match-and-mix queries.
+#     This version of query is simpler than older one.f/
+#     In case a deterministic/meta attribute is provided, "Semantic query" acts as a re-ranker only.
+#     Otherwise only non-deterministic streaming "semantic search" is done. 
+#     """
+#     # TODO: append the hashes to dataCache to start loading in the background!
 
-    flag = False
-    top_k = TOP_K_SHARD
-    query_start = flask.request.form["query_start"].strip().lower()
-    query = flask.request.form["query"]
+#     flag = False
+#     top_k = TOP_K_SHARD
+#     query_start = flask.request.form["query_start"].strip().lower()
+#     query = flask.request.form["query"]
 
-    # NOTE: client_id must be sent back to the client, DONOT forget!
-    # used by the imageIndex to send streaming results to the correct client!
-    if query_start == "true":
-        client_id = uuid.uuid4().hex           # must be unique for each query request.
-    else:
-        client_id = flask.request.form["client_id"]
+#     # NOTE: client_id must be sent back to the client, DONOT forget!
+#     # used by the imageIndex to send streaming results to the correct client!
+#     if query_start == "true":
+#         client_id = uuid.uuid4().hex           # must be unique for each query request.
+#     else:
+#         client_id = flask.request.form["client_id"]
 
-    # except "query" all are meta-attributes ..for now!
-    image_attributes = parse_query(query)
-    meta_attributes_list = [x for x in image_attributes if x != "query"]
-    rerank_approach = len(meta_attributes_list) > 0
+#     # except "query" all are meta-attributes ..for now!
+#     image_attributes = parse_query(query)
+#     meta_attributes_list = [x for x in image_attributes if x != "query"]
+#     rerank_approach = len(meta_attributes_list) > 0
 
-    # data to be sent back to client.  #TOOD: proper define interface/contract . So (poor man grpc like approach!)
-    query_completed = True  # by default.
-    temp = {}                                   
-    temp["meta_data"] = []
-    temp["data_hash"] = []
-    temp["score"] = []
-    if not rerank_approach:
-        # This means semantic query. (without any meta-attributes.)
-        current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+#     # data to be sent back to client.  #TOOD: proper define interface/contract . So (poor man grpc like approach!)
+#     query_completed = True  # by default.
+#     temp = {}                                   
+#     temp["meta_data"] = []
+#     temp["data_hash"] = []
+#     temp["score"] = []
+#     if not rerank_approach:
+#         # This means semantic query. (without any meta-attributes.)
+#         current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
         
-        if client_id not in experiment_cache:
-            text_embedding = generate_text_embedding(current_query)
-            experiment_cache[client_id] = {"text-embeddings": text_embedding}
-        else:
-            text_embedding = experiment_cache[client_id]["text-embeddings"]
+#         if client_id not in experiment_cache:
+#             text_embedding = generate_text_embedding(current_query)
+#             experiment_cache[client_id] = {"text-embeddings": text_embedding}
+#         else:
+#             text_embedding = experiment_cache[client_id]["text-embeddings"]
         
-        flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+#         flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
         
-        # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
-        top_keys = []
-        for i,k in enumerate(image_hash2scores):
-            top_keys.append(k)
-            del k
-            if i == top_k:
-                break
+#         # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
+#         top_keys = []
+#         for i,k in enumerate(image_hash2scores):
+#             top_keys.append(k)
+#             del k
+#             if i == top_k:
+#                 break
                 
-        temp_something = metaIndex.query(data_hashes= top_keys) # hash to metaData
+#         temp_something = metaIndex.query(data_hashes= top_keys) # hash to metaData
         
-        del top_keys
-        for k,v in temp_something.items():
-            temp["meta_data"].append(v)
-            temp["data_hash"].append(k)
-            score = max(image_hash2scores[k])
-            temp["score"].append(str(score))
+#         del top_keys
+#         for k,v in temp_something.items():
+#             temp["meta_data"].append(v)
+#             temp["data_hash"].append(k)
+#             score = max(image_hash2scores[k])
+#             temp["score"].append(str(score))
         
-        query_completed = (not flag)
+#         query_completed = (not flag)
 
-        # NOTE: start background loading of resources,(for now not being used)
-        # NOTE: since we create a preview anyway..(and python is not pure multi-threaded), so even without start loading in background it works fast enough!
-        # NOTE: we cache some recent resources anyway.. HAVE TO BENCHMARK the effect of background loading.
-        # note: better to move towards a system-language cache i think!
-        # dataCache.append(data_hash = temp["data_hash"], absolute_path = temp_absolute_paths)
+#         # NOTE: start background loading of resources,(for now not being used)
+#         # NOTE: since we create a preview anyway..(and python is not pure multi-threaded), so even without start loading in background it works fast enough!
+#         # NOTE: we cache some recent resources anyway.. HAVE TO BENCHMARK the effect of background loading.
+#         # note: better to move towards a system-language cache i think!
+#         # dataCache.append(data_hash = temp["data_hash"], absolute_path = temp_absolute_paths)
 
-    else:
-        and_keys = set()
-        key_score = dict()        
-        # process/collect the keys/resource-hashes for all the meta-attributes.
-        for i,attribute in enumerate(meta_attributes_list):        
-            or_keys = set()  # OR operation like collection
-            for value in image_attributes[attribute]:
+#     else:
+#         and_keys = set()
+#         key_score = dict()        
+#         # process/collect the keys/resource-hashes for all the meta-attributes.
+#         for i,attribute in enumerate(meta_attributes_list):        
+#             or_keys = set()  # OR operation like collection
+#             for value in image_attributes[attribute]:
 
-                # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
-                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)                
+#                 # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
+#                 hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)                
                 
-                for hash in hashes_2_metaData:
-                    or_keys.add(hash)
+#                 for hash in hashes_2_metaData:
+#                     or_keys.add(hash)
 
-                    # collect scores too.. for all possible keys/hashes
-                    if not (hash in key_score):
-                        key_score[hash] = 1
-                    else:
-                        key_score[hash] += 1
+#                     # collect scores too.. for all possible keys/hashes
+#                     if not (hash in key_score):
+#                         key_score[hash] = 1
+#                     else:
+#                         key_score[hash] += 1
 
-            # AND operation. (among independent attributes)!
-            if i == 0:        
-                and_keys = or_keys
-                if len(and_keys) == 0:
-                    break  # shouldn't any more.. since one CRITERIA fully failed.. so more intersection would also be empty!
-            else:
-                and_keys = and_keys & or_keys
-            del or_keys
+#             # AND operation. (among independent attributes)!
+#             if i == 0:        
+#                 and_keys = or_keys
+#                 if len(and_keys) == 0:
+#                     break  # shouldn't any more.. since one CRITERIA fully failed.. so more intersection would also be empty!
+#             else:
+#                 and_keys = and_keys & or_keys
+#             del or_keys
 
-        # TODO: isn't and keys is a subset of or keys, we already have meta-data, do away with this another query call !
-        temp_something = metaIndex.query(data_hashes = and_keys)
-        for k,v in temp_something.items():
-            temp["meta_data"].append(v)
-            temp["data_hash"].append(k)
-            temp["score"].append(key_score[k])
+#         # TODO: isn't and keys is a subset of or keys, we already have meta-data, do away with this another query call !
+#         temp_something = metaIndex.query(data_hashes = and_keys)
+#         for k,v in temp_something.items():
+#             temp["meta_data"].append(v)
+#             temp["data_hash"].append(k)
+#             temp["score"].append(key_score[k])
         
-        if "query" in image_attributes:
-            # here we just re-rank based on the semantic query thats it.
-            current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
-            text_embedding = generate_text_embedding(current_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
-            flag, image_hash2scores = imageIndex.query(
-                    text_embedding,
-                    key = and_keys,
-                    client_key = client_id)
-            assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
+#         if "query" in image_attributes:
+#             # here we just re-rank based on the semantic query thats it.
+#             current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+#             text_embedding = generate_text_embedding(current_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
+#             flag, image_hash2scores = imageIndex.query(
+#                     text_embedding,
+#                     key = and_keys,
+#                     client_key = client_id)
+#             assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
 
-            # update the scores.
-            assert len(image_hash2scores) == len(temp["data_hash"]), "it should be as image index must have same number of unique resource hashes as in meta-index"
-            for i in range(len(temp["data_hash"])):
-                temp_hash = temp["data_hash"][i]
-                # TODO: ensure that an array instead of a single score is  being returned because of earlier face-embeddings.
-                # where for a data-hash multiple scores could be returned..
-                temp["score"][i] = str(temp["score"][i] * max(image_hash2scores[temp_hash]))
-                del temp_hash
+#             # update the scores.
+#             assert len(image_hash2scores) == len(temp["data_hash"]), "it should be as image index must have same number of unique resource hashes as in meta-index"
+#             for i in range(len(temp["data_hash"])):
+#                 temp_hash = temp["data_hash"][i]
+#                 # TODO: ensure that an array instead of a single score is  being returned because of earlier face-embeddings.
+#                 # where for a data-hash multiple scores could be returned..
+#                 temp["score"][i] = str(temp["score"][i] * max(image_hash2scores[temp_hash]))
+#                 del temp_hash
 
-    assert len(temp["meta_data"]) == len(temp["data_hash"]) == len(temp["score"])
-    temp["query_completed"] = query_completed
-    temp["client_id"] = client_id
+#     assert len(temp["meta_data"]) == len(temp["data_hash"]) == len(temp["score"])
+#     temp["query_completed"] = query_completed
+#     temp["client_id"] = client_id
 
-    if query_completed == True and client_id in experiment_cache:
-        _ = experiment_cache.pop(client_id)
-    return flask.jsonify(temp)
+#     if query_completed == True and client_id in experiment_cache:
+#         _ = experiment_cache.pop(client_id)
+#     return flask.jsonify(temp)
 
 ##############
 
-@app.route("/getRawData/<data_hash>", methods = ["GET"])
-def getRawData(data_hash:str) -> any:
-    
-    hash_2_metaData = metaIndex.query(data_hashes = data_hash)
-    temp_meta = hash_2_metaData[data_hash]
-    resource_type = temp_meta["resource_type"]
+# @app.route("/getRawData/<data_hash>", methods = ["GET"]) # Moved to api.data_routes
+# def getRawData(data_hash:str) -> any:
+#     
+#     hash_2_metaData = metaIndex.query(data_hashes = data_hash)
+#     temp_meta = hash_2_metaData[data_hash]
+#     resource_type = temp_meta["resource_type"]
+# 
+#     #leverage preview data if possible by default:
+#     preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.webp".format(data_hash)) 
+#     if os.path.exists(preview_path):
+#         resource_extension = ".webp"
+#         absolute_path = preview_path
+#     else:
+#         print("[WARNING xxxxxxxxxxxx]: no preview_path for {} {}".format(absolute_path, data_hash))
+#         resource_extension = temp_meta["resource_extension"]
+#         absolute_path = temp_meta["absolute_path"]
+#   
+#     raw_data = dataCache.get(data_hash, absolute_path)
+#     del absolute_path
+#     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
-    #leverage preview data if possible by default:
-    preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.webp".format(data_hash)) 
-    if os.path.exists(preview_path):
-        resource_extension = ".webp"
-        absolute_path = preview_path
-    else:
-        print("[WARNING xxxxxxxxxxxx]: no preview_path for {} {}".format(absolute_path, data_hash))
-        resource_extension = temp_meta["resource_extension"]
-        absolute_path = temp_meta["absolute_path"]
-  
-    raw_data = dataCache.get(data_hash, absolute_path)
-    del absolute_path
-    return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
+# @app.route("/getRawDataFull/<data_hash>", methods = ["GET"])
+# def getRawDataFull(data_hash:str) -> flask.Response:
+#     hash_2_metaData = metaIndex.query(data_hashes = data_hash)
+#     temp_meta = hash_2_metaData[data_hash]
+#     resource_type = temp_meta["resource_type"]
+#     resource_extension = temp_meta["resource_extension"]
+#     resource_directory = temp_meta["resource_directory"]
+#     absolute_path = temp_meta["absolute_path"]
 
-@app.route("/getRawDataFull/<data_hash>", methods = ["GET"])
-def getRawDataFull(data_hash:str) -> flask.Response:
-    hash_2_metaData = metaIndex.query(data_hashes = data_hash)
-    temp_meta = hash_2_metaData[data_hash]
-    resource_type = temp_meta["resource_type"]
-    resource_extension = temp_meta["resource_extension"]
-    resource_directory = temp_meta["resource_directory"]
-    absolute_path = temp_meta["absolute_path"]
-
-    raw_data = None
-    if absolute_path.strip().lower() == "remote":
-        remote_meta = temp_meta["remote"]
-        if resource_directory == "google_photos":
-            raw_data = googlePhotos.get_raw_data(remote_meta)
-        del remote_meta
-    else:
-        with open(absolute_path, "rb") as f:
-            raw_data = f.read()
-    return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
+#     raw_data = None
+#     if absolute_path.strip().lower() == "remote":
+#         remote_meta = temp_meta["remote"]
+#         if resource_directory == "google_photos":
+#             raw_data = googlePhotos.get_raw_data(remote_meta)
+#         del remote_meta
+#     else:
+#         with open(absolute_path, "rb") as f:
+#             raw_data = f.read()
+#     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
 @app.route("/tagPerson", methods = ["POST"])
 def tagPerson():
@@ -795,27 +808,27 @@ def get_original_cluster_id(cluster_id):
     del original_hash_2_metadata, new_hash_2_metadata
     return original_cluster_id
 
-@app.route("/getPreviewPerson/<cluster_id>", methods = ["GET"])
-def getPreviewCluster(cluster_id):
-    if cluster_id not in USER_CLUSTER_ID_2_ORIGINAL:
-        original_cluster_id = get_original_cluster_id(cluster_id)
-        # update session mappping for future reference
-        USER_CLUSTER_ID_2_ORIGINAL[cluster_id] = original_cluster_id
-    else:
-        original_cluster_id = USER_CLUSTER_ID_2_ORIGINAL[cluster_id]
+# @app.route("/getPreviewPerson/<cluster_id>", methods = ["GET"])
+# def getPreviewCluster(cluster_id):
+#     if cluster_id not in USER_CLUSTER_ID_2_ORIGINAL:
+#         original_cluster_id = get_original_cluster_id(cluster_id)
+#         # update session mappping for future reference
+#         USER_CLUSTER_ID_2_ORIGINAL[cluster_id] = original_cluster_id
+#     else:
+#         original_cluster_id = USER_CLUSTER_ID_2_ORIGINAL[cluster_id]
 
-    # TODO: have to add a cluster for no detection too... not a priority(i think have added just to incorporate)
-    if original_cluster_id.lower() == "no_person_detected":
-        flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
-        raw_data = poster.tobytes()
-        del flag, poster
-        return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
-    else:
-        c = faceIndex.get(original_cluster_id)
-        png_data = c.preview_data
-        del c
-        raw_data= base64.b64decode(png_data)
-        return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
+#     # TODO: have to add a cluster for no detection too... not a priority(i think have added just to incorporate)
+#     if original_cluster_id.lower() == "no_person_detected":
+#         flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
+#         raw_data = poster.tobytes()
+#         del flag, poster
+#         return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
+#     else:
+#         c = faceIndex.get(original_cluster_id)
+#         png_data = c.preview_data
+#         del c
+#         raw_data= base64.b64decode(png_data)
+#         return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
 
 @app.route("/getfaceBboxIdMapping/<resource_hash>", methods = ["POST"])
 def getfaceBboxIdMapping(resource_hash:str):
@@ -879,73 +892,73 @@ GAuthFlowStatus = {
     "finished":True,
 }
 
-@app.route("/gClientInfo")
-def gClientInfo():
-    return flask.jsonify(googlePhotos.get_client_info()) 
+# @app.route("/gClientInfo")
+# def gClientInfo():
+#     return flask.jsonify(googlePhotos.get_client_info()) 
 
-@app.route("/uploadClientData", methods = ["POST"])
-def uploadClientData():
-    client_data = flask.request.form.get("client_data")
-    client_data = json.loads(client_data)
-    googlePhotos.add_new_client(client_data)
-    return flask.jsonify({"success":True})
+# @app.route("/uploadClientData", methods = ["POST"])
+# def uploadClientData():
+#     client_data = flask.request.form.get("client_data")
+#     client_data = json.loads(client_data)
+#     googlePhotos.add_new_client(client_data)
+#     return flask.jsonify({"success":True})
 
-@app.route("/beginGAuthFlow")
-def beginGAuthflow():
-    # TODO: later provide password..
+# @app.route("/beginGAuthFlow")
+# def beginGAuthflow():
+#     # TODO: later provide password..
 
-    client_data = read_gClient_secret(password=None)
-    client_id = client_data["client_id"]
-    redirect_uri = client_data["redirect_uris"][0]
-    auth_uri = client_data["auth_uri"]
-    SCOPE = "https://www.googleapis.com/auth/photoslibrary"   # TODO: for now hard-code it.
-    webbrowser.get(using = None).open('{}?response_type=code'
-                '&client_id={}&redirect_uri={}&scope={}&access_type=offline'.format(auth_uri, client_id, redirect_uri, SCOPE), new=1, autoraise=True)
+#     client_data = read_gClient_secret(password=None)
+#     client_id = client_data["client_id"]
+#     redirect_uri = client_data["redirect_uris"][0]
+#     auth_uri = client_data["auth_uri"]
+#     SCOPE = "https://www.googleapis.com/auth/photoslibrary"   # TODO: for now hard-code it.
+#     webbrowser.get(using = None).open('{}?response_type=code'
+#                 '&client_id={}&redirect_uri={}&scope={}&access_type=offline'.format(auth_uri, client_id, redirect_uri, SCOPE), new=1, autoraise=True)
     
-    with global_lock:
-        GAuthFlowStatus["status"] =  "in progress" 
-        GAuthFlowStatus["finished"] = False
+#     with global_lock:
+#         GAuthFlowStatus["status"] =  "in progress" 
+#         GAuthFlowStatus["finished"] = False
     
-    return "ok"
+#     return "ok"
 
-@app.route("/OAuthCallback")
-def oAuthCallback():
-    # TODO: error checking, like failed or user not consent.
-    global googlePhotos
+# @app.route("/OAuthCallback")
+# def oAuthCallback():
+#     # TODO: error checking, like failed or user not consent.
+#     global googlePhotos
 
-    # TODO: exchange the code to by making a request to OAUTH server. 
-    client_data = read_gClient_secret()
-    token_uri = client_data["token_uri"]
+#     # TODO: exchange the code to by making a request to OAUTH server. 
+#     client_data = read_gClient_secret()
+#     token_uri = client_data["token_uri"]
     
-    try:
-        response = requests.post(token_uri, data={
+#     try:
+#         response = requests.post(token_uri, data={
         
-            # data to exchange code with 
-            'client_id': client_data["client_id"],
-            'client_secret': client_data["client_secret"],
-            'grant_type': 'authorization_code',
-            'redirect_uri': client_data["redirect_uris"][0],  # just provide this. and make sure match with one on google console. (not being used..)
-            'code':flask.request.args["code"]
-        })
-    except ConnectionError:
-        with global_lock:
-            GAuthFlowStatus["status"] =  "Connection Error" 
-            GAuthFlowStatus["finished"] = True
-        return "Ok"
+#             # data to exchange code with 
+#             'client_id': client_data["client_id"],
+#             'client_secret': client_data["client_secret"],
+#             'grant_type': 'authorization_code',
+#             'redirect_uri': client_data["redirect_uris"][0],  # just provide this. and make sure match with one on google console. (not being used..)
+#             'code':flask.request.args["code"]
+#         })
+#     except ConnectionError:
+#         with global_lock:
+#             GAuthFlowStatus["status"] =  "Connection Error" 
+#             GAuthFlowStatus["finished"] = True
+#         return "Ok"
     
-    write_gClient_credentials(response.json(), password = None)
+#     write_gClient_credentials(response.json(), password = None)
 
-    googlePhotos = GooglePhotos()
-    with global_lock:
-        GAuthFlowStatus["status"] =  "Success" 
-        GAuthFlowStatus["finished"] = True
+#     googlePhotos = GooglePhotos()
+#     with global_lock:
+#         GAuthFlowStatus["status"] =  "Success" 
+#         GAuthFlowStatus["finished"] = True
 
-    return "Ok"
+#     return "Ok"
 
-@app.route("/statusGAuthFlow")
-def statusGAuthFlow():
-    with global_lock:
-        return flask.jsonify(GAuthFlowStatus)
+# @app.route("/statusGAuthFlow")
+# def statusGAuthFlow():
+#     with global_lock:
+#         return flask.jsonify(GAuthFlowStatus)
 
 ############################################################################
 def check_extension_status(remote_protocol:str) -> Tuple[bool, str]:
