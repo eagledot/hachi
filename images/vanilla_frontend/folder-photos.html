@@ -12,70 +12,69 @@
 <body>
     <!-- Navbar will be inserted here by Layout -->
     
-    <main id="main">
-        <div class="container mx-auto px-4 py-8 max-w-7xl">            <!-- Header with back button and folder info -->
-            <header class="mb-6">
-                <div class="flex items-center py-4">
+    <main id="main">        <div class="container mx-auto px-4 py-6 max-w-7xl">            <!-- Header with back button and folder info -->
+            <header class="mb-4">
+                <div class="flex items-center py-3">
                     <!-- Left: Back button -->
-                    <button id="back-btn" class="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded font-medium transition-colors duration-200">
+                    <button id="back-btn" class="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium transition-colors duration-200 text-sm">
                         ← Back
                     </button>
                       <!-- Center: Folder info -->
                     <div class="flex-1 flex justify-center">
                         <div class="text-center">
-                            <div class="flex items-center justify-center space-x-3">
-                                <div class="text-gray-400 text-2xl">📁</div>
-                                <h1 id="folder-name" class="text-2xl font-semibold text-gray-900 leading-tight"></h1>
-                            </div>                            <div class="flex items-center justify-center text-sm text-gray-500 mt-2">
+                            <div class="flex items-center justify-center space-x-2">
+                                <div class="text-gray-400 text-lg">📁</div>
+                                <h1 id="folder-name" class="text-xl font-semibold text-gray-900 leading-tight"></h1>
+                            </div>                            <div class="flex items-center justify-center text-xs text-gray-500 mt-1">
                                 <span id="folder-path" class="font-mono"></span>
                             </div>
                         </div>
                     </div>
                     
                     <!-- Right: Empty space for balance -->
-                    <div class="w-20"></div>
+                    <div class="w-16"></div>
                 </div>
-            </header><!-- Loading indicator -->
+            </header>            <!-- Loading indicator -->
             <div id="loading-indicator" class="hidden">
-                <div class="flex justify-center items-center py-12">
+                <div class="flex justify-center items-center py-8">
                     <div class="flex items-center space-x-2">
-                        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                        <span class="text-gray-600 text-lg">Loading photos...</span>
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span class="text-gray-600 text-sm">Loading photos...</span>
                     </div>
                 </div>
             </div>
 
             <!-- Error message -->
-            <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                 <div class="flex items-center">
                     <div class="flex-shrink-0">
-                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <svg class="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
                         </svg>
                     </div>
-                    <div class="ml-3">
-                        <p class="text-sm text-red-800" id="error-text"></p>
+                    <div class="ml-2">
+                        <p class="text-xs text-red-800" id="error-text"></p>
                     </div>
                 </div>
             </div>
 
             <!-- No photos message -->
-            <div id="no-photos" class="hidden text-center py-12">
-                <div class="text-gray-400 text-6xl mb-4">📷</div>
-                <h3 class="text-lg font-medium text-gray-900 mb-2">No photos found</h3>  
-                <p class="text-gray-500">This folder doesn't contain any photos</p>
+            <div id="no-photos" class="hidden text-center py-8">
+                <div class="text-gray-400 text-4xl mb-3">📷</div>
+                <h3 class="text-md font-medium text-gray-900 mb-1">No photos found</h3>  
+                <p class="text-gray-500 text-sm">This folder doesn't contain any photos</p>
             </div>            <!-- Photos section header -->
-            <section class="mb-6">
+            <section class="mb-4">
                 
-                <div class="flex flex-col lg:flex-row gap-6">
+                <div class="flex flex-col lg:flex-row gap-4">
                     <!-- Mobile Filter Toggle Button -->
                     <div class="lg:hidden">
-                        <button id="mobile-filter-toggle" class="w-full flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <button id="mobile-filter-toggle" class="w-full flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-lg shadow-sm">
                             <span class="flex items-center space-x-2">
-                                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
                                 </svg>
-                                <span class="font-medium text-gray-900">Filters</span>
+                                <span class="font-medium text-gray-900 text-sm">Filters</span>
                             </span>
                             <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -91,39 +90,38 @@
                     <main class="flex-1 min-w-0">
                         <div id="photo-grid-container">
                             <!-- Photo grid components will be injected here -->
-                        </div>
-                        
+                        </div>                        
                         <!-- Pagination Controls -->
-                        <div id="pagination-container" class="hidden mt-8 mb-6">
-                            <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                        <div id="pagination-container" class="hidden mt-6 mb-4">
+                            <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
                                 <!-- Pagination Info -->
-                                <div class="text-sm text-gray-600">
+                                <div class="text-xs text-gray-600">
                                     <span id="pagination-info">Showing 1-100 of 25000 photos</span>
                                 </div>
                                 
                                 <!-- Pagination Controls -->
-                                <div class="flex items-center space-x-4">
+                                <div class="flex items-center space-x-3">
                                     <button 
                                         id="prev-page-btn"
-                                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
                                         disabled
                                     >
-                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                                         </svg>
                                         Previous
                                     </button>
                                     
-                                    <span id="page-info" class="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-50 rounded-lg">
+                                    <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
                                         Page 1 of 250
                                     </span>
                                     
                                     <button 
                                         id="next-page-btn"
-                                        class="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
                                     >
                                         Next
-                                        <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                         </svg>
                                     </button>

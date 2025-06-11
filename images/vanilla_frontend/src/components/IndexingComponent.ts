@@ -105,7 +105,7 @@ export class IndexingComponent {
     private render() {
         this.root.innerHTML = '';
         const card = document.createElement('div');
-        card.className = 'bg-white rounded-lg shadow-md p-8 border border-gray-200 max-w-2xl mx-auto';
+        card.className = 'bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-2xl mx-auto';
         card.innerHTML = html`
            
             
@@ -116,29 +116,27 @@ export class IndexingComponent {
                 </div>
             </div>` : ''}
             
-            <div class="space-y-6">
+            <div class="space-y-4">
                 <div>
                     <label for="directory-input" class="block text-sm font-medium text-gray-700 mb-2">
                         📁 Folder on Your Computer
-                    </label>
-                    <input 
+                    </label>                    <input 
                         id="directory-input" 
                         type="text" 
                         placeholder="e.g., C:\\Users\\YourName\\Pictures" 
                         value="${this.indexDirectoryPath}" 
                         ${this.isIndexing || this.selectedProtocol !== 'none' ? 'disabled' : ''} 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
                     />
                 </div>
                 
                 <div>
                     <label for="protocol-select" class="block text-sm font-medium text-gray-700 mb-2">
                         ☁️ Or, Connect a Cloud Service
-                    </label>
-                    <select 
+                    </label>                    <select 
                         id="protocol-select" 
                         ${this.isIndexing ? 'disabled' : ''} 
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
+                        class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
                     >
                         <option value="none" ${this.selectedProtocol === 'none' ? 'selected' : ''}>None (Use folder on computer)</option>
                         <option value="google_photos" ${this.selectedProtocol === 'google_photos' ? 'selected' : ''}>Google Photos</option>

@@ -65,39 +65,38 @@
     <!-- Navbar will be inserted here by Layout -->
     
     <main>
-        <div class="container mx-auto px-4 py-8 max-w-7xl">
-            <!-- Compact Enhanced Header -->
-            <header class="text-center mb-8 relative">
+        <div class="container mx-auto px-4 py-8 max-w-7xl">            <!-- Compact Enhanced Header -->
+            <header class="text-center mb-6 relative">
                 <!-- Simplified background decoration -->
                 <div class="absolute inset-0 -z-10 overflow-hidden">
-                    <div class="absolute top-0 left-1/3 w-64 h-64 bg-gradient-to-br from-purple-50 to-purple-100 rounded-full mix-blend-multiply filter blur-2xl opacity-40"></div>
-                    <div class="absolute top-5 right-1/3 w-56 h-56 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full mix-blend-multiply filter blur-2xl opacity-30"></div>
+                    <div class="absolute top-0 left-1/3 w-48 h-48 bg-gradient-to-br from-purple-50 to-purple-100 rounded-full mix-blend-multiply filter blur-2xl opacity-40"></div>
+                    <div class="absolute top-5 right-1/3 w-40 h-40 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full mix-blend-multiply filter blur-2xl opacity-30"></div>
                 </div>
                 
-                <div class="relative z-10 py-4">
+                <div class="relative z-10 py-3">
                     <!-- Compact Logo and Title -->
-                    <div class="inline-flex items-center space-x-4 group">
-                        <div class="flex items-center justify-center w-12 h-12 bg-gradient-to-br from-green-600 via-blue-600 to-purple-600 rounded-xl shadow-lg transform group-hover:scale-105 transition-transform duration-300 relative">
+                    <div class="inline-flex items-center space-x-3 group">
+                        <div class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-green-600 via-blue-600 to-purple-600 rounded-lg shadow-md transform group-hover:scale-105 transition-transform duration-300 relative">
                             <!-- Subtle glow effect -->
-                            <div class="absolute inset-0 bg-gradient-to-br from-green-400 to-purple-400 rounded-xl blur-md opacity-25 group-hover:opacity-40 transition-opacity duration-300"></div>
-                            <svg class="w-6 h-6 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div class="absolute inset-0 bg-gradient-to-br from-green-400 to-purple-400 rounded-lg blur-md opacity-25 group-hover:opacity-40 transition-opacity duration-300"></div>
+                            <svg class="w-5 h-5 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                             </svg>
                         </div>
                         <div class="text-left">
-                            <h1 class="text-3xl font-bold text-transparent bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text leading-tight tracking-tight">Add Photos</h1>
-                            <p class="text-gray-600 text-sm mt-1 font-medium">Add your photos to start organizing and searching</p>
+                            <h1 class="text-2xl font-bold text-transparent bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text leading-tight tracking-tight">Add Photos</h1>
+                            <p class="text-gray-600 text-xs mt-0.5 font-medium">Add your photos to start organizing and searching</p>
                         </div>
                     </div>
                     
                     <!-- Enhanced description -->
-                    <div class="mt-6 max-w-2xl mx-auto">
-                        <p class="text-lg text-gray-600">
+                    <div class="mt-4 max-w-2xl mx-auto">
+                        <p class="text-sm text-gray-600">
                             Choose a folder on your computer or connect a cloud service to get started with organizing your photo collection.
                         </p>
                     </div>
                 </div>
-            </header>            
+            </header>
             <!-- Indexing component will be mounted here -->
             <div id="indexing-root" class="flex justify-center">
                 <div class="loading-spinner">Loading...</div>

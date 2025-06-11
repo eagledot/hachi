@@ -163,14 +163,14 @@ class PeopleApp {
         const avatarUrl = `${API_URL}/getPreviewPerson/${person.id}`;
         
         // Person has custom name if ID doesn't start with "cluster"
-        const hasCustomName = !isAutoDetected;return html`
-        <div class="group bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 hover:scale-[1.02] relative" 
+        const hasCustomName = !isAutoDetected;        return html`
+        <div class="group bg-white rounded-lg shadow-md border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:scale-[1.01] relative" 
              onclick="window.peopleApp.handlePersonClick('${person.id}')">
             <!-- Status badge -->
-          <div class="absolute top-3 right-3 z-10">
-            <span class="inline-flex items-center px-2.5 py-1 text-xs font-medium ${hasCustomName ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-100 text-amber-800 border-amber-200'} rounded-full border">
+          <div class="absolute top-2 right-2 z-10">
+            <span class="inline-flex items-center px-2 py-0.5 text-xs font-medium ${hasCustomName ? 'bg-green-100 text-green-800 border-green-200' : 'bg-amber-100 text-amber-800 border-amber-200'} rounded-md border">
               ${hasCustomName ? `
-                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-2.5 h-2.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                 </svg>
                 ${person.id}
@@ -185,7 +185,7 @@ class PeopleApp {
             
             <img src="${avatarUrl}" 
                  alt="${displayName}" 
-                 class="w-full h-full object-cover transition-all duration-300 group-hover:scale-110"
+                 class="w-full h-full object-cover transition-all duration-300 group-hover:scale-105"
                  onerror="this.src='./assets/sample_place_bg.jpg'; this.classList.add('opacity-75')"
                  loading="lazy">
             
@@ -194,15 +194,14 @@ class PeopleApp {
             
             <!-- Hover actions overlay -->
             <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-              <div class="flex space-x-3">
-                <button class="p-2 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-lg" onclick="event.stopPropagation(); window.peopleApp.viewPersonDetails('${person.id}')">
-                  <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex space-x-2">
+                <button class="p-1.5 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-md" onclick="event.stopPropagation(); window.peopleApp.viewPersonDetails('${person.id}')">
+                  <svg class="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                  </svg>
-                </button>
-                <button class="p-2 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-lg" onclick="event.stopPropagation(); window.peopleApp.editPersonName('${person.id}')">
-                  <svg class="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  </svg>                </button>
+                <button class="p-1.5 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-md" onclick="event.stopPropagation(); window.peopleApp.editPersonName('${person.id}')">
+                  <svg class="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                   </svg>
                 </button>
