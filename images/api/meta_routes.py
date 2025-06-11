@@ -3,7 +3,8 @@ from typing import Any, Dict, List
 from flask import Blueprint, request, jsonify, Response
 from urllib.parse import unquote
 
-from ..semantic_search import metaIndex
+from ..semantic_search import metaIndex, faceIndex, get_original_cluster_id
+from datetime import datetime
 
 meta_bp = Blueprint('meta_routes', __name__)
 
@@ -514,4 +515,170 @@ def editMetaData() -> Response:
         return jsonify({
             "success": False,
             "reason": f"Internal server error: {str(e)}"
+        }), 500
+    
+
+@meta_bp.route("/ping", methods=["GET"])
+def ping() -> Response:
+    """
+    Health check endpoint to verify server liveness and API responsiveness.
+    
+    This endpoint provides a simple way to test if the metadata API service
+    is running and responding to requests. Useful for monitoring, load balancers,
+    and automated health checks.
+    
+    Returns:
+        JSON response with:
+        - status (str): Always "ok" when service is healthy
+        - timestamp (str): Current server timestamp
+        - service (str): Service identifier
+    
+    Behavior:
+        - Always returns 200 status code when reachable
+        - Minimal processing for fast response
+        - Includes timestamp for debugging connectivity issues
+    """
+    
+    return jsonify({
+        "status": "ok"
+    })
+
+
+@meta_bp.route("/getfaceBboxIdMapping/<resource_hash>", methods=["POST"])
+def getfaceBboxIdMapping(resource_hash: str) -> Response:
+    """
+    Generate a mapping from face bounding boxes to person IDs for a given resource.
+    
+    This endpoint detects faces in an image and maps them to known person cluster IDs,
+    returning bounding box coordinates along with the corresponding person identifiers.
+    
+    URL Parameters:
+        resource_hash (str): The unique hash identifier for the image resource
+    
+    Form Parameters:
+        cluster_ids (str): Pipe-separated list of person/cluster IDs (e.g., "person1|person2|cluster_abc")
+    
+    Returns:
+        JSON array of objects with:
+        - x1, y1, x2, y2 (int): Bounding box coordinates (top-left and bottom-right)
+        - person_id (str): The person/cluster identifier for the detected face
+    
+    Error Conditions:
+        - 400: Missing or invalid parameters
+        - 404: Resource not found or image file missing
+        - 500: Internal error during face detection or processing
+    
+    Behavior:
+        - Preserves order of cluster_ids in the response
+        - Uses face detection and clustering to map faces to person IDs
+        - Returns empty array if no faces detected or image invalid
+        - Attempts to use cached image data when available
+    """
+    try:
+        # Validate resource_hash parameter
+        if not resource_hash or not resource_hash.strip():
+            return jsonify({
+                "error": "Missing or empty resource_hash parameter"
+            }), 400
+        
+        resource_hash = resource_hash.strip()
+        
+        # Extract and validate cluster_ids from form data
+        cluster_ids_raw = request.form.get("cluster_ids")
+        if not cluster_ids_raw:
+            return jsonify({
+                "error": "Missing required form parameter: cluster_ids"
+            }), 400
+        
+        # Parse cluster IDs (handle pipe-separated values)
+        cluster_ids = [cid.strip() for cid in cluster_ids_raw.strip("| ").split("|") if cid.strip()]
+        if not cluster_ids:
+            return jsonify({
+                "error": "No valid cluster_ids provided"
+            }), 400
+        
+        # Convert to original cluster IDs
+        try:
+            orig_cluster_ids = []
+            for c_id in cluster_ids:
+                orig_id = get_original_cluster_id(c_id)
+                orig_cluster_ids.append(orig_id)
+        except Exception as e:
+            print(f"[ERROR]: Failed to get original cluster IDs: {e}")
+            return jsonify({
+                "error": f"Failed to process cluster IDs: {str(e)}"
+            }), 500
+        
+        # Query metadata for the resource
+        try:
+            meta_result = metaIndex.query(data_hashes=resource_hash)
+            if resource_hash not in meta_result:
+                return jsonify({
+                    "error": f"Resource not found for hash: {resource_hash}"
+                }), 404
+            
+            temp_meta = meta_result[resource_hash]
+            absolute_path = temp_meta.get("absolute_path")
+            if not absolute_path:
+                return jsonify({
+                    "error": "No absolute path found in resource metadata"
+                }), 404
+                
+        except Exception as e:
+            print(f"[ERROR]: Failed to query metadata for {resource_hash}: {e}")
+            return jsonify({
+                "error": f"Failed to retrieve resource metadata: {str(e)}"
+            }), 500
+        
+        # Load image data (TODO: implement caching for better performance)
+        try:
+            import cv2
+            frame = cv2.imread(absolute_path)
+            if frame is None:
+                print(f"[WARNING]: Could not load image from {absolute_path}")
+                return jsonify({
+                    "error": "Failed to load image file"
+                }), 404
+        except Exception as e:
+            print(f"[ERROR]: Failed to read image file {absolute_path}: {e}")
+            return jsonify({
+                "error": f"Failed to read image file: {str(e)}"
+            }), 500
+        
+        # Perform face detection and mapping
+        try:
+            bbox_ids = faceIndex.get_face_id_mapping(
+                image=frame,
+                is_bgr=True,
+                cluster_ids=orig_cluster_ids
+            )
+            
+            # Validate mapping results
+            if len(bbox_ids) != len(cluster_ids):
+                print(f"[WARNING]: Mismatch in bbox mapping - expected {len(cluster_ids)}, got {len(bbox_ids)}")
+              # Build response
+            result = []
+            for ix, (bbox, detected_id) in enumerate(bbox_ids):
+                if ix < len(cluster_ids):  # Safety check for index bounds
+                    result.append({
+                        "x1": int(bbox[0]),
+                        "y1": int(bbox[1]),
+                        "x2": int(bbox[2]),
+                        "y2": int(bbox[3]),
+                        "person_id": cluster_ids[ix]
+                    })
+            
+            print(f"[INFO]: Generated {len(result)} face bbox mappings for resource {resource_hash}")
+            return jsonify(result)
+            
+        except Exception as e:
+            print(f"[ERROR]: Failed to perform face detection mapping: {e}")
+            return jsonify({
+                "error": f"Failed to detect and map faces: {str(e)}"
+            }), 500
+            
+    except Exception as e:
+        print(f"[ERROR]: Unexpected error in getfaceBboxIdMapping: {e}")
+        return jsonify({
+            "error": f"Internal server error: {str(e)}"
         }), 500
