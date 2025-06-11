@@ -53,145 +53,148 @@ export class FuzzySearchUI {
     availableAttributes.forEach((attr) => {
       this.selectedFilters[attr] = [];
     });
-  }
-  private createUI(): void {
+  }  private createUI(): void {
     this.container.innerHTML = html`
-      <div class="w-full max-w-4xl mx-auto p-4 fuzzy-search-container">
+      <div class="w-full max-w-4xl mx-auto p-2 fuzzy-search-container">
         <div class="w-full relative">
           <!-- Active Filters Display -->
           <div
             id="filters-container"
-            class="flex w-full items-center my-4 flex-wrap gap-3 min-h-[2.5rem]"
+            class="flex w-full items-center mb-2 flex-wrap gap-1.5 min-h-[1.5rem]"
           >
             <!-- Filters will be rendered here -->
           </div>
 
-          <!-- Smart Search Input -->
-          <div class="flex space-x-3 mb-4">
-            <div id="input-container" class="relative flex-grow">
-              <!-- Enhanced Input Container with modern design -->
-              <div
-                class="relative border-2 border-gray-200 rounded-xl focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200 bg-white flex items-center h-14 shadow-sm hover:shadow-md group"
-              >
-                <!-- Attribute Button with enhanced styling -->
-                <button
-                  id="attribute-selector-btn"
-                  class="flex items-center px-4 py-3 text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-l-xl transition-all duration-200 border-r border-gray-200 group-focus-within:border-blue-200"
+          <!-- Compact Search Container -->
+          <div class="flex flex-col space-y-2">
+            <!-- Main Search Row -->
+            <div class="flex space-x-2">
+              <div id="input-container" class="relative flex-grow">
+                <!-- Compact Input Container -->
+                <div
+                  class="relative border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200 transition-all duration-200 bg-white flex items-center h-9 shadow-sm hover:shadow-md group"
                 >
-                  <span id="attribute-btn-icon" class="mr-2 text-lg">🔍</span>
-                  <span id="attribute-btn-label" class="font-semibold"
-                    >Query</span
+                  <!-- Compact Attribute Button -->
+                  <button
+                    id="attribute-selector-btn"
+                    class="flex items-center px-2 py-1.5 text-xs font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-l-lg transition-all duration-200 border-r border-gray-300 group-focus-within:border-blue-300"
                   >
-                  <svg
-                    class="w-4 h-4 ml-2 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </button>
+                    <span id="attribute-btn-icon" class="mr-1 text-sm">🔍</span>
+                    <span id="attribute-btn-label" class="font-medium text-xs"
+                      >Query</span
+                    >
+                    <svg
+                      class="w-3 h-3 ml-1 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 9l-7 7-7-7"
+                      ></path>
+                    </svg>
+                  </button>
 
-                <!-- Enhanced Input Field -->
-                <input
-                  id="fuzzy-search-input"
-                  type="text"
-                  autocomplete="off"
-                  placeholder="Type to search your photos..."
-                  class="flex-1 h-full px-4 text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400"
-                />
-                <!-- Enhanced Clear Button -->
-                <button
-                  id="clear-input-btn"
-                  class="items-center justify-center w-10 h-10 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full mr-2 transition-all duration-200 hidden"
+                  <!-- Compact Input Field -->
+                  <input
+                    id="fuzzy-search-input"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="Search photos..."
+                    class="flex-1 h-full px-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400"
+                  />
+                  <!-- Compact Clear Button -->
+                  <button
+                    id="clear-input-btn"
+                    class="items-center justify-center w-7 h-7 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full mr-1 transition-all duration-200 hidden"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M6 18L18 6M6 6l12 12"
+                      ></path>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Compact Smart Dropdown -->
+                <div
+                  id="fuzzy-dropdown"
+                  class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl mt-1 z-50 max-h-64 overflow-y-auto hidden"
+                  style="box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);"
                 >
-                  <svg
-                    class="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M6 18L18 6M6 6l12 12"
-                    ></path>
-                  </svg>
-                </button>
-              </div>
-
-              <!-- Enhanced Smart Dropdown -->
-              <div
-                id="fuzzy-dropdown"
-                class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl mt-2 z-50 max-h-80 overflow-y-auto hidden backdrop-blur-sm"
-                style="box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);"
-              >
-                <div id="dropdown-content">
-                  <!-- Dropdown content will be rendered here -->
+                  <div id="dropdown-content">
+                    <!-- Dropdown content will be rendered here -->
+                  </div>
                 </div>
               </div>
-            </div>
-            <!-- Enhanced Search Button -->
-            <button
-              id="fuzzy-search-btn"
-              class="h-14 px-8 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center space-x-2"
-            >
-              <svg
-                class="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+              <!-- Compact Search Button -->
+              <button
+                id="fuzzy-search-btn"
+                class="h-9 px-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-400 text-white font-medium rounded-lg transition-all duration-200 shadow-md hover:shadow-lg flex items-center space-x-1.5 text-sm"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                ></path>
-              </svg>
-              <span id="search-btn-text">Search</span>
-            </button>
-          </div>
-          <!-- Enhanced Attribute Tabs -->
-          <div
-            id="tabs-container"
-            class="flex items-center space-x-2 mb-4 overflow-x-auto scrollbar-hide p-1 bg-gray-50 rounded-xl"
-          >
-            ${[
-              "query",
-              ...Object.keys(ATTRIBUTE_PATTERNS).filter(
-                (attr) => attr !== "query"
-              ),
-            ]
-              .map((attribute) => {
-                const pattern = ATTRIBUTE_PATTERNS[attribute];
-                return html`<button
-                  class="attribute-tab flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap transform hover:scale-105 ${attribute ===
-                  "query"
-                    ? "bg-white text-blue-700 border border-blue-200 shadow-md"
-                    : "text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm"}"
-                  data-attribute="${attribute}"
+                <svg
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <span class="mr-2 text-base">${pattern.icon}</span>
-                  <span class="font-semibold"
-                    >${pattern.displayName ||
-                    attribute.charAt(0).toUpperCase() +
-                      attribute.slice(1).replace("_", " ")}</span
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  ></path>
+                </svg>
+                <span id="search-btn-text">Search</span>
+              </button>
+            </div>
+
+            <!-- Compact Attribute Tabs -->
+            <div
+              id="tabs-container"
+              class="flex items-center space-x-1 overflow-x-auto scrollbar-hide p-0.5 bg-gray-100 rounded-lg"
+            >
+              ${[
+                "query",
+                ...Object.keys(ATTRIBUTE_PATTERNS).filter(
+                  (attr) => attr !== "query"
+                ),
+              ]
+                .map((attribute) => {
+                  const pattern = ATTRIBUTE_PATTERNS[attribute];
+                  return html`<button
+                    class="attribute-tab flex items-center px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap ${attribute ===
+                    "query"
+                      ? "bg-white text-blue-700 border border-blue-200 shadow-sm"
+                      : "text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm"}"
+                    data-attribute="${attribute}"
                   >
-                </button> `;
-              })
-              .join("")}
+                    <span class="mr-1 text-sm">${pattern.icon}</span>
+                    <span class="font-medium"
+                      >${pattern.displayName ||
+                      attribute.charAt(0).toUpperCase() +
+                        attribute.slice(1).replace("_", " ")}</span
+                    >
+                  </button> `;
+                })
+                .join("")}
+            </div>
           </div>
 
         </div>
       </div>
-    `; // Get references to elements
+    `;// Get references to elements
     this.searchContainer = this.container.querySelector(
       ".fuzzy-search-container"
     ) as HTMLElement;
@@ -537,7 +540,6 @@ export class FuzzySearchUI {
     console.log("Executing search with query:", queryString);
     this.callbacks.onSearchExecuted(queryString, this.selectedFilters);
   }
-
   private renderFilters(): void {
     const filtersHtml = Object.keys(this.selectedFilters)
       .filter((attribute) => this.selectedFilters[attribute].length > 0)
@@ -547,11 +549,11 @@ export class FuzzySearchUI {
             const icon = this.fuzzySearchService.getAttributeIcon(attribute);
             const color = this.fuzzySearchService.getAttributeColor(attribute);
             return `
-            <div class="flex items-center px-4 py-2.5 rounded-full border ${color} hover:shadow-lg transition-all duration-200 cursor-pointer group filter-tag transform hover:scale-105" data-attribute="${attribute}" data-value="${value}">
-              <span class="mr-2 text-lg">${icon}</span>
-              <span class="text-sm font-semibold">${value}</span>
-              <button class="ml-3 text-current opacity-60 hover:opacity-100 hover:bg-white hover:bg-opacity-30 rounded-full p-1 transition-all duration-200 remove-filter-btn" data-attribute="${attribute}" data-value="${value}">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-center px-2 py-1 rounded-md border ${color} hover:shadow-md transition-all duration-200 cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
+              <span class="mr-1 text-sm">${icon}</span>
+              <span class="text-xs font-medium">${value}</span>
+              <button class="ml-1.5 text-current opacity-60 hover:opacity-100 hover:bg-white hover:bg-opacity-30 rounded-full p-0.5 transition-all duration-200 remove-filter-btn" data-attribute="${attribute}" data-value="${value}">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
               </button>
@@ -586,9 +588,7 @@ export class FuzzySearchUI {
 
     const dropdownContent = this.dropdown.querySelector(
       "#dropdown-content"
-    ) as HTMLElement;
-
-    // Only show suggestions now (no attribute selection)
+    ) as HTMLElement;    // Only show suggestions now (no attribute selection)
     if (this.suggestions.length > 0) {
       const suggestionsHtml = this.suggestions
         .map((suggestion, index) => {
@@ -599,29 +599,26 @@ export class FuzzySearchUI {
             suggestion.attribute
           );
           return `
-          <div class="suggestion-option flex items-center px-4 py-4 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 transition-all duration-200 ${
+          <div class="suggestion-option flex items-center px-3 py-2.5 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
             this.selectedIndex === index
-              ? "bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-l-blue-500"
+              ? "bg-blue-50 border-l-2 border-l-blue-500"
               : ""
           }" data-index="${index}">
-            <div class="flex items-center justify-center w-10 h-10 rounded-xl mr-4 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
-              <span class="text-lg">${icon}</span>
+            <div class="flex items-center justify-center w-7 h-7 rounded-lg mr-3 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
+              <span class="text-sm">${icon}</span>
             </div>
             <div class="flex-grow">
-              <div class="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors duration-200">${
+              <div class="font-medium text-gray-900 group-hover:text-blue-700 transition-colors duration-200 text-sm">${
                 suggestion.text
               }</div>
-              <div class="text-sm text-gray-500 flex items-center mt-1">
+              <div class="text-xs text-gray-500 flex items-center mt-0.5">
                 <span class="capitalize">
-                  Add "${suggestion.text}" to ${suggestion.attribute.replace(
-            "_",
-            " "
-          )} search
+                  Add to ${suggestion.attribute.replace("_", " ")} search
                 </span>
               </div>
             </div>
-            <div class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
               </svg>
             </div>
@@ -652,33 +649,27 @@ export class FuzzySearchUI {
           this.selectedIndex = index;
           this.updateDropdownSelection();
         });
-      });
-    } else {
+      });    } else {
       dropdownContent.innerHTML =
-        '<div class="p-4 text-gray-500 text-center">No suggestions available</div>';
+        '<div class="p-3 text-gray-500 text-center text-sm">No suggestions available</div>';
     }
 
     this.dropdown.classList.remove("hidden");
-  }
-  private updateDropdownSelection(): void {
+  }  private updateDropdownSelection(): void {
     const options = this.dropdown.querySelectorAll(
       ".suggestion-option"
     ) as NodeListOf<HTMLElement>;
     options.forEach((option, index) => {
       if (index === this.selectedIndex) {
         option.classList.add(
-          "bg-gradient-to-r",
-          "from-blue-50",
-          "to-indigo-50",
-          "border-l-4",
+          "bg-blue-50",
+          "border-l-2",
           "border-l-blue-500"
         );
       } else {
         option.classList.remove(
-          "bg-gradient-to-r",
-          "from-blue-50",
-          "to-indigo-50",
-          "border-l-4",
+          "bg-blue-50",
+          "border-l-2",
           "border-l-blue-500"
         );
       }
@@ -721,8 +712,7 @@ export class FuzzySearchUI {
   }
   
 
-  
-  private updateTabSelection(): void {
+    private updateTabSelection(): void {
     const tabs = this.container.querySelectorAll(
       ".attribute-tab"
     ) as NodeListOf<HTMLButtonElement>;
@@ -734,7 +724,7 @@ export class FuzzySearchUI {
 
       if (attribute === this.selectedAttribute) {
         tab.className =
-          "attribute-tab flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap transform hover:scale-105 bg-white text-blue-700 border border-blue-200 shadow-md focus:outline-none focus:ring-0 focus:border-transparent";
+          "attribute-tab flex items-center px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap bg-white text-blue-700 border border-blue-200 shadow-sm focus:outline-none focus:ring-0 focus:border-transparent";
         tab.setAttribute("tabindex", "-1");
         tab.setAttribute(
           "style",
@@ -742,7 +732,7 @@ export class FuzzySearchUI {
         );
       } else {
         tab.className =
-          "attribute-tab flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap transform hover:scale-105 text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm focus:outline-none focus:ring-0 focus:border-transparent";
+          "attribute-tab flex items-center px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm focus:outline-none focus:ring-0 focus:border-transparent";
         tab.setAttribute("tabindex", "-1");
         tab.setAttribute(
           "style",
