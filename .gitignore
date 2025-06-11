@@ -13,7 +13,7 @@ tmp*
 node_modules/
 preview_image/
 hachiConfig.json
-*.json
+face_clusters.json
 *.jpg
 *.png
 
