@@ -1,10 +1,20 @@
-# Core
-Flask
-ftfy
-numpy
-opencv-python-headless
-regex
-plum-py>=0.5.0,<2.0.0
-
-# extensions dependencies
-requests       # stable, under PSF.
+blinker==1.9.0
+certifi==2025.4.26
+charset-normalizer==3.4.2
+click==8.2.1
+colorama==0.4.6
+Flask==3.1.1
+flask-cors==6.0.1
+ftfy==6.3.1
+idna==3.10
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+numpy==2.3.0
+opencv-python-headless==4.11.0.86
+plum-py==0.8.7
+regex==2024.11.6
+requests==2.32.4
+urllib3==2.4.0
+wcwidth==0.2.13
+Werkzeug==3.1.3

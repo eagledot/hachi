@@ -441,6 +441,8 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
 ############
 app = Flask(__name__, static_folder = None, static_url_path= None)
 app.secret_key = "Fdfasfdasdfasfasdfas"
+from flask_cors import CORS
+CORS(app)
 
 @app.route("/indexStart", methods = ["POST"])        
 def indexStart(batch_size = 1):
