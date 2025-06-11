@@ -23,3 +23,6 @@ face_clusters.json
 desktop_app/
 research_exp
 venv/
+.vite/
+exif/
+ml/

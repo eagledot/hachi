@@ -1,0 +1,30 @@
+{
+  "name": "vanilla_front",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/user-event": "^14.5.2",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
+    "jsdom": "^25.0.1",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.8",
+    "tailwindcss": "^4.1.8"
+  }
+}
