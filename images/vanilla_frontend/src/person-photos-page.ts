@@ -21,6 +21,13 @@ class PersonPhotosApp {
   private currentPhotoIndex: number | null = null;
   private photoFilter!: PhotoFilterComponent;
   private allPhotos: HachiImageData[] = [];
+  private filteredPhotos: HachiImageData[] = [];
+  private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
+  
+  // Pagination properties
+  private readonly PAGE_SIZE = 100; // Display 100 photos per page for good performance
+  private currentPage = 1;
+  private totalPages = 0;
 
   constructor() {
     this.init();
@@ -221,8 +228,7 @@ class PersonPhotosApp {
         nameInput.value = displayName;
       }
     }
-  }
-  private renderPhotos(): void {
+  }  private renderPhotos(): void {
     const photoGrid = document.getElementById('photo-grid');
     const noPhotosMessage = document.getElementById('no-results-message');
     
@@ -245,8 +251,12 @@ class PersonPhotosApp {
 
     // Store all photos for filtering
     this.allPhotos = photosForGrid;
-      // Update photo filter with loaded photos
-    this.photoFilter.updatePhotos(this.allPhotos);    // Show filter container if we have photos
+    this.filteredPhotos = [...this.allPhotos];
+    
+    // Update photo filter with loaded photos
+    this.photoFilter.updatePhotos(this.allPhotos);
+    
+    // Show filter container if we have photos
     const filterContainer = document.getElementById('photo-filter-container');
     if (filterContainer) {
       if (this.allPhotos.length > 0) {
@@ -258,33 +268,157 @@ class PersonPhotosApp {
       }
     }
 
-    // Use UIService to update photos
-    this.uiService.updatePhotos(photosForGrid, (photo: HachiImageData) => {
+    // Initialize pagination
+    this.updatePagination();
+    this.renderDisplayedPhotos();
+    
+    // Setup pagination event listeners after pagination UI is rendered
+    this.setupPaginationEventListeners();
+  }
+
+  private updatePagination(): void {
+    this.totalPages = Math.ceil(this.filteredPhotos.length / this.PAGE_SIZE);
+    
+    // Calculate displayed photos for current page
+    const startIndex = (this.currentPage - 1) * this.PAGE_SIZE;
+    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
+    this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
+    
+    this.updatePaginationUI();
+  }
+
+  private updatePaginationUI(): void {
+    // Update pagination info
+    const paginationInfo = document.getElementById('pagination-info');
+    if (paginationInfo) {
+      const startIndex = (this.currentPage - 1) * this.PAGE_SIZE + 1;
+      const endIndex = Math.min(this.currentPage * this.PAGE_SIZE, this.filteredPhotos.length);
+      paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${this.filteredPhotos.length} photos`;
+    }
+
+    // Update pagination buttons
+    const prevBtn = document.getElementById('prev-page-btn') as HTMLButtonElement;
+    const nextBtn = document.getElementById('next-page-btn') as HTMLButtonElement;
+    const pageInfo = document.getElementById('page-info');
+
+    if (prevBtn) {
+      prevBtn.disabled = this.currentPage <= 1;
+    }
+    if (nextBtn) {
+      nextBtn.disabled = this.currentPage >= this.totalPages;
+    }
+    if (pageInfo) {
+      pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+    }
+
+    // Show/hide pagination controls based on whether pagination is needed
+    const paginationContainer = document.getElementById('pagination-container');
+    if (paginationContainer) {
+      if (this.totalPages > 1) {
+        paginationContainer.classList.remove('hidden');
+      } else {
+        paginationContainer.classList.add('hidden');
+      }
+    }
+  }
+
+  private goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages) return;
+    
+    this.currentPage = page;
+    this.updatePagination();
+    this.renderDisplayedPhotos();
+    
+    // Scroll to the filter level for better UX
+    this.scrollToFilterLevel();
+  }
+
+  private scrollToFilterLevel(): void {
+    // Find the filter container or photos section to scroll to
+    const filterContainer = document.getElementById('photo-filter-container');
+    const photosSection = document.querySelector('section');
+    
+    // Use the filter container if visible, otherwise use the photos section
+    const targetElement = filterContainer?.classList.contains('lg:block') ? filterContainer : photosSection;
+    
+    if (targetElement) {
+      // Use requestAnimationFrame to ensure DOM updates are complete
+      requestAnimationFrame(() => {
+        const rect = targetElement.getBoundingClientRect();
+        const offsetTop = window.pageYOffset + rect.top - 20; // 20px padding from top
+        
+        window.scrollTo({
+          top: offsetTop,
+          behavior: 'instant'
+        });
+      });
+    }
+  }
+
+  private setupPaginationEventListeners(): void {
+    const prevBtn = document.getElementById('prev-page-btn') as HTMLButtonElement;
+    const nextBtn = document.getElementById('next-page-btn') as HTMLButtonElement;
+
+    if (prevBtn) {
+      // Remove any existing listeners first
+      const newPrevBtn = prevBtn.cloneNode(true) as HTMLButtonElement;
+      prevBtn.parentNode?.replaceChild(newPrevBtn, prevBtn);
+      
+      newPrevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!newPrevBtn.disabled) {
+          this.goToPage(this.currentPage - 1);
+        }
+      });
+    }
+
+    if (nextBtn) {
+      // Remove any existing listeners first
+      const newNextBtn = nextBtn.cloneNode(true) as HTMLButtonElement;
+      nextBtn.parentNode?.replaceChild(newNextBtn, nextBtn);
+      
+      newNextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!newNextBtn.disabled) {
+          this.goToPage(this.currentPage + 1);
+        }
+      });
+    }
+  }
+
+  private renderDisplayedPhotos(): void {
+    // Use UIService to update photos with ONLY the displayed photos (pagination)
+    this.uiService.updatePhotos(this.displayedPhotos, (photo: HachiImageData) => {
       this.handlePhotoClick(photo);
     });
   }
-
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log('Filtered photos updated:', filteredPhotos.length);
+    this.filteredPhotos = filteredPhotos;
     
-    // Use UIService to update the photo grid with filtered photos
-    this.uiService.updatePhotos(filteredPhotos, (photo: HachiImageData) => {
-      this.handlePhotoClick(photo);
-    });
+    // Reset to page 1 when filters change
+    this.currentPage = 1;
+    
+    this.updatePagination(); // Update pagination first
+    this.renderDisplayedPhotos();
+    
+    // Re-setup pagination event listeners to ensure they work correctly
+    this.setupPaginationEventListeners();
   }
-
   private handlePhotoClick(photo: HachiImageData): void {
     if (!this.personPhotosData) return;
 
-    // Find the index of the clicked photo
-    const photoIndex = this.personPhotosData.data_hash.findIndex(hash => hash === photo.id);
+    // Find the index in the FILTERED photos (not just displayed photos)
+    const photoIndex = this.filteredPhotos.findIndex(p => p.id === photo.id);
     if (photoIndex === -1) return;
 
     this.currentPhotoIndex = photoIndex;
     
-    // Determine navigation capabilities
+    // Determine navigation capabilities based on filtered photos
     const canGoPrevious = photoIndex > 0;
-    const canGoNext = photoIndex < this.personPhotosData.data_hash.length - 1;
+    const canGoNext = photoIndex < this.filteredPhotos.length - 1;
     
     // Show modal using UIService
     this.uiService.showModal(photo, canGoPrevious, canGoNext);
@@ -293,11 +427,9 @@ class PersonPhotosApp {
     this.uiService.hideModal();
     this.currentPhotoIndex = null;
   }
-
   private nextPhoto(): void {
     if (this.currentPhotoIndex !== null && 
-        this.personPhotosData && 
-        this.currentPhotoIndex < this.personPhotosData.data_hash.length - 1) {
+        this.currentPhotoIndex < this.filteredPhotos.length - 1) {
       this.currentPhotoIndex++;
       this.showPhotoAtIndex(this.currentPhotoIndex);
     }
@@ -311,21 +443,16 @@ class PersonPhotosApp {
   }
 
   private showPhotoAtIndex(index: number): void {
-    if (!this.personPhotosData || index < 0 || index >= this.personPhotosData.data_hash.length) return;
+    if (index < 0 || index >= this.filteredPhotos.length) return;
 
-    const photo: HachiImageData = {
-      id: this.personPhotosData.data_hash[index],
-      score: this.personPhotosData.score[index] || 0,
-      metadata: this.personPhotosData.meta_data[index] || {}
-    };
-
+    const photo = this.filteredPhotos[index];
     this.currentPhotoIndex = index;
     
     const canGoPrevious = index > 0;
-    const canGoNext = index < this.personPhotosData.data_hash.length - 1;
+    const canGoNext = index < this.filteredPhotos.length - 1;
     
     this.uiService.showModal(photo, canGoPrevious, canGoNext);
-  }  private async savePersonName(): Promise<void> {
+  }private async savePersonName(): Promise<void> {
     if (!this.personId) return;
 
     const nameInput = document.getElementById('person-name-input') as HTMLInputElement;
