@@ -211,7 +211,9 @@ export class PhotoFilterComponent {
             id="reset-filters"
             class="text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium"
           >
-            Clear All
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
           </button>
         </div>
 
@@ -1617,7 +1619,7 @@ export class PhotoFilterComponent {
     // Scroll to top when semantic search results are filtered
     this.scrollToTop();
   }  /**
-   * Scroll to top of the results section smoothly to keep filters visible
+   * Scroll to the very top of the page instantly for performance
    */
   private scrollToTop(): void {
     // Don't scroll if we're currently initializing the component
@@ -1625,27 +1627,8 @@ export class PhotoFilterComponent {
       return;
     }
     
-    // Try to find the results section or photo grid container
-    const resultsSection = document.getElementById('results-section') || 
-                          document.querySelector('section') ||
-                          document.getElementById('photo-grid-container');
-    
-    if (resultsSection) {
-      // Scroll to the results section with some offset to keep filters visible
-      const rect = resultsSection.getBoundingClientRect();
-      const offset = window.pageYOffset + rect.top - 20; // 20px offset from top
-      
-      window.scrollTo({
-        top: Math.max(0, offset),
-        behavior: 'smooth'
-      });
-    } else {
-      // Fallback to scrolling to top if results section not found
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-    }
+    // Always scroll to the very top of the page instantly
+    window.scrollTo(0, 0);
   }
   /**
    * Perform semantic search with the given term

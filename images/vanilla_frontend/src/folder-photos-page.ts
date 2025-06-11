@@ -242,8 +242,8 @@ class FolderPhotosApp {
     this.updatePagination();
     this.renderPhotos();
     
-    // Scroll to the filter level for better UX
-    this.scrollToFilterLevel();
+    // Scroll to the top of the page instantly for performance
+    window.scrollTo(0, 0);
   }
 
   private scrollToFilterLevel(): void {

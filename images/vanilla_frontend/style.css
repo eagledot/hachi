@@ -1,10 +1,6 @@
 @import "tailwindcss";
 
 /* Custom utilities */
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
-}
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {

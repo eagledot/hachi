@@ -276,17 +276,15 @@ class ImageSearchApp {
         paginationContainer.classList.add('hidden');
       }
     }
-  }
-
-  private goToPage(page: number): void {
+  }  private goToPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
     
     this.currentPage = page;
     this.updatePagination();
     this.renderDisplayedPhotos();
     
-    // Scroll to the filter level for better UX
-    this.scrollToFilterLevel();
+    // Scroll to the top of the page instantly for performance
+    window.scrollTo(0, 0);
   }
 
   private scrollToFilterLevel(): void {
