@@ -13,22 +13,30 @@
     <!-- Navbar will be inserted here by Layout -->
     
     <main id="main">
-        <div class="container mx-auto px-4 py-8 max-w-7xl">
-            <!-- Header with back button and folder info -->
-            <header class="mb-8">
-                <div class="flex items-center mb-4">
-                    <button id="back-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 mr-4">
-                        ← Back to Folders
+        <div class="container mx-auto px-4 py-8 max-w-7xl">            <!-- Header with back button and folder info -->
+            <header class="mb-6">
+                <div class="flex items-center py-4">
+                    <!-- Left: Back button -->
+                    <button id="back-btn" class="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded font-medium transition-colors duration-200">
+                        ← Back
                     </button>
-                </div>
-                
-                <div class="flex items-center space-x-4 mb-6">
-                    <div class="text-gray-400 text-6xl">📁</div>
-                    <div>
-                        <h1 id="folder-name" class="text-4xl font-bold text-gray-900 mb-2"></h1>
-                        <p id="folder-photo-count" class="text-gray-600 text-lg"></p>
-                        <p id="folder-path" class="text-gray-500 text-sm mt-1 font-mono"></p>
+                      <!-- Center: Folder info -->
+                    <div class="flex-1 flex justify-center">
+                        <div class="text-center">
+                            <div class="flex items-center justify-center space-x-3">
+                                <div class="text-gray-400 text-2xl">📁</div>
+                                <h1 id="folder-name" class="text-2xl font-semibold text-gray-900 leading-tight"></h1>
+                            </div>
+                            <div class="flex items-center justify-center space-x-2 text-sm text-gray-500 mt-2">
+                                <span id="folder-photo-count" class="whitespace-nowrap"></span>
+                                <span class="text-gray-300">•</span>
+                                <span id="folder-path" class="font-mono"></span>
+                            </div>
+                        </div>
                     </div>
+                    
+                    <!-- Right: Empty space for balance -->
+                    <div class="w-20"></div>
                 </div>
             </header><!-- Loading indicator -->
             <div id="loading-indicator" class="hidden">
@@ -61,7 +69,6 @@
                 <p class="text-gray-500">This folder doesn't contain any photos</p>
             </div>            <!-- Photos section header -->
             <section class="mb-6">
-                <h2 class="text-2xl font-bold text-gray-900 mb-4">Photos</h2>
                 
                 <div class="flex flex-col lg:flex-row gap-6">
                     <!-- Mobile Filter Toggle Button -->
