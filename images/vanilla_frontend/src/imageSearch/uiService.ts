@@ -19,7 +19,7 @@ export class UIService {
   private modalFacesBtn!: HTMLButtonElement;
   private modalFilename!: HTMLElement;
   private currentFullImageLoader: HTMLImageElement | null = null; // Track current image loader
-  private showScores = true; // Flag to control score display in photo grid
+  private showScores = false; // Flag to control score display in photo grid
     // Efficient photo grid management - optimized for pagination
   private photoElementPool: HTMLElement[] = []; // Fixed pool of reusable DOM elements
   private maxPoolSize = 100; // Match typical pagination size
