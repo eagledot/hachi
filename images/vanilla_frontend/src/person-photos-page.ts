@@ -476,21 +476,30 @@ class PersonPhotosApp {
       cancelBtn.disabled = true;
       saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
       cancelBtn.classList.add('opacity-50', 'cursor-not-allowed');
-    }
-
-    try {
-      const success = await this.renamePersonGlobally(this.personId, newName);
+    }    try {
+      const result = await this.renamePersonGlobally(this.personId, newName);
       
-      if (success) {
+      if (result.success) {
         console.log(`Person name updated from ${this.personId} to: ${newName}`);
         
         // Redirect to the new URL with the updated person ID
         const newUrl = `/person-photos.html?id=${encodeURIComponent(newName)}`;
         window.location.href = newUrl;
+      } else {
+        // Show the specific error message from the API
+        this.showError(result.reason || 'Failed to save name. Please try again.');
+        
+        // Restore button states on error
+        if (saveBtn && cancelBtn) {
+          saveBtn.disabled = false;
+          cancelBtn.disabled = false;
+          saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          cancelBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
       }
     } catch (error) {
       console.error('Failed to save person name:', error);
-      this.showError('Failed to save name. Please try again.');
+      this.showError(error instanceof Error ? error.message : 'Failed to save name. Please try again.');
       
       // Restore button states on error
       if (saveBtn && cancelBtn) {
@@ -500,8 +509,7 @@ class PersonPhotosApp {
         cancelBtn.classList.remove('opacity-50', 'cursor-not-allowed');
       }
     }
-  }
-  private async renamePersonGlobally(oldPersonId: string, newPersonId: string): Promise<boolean> {
+  }  private async renamePersonGlobally(oldPersonId: string, newPersonId: string): Promise<{success: boolean, reason?: string}> {
     const formData = new FormData();
     formData.append('old_person_id', oldPersonId);
     formData.append('new_person_id', newPersonId);
@@ -518,14 +526,13 @@ class PersonPhotosApp {
       }
 
       const result = await response.json();
-      if (result.success) {
-        return true;
-      } else {
-        throw new Error(result.reason || 'Renaming person failed for an unknown reason.');
-      }
+      return {
+        success: result.success || false,
+        reason: result.reason
+      };
     } catch (error) {
       console.error('Error renaming person:', error);
-      return false;
+      throw error; // Re-throw to be handled by the calling method
     }
   }
 
