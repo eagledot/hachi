@@ -24,6 +24,14 @@ export class UIService {
   // Efficient photo grid management
   private photoElementMap = new Map<string, HTMLElement>(); // Map photo ID to DOM element
   private currentPhotoOrder: string[] = []; // Track current order of photo IDs
+  
+  // Performance optimizations
+  private static readonly FALLBACK_IMAGE_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+  private static readonly VIEW_ICON_SVG = `<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
+  
+  // Event listener cleanup tracking
+  private eventCleanupFunctions: (() => void)[] = [];
+  private globalKeydownHandler?: (e: KeyboardEvent) => void;
   constructor(containerId: string) {
     const container = document.getElementById(containerId);
     if (!container) {
@@ -50,8 +58,7 @@ export class UIService {
     this.modalFilename = document.querySelector('#modal-filename') as HTMLElement;    if (!this.photoGrid) {
       throw new Error('Required UI elements not found');
     }
-  }
-  /**
+  }  /**
    * Sets up event listeners
    */
   setupEventListeners(callbacks: {
@@ -60,41 +67,58 @@ export class UIService {
     onModalNext: () => void;
     onModalPrevious: () => void;
   }): void {
+    // Clean up existing event listeners first
+    this.cleanupEventListeners();
+
     // Search functionality is now handled by FuzzySearchUI
 
     // Modal functionality
     if (this.modalCloseBtn) {
-      this.modalCloseBtn.addEventListener('click', callbacks.onModalClose);
+      const closeHandler = () => callbacks.onModalClose();
+      this.modalCloseBtn.addEventListener('click', closeHandler);
+      this.eventCleanupFunctions.push(() => this.modalCloseBtn?.removeEventListener('click', closeHandler));
     }
     if (this.modalNextBtn) {
-      this.modalNextBtn.addEventListener('click', callbacks.onModalNext);
+      const nextHandler = () => callbacks.onModalNext();
+      this.modalNextBtn.addEventListener('click', nextHandler);
+      this.eventCleanupFunctions.push(() => this.modalNextBtn?.removeEventListener('click', nextHandler));
     }
     if (this.modalPrevBtn) {
-      this.modalPrevBtn.addEventListener('click', callbacks.onModalPrevious);
+      const prevHandler = () => callbacks.onModalPrevious();
+      this.modalPrevBtn.addEventListener('click', prevHandler);
+      this.eventCleanupFunctions.push(() => this.modalPrevBtn?.removeEventListener('click', prevHandler));
     }
 
     // Additional modal controls
     if (this.modalFullscreenBtn) {
-      this.modalFullscreenBtn.addEventListener('click', this.handleToggleFullScreen.bind(this));
+      const fullscreenHandler = this.handleToggleFullScreen.bind(this);
+      this.modalFullscreenBtn.addEventListener('click', fullscreenHandler);
+      this.eventCleanupFunctions.push(() => this.modalFullscreenBtn?.removeEventListener('click', fullscreenHandler));
     }
     if (this.modalLikeBtn) {
-      this.modalLikeBtn.addEventListener('click', this.handleLike.bind(this));
+      const likeHandler = this.handleLike.bind(this);
+      this.modalLikeBtn.addEventListener('click', likeHandler);
+      this.eventCleanupFunctions.push(() => this.modalLikeBtn?.removeEventListener('click', likeHandler));
     }
     if (this.modalFacesBtn) {
-      this.modalFacesBtn.addEventListener('click', this.handleShowFaces.bind(this));
+      const facesHandler = this.handleShowFaces.bind(this);
+      this.modalFacesBtn.addEventListener('click', facesHandler);
+      this.eventCleanupFunctions.push(() => this.modalFacesBtn?.removeEventListener('click', facesHandler));
     }
 
     // Close modal on backdrop click
     if (this.modal) {
-      this.modal.addEventListener('click', (e) => {
+      const backdropHandler = (e: Event) => {
         if (e.target === this.modal) {
           callbacks.onModalClose();
         }
-      });
+      };
+      this.modal.addEventListener('click', backdropHandler);
+      this.eventCleanupFunctions.push(() => this.modal?.removeEventListener('click', backdropHandler));
     }
 
-    // Keyboard navigation for modal
-    document.addEventListener('keydown', (e) => {
+    // Keyboard navigation for modal - use bound function for cleanup
+    this.globalKeydownHandler = (e: KeyboardEvent) => {
       if (!this.modal || this.modal.classList.contains('hidden')) return;
       
       switch (e.key) {
@@ -108,7 +132,39 @@ export class UIService {
           callbacks.onModalNext();
           break;
       }
-    });
+    };
+    document.addEventListener('keydown', this.globalKeydownHandler);
+  }
+
+  /**
+   * Cleans up all event listeners to prevent memory leaks
+   */
+  cleanupEventListeners(): void {
+    // Clean up all registered event listeners
+    this.eventCleanupFunctions.forEach(cleanup => cleanup());
+    this.eventCleanupFunctions = [];
+
+    // Clean up global keydown listener
+    if (this.globalKeydownHandler) {
+      document.removeEventListener('keydown', this.globalKeydownHandler);
+      this.globalKeydownHandler = undefined;
+    }
+  }
+
+  /**
+   * Destructor method to clean up resources
+   */
+  destroy(): void {
+    this.cleanupEventListeners();
+    this.photoElementMap.clear();
+    this.currentPhotoOrder = [];
+    
+    // Cancel any pending image loading
+    if (this.currentFullImageLoader) {
+      this.currentFullImageLoader.onload = null;
+      this.currentFullImageLoader.onerror = null;
+      this.currentFullImageLoader = null;
+    }
   }
   /**
    * Updates the loading state
@@ -239,11 +295,9 @@ export class UIService {
     img.src = imageUrl;
     img.alt = photo.metadata?.filename || '';
     img.className = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200';
-    img.loading = 'lazy';
-
-    // Simple error handling without animations
+    img.loading = 'lazy';    // Simple error handling without animations
     img.onerror = () => {
-      img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+      img.src = UIService.FALLBACK_IMAGE_SVG;
       img.alt = 'Image not found';
     };
 
@@ -258,10 +312,9 @@ export class UIService {
     // Simple hover overlay
     const hoverOverlay = document.createElement('div');
     hoverOverlay.className = 'absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100';
-    
-    const viewIcon = document.createElement('div');
+      const viewIcon = document.createElement('div');
     viewIcon.className = 'text-white bg-black/50 rounded-full p-2';
-    viewIcon.innerHTML = `<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
+    viewIcon.innerHTML = UIService.VIEW_ICON_SVG;
     
     hoverOverlay.appendChild(viewIcon);
     div.appendChild(img);
@@ -404,68 +457,97 @@ export class UIService {
     } else {
       this.modalNextBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
-  }
-  /**
+  }  /**
    * Updates modal metadata display
-   */  private updateModalMetadata(photo: HachiImageData): void {
-    if (!this.modalMetadata) return;    const metadata = photo.metadata;
+   */  
+  private updateModalMetadata(photo: HachiImageData): void {
+    if (!this.modalMetadata) return;    
+
+    const metadata = photo.metadata;
     if (!metadata) {
       this.modalMetadata.innerHTML = '<p class="text-gray-500">No metadata available</p>';
       return;
-    }    const metadataItems = [
+    }    
+
+    // Pre-filter and prepare metadata items for efficiency
+    const metadataItems = [
       { label: 'Filename', value: metadata.filename },
       { label: 'Dimensions', value: metadata.width && metadata.height ? `${metadata.width} × ${metadata.height}` : null },
       { label: 'Date Taken', value: metadata.taken_at },
-      // { label: 'Camera', value: metadata.make && metadata.model ? `${metadata.make} ${metadata.model}` : metadata.model },
       { label: 'Location', value: metadata.place !== 'unk' ? metadata.place : null },
       { label: 'Description', value: metadata.description },
       { label: 'Device', value: metadata.device },
-      // { label: 'Make', value: metadata.make },
-      // { label: 'Score', value: Number(photo.score).toFixed(2) }
     ].filter(item => item.value && item.value.toString().trim() !== '');
     
-    // Render the standard metadata items
-    let metadataHtml = metadataItems
-      .map(item => `
-        <div class="grid grid-cols-3 gap-2 py-1 border-b border-gray-800 last:border-b-0">
-          <span class="font-semibold col-span-1 text-gray-800">${item.label}:</span>
-          <span class="col-span-2 text-gray-500">${item.value}</span>
-        </div>
-      `).join('');
-        // Add people section with avatar images if people are available
+    // Use DocumentFragment for efficient DOM building
+    const fragment = document.createDocumentFragment();
+    
+    // Create standard metadata items
+    metadataItems.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'grid grid-cols-3 gap-2 py-1 border-b border-gray-800 last:border-b-0';
+      
+      const label = document.createElement('span');
+      label.className = 'font-semibold col-span-1 text-gray-800';
+      label.textContent = `${item.label}:`;
+      
+      const value = document.createElement('span');
+      value.className = 'col-span-2 text-gray-500';
+      value.textContent = item.value as string;
+      
+      div.appendChild(label);
+      div.appendChild(value);
+      fragment.appendChild(div);
+    });
+        
+    // Add people section if available
     const hasPeople = metadata.person && 
                       metadata.person.length > 0 && 
-                      !metadata.person.every(p => p === "no_person_detected" || p === "no_categorical_info");      if (hasPeople) {
-      const peopleAvatars = metadata.person?.filter(personId => 
+                      !metadata.person.every(p => p === "no_person_detected" || p === "no_categorical_info");      
+
+    if (hasPeople) {
+      const peopleDiv = document.createElement('div');
+      peopleDiv.className = 'py-1 border-b border-gray-800';
+      
+      const peopleLabel = document.createElement('span');
+      peopleLabel.className = 'font-semibold text-gray-800';
+      peopleLabel.textContent = 'People:';
+      
+      const peopleContainer = document.createElement('div');
+      peopleContainer.className = 'flex flex-wrap gap-2 mt-1';
+      peopleContainer.setAttribute('data-people-container', 'true');
+      
+      // Create person avatars efficiently
+      const validPeople = metadata.person?.filter(personId => 
         personId !== "no_person_detected" && personId !== "no_categorical_info"
-      ).map(personId => {
-        const avatarUrl = SearchApiService.getPersonImageUrl(personId);
-        return `
-          <div class="flex flex-col items-center">
-            <img src="${avatarUrl}" alt="${personId}" 
-              class="w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors" 
-              title="Click to view ${personId}'s photos"
-              data-person-id="${personId}"/>
-          </div>
-        `;
-      }).join('') || '';
+      ) || [];
       
-      const peopleHtml = `
-        <div class="py-1 border-b border-gray-800">
-          <span class="font-semibold text-gray-800">People:</span>
-          <div class="flex flex-wrap gap-2 mt-1" data-people-container="true">
-            ${peopleAvatars}
-          </div>
-        </div>
-      `;
+      validPeople.forEach(personId => {
+        const personWrapper = document.createElement('div');
+        personWrapper.className = 'flex flex-col items-center';
+        
+        const img = document.createElement('img');
+        img.src = SearchApiService.getPersonImageUrl(personId);
+        img.alt = personId;
+        img.className = 'w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors';
+        img.title = `Click to view ${personId}'s photos`;
+        img.setAttribute('data-person-id', personId);
+        
+        // Add click handler directly instead of using setupPersonAvatarClickHandlers
+        img.addEventListener('click', () => this.handlePersonAvatarClick(personId));
+        
+        personWrapper.appendChild(img);
+        peopleContainer.appendChild(personWrapper);
+      });
       
-      metadataHtml += peopleHtml;
+      peopleDiv.appendChild(peopleLabel);
+      peopleDiv.appendChild(peopleContainer);
+      fragment.appendChild(peopleDiv);
     }
     
-    this.modalMetadata.innerHTML = metadataHtml;
-    
-    // Add click handlers to person avatars after rendering
-    this.setupPersonAvatarClickHandlers();
+    // Clear and append all at once for efficiency
+    this.modalMetadata.innerHTML = '';
+    this.modalMetadata.appendChild(fragment);
   }
 
   /**
@@ -517,31 +599,12 @@ export class UIService {
   private handleLike(): void {
     
     alert('Feature "Like" is a placeholder.');
-  }
-  /**
+  }  /**
    * Handles show faces button click (placeholder)
    */
   private handleShowFaces(): void {
    
     alert('Feature "Show Faces" is a placeholder.');
-  }
-  /**
-   * Sets up click handlers for person avatar images in the modal
-   */
-  private setupPersonAvatarClickHandlers(): void {
-    if (!this.modalMetadata) return;
-
-    // Find all person avatar images in the modal metadata
-    const personAvatars = this.modalMetadata.querySelectorAll('img[data-person-id]');
-    
-    personAvatars.forEach((avatar) => {
-      const img = avatar as HTMLImageElement;
-      const personId = img.getAttribute('data-person-id');
-      
-      if (personId) {
-        img.addEventListener('click', () => this.handlePersonAvatarClick(personId));
-      }
-    });
   }/**
    * Handles click on a person avatar - navigates to person's dedicated page
    */
