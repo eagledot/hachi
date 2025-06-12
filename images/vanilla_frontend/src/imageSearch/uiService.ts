@@ -19,11 +19,11 @@ export class UIService {
   private modalFacesBtn!: HTMLButtonElement;
   private modalFilename!: HTMLElement;
   private currentFullImageLoader: HTMLImageElement | null = null; // Track current image loader
-  private showScores = false; // Flag to control score display in photo grid
-  
-  // Efficient photo grid management
-  private photoElementMap = new Map<string, HTMLElement>(); // Map photo ID to DOM element
-  private currentPhotoOrder: string[] = []; // Track current order of photo IDs
+  private showScores = true; // Flag to control score display in photo grid
+    // Efficient photo grid management - optimized for pagination
+  private photoElementPool: HTMLElement[] = []; // Fixed pool of reusable DOM elements
+  private maxPoolSize = 100; // Match typical pagination size
+  private currentPhotoClick: ((photo: HachiImageData) => void) | null = null;
   
   // Performance optimizations
   private static readonly FALLBACK_IMAGE_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
@@ -150,14 +150,13 @@ export class UIService {
       this.globalKeydownHandler = undefined;
     }
   }
-
   /**
    * Destructor method to clean up resources
    */
   destroy(): void {
     this.cleanupEventListeners();
-    this.photoElementMap.clear();
-    this.currentPhotoOrder = [];
+    this.photoElementPool = [];
+    this.currentPhotoClick = null;
     
     // Cancel any pending image loading
     if (this.currentFullImageLoader) {
@@ -192,7 +191,7 @@ export class UIService {
       this.errorDisplay.classList.add('hidden');
     }
   }  /**
-   * Updates the photo grid efficiently using differential DOM updates
+   * Updates the photo grid efficiently using pagination-optimized approach
    */
   updatePhotos(photos: HachiImageData[], onPhotoClick: (photo: HachiImageData) => void): void {
     if (!this.photoGrid || !this.noResultsMessage) return;
@@ -206,113 +205,101 @@ export class UIService {
 
     this.noResultsMessage.classList.add('hidden');
 
-    // Use efficient differential update
-    this.updatePhotoGridDifferentially(photos, onPhotoClick);
-  }
+    // Store the click handler for reuse
+    this.currentPhotoClick = onPhotoClick;
 
+    // Use pagination-optimized update
+    this.updatePhotoGridForPagination(photos);
+  }
   /**
    * Clears the photo grid and resets tracking data
    */
   private clearPhotoGrid(): void {
-    this.photoGrid.innerHTML = '';
-    this.photoElementMap.clear();
-    this.currentPhotoOrder = [];
-  }  /**
-   * Efficiently updates the photo grid using differential DOM manipulation
-   */
-  private updatePhotoGridDifferentially(photos: HachiImageData[], onPhotoClick: (photo: HachiImageData) => void): void {
-    const newPhotoOrder = photos.map(photo => photo.id);
-    
-    // Find photos that need to be added (new photos)
-    const photosToAdd = photos.filter(photo => !this.photoElementMap.has(photo.id));
-    
-    // Find photos that need to be removed (no longer in the list)
-    const photosToRemove = this.currentPhotoOrder.filter(photoId => 
-      !newPhotoOrder.includes(photoId)
-    );
-
-    // Remove photos that are no longer in the list
-    photosToRemove.forEach(photoId => {
-      const element = this.photoElementMap.get(photoId);
-      if (element && element.parentNode) {
-        element.parentNode.removeChild(element);
-      }
-      this.photoElementMap.delete(photoId);
+    // Don't clear innerHTML as it breaks the element pool
+    // Instead, just hide all elements from the pool
+    this.photoElementPool.forEach(element => {
+      element.style.display = 'none';
     });
-
-    // Update existing photos with new data (especially scores)
-    photos.forEach(photo => {
-      const existingElement = this.photoElementMap.get(photo.id);
-      if (existingElement && !photosToAdd.some(p => p.id === photo.id)) {
-        this.updatePhotoElement(existingElement, photo);
-      }
-    });
-
-    // Create DOM elements for new photos
-    photosToAdd.forEach(photo => {
-      const photoElement = this.createPhotoElement(photo, onPhotoClick);
-      photoElement.setAttribute('data-photo-id', photo.id);
-      this.photoElementMap.set(photo.id, photoElement);
-    });
-
-    // Reorder all photos to match the new order
-    this.reorderPhotoElements(newPhotoOrder);
-
-    // Update the current order tracking
-    this.currentPhotoOrder = newPhotoOrder;
   }
 
   /**
-   * Reorders photo elements in the DOM to match the target order
+   * Optimized for pagination - reuses DOM elements instead of creating/destroying
    */
-  private reorderPhotoElements(targetOrder: string[]): void {
-    // Use a document fragment for efficient DOM manipulation
-    const fragment = document.createDocumentFragment();
-    
-    // Add elements to fragment in the correct order
-    targetOrder.forEach(photoId => {
-      const element = this.photoElementMap.get(photoId);
-      if (element) {
-        fragment.appendChild(element);
-      }
+  private updatePhotoGridForPagination(photos: HachiImageData[]): void {
+    // Ensure we have enough elements in the pool
+    this.ensureElementPool(photos.length);
+
+    // Update existing elements with new photo data
+    photos.forEach((photo, index) => {
+      const element = this.photoElementPool[index];
+      this.updateElementWithPhotoData(element, photo);
+      element.style.display = 'block';
     });
 
-    // Replace all children at once (efficient batch update)
-    this.photoGrid.innerHTML = '';
-    this.photoGrid.appendChild(fragment);
-  }  /**
-   * Creates a photo element - optimized for performance
-   */  
-  private createPhotoElement(photo: HachiImageData, onPhotoClick: (photo: HachiImageData) => void): HTMLElement {
+    // Hide unused elements
+    for (let i = photos.length; i < this.photoElementPool.length; i++) {
+      this.photoElementPool[i].style.display = 'none';
+    }
+
+    // Ensure all visible elements are in the DOM
+    this.ensureElementsInDOM(photos.length);
+  }
+
+  /**
+   * Ensures we have enough DOM elements in the pool
+   */
+  private ensureElementPool(requiredSize: number): void {
+    const neededElements = Math.min(requiredSize, this.maxPoolSize) - this.photoElementPool.length;
+    
+    for (let i = 0; i < neededElements; i++) {
+      const element = this.createEmptyPhotoElement();
+      this.photoElementPool.push(element);
+    }
+  }
+
+  /**
+   * Ensures the required number of elements are in the DOM
+   */
+  private ensureElementsInDOM(visibleCount: number): void {
+    const fragment = document.createDocumentFragment();
+    let needsUpdate = false;
+
+    for (let i = 0; i < visibleCount && i < this.photoElementPool.length; i++) {
+      const element = this.photoElementPool[i];
+      if (!element.parentNode) {
+        fragment.appendChild(element);
+        needsUpdate = true;
+      }
+    }
+
+    if (needsUpdate) {
+      this.photoGrid.appendChild(fragment);
+    }
+  }
+
+  /**
+   * Creates an empty photo element template for reuse
+   */
+  private createEmptyPhotoElement(): HTMLElement {
     const div = document.createElement('div');
     div.className = 'group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer';
-    div.style.height = '180px'; // Fixed height for consistency
-    div.setAttribute('data-photo-id', photo.id);
+    div.style.height = '180px';
 
     const img = document.createElement('img');
-    const imageUrl = SearchApiService.getPreviewImageUrl(photo.id);
-    
-    img.src = imageUrl;
-    img.alt = photo.metadata?.filename || '';
     img.className = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200';
-    img.loading = 'lazy';    // Simple error handling without animations
+    img.loading = 'lazy';
+
+    // Error handling
     img.onerror = () => {
       img.src = UIService.FALLBACK_IMAGE_SVG;
       img.alt = 'Image not found';
     };
 
-    // Add score badge only if needed for debugging
-    if (this.showScores && photo.score !== undefined && photo.score !== null) {
-      const scoreBadge = document.createElement('div');
-      scoreBadge.className = 'absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded shadow z-10';
-      scoreBadge.textContent = Number(photo.score).toFixed(3);
-      div.appendChild(scoreBadge);
-    }
-
-    // Simple hover overlay
+    // Hover overlay
     const hoverOverlay = document.createElement('div');
     hoverOverlay.className = 'absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100';
-      const viewIcon = document.createElement('div');
+    
+    const viewIcon = document.createElement('div');
     viewIcon.className = 'text-white bg-black/50 rounded-full p-2';
     viewIcon.innerHTML = UIService.VIEW_ICON_SVG;
     
@@ -320,19 +307,49 @@ export class UIService {
     div.appendChild(img);
     div.appendChild(hoverOverlay);
 
-    div.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      onPhotoClick(photo);
-    });
-
     return div;
-  }/**
+  }  /**
+   * Updates an existing DOM element with new photo data
+   */
+  private updateElementWithPhotoData(element: HTMLElement, photo: HachiImageData): void {
+    const img = element.querySelector('img') as HTMLImageElement;
+    if (!img) return;
+
+    // Update image source and metadata
+    img.src = SearchApiService.getPreviewImageUrl(photo.id);
+    img.alt = photo.metadata?.filename || '';
+    element.setAttribute('data-photo-id', photo.id);
+
+    // Update score badge
+    const existingScoreBadge = element.querySelector('.score-badge');
+    if (existingScoreBadge) {
+      existingScoreBadge.remove();
+    }
+
+    if (this.showScores && photo.score !== undefined && photo.score !== null) {
+      const scoreBadge = document.createElement('div');
+      scoreBadge.className = 'score-badge absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded shadow z-10';
+      scoreBadge.textContent = Number(photo.score).toFixed(3);
+      element.appendChild(scoreBadge);
+    }
+
+    // Remove all existing click listeners efficiently
+    element.onclick = null;
+    
+    // Add new click handler directly
+    if (this.currentPhotoClick) {
+      element.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.currentPhotoClick!(photo);
+      };
+    }
+  }
+
+  /**
    * Shows the image modal
    */
   showModal(photo: HachiImageData, canGoPrevious: boolean, canGoNext: boolean): void {
-    
-    
     if (!this.modal) {
       console.error('Modal element not found');
       return;
@@ -353,9 +370,9 @@ export class UIService {
     
     this.modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    
-    
-  }  /**
+  }
+
+  /**
    * Loads image progressively - starts with preview, then loads full resolution
    */
   private loadImageProgressively(photo: HachiImageData): void {
@@ -386,7 +403,6 @@ export class UIService {
     const thumbnailUrl = SearchApiService.getPreviewImageUrl(photo.id);
     const fullImageUrl = SearchApiService.getImageUrl(photo.id);
 
-    
     this.modalImage.src = thumbnailUrl;
     
     // Start loading the full resolution image in background
@@ -397,7 +413,6 @@ export class UIService {
     fullImageLoader.onload = () => {
       // Switch to full resolution while maintaining the same dimensions
       if (this.currentFullImageLoader === fullImageLoader && this.modalImage) {
-        
         this.modalImage.src = fullImageUrl;
       }
       // Clear the loader reference
@@ -413,12 +428,11 @@ export class UIService {
       }
     };
   }
+
   /**
    * Hides the image modal
    */
   hideModal(): void {
-    
-    
     if (!this.modal) {
       console.error('Modal element not found for hiding');
       return;
@@ -433,8 +447,6 @@ export class UIService {
 
     this.modal.classList.add('hidden');
     document.body.style.overflow = 'auto';
-    
-    
   }
 
   /**
@@ -457,7 +469,9 @@ export class UIService {
     } else {
       this.modalNextBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
-  }  /**
+  }
+
+  /**
    * Updates modal metadata display
    */  
   private updateModalMetadata(photo: HachiImageData): void {
@@ -597,21 +611,20 @@ export class UIService {
    * Handles like button click (placeholder)
    */
   private handleLike(): void {
-    
     alert('Feature "Like" is a placeholder.');
-  }  /**
+  }
+  /**
    * Handles show faces button click (placeholder)
    */
   private handleShowFaces(): void {
-   
     alert('Feature "Show Faces" is a placeholder.');
-  }/**
+  }
+
+  /**
    * Handles click on a person avatar - navigates to person's dedicated page
    */
   private handlePersonAvatarClick(personId: string): void {
     try {
-      
-      
       // Hide the current modal first
       this.hideModal();
       
@@ -621,36 +634,14 @@ export class UIService {
       
       if (currentPath.includes('person-photos.html')) {
         // We're already on person photos page, need to reload with new person ID
-        
         window.location.replace(targetUrl);
       } else {
         // We're on a different page (like image search), navigate normally
-        
         window.location.href = targetUrl;
       }
-      
-        } catch (error) {
+    } catch (error) {
       console.error('Error navigating to person page:', error);
       alert(`Failed to navigate to person page: ${personId}`);
-    }
-  }
-
-  /**
-   * Updates an existing photo element with new data
-   */
-  private updatePhotoElement(element: HTMLElement, photo: HachiImageData): void {
-    // Update score badge
-    const existingScoreBadge = element.querySelector('.score-badge');
-    if (existingScoreBadge) {
-      existingScoreBadge.remove();
-    }
-
-    // Add new score badge if score is available
-    if (this.showScores &&photo.score !== undefined && photo.score !== null) {
-      const scoreBadge = document.createElement('div');
-      scoreBadge.className = 'score-badge absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded-full shadow-lg z-10';
-      scoreBadge.textContent = Number(photo.score).toFixed(3);
-      element.appendChild(scoreBadge);
     }
   }
 }

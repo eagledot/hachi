@@ -17,7 +17,7 @@ class ImageSearchApp {
   private currentModal: HachiImageData | null = null;
   
   // Pagination properties
-  private readonly PAGE_SIZE = 50; // Display 50 photos per page for good performance
+  private readonly PAGE_SIZE = 100; // Display 100 photos per page for good performance
   private currentPage = 1;
   private totalPages = 0;constructor() {
     // Initialize reusable components first
