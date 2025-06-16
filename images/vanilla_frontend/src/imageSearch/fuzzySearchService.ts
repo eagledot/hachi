@@ -130,7 +130,9 @@ export class FuzzySearchService {
         type: 'suggestion' as const
       }));
       
-      return formattedSuggestions.slice(0, 5); // Limit to 5 suggestions
+      // return formattedSuggestions.slice(0, 5); // Limit to 5 suggestions
+      // Not sure if there needs to be a limit here, so leaving it out for now
+      return formattedSuggestions
     } catch (error) {
       console.error('Error generating suggestions:', error);
       return [];
