@@ -305,7 +305,7 @@ class MetaIndex(object):
             if attribute in attr_2_type and attr_2_type[attribute] == "string":
                 # prepare query
                 query_json = json.dumps({attribute:query})
-                row_indices = json.loads(mBackend.query(query_json, exact_string = False, top_k = 100))[attribute] # get the rows, for which column/attribute has query as substring in it.
+                row_indices = json.loads(mBackend.query(query_json, exact_string = False, top_k = 20, unique_only = True))[attribute] # get the rows, for which column/attribute has query as substring in it.
 
                 # collect rows, TODO: should be able to just ask for a single attribute too..but still ok, since we select row_indices for desired attribute.
                 rows = json.loads(mBackend.collect_rows(row_indices))

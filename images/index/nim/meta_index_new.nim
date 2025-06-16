@@ -21,10 +21,13 @@
 # then just we can move the pointers around, as asssuming all data collected is valid/required !
 # 
 
+# TODO: could be a good testcase for newer data-structures i am developing!
 # TODO: 64 bit aligned pointer during allocation !
+# TODO: std lib json parsing/decoding is quite slow compared to faster implementations like jsony..switch to that..
+# TODO: compression/de-duplication can be done.. after adding more tests and documentation!
 # TODO: may be use an id/primary-key for quick checking if id is already in index  otherwise may have to write code on python side!
 
-import std/json
+import std/json # may be use jsony
 import strutils
 import std/tables
 
@@ -416,16 +419,26 @@ template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, bounda
   
   return result[0..<count]
 
-template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural, exact_string_t:bool, splitter_t:string)=
+template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural, exact_string_t:bool, 
+splitter_t:string,
+uniqueOnly_t:bool = false)=
 
   # NOTE: i understand lots of if and else branching leading to harm the branch-predictor, but i have to search both new versions and original too..
   # NOTE: after checking if string or arrayString, split function bottleneck effects only few columns . (pure string columns are much faster to search for)
   # note: have to be careful using statements like `let a = <another string>` can lead to copy even if read only use, compiler cannot figure out always!
   # TODO: keep only exact matching in this ... for substring matching use a separate implementation .. to reduce branching in for loop!
 
+  # Inputs:
+  # uniqueOnly_t: being checked, only when exact string is passed as false!
+
   let alias_table = checkAlias[string](c_t)
   var count = 0
   let arr = cast[ptr UncheckedArray[string]](c_t.payload)
+
+  # unique 
+  # if only unique only then.
+  var unique_count = 0 # search up to that count..
+
   for row_idx in 0..<boundary_t:
 
     # we search either in alias data or original data . i.e always latest version data..
@@ -450,31 +463,46 @@ template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string,
           result_t[count] = row_idx
           count += 1
     else:
+      let current_item = arr[row_idx]
       if exact_string_t == true:
 
         # using this ..we know that no splitter in any of strings.! 
         if c_t.kind != colArrayString:
-          if arr[row_idx] == query_t:
+          if current_item == query_t:
             result_t[count] = row_idx
             count += 1
         else:
-          for stored in arr[row_idx].split(splitter_t):
+          for stored in current_item.split(splitter_t):
             if stored == query_t:
               result_t[count] = row_idx
               count += 1
               break
       else:
-        if arr[row_idx].contains(query_t):
+        if current_item.contains(query_t):
           # echo "matching " & $query_t & "  in " & arr[row_idx]
-          result_t[count] = row_idx
-          count += 1
+
+          if uniqueOnly_t == true:
+            var is_unique = true
+            for j_temp in 0..<count:
+              if arr[result_t[j_temp]] == current_item:  # it match case too here atleast!
+                is_unique = false
+                break
+            
+            if is_unique:
+              result_t[count] = row_idx
+              inc count
+          
+          else:
+            result_t[count] = row_idx
+            count += 1
       
     if count == top_k:
       break 
   
   return result[0..<count]
 
-proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100, exact_string:bool = false, splitter:string = "|"):seq[Natural]=
+proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100, exact_string:bool = false, splitter:string = "|",
+  unique_only:bool = false):seq[Natural]=
   # returns the matching row indices in the 
   # boundary: is provided by MetaIndex, telling it how many elements are currently in this/all columns.
   
@@ -484,7 +512,7 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100,
   assert c.kind == colString or c.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
   let top_k = min(boundary, top_k)
   result = newSeq[Natural](top_k)
-  queryStringImpl(result, c, query, boundary, top_k, exact_string, splitter)
+  queryStringImpl(result, c, query, boundary, top_k, exact_string, splitter, unique_only)
 
   # var count = 0
   # let arr = cast[ptr UncheckedArray[string]](c.payload)
@@ -778,7 +806,7 @@ proc `$`*(m:MetaIndex, count:Natural = 10):string=
 #   result = c.query_bool(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
 #   return result
 
-proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, top_k:Natural = 100):seq[Natural]=
+proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, top_k:Natural = 100, unique_only:bool = false):seq[Natural]=
   # attribute_value: key/label value pairs, value is value is match for corresponding column.
   var top_k = top_k
   if top_k == 0:
@@ -791,7 +819,7 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, to
   for label, value in attribute_value:
     let c = m[label]
     if c.kind == colString or c.kind == colArrayString:
-      result = c.query_string(query = getStr(value), boundary = boundary, top_k = top_k, exact_string = exact_string, splitter = m.stringConcatenator)
+      result = c.query_string(query = getStr(value), boundary = boundary, top_k = top_k, exact_string = exact_string, splitter = m.stringConcatenator, unique_only = unique_only)
     elif c.kind == colInt32:
       result = c.query_int32(query = getInt(value).int32, boundary = boundary, top_k = top_k)
     elif c.kind == colBool:
