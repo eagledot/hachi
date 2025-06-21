@@ -16,7 +16,7 @@ sys.path.insert(0, IMAGE_APP_ML_PATH)
 sys.path.insert(0, PYTHON_MODULES_PATH)
 
 # imports
-from typing import Optional, Union, Tuple, List, Iterable, Dict, Any
+from typing import Optional, Union, TypedDict, NamedTuple, Tuple, List, Iterable, Dict, Any
 from threading import RLock
 import threading
 import time
@@ -84,136 +84,131 @@ def parse_query(query:str) -> Dict[str, List[str]]:
     return imageAttributes_2_values
 
 
-class IndexStatus(object):
-    """ A dedicated Class to implement indexing  book-keeping.
-    TODO: not good enough abstraction.. would update this later as current abstraction is based on client ids and much stable. 
-    """
+# class IndexStatus(object):
+#     """ A dedicated Class to implement indexing  book-keeping.
+#     TODO: not good enough abstraction.. would update this later as current abstraction is based on client ids and much stable. 
+#     """
 
-    def __init__(self) -> None:
-        self.status_dict = dict()
-        self.lock = RLock()
-    def is_done(self, endpoint) -> bool:
-        with self.lock:
-            return self.status_dict[endpoint]["done"]
-    def add_endpoint_for_indexing(self, endpoint):
-        with self.lock:
-            assert endpoint not in self.status_dict
-            self.status_dict[endpoint] = {
-                "done":False,
-                "current_directory":"unknown",
-                "eta":"unknown",
-                "details": "",
-                "progress":str(int(0)), 
-                "should_cancel":False
-            } 
-    def set_done(self, endpoint,message:Optional[str] = None):
-        # This is only supposed to be called by the indexing thread.
-        with self.lock:
-            self.status_dict[endpoint]["done"] = True
-            if message:
-                self.status_dict[endpoint]["details"] = "{}".format(message)
-            else:
-                self.status_dict[endpoint]["details"] = "SUCCESS"
+#     def __init__(self) -> None:
+#         self.status_dict = dict()
+#         self.lock = RLock()
+#     def is_done(self, endpoint) -> bool:
+#         with self.lock:
+#             return self.status_dict[endpoint]["done"]
+#     def add_endpoint_for_indexing(self, endpoint):
+#         with self.lock:
+#             assert endpoint not in self.status_dict
+#             self.status_dict[endpoint] = {
+#                 "done":False,
+#                 "current_directory":"unknown",
+#                 "eta":"unknown",
+#                 "details": "",
+#                 "progress":str(int(0)), 
+#                 "should_cancel":False
+#             } 
+#     def set_done(self, endpoint,message:Optional[str] = None):
+#         # This is only supposed to be called by the indexing thread.
+#         with self.lock:
+#             self.status_dict[endpoint]["done"] = True
+#             if message:
+#                 self.status_dict[endpoint]["details"] = "{}".format(message)
+#             else:
+#                 self.status_dict[endpoint]["details"] = "SUCCESS"
     
-    def update_status(self, endpoint:str, current_directory:str, progress:float, eta:Optional[str] = None, details = ""):
-        with self.lock:
-            self.status_dict[endpoint]["current_directory"] = current_directory  # current directory being scanned.
-            self.status_dict[endpoint]["progress"] = str(progress)
-            self.status_dict[endpoint]["eta"] = eta
-            self.status_dict[endpoint]["details"] = details
+#     def update_status(self, endpoint:str, current_directory:str, progress:float, eta:Optional[str] = None, details = ""):
+#         with self.lock:
+#             self.status_dict[endpoint]["current_directory"] = current_directory  # current directory being scanned.
+#             self.status_dict[endpoint]["progress"] = str(progress)
+#             self.status_dict[endpoint]["eta"] = eta
+#             self.status_dict[endpoint]["details"] = details
 
-    def get_status(self, endpoint:str):
-        result = {}
-        result["is_active"] = self.is_active(endpoint)  # i think not used anymore on the client side.. USE NEWER VERSION of status class.
+#     def get_status(self, endpoint:str):
+#         result = {}
+#         result["is_active"] = self.is_active(endpoint)  # i think not used anymore on the client side.. USE NEWER VERSION of status class.
 
-        with self.lock:
-            if self.status_dict.get(endpoint,False) == False:
-                # sometimes when client dies without clearing localstorage, then we indicate last indexing done!)
-                result["done"] = True
-                result["details"] = "SUCCESS"
-                print("[WARNING]: seems like server has no information for: {}, may application stopped before clearning local storage".format(endpoint))
-            else:
-                result["done"] = self.status_dict[endpoint]["done"]
-                result["current_directory"] = self.status_dict[endpoint]["current_directory"]
-                result["eta"] = self.status_dict[endpoint]["eta"]
-                result["progress"] = self.status_dict[endpoint]["progress"]
-                result["details"] = self.status_dict[endpoint]["details"]
-        return result
+#         with self.lock:
+#             if self.status_dict.get(endpoint,False) == False:
+#                 # sometimes when client dies without clearing localstorage, then we indicate last indexing done!)
+#                 result["done"] = True
+#                 result["details"] = "SUCCESS"
+#                 print("[WARNING]: seems like server has no information for: {}, may application stopped before clearning local storage".format(endpoint))
+#             else:
+#                 result["done"] = self.status_dict[endpoint]["done"]
+#                 result["current_directory"] = self.status_dict[endpoint]["current_directory"]
+#                 result["eta"] = self.status_dict[endpoint]["eta"]
+#                 result["progress"] = self.status_dict[endpoint]["progress"]
+#                 result["details"] = self.status_dict[endpoint]["details"]
+#         return result
     
-    def is_active(self, endpoint:str):
-        with self.lock:
-            return endpoint in self.status_dict
+#     def is_active(self, endpoint:str):
+#         with self.lock:
+#             return endpoint in self.status_dict
 
-    def remove_endpoint(self, endpoint):
-        with self.lock:
-            if self.status_dict.get(endpoint,False) == False:
-                # phantom request.. possibly due to client-side syncing issues..not clearing of local storage.
-                pass
-            else:
-                assert self.status_dict[endpoint]["done"] == True
-                self.status_dict.pop(endpoint)
+#     def remove_endpoint(self, endpoint):
+#         with self.lock:
+#             if self.status_dict.get(endpoint,False) == False:
+#                 # phantom request.. possibly due to client-side syncing issues..not clearing of local storage.
+#                 pass
+#             else:
+#                 assert self.status_dict[endpoint]["done"] == True
+#                 self.status_dict.pop(endpoint)
     
-    def indicate_cancellation(self, endpoint)->  bool:
-        with self.lock:
-            if endpoint in self.status_dict:
-                self.status_dict[endpoint]["should_cancel"] = True
-                return True
-            else:
-                return False
+#     def indicate_cancellation(self, endpoint)->  bool:
+#         with self.lock:
+#             if endpoint in self.status_dict:
+#                 self.status_dict[endpoint]["should_cancel"] = True
+#                 return True
+#             else:
+#                 return False
     
-    def is_cancel_request_active(self, endpoint):
-        with self.lock:
-            return self.status_dict[endpoint]["should_cancel"]
+#     def is_cancel_request_active(self, endpoint):
+#         with self.lock:
+#             return self.status_dict[endpoint]["should_cancel"]
         
 ########################################################################
 IMAGE_EMBEDDING_SIZE = 512  # depends on the model architecture.
-TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
+# TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
 FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
 
-def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
-    # for simulating, (TODO: better simulation setup, if get time) 
-    # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
+# def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
+#     # for simulating, (TODO: better simulation setup, if get time) 
+#     # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
-    if isinstance(image,str):
-        assert os.path.exists(image)
-        image_data = cv2.imread(image)
-        is_bgr = True # "If using opencv, is_bgr would be true."
-    else:
-        image_data = image
+#     if isinstance(image,str):
+#         assert os.path.exists(image)
+#         image_data = cv2.imread(image)
+#         is_bgr = True # "If using opencv, is_bgr would be true."
+#     else:
+#         image_data = image
     
-    if image_data is None:
-        return None
+#     if image_data is None:
+#         return None
 
-    image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
-    assert image_features.size == IMAGE_EMBEDDING_SIZE
-    return image_features
+#     image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
+#     assert image_features.size == IMAGE_EMBEDDING_SIZE
+#     return image_features
 
-def generate_text_embedding(query:str):
-    # return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
+# def generate_text_embedding(query:str):
+#     # return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
 
-    text_features = clip.encode_text(query)
-    assert text_features.size == TEXT_EMBEDDING_SIZE
-    return text_features
+#     text_features = clip.encode_text(query)
+#     assert text_features.size == TEXT_EMBEDDING_SIZE
+#     return text_features
 
-
-print("[Debug]: Loading Model, may take a few seconds.")
-clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
-clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
+# print("[Debug]: Loading Model, may take a few seconds.")
+# clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
+# clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
 imageIndex = ImageIndex(shard_size = IMAGE_INDEX_SHARD_SIZE, embedding_size = IMAGE_EMBEDDING_SIZE)
 print("Created Image index")
 
 metaIndex = MetaIndex()
 print("Created meta Index")
-# all_filename = metaIndex.get_unique("filename")
-# print(len(all_filename))
-# print(metaIndex.query(attribute = "filename", attribute_value = "insta_bk0s3j5hejj_0.jpg"))
-# assert "insta_bk0s3j5hejj_0.jpg" in all_filename
 
 faceIndex = FaceIndex(embedding_size = FACE_EMBEDDING_SIZE)
 print("Created Face Index")
 
-indexStatus = IndexStatus()
+# # indexStatus = IndexStatus()
 
 # TODO: better to do everything through cache or caches..
 dataCache = GlobalDataCache()   # a global data cache to serve raw-data for previews.
@@ -224,218 +219,222 @@ sessionId_to_config = {}      # a mapping to save some user specific settings fo
 personId_to_avgEmbedding = {} # we seek to create average embedding for a group/id a face can belong to, only for a single session.
 global_lock = threading.RLock()
 
-def generate_image_preview(data_hash, image:Union[str, np.ndarray], face_bboxes:Optional[List[List[int]]], person_ids:List[str]):
-    """ Generate image previews and face-previews
-    NOTE: it does take up space and create previews, but it is optional but on by default.
-    SSDs may be fast enough to serve data directly from  disk.. but for HDDs it reduces the latency quite a bit
-    """
-    if isinstance(image, str):
-        assert os.path.exists(image), "Doesn't make sense, atleast if indexed, absolute path must exist!"
-        raw_data = cv2.imread(image)
-    else:
-        raw_data = image
-    del image
+# def generate_image_preview(data_hash, image:Union[str, np.ndarray], face_bboxes:Optional[List[List[int]]], person_ids:List[str]):
+#     """ Generate image previews and face-previews
+#     NOTE: it does take up space and create previews, but it is optional but on by default.
+#     SSDs may be fast enough to serve data directly from  disk.. but for HDDs it reduces the latency quite a bit
+#     """
+#     if isinstance(image, str):
+#         assert os.path.exists(image), "Doesn't make sense, atleast if indexed, absolute path must exist!"
+#         raw_data = cv2.imread(image)
+#     else:
+#         raw_data = image
+#     del image
     
-    preview_max_width = 640
-    h,w,c = raw_data.shape
-    ratio = h/w
+#     preview_max_width = 640
+#     h,w,c = raw_data.shape
+#     ratio = h/w
 
-    # calculate new height, width keep aspect ratio fixed.
-    new_width = min(w, preview_max_width)
-    new_height = int(ratio * new_width)
+#     # calculate new height, width keep aspect ratio fixed.
+#     new_width = min(w, preview_max_width)
+#     new_height = int(ratio * new_width)
 
-    # resize, and save to disk in compressed jpeg format.
-    raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
-    quality = 90
-    cv2.imwrite(os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.webp".format(data_hash)), raw_data_resized,[int(cv2.IMWRITE_WEBP_QUALITY),quality])
+#     # resize, and save to disk in compressed jpeg format.
+#     raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
+#     quality = 90
+#     cv2.imwrite(os.path.join(IMAGE_PREVIEW_DATA_PATH,"{}.webp".format(data_hash)), raw_data_resized,[int(cv2.IMWRITE_WEBP_QUALITY),quality])
 
-def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str, generate_preview_data:bool = True, remote_protocol:Optional[str] = None):
-    hash_2_metaData = metaIndex.extract_image_metaData(resources_batch)       # extra meta data
-    for data_hash, meta_data in hash_2_metaData.items():
-        assert data_hash is not None
-        absolute_path = meta_data["absolute_path"]
-        is_indexed = meta_data["is_indexed"]
-        if is_indexed:
-            continue
+# def index_image_resources(resources_batch:List[os.PathLike], prefix_personId:str, generate_preview_data:bool = True, remote_protocol:Optional[str] = None):
+#     hash_2_metaData = metaIndex.extract_image_metaData(resources_batch)       # extra meta data
+#     for data_hash, meta_data in hash_2_metaData.items():
+#         assert data_hash is not None
+#         absolute_path = meta_data["absolute_path"]
+#         is_indexed = meta_data["is_indexed"]
+#         if is_indexed:
+#             continue
         
-        # read raw-data only once.. and share it for image-clip,face and previews
-        frame = cv2.imread(absolute_path)
-        if frame is None:
-            print("[WARNING]: Invalid data for {}".format(absolute_path))
-            continue
-        is_bgr = True
+#         # read raw-data only once.. and share it for image-clip,face and previews
+#         frame = cv2.imread(absolute_path)
+#         if frame is None:
+#             print("[WARNING]: Invalid data for {}".format(absolute_path))
+#             continue
+#         is_bgr = True
 
-        # generate image embeddings
-        image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
-        if image_embedding is None:
-            print("Invalid data for {}".format(absolute_path))
-            continue
+#         # generate image embeddings
+#         image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
+#         if image_embedding is None:
+#             print("Invalid data for {}".format(absolute_path))
+#             continue
         
-        meta_data["person"] = ["no_person_detected"] # it is supposed to be updated, after clusters finalizing.
-        # sync/update both the indices.
-        meta_data["is_indexed"] = True
+#         meta_data["person"] = ["no_person_detected"] # it is supposed to be updated, after clusters finalizing.
+#         # sync/update both the indices.
+#         meta_data["is_indexed"] = True
 
-        # merge remote meta-data too if allowed remoted protocol.
-        if remote_protocol == "google_photos":
-            remote_meta_data = googlePhotos.get_remote_meta(data_hash)
-            meta_data["remote"] = remote_meta_data  
-            meta_data["resource_directory"] = "google_photos"
-            meta_data["absolute_path"] = "remote"
+#         # merge remote meta-data too if allowed remoted protocol.
+#         if remote_protocol == "google_photos":
+#             remote_meta_data = googlePhotos.get_remote_meta(data_hash)
+#             meta_data["remote"] = remote_meta_data  
+#             meta_data["resource_directory"] = "google_photos"
+#             meta_data["absolute_path"] = "remote"
         
-        metaIndex.update(data_hash, meta_data) # TODO: append instead of update for clearer semantics!
-        imageIndex.update(data_hash, data_embedding = image_embedding)
-        faceIndex.update(
-            frame = frame,
-            absolute_path = absolute_path,
-            resource_hash = data_hash,
-            is_bgr = True)
+#         metaIndex.update(data_hash, meta_data) # TODO: append instead of update for clearer semantics!
+#         imageIndex.update(data_hash, data_embedding = image_embedding)
+#         faceIndex.update(
+#             frame = frame,
+#             absolute_path = absolute_path,
+#             resource_hash = data_hash,
+#             is_bgr = True)
         
-        generate_image_preview(data_hash, image = frame, face_bboxes = None, person_ids=[])                
+#         generate_image_preview(data_hash, image = frame, face_bboxes = None, person_ids=[])                
 
-def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = False, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
+# def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = False, include_subdirectories:bool = True, batch_size = 10, generate_preview_data:bool = True):
 
-    try:
-        if complete_rescan == True:
-            indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing person previews..")
+#     try:
+#         if complete_rescan == True:
+#             indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing person previews..")
             
-            # delete person previews.
-            preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
-            for i, preview_person in enumerate(preview_data):
-                try:
-                    os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
-                except:
-                    print("Error deleting: {}".format(preview_data))
+#             # delete person previews.
+#             preview_data =  os.listdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
+#             for i, preview_person in enumerate(preview_data):
+#                 try:
+#                     os.remove(os.path.join(IMAGE_PERSON_PREVIEW_DATA_PATH, preview_person))
+#                 except:
+#                     print("Error deleting: {}".format(preview_data))
                 
-                if (i % 20) == 0:
-                    indexStatus.update_status(client_id, current_directory="", progress = (i+1) / len(preview_data), eta = "unknown", details = "Removing person previews..")
+#                 if (i % 20) == 0:
+#                     indexStatus.update_status(client_id, current_directory="", progress = (i+1) / len(preview_data), eta = "unknown", details = "Removing person previews..")
 
-            # reset/remove old indices data.
-            indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
-            faceIndex.reset()
-            imageIndex.reset()
-            metaIndex.reset()
+#             # reset/remove old indices data.
+#             indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
+#             faceIndex.reset()
+#             imageIndex.reset()
+#             metaIndex.reset()
 
 
-        error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.
+#         error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.
         
-        # check remote protocol status
-        remote_protocol = None
-        if index_directory in appConfig["supported_remote_protocols"]:
-            remote_protocol = index_directory
+#         # check remote protocol status
+#         remote_protocol = None
+#         if index_directory in appConfig["supported_remote_protocols"]:
+#             remote_protocol = index_directory
 
-        # instruct the extension to download, if a remote protocol is requested.
-        if index_directory in appConfig["supported_remote_protocols"]:
-            if index_directory.lower().strip() == "google_photos":
-                index_directory = googlePhotos.get_temp_resource_directory() # directory where data is being downloaded..
-                status = googlePhotos.start_download()
-                if status == False:
-                    error_trace = "Failed to start downloading for {}".format(remote_protocol)
-                    return 
-                while True:
-                    if indexStatus.is_cancel_request_active(client_id):
-                        status = googlePhotos.stop_download()
-                        if status == False:
-                            error_trace = "Couldnot stopped downloading. POTENTIAL BUG"
-                        else:
-                            error_trace = "Downloading stopped on user request"
-                        return
+#         # instruct the extension to download, if a remote protocol is requested.
+#         if index_directory in appConfig["supported_remote_protocols"]:
+#             if index_directory.lower().strip() == "google_photos":
+#                 index_directory = googlePhotos.get_temp_resource_directory() # directory where data is being downloaded..
+#                 status = googlePhotos.start_download()
+#                 if status == False:
+#                     error_trace = "Failed to start downloading for {}".format(remote_protocol)
+#                     return 
+#                 while True:
+#                     if indexStatus.is_cancel_request_active(client_id):
+#                         status = googlePhotos.stop_download()
+#                         if status == False:
+#                             error_trace = "Couldnot stopped downloading. POTENTIAL BUG"
+#                         else:
+#                             error_trace = "Downloading stopped on user request"
+#                         return
                            
-                    download_status = googlePhotos.get_downloading_status()
-                    if download_status["finished"] == True:
-                        if not (download_status["message"].strip().lower() == "success"):
-                            error_trace =  download_status["message"]
-                            return  # finished but not fully/successfully.
-                        else:
-                            break
-                    else:
-                        if download_status.get("available"):
-                            progress = download_status["downloaded"] / download_status["available"]
-                        else:
-                            progress = 0
-                        indexStatus.update_status(
-                            endpoint = client_id,
-                            current_directory = "google_photos",
-                            progress = progress,
-                            eta = "unknown",
-                            details = download_status["details"]
-                        )
+#                     download_status = googlePhotos.get_downloading_status()
+#                     if download_status["finished"] == True:
+#                         if not (download_status["message"].strip().lower() == "success"):
+#                             error_trace =  download_status["message"]
+#                             return  # finished but not fully/successfully.
+#                         else:
+#                             break
+#                     else:
+#                         if download_status.get("available"):
+#                             progress = download_status["downloaded"] / download_status["available"]
+#                         else:
+#                             progress = 0
+#                         indexStatus.update_status(
+#                             endpoint = client_id,
+#                             current_directory = "google_photos",
+#                             progress = progress,
+#                             eta = "unknown",
+#                             details = download_status["details"]
+#                         )
                     
-                    time.sleep(1)
-            else:
-                error_trace = "not a supported protocol"
-                return  # nothing left to be done, just return.
+#                     time.sleep(1)
+#             else:
+#                 error_trace = "not a supported protocol"
+#                 return  # nothing left to be done, just return.
 
-        prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
+#         prefix_personId =  "Id{}".format(str(time.time()).split(".")[0]).lower()   # a prefix to be used while assigning ids to unknown persons.( supposed to be unique enough)
         
-        exit_thread = False
-        resource_mapping_generator = collect_resources(index_directory, include_subdirectories)
+#         exit_thread = False
+#         resource_mapping_generator = collect_resources(index_directory, include_subdirectories)
         
-        while True:
-            if exit_thread:
-                print("Finishing index on cancellation request from user")
-                break
+#         while True:
+#             if exit_thread:
+#                 print("Finishing index on cancellation request from user")
+#                 break
             
-            indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
+#             indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
 
-            resource_mapping = next(resource_mapping_generator)
-            if (resource_mapping["finished"] == True):
-                del resource_mapping_generator
-                break
-            else:
-                image_resources = resource_mapping["image"]
-                if len(image_resources) == 0:
-                    continue
-                resource_directory = list(image_resources.keys())[0]
-                contents = image_resources[resource_directory]
+#             resource_mapping = next(resource_mapping_generator)
+#             if (resource_mapping["finished"] == True):
+#                 del resource_mapping_generator
+#                 break
+#             else:
+#                 image_resources = resource_mapping["image"]
+#                 if len(image_resources) == 0:
+#                     continue
+#                 resource_directory = list(image_resources.keys())[0]
+#                 contents = image_resources[resource_directory]
             
-            # process the contents in batches.
-            count = 0
-            eta = "unknown"
-            while True:
-                contents_batch =  contents[count: count + batch_size]  # extract a batch
-                contents_batch = [os.path.join(resource_directory, x) for x in contents_batch]
+#             # process the contents in batches.
+#             count = 0
+#             eta = "unknown"
+#             while True:
+#                 contents_batch =  contents[count: count + batch_size]  # extract a batch
+#                 contents_batch = [os.path.join(resource_directory, x) for x in contents_batch]
 
-                if (len(contents_batch) == 0):    # should mean this directory has been 
-                    break
+#                 if (len(contents_batch) == 0):    # should mean this directory has been 
+#                     break
                 
-                if indexStatus.is_cancel_request_active(client_id):
-                    print("yes cancel request is active...")
-                    exit_thread = True
-                    break
+#                 if indexStatus.is_cancel_request_active(client_id):
+#                     print("yes cancel request is active...")
+#                     exit_thread = True
+#                     break
 
-                # before each batch send the status to client
-                indexStatus.update_status(client_id, current_directory=resource_directory, progress = (count / len(contents) ), eta = eta, details = "{}/{}".format(count, len(contents)))
+#                 # before each batch send the status to client
+#                 indexStatus.update_status(client_id, current_directory=resource_directory, progress = (count / len(contents) ), eta = eta, details = "{}/{}".format(count, len(contents)))
 
-                tic = time.time()         # start timing for this batch.
-                index_image_resources(resources_batch = contents_batch,
-                                      prefix_personId = prefix_personId,
-                                      generate_preview_data = True,
-                                      remote_protocol = remote_protocol)
+#                 tic = time.time()         # start timing for this batch.
+#                 index_image_resources(resources_batch = contents_batch,
+#                                       prefix_personId = prefix_personId,
+#                                       generate_preview_data = True,
+#                                       remote_protocol = remote_protocol)
                                 
-                count += len(contents_batch)
+#                 count += len(contents_batch)
 
-                # calculate eta..
-                dt_dc = (time.time() - tic) / (len(contents_batch) + 1e-5)    # dt/dc
-                eta_in_seconds = dt_dc * (len(contents) - count)                  # eta (rate * remaining images to be indexed.)
-                eta_hrs = eta_in_seconds // 3600
-                eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
-                eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
-                eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
+#                 # calculate eta..
+#                 dt_dc = (time.time() - tic) / (len(contents_batch) + 1e-5)    # dt/dc
+#                 eta_in_seconds = dt_dc * (len(contents) - count)                  # eta (rate * remaining images to be indexed.)
+#                 eta_hrs = eta_in_seconds // 3600
+#                 eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
+#                 eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
+#                 eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
 
-        # Since info is available on finalizing..we now update this info in meta-index!
-        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Finalizing Clusters..")
-        cluster_meta_info = faceIndex.save() # TODO: actually implement save and load on the disk..
-        indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "updating metaIndex...")
-        for resource_hash, cluster_ids in cluster_meta_info.items():
-            metaIndex.modify_meta_data(resource_hash, {"person": list(cluster_ids)}, force = True)
+#         # Since info is available on finalizing..we now update this info in meta-index!
+#         indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Finalizing Clusters..")
+#         cluster_meta_info = faceIndex.save() # TODO: actually implement save and load on the disk..
+#         indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "updating metaIndex...")
+#         for resource_hash, cluster_ids in cluster_meta_info.items():
+#             metaIndex.modify_meta_data(resource_hash, {"person": list(cluster_ids)}, force = True)
         
-    except Exception:
-        error_trace = traceback.format_exc() # uses sys.exception() as the exception
-    finally:
-        metaIndex.save()
-        imageIndex.save()
-        indexStatus.set_done(client_id, error_trace)
-        # imageIndex.sanity_check()
+#     except Exception:
+#         error_trace = traceback.format_exc() # uses sys.exception() as the exception
+#     finally:
+#         metaIndex.save()
+#         imageIndex.save()
+#         indexStatus.set_done(client_id, error_trace)
+#         # imageIndex.sanity_check()
+
+
+from indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
+index_obj:None | IndexingLocal = None
 
 ############
 ## FLASK APP
@@ -443,59 +442,143 @@ def indexing_thread(index_directory:str, client_id:str, complete_rescan:bool = F
 app = Flask(__name__, static_folder = None, static_url_path= None)
 app.secret_key = "Fdfasfdasdfasfasdfas"
 
+class IndexBeginAttribute(TypedDict):
+    location:str    # TODO: better constraint it to Location Enum!
+    identifier:str  # C:, D: or google_photos, google_drive etc!
+    uri:list[str]   # could be empty too!
+    complete_rescan:bool
+
 @app.route("/indexStart", methods = ["POST"])        
-def indexStart(batch_size = 1):
+def indexStart(batch_size = 1) -> ReturnInfo:
+    global index_obj
 
-    index_root_dir = flask.request.form.get("image_directory_path")
-    complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
-    complete_rescan_arg = False
-    if complete_rescan == "true":
-        complete_rescan_arg = True
+    # (try to) type-match the POST data.
+    post_attributes:IndexBeginAttribute = json.loads(
+        flask.request.json
+    )
+    print(post_attributes)
+
+    # Re-create the path. (TODO: handle for remote like googlePhotos)
+    identifier = post_attributes["identifier"]
+    if os.sys.platform == "win32":
+        identifier = "{}\\".format(identifier)
+    root_dir = os.path.join(
+        identifier,
+        *post_attributes["uri"]
+    )
+    print("Root dir: {}".format(root_dir))
+    if not(os.path.exists(root_dir)):
+        return flask.jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
+
+    with global_lock:
+        if index_obj is None:
+            # TODO: leverage the `location` attribute to select appropriate Class!
+            index_obj = IndexingLocal(
+                root_dir = root_dir,
+                config = appConfig,
+                meta_index = metaIndex,
+                face_index = faceIndex,
+                semantic_index = imageIndex,
+                complete_rescan = post_attributes["complete_rescan"]
+            )        
+            
+            # start the indexing, it return after starting a background-thread!
+            return flask.jsonify(index_obj.begin())
+        else:
+            temp_status = index_obj.getStatus() # we call it, in case client was not calling `getStatus` route
+            if temp_status.done == True:
+                # Client may not have read the `done` status. (shouldn't happen though, but we will schedule next one!)
+                index_obj = IndexingLocal(
+                root_dir = root_dir,
+                config = appConfig,
+                meta_index = metaIndex,
+                face_index = faceIndex,
+                semantic_index = imageIndex,
+                complete_rescan = post_attributes["complete_rescan"]
+                )
+                return flask.jsonify(index_obj.begin())           
+            else:
+                return flask.jsonify(ReturnInfo(error = True, details = "Wait for ongoing indexing to finish!"))
+
+    # TODO: better type-constraint the returned data!
+    # TODO: no need for client-id, update the frontend.
+    return flask.jsonify({"success":True, "statusEndpoint":"fdafasdfasdfas", "reason": "Indexing successfully started at entpoint"})
+
+
+    # index_root_dir = flask.request.form.get("image_directory_path")
+    # complete_rescan = flask.request.form.get("complete_rescan").strip().lower()
+    # complete_rescan_arg = False
+    # if complete_rescan == "true":
+    #     complete_rescan_arg = True
     
-    if os.path.exists(index_root_dir) and not os.path.isdir(index_root_dir):
-        index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, if it a valid file path on server.
-    if os.path.exists(index_root_dir) or index_root_dir in appConfig["supported_remote_protocols"]:
+    # if os.path.exists(index_root_dir) and not os.path.isdir(index_root_dir):
+    #     index_root_dir = os.path.dirname(index_root_dir)     # extract the directory name, if it a valid file path on server.
+    # if os.path.exists(index_root_dir) or index_root_dir in appConfig["supported_remote_protocols"]:
         
-        # check if extension is ready!
-        if index_root_dir in appConfig["supported_remote_protocols"]:
-            status, reason = check_extension_status(index_root_dir)
-            if status == False:
-                return flask.jsonify({"success":False, "reason": reason})
+    #     # check if extension is ready!
+    #     if index_root_dir in appConfig["supported_remote_protocols"]:
+    #         status, reason = check_extension_status(index_root_dir)
+    #         if status == False:
+    #             return flask.jsonify({"success":False, "reason": reason})
 
-        client_id = generate_endpoint(index_root_dir)    # NOTE: client_id, would be equivalent to indexing directory, since there is ONE 2 ONE mapping is expected for client and indexing directory at any time.
+    #     client_id = generate_endpoint(index_root_dir)    # NOTE: client_id, would be equivalent to indexing directory, since there is ONE 2 ONE mapping is expected for client and indexing directory at any time.
 
-        indexing_active = indexStatus.is_active(client_id)
-        if indexing_active:
-            return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
+    #     indexing_active = indexStatus.is_active(client_id)
+    #     if indexing_active:
+    #         return flask.jsonify({"success":False, "reason":"Already being indexed, Wait for it to complete or Cancel"})
 
-        indexStatus.add_endpoint_for_indexing(client_id)
-        threading.Thread(target = indexing_thread, args = (index_root_dir, client_id, complete_rescan_arg) ).start()
-        return flask.jsonify({"success":True, "statusEndpoint":client_id, "reason": "Indexing successfully started at entpoint"})
-    else:
-        print("{} Doesn't exist on server side".format(index_root_dir))
-        return flask.jsonify({"success":False, "reason":"Path {} Doesn't exist of Server side".format(index_root_dir)})
+    #     indexStatus.add_endpoint_for_indexing(client_id)
+    #     threading.Thread(target = indexing_thread, args = (index_root_dir, client_id, complete_rescan_arg) ).start()
+    #     return flask.jsonify({"success":True, "statusEndpoint":client_id, "reason": "Indexing successfully started at entpoint"})
+    # else:
+    #     print("{} Doesn't exist on server side".format(index_root_dir))
+        # return flask.jsonify({"success":False, "reason":"Path {} Doesn't exist of Server side".format(index_root_dir)})
 
 @app.route("/indexCancel/<endpoint>", methods = ["GET"])
 def indexCancel(endpoint:str):
     """raise a cancellation request to cancel an ongoing indexing.
     """
+    global index_obj
+    with global_lock:
+        indexing_active = (index_obj is not None)
+        assert indexing_active == True
+        index_obj.cancel()
 
-    result = indexStatus.indicate_cancellation(endpoint)                     # raise cancellation request, should be read by indexing thread.
-    if not result:
-        return {"success":False, "reason":"Endpoint {} Doesn't exist on server side"}
-    else:
-        return {"success":True, "reason":"Endpoint {} cancellation request raised successfully".format(endpoint)}
+    # TODO: type-constraint the Return
+    return {"success":True, "reason":"Endpoint {} cancellation request raised successfully".format(endpoint)}
+
+
+
+    # result = indexStatus.indicate_canc/ellation(endpoint)                     # raise cancellation request, should be read by indexing thread.
+    # if not result:
+    #     return {"success":False, "reason":"Endpoint {} Doesn't exist on server side"}
+    # else:
+    #     return {"success":True, "reason":"Endpoint {} cancellation request raised successfully".format(endpoint)}
 
 @app.route("/getIndexStatus/<endpoint>", methods = ["GET", "POST"])
-def getIndexStatus(endpoint:str):
+def getIndexStatus(endpoint:str) -> IndexingInfo:
+    global index_obj
+    with global_lock:
+        indexing_active = (index_obj is not None)
+        assert indexing_active == True
+        
+        result:IndexingInfo = index_obj.getStatus()
+        if (result.done == True): # client must not request any more status for this indexing!
+            index_obj = None
+    
+    return flask.jsonify(
+        result
+    )
+    
 
-    if flask.request.method == "POST":
-        ack = flask.request.form.get("ack", None)
-        if ack == "true":
-            # it should mean that client acknowledged the DONE status for indexing.
-            indexStatus.remove_endpoint(endpoint)
-        return flask.jsonify({"success":True})
-    return flask.jsonify(indexStatus.get_status(endpoint))
+
+    # if flask.request.method == "POST":
+    #     ack = flask.request.form.get("ack", None)
+    #     if ack == "true":
+    #         # it should mean that client acknowledged the DONE status for indexing.
+    #         indexStatus.remove_endpoint(endpoint)
+    #     return flask.jsonify({"success":True})
+    # return flask.jsonify(indexStatus.get_status(endpoint))
 
 @app.route("/getSuggestion", methods = ["POST"])
 def getSuggestion() -> Dict[str, List[str]]:
