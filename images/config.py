@@ -18,7 +18,7 @@ if not os.path.exists(IMAGE_PERSON_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PERSON_PREVIEW_DATA_PATH)
 
 # TODO: to incorporate changed shard size even some images are indexed... in future.. would need to remember what i did!
-IMAGE_INDEX_SHARD_SIZE = 10_000  # should be around 10_000, for dataset with around 50k or more images !
+IMAGE_INDEX_SHARD_SIZE = 1200  # should be around 10_000, for dataset with around 50k or more images !
 TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
 
 # allowed resources.
@@ -72,11 +72,54 @@ IMAGE_EXIF_ATTRIBUTES =           {
             "gps_longitude"     
         }
 
+from collections import namedtuple
+from typing import NamedTuple
+from enum import Enum
+class Location(Enum):
+    LOCAL = 0
+    REMOTE = 1
+
+class Partition(NamedTuple):
+    location:Location
+    identifier:str   # C:, D: for local drives, for remote like googlePhotos/googleDrive like this!
 
 class Config(object):
     def __init__(self) -> None:
         
         self.app = {}
+        self.app["partitions"] = []
+        # Trying to get partitions/volume-labels, to later send it to client to reduce friction when adding directories for indexing!
+        if os.sys.platform == "win32":
+            labels = []
+            try:
+                # courtesy of SO.
+                import win32api # either import this or get the data from `loaded` kernel32.dll by getting corresponding `symbol` address!
+                drives = win32api.GetLogicalDriveStrings()
+                labels = drives.split('\000')[:-1]
+            except:
+                print("[WARNING]: Failed to import win32api, Not installed!")
+                try:
+                    # for python >= 3.12, which we are using for our app!
+                    labels = os.listdrives() # note it doesn't check for `access` and stuff, just enough for most of use cases!
+                except:
+                    print("[WARNING]: 'os.listdrives' routine is not available!")
+                    labels = []
+            
+            for label in labels:
+                self.app["partitions"].append(
+                    Partition(location = Location.LOCAL.name, identifier = label.strip("\\"))
+                )
+        else:
+            # TODO: For linux, we hope to get one level below `root`, TEST IT!
+            # for x in os.listdir("/"):
+            #     self.app["partitions"].append(
+            #         Partition(location = Location.LOCAL.name, identifier = os.path.join("/", x))
+            #     )
+
+            # only a single `/` (root) for linux !
+            self.app["partitions"] = Partition(location = Location.LOCAL.name, identifier = "/")
+
+        
         self.app["image_preview_data_path"] = IMAGE_PREVIEW_DATA_PATH
         self.app["image_person_preview_data_path"] = IMAGE_PERSON_PREVIEW_DATA_PATH
         self.app["image_index_shard_size"] = IMAGE_INDEX_SHARD_SIZE
@@ -102,9 +145,13 @@ class Config(object):
                     self.app[resource]["exif_attributes"].append(attr)
 
         if os.path.exists(CONFIG_PATH):
-            with open(CONFIG_PATH, "r") as f:
-                user_config = json.load(f)
-            user_config_hash = user_config["config_hash"]
+            try:
+                with open(CONFIG_PATH, "r") as f:
+                    user_config = json.load(f)
+                user_config_hash = user_config["config_hash"]
+            except:
+                user_config_hash = None
+                print("[WARNING]: Failed to parse Configuration, may a corrupted write resulted from interpretor error during modification of this file!")
 
             # a sanity check is recommended in case hash doesnot match. otherwise use user configuration.
             if user_config_hash == self.app["config_hash"]:
@@ -112,6 +159,7 @@ class Config(object):
                 self.app["do_sanity_check"] = False
             else:
                 self.app["do_sanity_check"] = True
+
         
         self.config_path = CONFIG_PATH
         with open(CONFIG_PATH, "w") as f:

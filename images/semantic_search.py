@@ -31,6 +31,7 @@ import flask
 import numpy as np
 
 from config import appConfig
+from config import Location
 
 # config:
 IMAGE_PERSON_PREVIEW_DATA_PATH = appConfig["image_person_preview_data_path"]
@@ -862,6 +863,59 @@ def getfaceBboxIdMapping(resource_hash:str):
 def ping():
     """To check the python app/server liveness!"""
     return "ok"
+
+@app.route("/getPartitions", methods = ["GET"])
+def getPartitions() -> List[Tuple[Location, str]]:
+    """
+    It returns a list of tuple containing `location` and an `identifier` for partitions available to index from:
+    ("LOCAL", "C:"),
+    ("LOCAL", "D:"),
+    ("REMOTE", "googlePhotos) # TODO: in config.py, for now `googlePhotos` is supported only!
+    ...
+    """
+    return flask.jsonify(
+        [(location, identifier) for location,identifier in appConfig["partitions"]]
+    )   
+
+from typing import TypedDict
+class SuggestionPathAttributes(TypedDict):
+    """
+    Post data sent by client to get suggestions based on the data entered by used so far!
+    NOTE: we do away with any `slashes`, For a path like `D://movies/abc` being entered.
+    We will expect:
+    * location as "local"   # this would have been sent earlier to client!
+    * identifier as "D:"    # This would have been sent earlier to client! 
+    * uri as ["movies", "abc"] # either entered by user, or chosen one of the suggestions!
+    This should also help handle case sensitive paths for Linux too!
+    """
+    location:str
+    identifier:str # remove any `backward` slashes, not expected in identifier. For `linux` it is supposed to be `/` always!
+    uri:list[str]
+
+@app.route("/getSuggestionPath", methods = ["POST"])
+def getSuggestionPath() -> List[str]:
+    """
+    To provide suggestions for `local/server`, (generally) during selection of a directory/folder to index!
+    NOTE: client must set the `header` as `application/json`, as it expects json-encoded data! 
+    """
+    post_data:SuggestionPathAttributes = json.loads(
+        flask.request.json
+    )    
+
+    result:List[str] = []
+    if post_data["location"].lower() == "local":
+        identifier = post_data["identifier"]
+        if os.sys.platform == "win32":
+            identifier = "{}\\".format(identifier)
+        recreated_path = os.path.join(
+            identifier,
+            *post_data["uri"][:-1]
+        )
+        print("Recreated path: ", recreated_path)
+        if os.path.exists(recreated_path):
+            result = os.listdir(recreated_path)
+    return flask.jsonify(result)
+
 
 ################
 # Extension specific routes
