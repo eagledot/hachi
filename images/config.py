@@ -83,6 +83,23 @@ class Partition(NamedTuple):
     location:Location
     identifier:str   # C:, D: for local drives, for remote like googlePhotos/googleDrive like this!
 
+
+import string
+from ctypes import windll
+
+def get_drives():
+    """ Courtesy of SO, but simple to understand!
+    we call the loaded kernel32 dll and then go through possible One character volume Names! Not exhaustive, but for now !
+    """
+    drives = []
+    bitmask = windll.kernel32.GetLogicalDrives()
+    for letter in string.ascii_uppercase:
+        if bitmask & 1:
+            drives.append(letter)
+        bitmask >>= 1
+
+    return drives
+
 class Config(object):
     def __init__(self) -> None:
         
@@ -90,20 +107,21 @@ class Config(object):
         self.app["partitions"] = []
         # Trying to get partitions/volume-labels, to later send it to client to reduce friction when adding directories for indexing!
         if os.sys.platform == "win32":
-            labels = []
-            try:
-                # courtesy of SO.
-                import win32api # either import this or get the data from `loaded` kernel32.dll by getting corresponding `symbol` address!
-                drives = win32api.GetLogicalDriveStrings()
-                labels = drives.split('\000')[:-1]
-            except:
-                print("[WARNING]: Failed to import win32api, Not installed!")
-                try:
-                    # for python >= 3.12, which we are using for our app!
-                    labels = os.listdrives() # note it doesn't check for `access` and stuff, just enough for most of use cases!
-                except:
-                    print("[WARNING]: 'os.listdrives' routine is not available!")
-                    labels = []
+            labels = get_drives()
+            # labels = []
+            # try:
+            #     # courtesy of SO.
+            #     import win32api # either import this or get the data from `loaded` kernel32.dll by getting corresponding `symbol` address!
+            #     drives = win32api.GetLogicalDriveStrings()
+            #     labels = drives.split('\000')[:-1]
+            # except:
+            #     print("[WARNING]: Failed to import win32api, Not installed!")
+            #     try:
+            #         # for python >= 3.12, which we are using for our app!
+            #         labels = os.listdrives() # note it doesn't check for `access` and stuff, just enough for most of use cases!
+            #     except:
+            #         print("[WARNING]: 'os.listdrives' routine is not available!")
+            #         labels = []
             
             for label in labels:
                 self.app["partitions"].append(
