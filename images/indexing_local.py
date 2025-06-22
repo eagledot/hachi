@@ -1,15 +1,6 @@
 # It will encapsulate indexing of local resources.
 # note that.. even for remote data, we first download it temporary, so it will be used for everytime we will index image resources.
 
-# I think, can even do a very naive simulation to actually understand the behviour for large datasets.
-# have to be able to put a decent simulation for face-recognition stuff too.
-# How i can done!
-# can store a bunch of backgrounds like streets, like from the flickr-dataset.
-# use that to generate more such images, 
-# how to put people into that..
-# but idea is to generate this data much faster too.
-# 
-
 from typing import List, Union, Optional
 import os
 import threading
@@ -196,18 +187,17 @@ class IndexingStatus(Enum):
     ACTIVE   = 1  # indexing thread is active !
     REQUESTED = 2 # cancellation request has been raised!
 
-from typing import NamedTuple
-class IndexingInfo(NamedTuple):
+from typing import TypedDict
+class IndexingInfo(TypedDict):
     done:bool        # if true, client should stop asking status updates, it would mean previous indexing is done.
     processed:Optional[int]  # how many of items for current event has been processed!
     total:Optional[int]      # how many total items for current event has been estimated! 
     eta:Optional[int]  # estimated time for current event. (like indexing a particular directory.. may be not the whole of index!)
     details:str     # latest details if any!
 
-class ReturnInfo(NamedTuple):
-    error:bool
+class ReturnInfo(TypedDict):
+    error:bool    # If true, then terminating response, use the `details` field to communicate to the user/client !
     details:str
-
 
 class IndexingLocal(object):
     def __init__(self,
@@ -218,7 +208,7 @@ class IndexingLocal(object):
                  face_index:FaceIndex,  # face_index, embeddings and stuff
                  semantic_index:ImageIndex, # semantic information!
 
-                 batch_size:int = 10,
+                 batch_size:int = 20,
                  include_subdirectories:bool = True,
                  generate_preview_data:bool  = True ,
                  complete_rescan:bool = False
@@ -239,26 +229,28 @@ class IndexingLocal(object):
 
         self.lock = threading.RLock()
         self.indexing_status = IndexingStatus.INACTIVE # default
-        self.indexing_info = IndexingInfo
-    
-    def cancel(self):
-        # check if cancelled:
-        # if false, it will mean no cancellation requested yet or thread have not ack
-        # if requested:
-        # it will mean
-        # else make sure inactive is true..
-        # otherwise un-expected logic?
-        # else: a new cancellation.
-        # like calling it more than once..
-        # return true.. if cancelled else false in all cases!
 
-        # we just set it, assuming it would be `atomic` atleast from python point of view.
-        # indexing thread would read it, and eventually set it to be cancelled!
-        # eventually this main class instance will read it !
-        
+        # private, return a deep-copy when asked for status!
+        self.indexing_info = IndexingInfo(
+                done = False,
+                processed=None,
+                total = None,
+                eta = None,
+                details = "No info.."
+                )
+    
+    def cancel(self) -> ReturnInfo:
+        """Cancel an ongoing indexing,
+        If not ongoing, assertion error.
+        """
         with self.lock:  # better to use lock, since not atomic and being read by indexing thread!
-            assert self.indexing_status == IndexingStatus.ACTIVE, "Must have been called only if indexing was active!"
+            assert self.indexing_status == IndexingStatus.ACTIVE, "Must have been called only if indexing was active!, callee must make sure of that."
             self.indexing_status = IndexingStatus.REQUESTED
+        
+        result:ReturnInfo = {}
+        result["details"] = "Cancellation request raised!"
+        result["error"] = False
+        return result
     
     def __index_batch(
         self,
@@ -328,16 +320,12 @@ class IndexingLocal(object):
         try:
             if self.complete_rescan == True:
                 with self.lock:
-                    self.indexing_info = IndexingInfo(
-                        details = "Removing person previews..",
-                        eta = None,
-                        processed = None,
-                        total = None,
-                        done = False
-                        )
-
-                # indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing person previews..")
-                
+                    self.indexing_info["details"] = "Removing  person previews.."
+                    self.indexing_info["done"] = False
+                    self.indexing_info["eta"] = None
+                    self.indexing_info["processed"] = None
+                    self.indexing_info["total"] = None
+                                
                 # delete person previews.
                 preview_data =  os.listdir(self.config["image_person_preview_data_path"])
                 for i, preview_person in enumerate(preview_data):
@@ -348,25 +336,20 @@ class IndexingLocal(object):
                     
                     if (i % 20) == 0:
                         with self.lock:
-                            self.indexing_info = IndexingInfo(
-                                details = "Removing person previews..",
-                                eta = None,
-                                processed = None,
-                                total = None,
-                                done = False
-                            )
-                            # indexStatus.update_status(client_id, current_directory="", progress = (i+1) / len(preview_data), eta = "unknown", details = "Removing person previews..")
+                            self.indexing_info["details"] = "Removing  person previews.."
+                            self.indexing_info["done"] = False
+                            self.indexing_info["eta"] = None
+                            self.indexing_info["processed"] = None
+                            self.indexing_info["total"] = None
 
                 # reset/remove old indices data.
                 # indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
                 with self.lock:
-                    self.indexing_info = IndexingInfo(
-                                details = "Resetting indices....",
-                                eta = None,
-                                processed = None,
-                                total = None,
-                                done = False
-                            )
+                    self.indexing_info["details"] = "Resetting indices.."
+                    self.indexing_info["done"] = False
+                    self.indexing_info["eta"] = None
+                    self.indexing_info["processed"] = None
+                    self.indexing_info["total"] = None
                 
                 # Reset all the indices!
                 self.face_index.reset()
@@ -391,15 +374,11 @@ class IndexingLocal(object):
                     break
                 
                 with self.lock:
-                    # TODO: may be use replace to update required fields only!
-                    self.indexing_info = IndexingInfo(
-                                details = "Scanning: {}".format(current_directory),
-                                eta = None,
-                                processed = None,
-                                total = None,
-                                done = False
-                            )
-                # indexStatus.update_status(client_id, current_directory=index_directory, progress = 0, eta = "unknown", details = "Scanning...")
+                    self.indexing_info["details"] = "Scanning: {}".format(current_directory),
+                    self.indexing_info["done"] = False
+                    self.indexing_info["eta"] = None
+                    self.indexing_info["processed"] = None
+                    self.indexing_info["total"] = None
 
                 resource_mapping = next(resource_mapping_generator)
                 if (resource_mapping["finished"] == True):
@@ -433,16 +412,12 @@ class IndexingLocal(object):
 
                     # before each batch send the status to client
                     with self.lock:
-                        # TODO: may be use replace to update required fields only!
-                        self.indexing_info = IndexingInfo(
-                                details = "Indexing: {}".format(current_directory),
-                                eta = eta,
-                                processed = count,
-                                total = len(contents),
-                                done = False
-                            )
-                    # indexStatus.update_status(client_id, current_directory=resource_directory, progress = (count / len(contents) ), eta = eta, details = "{}/{}".format(count, len(contents)))
-
+                        self.indexing_info["details"] = "Indexing {}".format(current_directory)
+                        self.indexing_info["done"] = False
+                        self.indexing_info["eta"] = eta
+                        self.indexing_info["processed"] = count
+                        self.indexing_info["total"] = len(contents)
+                        
                     tic = time.time()         # start timing for this batch.
                     self.__index_batch(
                         resources_batch = contents_batch,
@@ -463,26 +438,19 @@ class IndexingLocal(object):
             # Since info is available on finalizing..we now update this info in meta-index!
             with self.lock:
                 # TODO: may be use replace to update required fields only!
-                self.indexing_info = IndexingInfo(
-                                details = "Finalizing Clusters..",
-                                eta = None,
-                                processed = None,
-                                total = None,
-                                done = False
-                            )
-            # indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Finalizing Clusters..")
-            
+                self.indexing_info["details"] = "Finalizing Clusters.."
+                self.indexing_info["eta"] = None
+                self.indexing_info["processed"] = None
+                self.indexing_info["total"] = None
+                self.indexing_info["done"] = False
+                    
             cluster_meta_info = self.face_index.save() # TODO: actually implement save and load on the disk..
             with self.lock:
-                # TODO: may be use replace to update required fields only!
-                self.indexing_info = IndexingInfo(
-                                details = "updating Meta Index..",
-                                eta = None,
-                                processed = None,
-                                total = None,
-                                done = False
-                            )
-            # indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "updating metaIndex...")
+                self.indexing_info["details"] = "Updating Meta Index .."
+                self.indexing_info["eta"] = None
+                self.indexing_info["processed"] = None
+                self.indexing_info["total"] = None
+                self.indexing_info["done"] = False
             
             for resource_hash, cluster_ids in cluster_meta_info.items():
                 self.meta_index.modify_meta_data(resource_hash, {"person": list(cluster_ids)}, force = True)
@@ -495,36 +463,40 @@ class IndexingLocal(object):
             self.semantic_index.save()
             # imageIndex.sanity_check()
             with self.lock:
-                # TODO: may be use replace to update required fields only!
-                self.indexing_info = IndexingInfo(
-                                details = error_trace,
-                                eta = None,
-                                processed = None,
-                                total = None,
-                                done = True   
-                            )
+                if error_trace is not None:
+                    self.indexing_info["details"] = error_trace
+                else:
+                    self.indexing_info["details"] = "Indexing Completed Successfully!"
+                self.indexing_info["eta"] = None
+                self.indexing_info["processed"] = None
+                self.indexing_info["total"] = None
+                self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
+
                 self.indexing_status = IndexingStatus.INACTIVE
             print("All done..")
 
     def begin(self) -> ReturnInfo:
-        # begin the index.. generally called during initialization !
-        # threading.Thread(self.indexing_thread, (self)).start()
-        # return 
-        # so what is happening, at this moment, right..
-        # then what?
-        # so jaffa what is this..#
+        """
+        Begin the indexing..
+        """
+        
         with self.lock:
-            assert (self.indexing_status == IndexingStatus.INACTIVE)
+            assert (self.indexing_status == IndexingStatus.INACTIVE), "Must have been inactive, callee must make sure!"
         
             threading.Thread(target = self.indexing_thread).start()            
             self.indexing_status = IndexingStatus.ACTIVE
-            return ReturnInfo(error = False, details = "Indexing started successfully!")
+            
+            result:ReturnInfo = {}
+            result["error"] = False
+            result["details"] =  "Indexing started successfully!"
+            return result
 
     def getStatus(self) -> IndexingInfo:
-        # should be able to return status about on-going indexing.
-        # idea is that this call will be valid. i.e object is not supposed to accessible once indexing ends or cancels
-        # each time a new such object is supposed to be created by callee!
-        # should be cheap, as minimal initialization is being done!
+        """
+        Get status for an indexing, should also account for cases, where indexing is not currently going.
+        In case client loose connection or reload, we should be able to tell more info about on-going indexing!
+        Calling this should always return useful info and not panic!
+        """
         
         result = None
         with self.lock:
