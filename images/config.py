@@ -95,7 +95,7 @@ def get_drives():
     bitmask = windll.kernel32.GetLogicalDrives()
     for letter in string.ascii_uppercase:
         if bitmask & 1:
-            drives.append(letter)
+            drives.append("{}:".format(letter))
         bitmask >>= 1
 
     return drives
