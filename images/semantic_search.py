@@ -587,9 +587,11 @@ def getPartitions() -> List[Tuple[Location, str]]:
     ("REMOTE", "googlePhotos) # TODO: in config.py, for now `googlePhotos` is supported only!
     ...
     """
-    return flask.jsonify(
-        [(location, identifier) for location,identifier in appConfig["partitions"]]
-    )   
+    response_data = [
+        {"location": location, "identifier": identifier}
+        for location, identifier in appConfig["partitions"]
+    ]
+    return flask.jsonify(response_data)
 
 from typing import TypedDict
 class SuggestionPathAttributes(TypedDict):

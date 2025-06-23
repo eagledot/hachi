@@ -18,3 +18,19 @@ export interface IndexStatusResponse {
   current_directory: string; // Matches React component's expectation
   eta: string;
 }
+
+export interface IndexStartRequest {
+  location: string;
+  identifier: string;
+  uri: string[];
+  complete_rescan?: boolean;
+}
+
+export interface Partition {
+  location: string;
+  identifier: string;
+}
+
+export interface GetSuggestionPathRequest extends Partition {
+  uri: string[];
+}
