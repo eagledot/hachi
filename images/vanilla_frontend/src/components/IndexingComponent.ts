@@ -7,6 +7,7 @@ import { folderCache } from "../services/folder-cache";
 import { html } from "../utils";
 import IndexingService from "../services/indexing";
 import type { Partition } from "../types/indexing";
+import SelectFolder from "./SelectFolder";
 
 interface IndexingComponentOptions {
   root: HTMLElement;
@@ -29,6 +30,7 @@ export class IndexingComponent {
   private selectedProtocol: string = "none";
   private error: string | null = null;
   private partitions: Partition[] = [];
+  private folderSelector: SelectFolder | null = null;
 
   constructor(options: IndexingComponentOptions) {
     this.root = options.root;
@@ -136,24 +138,35 @@ export class IndexingComponent {
             </div>`
         : ""}
 
-      <div class="space-y-4">
-        <div>
+      <div class="space-y-4">        <div>
           <label
             for="directory-input"
             class="block text-sm font-medium text-gray-700 mb-2"
           >
             📁 Folder on Your Computer
           </label>
-          <input
-            id="directory-input"
-            type="text"
-            placeholder="e.g., C:\\Users\\YourName\\Pictures"
-            value="${this.indexDirectoryPath}"
-            ${this.isIndexing || this.selectedProtocol !== "none"
-              ? "disabled"
-              : ""}
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
-          />
+          <div class="flex space-x-2">
+            <input
+              id="directory-input"
+              type="text"
+              placeholder="e.g., C:\\Users\\YourName\\Pictures"
+              value="${this.indexDirectoryPath}"
+              ${this.isIndexing || this.selectedProtocol !== "none"
+                ? "disabled"
+                : ""}
+              class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
+            />
+            <button
+              id="browse-btn"
+              type="button"
+              ${this.isIndexing || this.selectedProtocol !== "none"
+                ? "disabled"
+                : ""}
+              class="px-4 py-2.5 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            >
+              Browse...
+            </button>
+          </div>
         </div>
 
         <div>
@@ -260,11 +273,22 @@ export class IndexingComponent {
           >
             <span class="mr-2">${this.isCancelling ? "⏳" : "⏹️"}</span>
             ${this.isCancelling ? "Stopping..." : "Stop Scan"}
-          </button>
-        </div>
+          </button>        </div>
       </div>
     `;
     this.root.appendChild(card);
+
+    // Add folder selector modal container
+    const modalContainer = document.createElement('div');
+    modalContainer.id = 'folder-selector-modal';
+    modalContainer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
+    modalContainer.innerHTML = `
+      <div class="rounded-lg max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden">
+        <div id="folder-selector-content"></div>
+      </div>
+    `;
+    document.body.appendChild(modalContainer);
+
     this.attachEvents();
   }
 
@@ -306,8 +330,7 @@ export class IndexingComponent {
         }
         this.updateActionButtons();
       });
-    }
-    const rescanCheckbox =
+    }    const rescanCheckbox =
       this.root.querySelector<HTMLInputElement>("#complete-rescan");
     if (rescanCheckbox) {
       rescanCheckbox.addEventListener("change", (e) => {
@@ -316,6 +339,13 @@ export class IndexingComponent {
           : "false";
       });
     }
+    
+    // Browse button event handler
+    const browseBtn = this.root.querySelector<HTMLButtonElement>("#browse-btn");
+    if (browseBtn) {
+      browseBtn.addEventListener("click", () => this.openFolderSelector());
+    }
+    
     const scanBtn = this.root.querySelector<HTMLButtonElement>("#scan-btn");
     if (scanBtn) {
       scanBtn.addEventListener("click", () => this.startIndexing());
@@ -411,16 +441,20 @@ export class IndexingComponent {
     }
   }
 
-  private updateInputsState() {
-    const dirInput =
+  private updateInputsState() {    const dirInput =
       this.root.querySelector<HTMLInputElement>("#directory-input");
     const protocolSelect =
       this.root.querySelector<HTMLSelectElement>("#protocol-select");
     const rescanCheckbox =
       this.root.querySelector<HTMLInputElement>("#complete-rescan");
+    const browseBtn = this.root.querySelector<HTMLButtonElement>("#browse-btn");
 
     if (dirInput) {
       dirInput.disabled = this.isIndexing || this.selectedProtocol !== "none";
+    }
+
+    if (browseBtn) {
+      browseBtn.disabled = this.isIndexing || this.selectedProtocol !== "none";
     }
 
     if (protocolSelect) {
@@ -585,14 +619,93 @@ export class IndexingComponent {
       this.updateErrorSection();
       this.updateActionButtons();
       this.updateInputsState();
-    }
+    }  }
+  private openFolderSelector(): void {
+    const modal = document.getElementById('folder-selector-modal');
+    const content = document.getElementById('folder-selector-content');
+    
+    if (!modal || !content) return;
+    
+    // Clear previous content
+    content.innerHTML = '';
+    
+    // Extract drive identifiers from partitions
+    const availableDrives = this.partitions
+      .filter(partition => partition.location === 'LOCAL')
+      .map(partition => partition.identifier);
+    
+    // Create folder selector
+    this.folderSelector = new SelectFolder('folder-selector-content', {
+      title: 'Select Photo Directory',
+      drives: availableDrives.length > 0 ? availableDrives : ['C:', 'D:', 'E:'], // Fallback to default drives
+      onFolderSelect: (path: string) => {
+        this.indexDirectoryPath = path;
+        
+        // Update the input field
+        const dirInput = this.root.querySelector<HTMLInputElement>("#directory-input");
+        if (dirInput) {
+          dirInput.value = path;
+        }
+        
+        this.updateActionButtons();
+        this.closeFolderSelector();
+      },
+      onCancel: () => {
+        this.closeFolderSelector();
+      },
+      showOkButton: true,
+      showCancelButton: true
+    });
+    
+    // Show modal
+    modal.classList.remove('hidden');
+    
+    // Add click outside to close
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        this.closeFolderSelector();
+      }
+    });
+    
+    // Add escape key to close
+    const escapeHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        this.closeFolderSelector();
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
   }
 
+  private closeFolderSelector(): void {
+    const modal = document.getElementById('folder-selector-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+    
+    if (this.folderSelector) {
+      this.folderSelector.destroy();
+      this.folderSelector = null;
+    }
+  }
   public destroy() {
     if (this.pollingTimeout) {
       clearTimeout(this.pollingTimeout);
       this.pollingTimeout = null;
     }
+    
+    // Clean up folder selector
+    if (this.folderSelector) {
+      this.folderSelector.destroy();
+      this.folderSelector = null;
+    }
+    
+    // Remove modal from DOM
+    const modal = document.getElementById('folder-selector-modal');
+    if (modal) {
+      modal.remove();
+    }
+    
     this.root.innerHTML = "";
   }
 }
