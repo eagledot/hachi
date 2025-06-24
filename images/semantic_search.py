@@ -124,10 +124,9 @@ def indexStart(batch_size = 1) -> ReturnInfo:
     global index_obj
 
     # (try to) type-match the POST data.
-    post_attributes:IndexBeginAttribute = json.loads(
-        flask.request.json
-    )
-    print(post_attributes)
+    post_attributes:IndexBeginAttribute = flask.request.json
+
+    print(post_attributes, type(post_attributes))
 
     # Re-create the path. (TODO: handle for remote like googlePhotos)
     identifier = post_attributes["identifier"]

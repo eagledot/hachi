@@ -2,12 +2,13 @@
 // Standalone module to be imported in a vanilla JS/TS SPA or HTML page.
 // It assumes the existence of a root element to mount the UI, and uses fetch for API calls.
 
-import type { IndexStartResponse, IndexStatusResponse } from "../../indexing";
+import type { IndexStartResponse, IndexStatusResponse } from "../types/indexing";
 import { folderCache } from "../services/folder-cache";
 import { html } from "../utils";
 import IndexingService from "../services/indexing";
 import type { Partition } from "../types/indexing";
 import SelectFolder from "./SelectFolder";
+import { endpoints } from "../config";
 
 interface IndexingComponentOptions {
   root: HTMLElement;
@@ -18,35 +19,29 @@ export class IndexingComponent {
   private root: HTMLElement;
   private apiUrl: string;
   private pollingTimeout: number | null = null;
-  private currentStatusEndpoint: string | null = null;
   private isIndexing: boolean = false;
   private isCancelling: boolean = false;
   private indexProgress: number = 0;
-  private directoryBeingIndexed: string = "";
+  // private directoryBeingIndexed: string = "";
   private extraDetails: string = "";
-  private eta: string = "";
+  private eta: number = 0;
   private indexDirectoryPath: string = "";
-  private completeRescan: "true" | "false" = "false";
+  private completeRescan: boolean = false;
   private selectedProtocol: string = "none";
   private error: string | null = null;
   private partitions: Partition[] = [];
   private folderSelector: SelectFolder | null = null;
+  private initialPageLoad: boolean = true;
 
   constructor(options: IndexingComponentOptions) {
     this.root = options.root;
     this.apiUrl = options.apiUrl;
-    this.loadFromLocalStorage();
     this.render();
 
-    // Check if we need to resume indexing
-    if (this.currentStatusEndpoint) {
-      this.isIndexing = true;
-      this.showNotification("Resuming photo scan...", "info");
-      this.updateProgressSection();
-      this.updateActionButtons();
-      this.updateInputsState();
-      this.pollIndexStatus();
-    }
+    
+    this.isIndexing = true;
+    this.pollIndexStatus();
+    
 
     IndexingService.getPartitions()
       .then((partitions) => {
@@ -57,27 +52,6 @@ export class IndexingComponent {
       .catch((error) => {
         console.error("Error fetching partitions:", error);
       });
-  }
-
-  private loadFromLocalStorage() {
-    try {
-      const stored = localStorage.getItem("stored_indexing_endpoint");
-      this.currentStatusEndpoint = stored ? JSON.parse(stored) : null;
-    } catch (e) {
-      console.warn("Failed to load from localStorage:", e);
-      this.currentStatusEndpoint = null;
-    }
-  }
-
-  private saveToLocalStorage() {
-    try {
-      localStorage.setItem(
-        "stored_indexing_endpoint",
-        JSON.stringify(this.currentStatusEndpoint)
-      );
-    } catch (e) {
-      console.warn("Failed to save to localStorage:", e);
-    }
   }
 
   private showNotification(
@@ -138,7 +112,8 @@ export class IndexingComponent {
             </div>`
         : ""}
 
-      <div class="space-y-4">        <div>
+      <div class="space-y-4">
+        <div>
           <label
             for="directory-input"
             class="block text-sm font-medium text-gray-700 mb-2"
@@ -212,11 +187,6 @@ export class IndexingComponent {
                     </div>
                     <div class="space-y-1 text-sm text-gray-600">
                         ${
-                          this.directoryBeingIndexed
-                            ? `<div><span class="font-medium">Scanning:</span> ${this.directoryBeingIndexed}</div>`
-                            : ""
-                        }
-                        ${
                           this.eta
                             ? `<div><span class="font-medium">Time left:</span> ${this.eta}</div>`
                             : ""
@@ -235,7 +205,7 @@ export class IndexingComponent {
           <input
             type="checkbox"
             id="complete-rescan"
-            ${this.completeRescan === "true" ? "checked" : ""}
+            ${this.completeRescan ? "checked" : ""}
             ${this.isIndexing ? "disabled" : ""}
             class="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
           />
@@ -273,15 +243,17 @@ export class IndexingComponent {
           >
             <span class="mr-2">${this.isCancelling ? "⏳" : "⏹️"}</span>
             ${this.isCancelling ? "Stopping..." : "Stop Scan"}
-          </button>        </div>
+          </button>
+        </div>
       </div>
     `;
     this.root.appendChild(card);
 
     // Add folder selector modal container
-    const modalContainer = document.createElement('div');
-    modalContainer.id = 'folder-selector-modal';
-    modalContainer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
+    const modalContainer = document.createElement("div");
+    modalContainer.id = "folder-selector-modal";
+    modalContainer.className =
+      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden";
     modalContainer.innerHTML = `
       <div class="rounded-lg max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden">
         <div id="folder-selector-content"></div>
@@ -330,22 +302,21 @@ export class IndexingComponent {
         }
         this.updateActionButtons();
       });
-    }    const rescanCheckbox =
+    }
+    const rescanCheckbox =
       this.root.querySelector<HTMLInputElement>("#complete-rescan");
     if (rescanCheckbox) {
       rescanCheckbox.addEventListener("change", (e) => {
-        this.completeRescan = (e.target as HTMLInputElement).checked
-          ? "true"
-          : "false";
+        this.completeRescan = (e.target as HTMLInputElement).checked;
       });
     }
-    
+
     // Browse button event handler
     const browseBtn = this.root.querySelector<HTMLButtonElement>("#browse-btn");
     if (browseBtn) {
       browseBtn.addEventListener("click", () => this.openFolderSelector());
     }
-    
+
     const scanBtn = this.root.querySelector<HTMLButtonElement>("#scan-btn");
     if (scanBtn) {
       scanBtn.addEventListener("click", () => this.startIndexing());
@@ -375,11 +346,6 @@ export class IndexingComponent {
                         }%"></div>
                     </div>
                     <div class="space-y-1 text-sm text-gray-600">
-                        ${
-                          this.directoryBeingIndexed
-                            ? `<div><span class="font-medium">Scanning:</span> ${this.directoryBeingIndexed}</div>`
-                            : ""
-                        }
                         ${
                           this.eta
                             ? `<div><span class="font-medium">Time left:</span> ${this.eta}</div>`
@@ -441,7 +407,8 @@ export class IndexingComponent {
     }
   }
 
-  private updateInputsState() {    const dirInput =
+  private updateInputsState() {
+    const dirInput =
       this.root.querySelector<HTMLInputElement>("#directory-input");
     const protocolSelect =
       this.root.querySelector<HTMLSelectElement>("#protocol-select");
@@ -485,11 +452,20 @@ export class IndexingComponent {
   }
 
   private async startIndexing() {
-    if (!this.indexDirectoryPath.trim()) {
+    // Preparing data as per new requirements
+    const parts = IndexingService.processDirectoryPath(this.indexDirectoryPath.trim());
+
+    if (!parts.length) {
       this.error = "Please choose a folder or connect a cloud service.";
       this.updateErrorSection();
       return;
     }
+
+    const identifier = parts[0];
+    const uri = parts.slice(1);
+    const location = this.selectedProtocol === "none" ? "LOCAL" : this.selectedProtocol;
+
+
     this.error = null;
     this.isIndexing = true;
     this.isCancelling = false;
@@ -498,31 +474,29 @@ export class IndexingComponent {
     this.updateProgressSection();
     this.updateActionButtons();
     this.updateInputsState();
-    // Clear the folder cache before starting indexing
-    try {
-      await folderCache.clearCache();
-      console.log("Folder cache cleared successfully");
-    } catch (error) {
-      console.warn("Failed to clear folder cache:", error);
-      // Don't stop indexing if cache clearing fails
-    }
 
     try {
-      const formData = new FormData();
-      formData.append("image_directory_path", this.indexDirectoryPath);
-      formData.append("complete_rescan", this.completeRescan);
-      const resp = await fetch(`${this.apiUrl}/indexStart`, {
+      const requestData = {
+        location: location,
+        identifier: identifier,
+        uri: uri,
+        complete_rescan: this.completeRescan,
+      };
+
+      const resp = await fetch(endpoints.INDEX_START, {
         method: "POST",
-        body: formData,
+        body: JSON.stringify(requestData),
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
-      const data: IndexStartResponse = await resp.json();
-      if (data.success && data.statusEndpoint) {
-        this.currentStatusEndpoint = data.statusEndpoint;
-        this.saveToLocalStorage();
+      const data = (await resp.json()) as IndexStartResponse;
+
+      if (!data.error) {
         this.showNotification("Photo scan started successfully!", "success");
         this.pollIndexStatus();
       } else {
-        this.error = data.reason || "Failed to start scanning photos.";
+        this.error = data.details || "Failed to start scanning photos.";
         this.isIndexing = false;
         this.showNotification(this.error, "error");
         this.updateErrorSection();
@@ -543,46 +517,36 @@ export class IndexingComponent {
   }
 
   private async pollIndexStatus() {
-    if (!this.currentStatusEndpoint) return;
+    if (!this.isIndexing) return;
     try {
       const resp = await fetch(
-        `${this.apiUrl}/getIndexStatus/${this.currentStatusEndpoint}`
+        `${this.apiUrl}/getIndexStatus`
       );
       const data: IndexStatusResponse = await resp.json();
       if (data.done) {
-        // Send ack
-        await fetch(
-          `${this.apiUrl}/getIndexStatus/${this.currentStatusEndpoint}`,
-          {
-            method: "POST",
-            body: (() => {
-              const f = new FormData();
-              f.append("ack", "true");
-              return f;
-            })(),
-          }
-        );
         this.isIndexing = false;
-        this.currentStatusEndpoint = null;
-        this.saveToLocalStorage();
         this.indexProgress = 0;
-        this.directoryBeingIndexed = "";
         this.extraDetails = "";
-        this.eta = "";
-        this.showNotification(`Scan complete! ${data.details}`, "success");
+        this.eta = 0;
+        if (!this.initialPageLoad) {
+          this.showNotification(`Scan complete! ${data.details}`, "success");
+        }
         this.updateProgressSection();
         this.updateActionButtons();
         this.updateInputsState();
         // Optionally, update stats here
         return;
       }
-      this.indexProgress = data.progress;
+      this.indexProgress = (data.processed ?? 0) / (data.total || 1); // Avoid division by zero
       this.eta = data.eta;
-      this.extraDetails = data.details;
-      this.directoryBeingIndexed = data.current_directory;
+      this.extraDetails = data.details || "";
       this.error = null;
       this.updateProgressSection();
       this.updateErrorSection();
+      if (this.initialPageLoad) {
+        this.updateActionButtons();
+        this.updateInputsState();
+      }
       this.pollingTimeout = window.setTimeout(
         () => this.pollIndexStatus(),
         1000
@@ -594,20 +558,22 @@ export class IndexingComponent {
         () => this.pollIndexStatus(),
         5000
       );
+    } finally {
+      if (!this.initialPageLoad) {
+        this.initialPageLoad = false;
+      }
     }
   }
 
   private async cancelIndexing() {
-    if (!this.currentStatusEndpoint) return;
+    if (!this.isIndexing) return;
     this.isCancelling = true;
     this.showNotification("Stopping scan...", "warning");
     this.updateActionButtons();
     try {
-      await fetch(`${this.apiUrl}/indexCancel/${this.currentStatusEndpoint}`);
+      await fetch(`${this.apiUrl}/indexCancel`);
       this.isCancelling = false;
       this.isIndexing = false;
-      this.currentStatusEndpoint = null;
-      this.saveToLocalStorage();
       this.showNotification("Scan stopped successfully", "warning");
       this.updateProgressSection();
       this.updateActionButtons();
@@ -619,34 +585,36 @@ export class IndexingComponent {
       this.updateErrorSection();
       this.updateActionButtons();
       this.updateInputsState();
-    }  }
+    }
+  }
   private openFolderSelector(): void {
-    const modal = document.getElementById('folder-selector-modal');
-    const content = document.getElementById('folder-selector-content');
-    
+    const modal = document.getElementById("folder-selector-modal");
+    const content = document.getElementById("folder-selector-content");
+
     if (!modal || !content) return;
-    
+
     // Clear previous content
-    content.innerHTML = '';
-    
+    content.innerHTML = "";
+
     // Extract drive identifiers from partitions
     const availableDrives = this.partitions
-      .filter(partition => partition.location === 'LOCAL')
-      .map(partition => partition.identifier);
-    
+      .filter((partition) => partition.location === "LOCAL")
+      .map((partition) => partition.identifier);
+
     // Create folder selector
-    this.folderSelector = new SelectFolder('folder-selector-content', {
-      title: 'Select Photo Directory',
-      drives: availableDrives.length > 0 ? availableDrives : ['C:', 'D:', 'E:'], // Fallback to default drives
+    this.folderSelector = new SelectFolder("folder-selector-content", {
+      title: "Select Photo Directory",
+      drives: availableDrives.length > 0 ? availableDrives : ["C:", "D:", "E:"], // Fallback to default drives
       onFolderSelect: (path: string) => {
         this.indexDirectoryPath = path;
-        
+
         // Update the input field
-        const dirInput = this.root.querySelector<HTMLInputElement>("#directory-input");
+        const dirInput =
+          this.root.querySelector<HTMLInputElement>("#directory-input");
         if (dirInput) {
           dirInput.value = path;
         }
-        
+
         this.updateActionButtons();
         this.closeFolderSelector();
       },
@@ -654,35 +622,35 @@ export class IndexingComponent {
         this.closeFolderSelector();
       },
       showOkButton: true,
-      showCancelButton: true
+      showCancelButton: true,
     });
-    
+
     // Show modal
-    modal.classList.remove('hidden');
-    
+    modal.classList.remove("hidden");
+
     // Add click outside to close
-    modal.addEventListener('click', (e) => {
+    modal.addEventListener("click", (e) => {
       if (e.target === modal) {
         this.closeFolderSelector();
       }
     });
-    
+
     // Add escape key to close
     const escapeHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         this.closeFolderSelector();
-        document.removeEventListener('keydown', escapeHandler);
+        document.removeEventListener("keydown", escapeHandler);
       }
     };
-    document.addEventListener('keydown', escapeHandler);
+    document.addEventListener("keydown", escapeHandler);
   }
 
   private closeFolderSelector(): void {
-    const modal = document.getElementById('folder-selector-modal');
+    const modal = document.getElementById("folder-selector-modal");
     if (modal) {
-      modal.classList.add('hidden');
+      modal.classList.add("hidden");
     }
-    
+
     if (this.folderSelector) {
       this.folderSelector.destroy();
       this.folderSelector = null;
@@ -693,19 +661,19 @@ export class IndexingComponent {
       clearTimeout(this.pollingTimeout);
       this.pollingTimeout = null;
     }
-    
+
     // Clean up folder selector
     if (this.folderSelector) {
       this.folderSelector.destroy();
       this.folderSelector = null;
     }
-    
+
     // Remove modal from DOM
-    const modal = document.getElementById('folder-selector-modal');
+    const modal = document.getElementById("folder-selector-modal");
     if (modal) {
       modal.remove();
     }
-    
+
     this.root.innerHTML = "";
   }
 }
