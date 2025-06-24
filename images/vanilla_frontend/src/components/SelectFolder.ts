@@ -53,7 +53,6 @@ class SelectFolder {
     this.render();
     this.loadDrives();
   }
-
   private async fetchFolders(
     request: FolderRequest
   ): Promise<FolderResponse[]> {
@@ -63,7 +62,14 @@ class SelectFolder {
 
     try {
       const suggestionPaths = await IndexingService.getSuggestionPath(request);
-      return suggestionPaths.map((path: string) => ({
+      // Filter out files (items that have file extensions like .txt, .jpg, etc.)
+      const foldersOnly = suggestionPaths.filter((path: string) => {
+        // Check if the path ends with a file extension pattern (dot followed by characters)
+        const fileExtensionRegex = /\.[a-zA-Z0-9]+$/;
+        return !fileExtensionRegex.test(path);
+      });
+      
+      return foldersOnly.map((path: string) => ({
         name: path,
         type: "folder" as const,
       }));
