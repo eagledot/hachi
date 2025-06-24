@@ -614,9 +614,8 @@ def getSuggestionPath() -> List[str]:
     To provide suggestions for `local/server`, (generally) during selection of a directory/folder to index!
     NOTE: client must set the `header` as `application/json`, as it expects json-encoded data! 
     """
-    post_data:SuggestionPathAttributes = json.loads(
-        flask.request.json
-    )    
+    # No need to use json.loads, as flask.request.json already does that for us.
+    post_data:SuggestionPathAttributes = flask.request.json 
 
     result:List[str] = []
     if post_data["location"].lower() == "local":
@@ -625,7 +624,7 @@ def getSuggestionPath() -> List[str]:
             identifier = "{}\\".format(identifier)
         recreated_path = os.path.join(
             identifier,
-            *post_data["uri"][:-1]
+            *post_data["uri"]
         )
         print("Recreated path: ", recreated_path)
         if os.path.exists(recreated_path):
