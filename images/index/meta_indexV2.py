@@ -1,10 +1,14 @@
 # imports
+# Trying to refactor this to better type-contraint various attributes.
+# Should incorporate `remote` data possibility from beginning.
+# Note: we strive to use `previews` locally, even for remote data, so default type will only contain local attributes.
+# a separate type should contain meta-data to 
 
 import os
 import copy
 import hashlib
 from threading import RLock
-from typing import Optional, Union, Iterable, List, Dict, Any
+from typing import Optional, Union, Iterable, List, Dict, Any, Generator
 from queue import Queue
 import pickle
 import random
@@ -28,12 +32,43 @@ import get_image_size
 
 CASE_INSENSITIVE = True  # later make decision in app_config
 
-ALLOWED_RESOURCES = {       
-    "audio": set([".mp3", ".aac"]),                              # TODO:
-    "video": set([".mp4", ".avi", ".mkv"]),                     # opencv should allow to read almost all type of video containers and codecs
-    "image": set([".jpg", ".jpeg", ".png", ".tiff", ".raw"]),   # opencv is being used to read raw-data, so almost all extensions are generally supported.
-    "text":  set([".pdf", ".txt", ".epub"])                     # TODO:
-}
+from typing import TypedDict
+
+# ----------------------------------------------
+# Allowed Resources 
+# ---------------------
+from enum import Enum
+class Audio(Enum):
+    MP3 = 0
+    AAC = 1
+class Video(Enum):
+    MP4 = 0
+    AVI = 1
+    MKV = 2
+class Image(Enum):
+    JPG = 0
+    JPEG = 1
+    PNG = 2
+    TIFF = 3
+    RAW = 4
+class Text(Enum):
+    PDF = 0
+    HTML = 1
+    EPUB = 2
+    TXT = 3
+
+ALLOWED_RESOURCES = [
+    Audio,
+    Video,
+    Image,
+    Text
+]
+# Generate from previous information.
+# keys would be  : ["Image", "Video", "Text", ...] mimicing ALLOWED_RESOURCES items! 
+ALLOWED_RESOURCES_MAPPING = {
+    k.__name__ : [".{}".format(x._name_.lower()) for x in k] for k in ALLOWED_RESOURCES
+    }
+print(ALLOWED_RESOURCES_MAPPING)
 
 def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = appConfig["to_skip_paths"]) ->bool:
     """Supposed to tell if a resource directory is contained in the to_skip directories
@@ -52,61 +87,89 @@ def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLik
             break        
     return result
 
-def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Dict[os.PathLike, str]:
+class ResourceGenerator(TypedDict):
+    directory_processed:os.PathLike  # results of which directory!
+    Audio:List[os.PathLike]
+    Video:List[os.PathLike]
+    Text:List[os.PathLike]
+    Images:List[os.PathLike]
 
-    resources_queue = Queue()
-    resources_queue.put(os.path.abspath(root_path))
+def get_resource_type(resource_extension:str) -> str|None:
+    "Given a resource extension, match it to one of allowed Parent type of resources!"
+    temp_extension = resource_extension.lower()
+    for k,v in ALLOWED_RESOURCES_MAPPING.items():
+        for extension in v:
+            if temp_extension == extension:
+                return k
+    print("[Warning]: {} Could not matched".format(resource_extension))
+    return None
+
+def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Generator[Any, Any, ResourceGenerator]:
+    """
+    It is a generator, to output a `directory's` direct `children` at each iteration.
+    For each `file` (not a directory), we map it to the correspoding `parent type` of `allowed_resources`,
+    So this could be consumed universally depending on the `type` of content we would be indexing, for now `images` only.
+    For each output, corresponding `resource_type` can be queried to get Absolute path to index!
+    """
+
+    resources_queue:List[os.PathLike] = []
+    resources_queue.append(
+        os.path.abspath(root_path)
+        )
     
     while True:
-        result = {}
-        for k in appConfig["allowed_resources"]:
-            result[k] = {}
-        result["finished"] = False
-
-        if resources_queue.qsize() == 0:     #    "This is ok, since we are putting, and getting inside same iteration of function. So checking length is trustworthy."
-            result["finished"] = True
-            break
+        # check if resources have been exhausted! (previous iteration would have not been put data if was exhausted!)
+        if len(resources_queue) == 0:    
+            return
         
-        current_directory = resources_queue.get()
+        current_directory = resources_queue.pop(0)  # at each return only a single-directory files are returned!
         if should_skip_indexing(current_directory):
-            continue
-        
+            continue    
         try: 
-            temp_resources = os.listdir(current_directory)
+            temp_resources = os.listdir(
+                current_directory
+                )
         except:
             print("Error while listing: {}".format(current_directory))
             continue
         
+        result:ResourceGenerator = {}
+        for k in ALLOWED_RESOURCES_MAPPING:
+            result[k] = []
         
         for temp_resource in temp_resources:
             if os.path.isdir(os.path.join(current_directory, temp_resource)):
-                resources_queue.put(os.path.join(current_directory, temp_resource))
+                resources_queue.append(
+                    os.path.join(current_directory, temp_resource)
+                )
             else:
                 resource_extension = os.path.splitext(temp_resource)[1]
                 temp_resource_type = get_resource_type(resource_extension)
                 if temp_resource_type is not None:
-                    if result[temp_resource_type].get(current_directory):
-                        result[temp_resource_type][current_directory].append(temp_resource)
-                    else:
-                        result[temp_resource_type][current_directory] = [temp_resource]
-        
+                    result[temp_resource_type].append(os.path.join(current_directory, temp_resource))
         yield result
                 
         if include_subdirectories == False:
             break
-        
-    yield result
+    
+    return  # no more (fresh) data can be there in result, right?
+# ----------------------------------------------------------------------------
 
-def get_resource_type(resource_extension:str) -> Optional[str]:
-    for k,v in appConfig["allowed_resources"].items():
-        if resource_extension.lower() in v:
-            return k
-    return None
-
+# ---------------------
+# Geo Code index
+# -------------------------
 geoCodeIndex = GeocodeIndex()                                    # initialize our geocoding database/index.
 
-def get_exif_data(resource_path:str, resource_type:str) -> Dict:
-    
+class ImageExifAttributes(TypedDict):
+    taken_at:str
+    gps_latitude:float
+    gps_longitude:float
+    make:str
+    model:str
+    device:str
+
+def get_image_exif_data(resource_path:str, resource_type:str) -> ImageExifAttributes:
+    # TODO:
     result_exif_data = {}
     if resource_type == "image":
         __allowed_image_fields = appConfig[resource_type]["exif_attributes"]
@@ -183,7 +246,40 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]
     
     return data_hash
 
+class ResourceLocation(TypedDict):
+    # enough info to retrive original file/data if required.
+    location: str   # like local or remote !
+    identifier: str # like C: D: or dropbox, googlePhotos.. etc . combination should be enough to dispatch a corresponding routine to retrive original data!
 
+class MainAttributes(TypedDict):
+    is_indexed:bool
+    filename:str          # could even include name from a remote directory!
+    absolute_path:os.PathLike | str   # in case on a remote server or something, then custom path should be allowed!
+    resource_directory:os.PathLike | str | None
+    resource_type:Audio | Video | Text | Image
+
+class MLAttributes(TypedDict):
+    # resulting from Machine learning processing. (best effort basis)
+    personML:list[str]        # generally resulting from a face-recognition!
+    descriptionML:str   # may be a model could predict some description of a photo or result of an OCR  operation!
+    tagsML:list[str]    #
+
+class UserAttributes(TypedDict):
+    # attributes that could be overwritten/modified by user. 
+    # only following attributes could be manipulated directly by a user!
+    is_favourite:bool
+    tags:list[str]
+    place:str 
+    person:list[str]  # in case user tags them, TODO: if ML predicted, make sure mapping/order matches!       
+
+class ImageMetaAttributes(TypedDict):
+    location:ResourceLocation
+    main_attributes:MainAttributes
+    ml_attributes:MLAttributes
+    user_attributes:UserAttributes
+    exif_attributes:ImageExifAttributes
+
+# --------------------------------------------------------------------
 # config
 # making sure relativiness of resources is respected.
 META_DATA_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./meta_indices")
@@ -223,6 +319,10 @@ class MetaIndex(object):
         self.lock = RLock()
 
     def _meta_data_template(self, resource_type:str)-> Dict[str, Any]:
+
+
+
+
         temp = {}
         assert resource_type in appConfig["allowed_resources"]
         for attribute in appConfig[resource_type]["meta_attributes"]:
@@ -232,21 +332,31 @@ class MetaIndex(object):
         temp["resource_type"] = resource_type
         return temp
         
+    def check_index_status(self,
+                           data_hash:str)->bool:
+        # make it easier to query if a particular data-hash already exists. i.e indexed already.
+        # so to avoid calling extraction-image metadata.
+        # and also for remote resources, once downloaded we can generate hash
+        # and query it..
+        # should make syncing easier, since `remote` resources downloading/resuming is always tricky!
+        pass
     
     def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> Dict[str, Dict]:
         """Routine to extract valid metaData for image resource type.
-
+        Once the remote-data has been downloaded, it could be called to extract!
         Returns a resource_hash to meta-data (dict) mapping.
         """
-        result = {}
+        
+        result:ImageMetaAttributes
         for resource_path in resources:
             assert os.path.isfile(resource_path), "{} ".format(resource_path)
+            
             data_hash  = generate_data_hash(resource_path)
             if data_hash is None:
                 # TODO: warning atleast to indicate invalid hash...
                 continue
             
-            # check if data_hash already indexed
+            # check if data_hash already indexed!
             if self.backend_is_initialized == True:
                 if mBackend.check(json.dumps({"resource_hash":data_hash})):
                     # for now it is bit slower.. we will make later the resource hash the primary key..
@@ -258,37 +368,33 @@ class MetaIndex(object):
             except:
                 print("Invalid data possibly for {}".format(resource_path))
                 continue
+            
+            main_attributes:MainAttributes = {}
+            main_attributes["resource_path"] = resource_path
+            main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
+            main_attributes["resource_directory"] = os.path.dirname(resource_path)
+            main_attributes["filename"] = os.path.basename(resource_path)
 
-            # common meta-data attributes.
-            temp = self._meta_data_template(resource_type = "image")
-            temp["absolute_path"] = resource_path
-            temp["resource_directory"] = os.path.dirname(resource_path)
-            temp["resource_extension"] = os.path.splitext(resource_path)[1]
-            temp["is_favourite"] = False
-            temp["filename"] = os.path.basename(resource_path)
-            temp["modified_at"] = time.ctime(os.path.getmtime(resource_path))
-            temp["description"] = ""
-            temp["tags"] = ""
+            user_attributes:UserAttributes = {}
+            user_attributes["is_favourite"] = False
+            user_attributes["description"] = ""
+            user_attributes["tags"] = []
+            
+            ml_attributes:MLAttributes = {}
+            ml_attributes["descriptionML"] = ""
+            ml_attributes["personML"] = []
+            ml_attributes["tagsML"] = []
 
-            assert set(temp.keys()) == set(appConfig["image"]["meta_attributes"]), "Config meta-attributes must match"
+            exif_attributes:ImageExifAttributes = get_image_exif_data(resource_path=resource_path)
 
-            # resource specific meta-data attributes.
-            temp_exif_data = get_exif_data(resource_path=resource_path, resource_type = "image")
-            for k,v in temp_exif_data.items():
-                temp[k] = v
-
-            new_temp = temp
-            if CASE_INSENSITIVE:
-                # by default we do this... atleast it would match.. rather than providing no results due to case mismatching.
-                for k,v in temp.items():  # forgot if allowed to write while reading from a dict/list!
-                    if isinstance(v, str):
-                        new_temp[k.lower()] = v.lower()
-            del temp
-            result[data_hash] = new_temp
+            result:ImageMetaAttributes
+            result["exif_attributes"] = exif_attributes
+            result["main_attributes"] = main_attributes
+            result["ml_attributes"] = ml_attributes
+            result["user_attributes"] = user_attributes
+            del exif_attributes, ml_attributes, user_attributes, main_attributes
+           
         return result
-
-    
-
 
     def suggest(self, attribute:str, query:str):
         """for now we just search substrings in the string, which a column of colString does by default!
