@@ -524,17 +524,20 @@ export class IndexingComponent {
       );
       const data: IndexStatusResponse = await resp.json();
       if (data.done) {
+        if (!this.initialPageLoad) {
+          this.showNotification(`Scan complete! ${data.details}`, "success");
+        } else if (this.isCancelling) {
+          this.showNotification("Scan stopped successfully", "warning");
+        }
         this.isIndexing = false;
+        this.isCancelling = false;
+        this.pollingTimeout = null;
         this.indexProgress = 0;
         this.extraDetails = "";
         this.eta = 0;
-        if (!this.initialPageLoad) {
-          this.showNotification(`Scan complete! ${data.details}`, "success");
-        }
         this.updateProgressSection();
         this.updateActionButtons();
         this.updateInputsState();
-        // Optionally, update stats here
         return;
       }
       this.indexProgress = (data.processed ?? 0) / (data.total || 1); // Avoid division by zero
@@ -572,12 +575,7 @@ export class IndexingComponent {
     this.updateActionButtons();
     try {
       await fetch(`${this.apiUrl}/indexCancel`);
-      this.isCancelling = false;
-      this.isIndexing = false;
-      this.showNotification("Scan stopped successfully", "warning");
-      this.updateProgressSection();
-      this.updateActionButtons();
-      this.updateInputsState();
+      this.pollIndexStatus();
     } catch (e) {
       this.error = "Could not stop the scan. Please contact administrator.";
       this.isCancelling = false;
