@@ -7,6 +7,14 @@ export interface FuzzySearchCallbacks {
   onSearchExecuted: (query: string, filters: SearchFilter) => void;
   onFilterAdded: (attribute: string, value: string) => void;
   onFilterRemoved: (attribute: string, value: string) => void;
+  
+  // IMPORTANT: Implement at least one of these to handle clean slate (empty state)
+  // Without these, images won't be cleared when all filters are removed!
+  onCleanSlate?: () => void; // Preferred: called when returning to empty state
+  onClearImages?: () => void; // Alternative: explicitly clear images
+  
+  // Example implementation:
+  // onCleanSlate: () => setImages([])
 }
 
 export class FuzzySearchUI {
@@ -17,28 +25,26 @@ export class FuzzySearchUI {
   private searchContainer!: HTMLElement;
   private filtersContainer!: HTMLElement;
   private inputContainer!: HTMLElement;
-  private searchInput!: HTMLInputElement;
-  private searchButton!: HTMLButtonElement;
-  private dropdown!: HTMLElement;
-  private tabsContainer!: HTMLElement; // State
+  private searchInput!: HTMLInputElement;  private searchButton!: HTMLButtonElement;
+  private dropdown!: HTMLElement;// State
   private selectedFilters: SearchFilter = { query: [] };
-  private selectedAttribute: string | null = "query"; // Default to 'query'
   private suggestions: SearchSuggestion[] = [];
   private showDropdown = false;
   private selectedIndex = -1;
-
   constructor(container: HTMLElement, callbacks: FuzzySearchCallbacks) {
     this.container = container;
     this.callbacks = callbacks;
     this.fuzzySearchService = new FuzzySearchService();
 
+    // Warn if no clean slate callbacks are provided
+    if (!this.hasCleanSlateCallback()) {
+      console.warn('FuzzySearchUI: No clean slate callbacks provided. Images may not be cleared when all filters are removed.');
+      console.warn('Please implement onCleanSlate or onClearImages in your callbacks.');
+    }
+
     this.initializeFilters();
     this.createUI();
     this.setupEventListeners();
-
-    // Initialize UI state with default selected attribute
-    this.updateTabSelection();
-    this.updateAttributeIndicator();
 
     // Auto-focus the search input when the component is initialized
     setTimeout(() => {
@@ -73,37 +79,11 @@ export class FuzzySearchUI {
                 <!-- Compact Input Container -->
                 <div
                   class="relative border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-200 transition-all duration-200 bg-white flex items-center h-9 shadow-sm hover:shadow-md group"
-                >
-                  <!-- Compact Attribute Button -->
-                  <button
-                    id="attribute-selector-btn"
-                    class="flex items-center px-2 py-1.5 text-xs font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-l-lg transition-all duration-200 border-r border-gray-300 group-focus-within:border-blue-300"
-                  >
-                    <span id="attribute-btn-icon" class="mr-1 text-sm">🔍</span>
-                    <span id="attribute-btn-label" class="font-medium text-xs"
-                      >Query</span
-                    >
-                    <svg
-                      class="w-3 h-3 ml-1 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M19 9l-7 7-7-7"
-                      ></path>
-                    </svg>
-                  </button>
-
-                  <!-- Compact Input Field -->
-                  <input
+                >                  <!-- Simplified Input Field -->                  <input
                     id="fuzzy-search-input"
                     type="text"
                     autocomplete="off"
-                    placeholder="Search photos..."
+                    placeholder="Search by people, folders, or keywords..."
                     class="flex-1 h-full px-3 text-sm bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400"
                   />
                   <!-- Compact Clear Button -->
@@ -156,39 +136,7 @@ export class FuzzySearchUI {
                     d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                   ></path>
                 </svg>
-                <span id="search-btn-text">Search</span>
-              </button>
-            </div>
-
-            <!-- Compact Attribute Tabs -->
-            <div
-              id="tabs-container"
-              class="flex items-center space-x-1 overflow-x-auto scrollbar-hide p-0.5 bg-gray-100 rounded-lg"
-            >
-              ${[
-                "query",
-                ...Object.keys(ATTRIBUTE_PATTERNS).filter(
-                  (attr) => attr !== "query"
-                ),
-              ]
-                .map((attribute) => {
-                  const pattern = ATTRIBUTE_PATTERNS[attribute];
-                  return html`<button
-                    class="attribute-tab flex items-center px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap ${attribute ===
-                    "query"
-                      ? "bg-white text-blue-700 border border-blue-200 shadow-sm"
-                      : "text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm"}"
-                    data-attribute="${attribute}"
-                  >
-                    <span class="mr-1 text-sm">${pattern.icon}</span>
-                    <span class="font-medium"
-                      >${pattern.displayName ||
-                      attribute.charAt(0).toUpperCase() +
-                        attribute.slice(1).replace("_", " ")}</span
-                    >
-                  </button> `;
-                })
-                .join("")}
+                <span id="search-btn-text">Search</span>              </button>
             </div>
           </div>
 
@@ -209,13 +157,8 @@ export class FuzzySearchUI {
     ) as HTMLInputElement;
     this.searchButton = this.container.querySelector(
       "#fuzzy-search-btn"
-    ) as HTMLButtonElement;
-    this.dropdown = this.container.querySelector(
+    ) as HTMLButtonElement;    this.dropdown = this.container.querySelector(
       "#fuzzy-dropdown"
-    ) as HTMLElement;
-    
-    this.tabsContainer = this.container.querySelector(
-      "#tabs-container"
     ) as HTMLElement;
   }
 
@@ -236,40 +179,19 @@ export class FuzzySearchUI {
     this.searchButton.addEventListener(
       "click",
       this.handleSearchClick.bind(this)
-    ); // Clear input button
+    );    // Clear input button
     const clearBtn = this.container.querySelector(
       "#clear-input-btn"
     ) as HTMLButtonElement;
     clearBtn.addEventListener("click", this.clearInput.bind(this));
-
-    // Attribute button (inside input container)
-    const attributeBtn = this.container.querySelector(
-      "#attribute-selector-btn"
-    ) as HTMLButtonElement;
-    if (attributeBtn) {
-      attributeBtn.addEventListener("click", () => {
-        // Show/hide help panel or cycle through attributes
-      });
-    } // Attribute tab buttons
-    const attributeTabBtns = this.container.querySelectorAll(
-      ".attribute-tab"
-    ) as NodeListOf<HTMLButtonElement>;
-    attributeTabBtns.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const attribute = btn.getAttribute("data-attribute");
-        if (attribute) {
-          this.handleAttributeChange(attribute);
-        }
-      });
-    });
 
     // Close dropdown when clicking outside
     document.addEventListener("click", (e) => {
       if (!this.inputContainer.contains(e.target as Node)) {
         this.hideDropdown();
       }
-    });
-  }
+    });  }
+  
   private async handleInputChange(e: Event): Promise<void> {
     const target = e.target as HTMLInputElement;
     const value = target.value;
@@ -278,74 +200,22 @@ export class FuzzySearchUI {
     this.selectedIndex = -1; // Reset keyboard navigation
     this.updateClearButton();
 
-    if (this.selectedAttribute === "query") {
-      this.suggestions = [];
-      this.hideDropdown();
-      return;
-    }
-
     if (value.trim()) {
-      // Generate suggestions for the currently selected attribute (not 'query')
-      await this.generateSuggestions(this.selectedAttribute!, value);
-      this.showDropdown = true;
-      this.renderDropdown();
+      // Generate suggestions for all attributes simultaneously
+      this.suggestions = await this.fuzzySearchService.generateAllAttributeSuggestions(value);
+      if (this.suggestions.length > 0) {
+        this.showDropdown = true;
+        this.renderDropdown();
+      } else {
+        this.hideDropdown();
+      }
     } else {
       // Clear suggestions if input is empty
       this.suggestions = [];
       this.hideDropdown();
     }
   }
-
-  private async generateSuggestions(
-    attribute: string,
-    value: string
-  ): Promise<void> {
-    this.suggestions = await this.fuzzySearchService.generateSuggestions(
-      attribute,
-      value
-    );
-    console.log("Generated suggestions:", this.suggestions);
-  }
   private handleKeyDown(e: KeyboardEvent): void {
-    const availableAttributes = [
-      "query",
-      ...Object.keys(ATTRIBUTE_PATTERNS).filter((attr) => attr !== "query"),
-    ];
-    const currentAttributeIndex = availableAttributes.indexOf(
-      this.selectedAttribute!
-    );
-
-    // Handle left/right arrows for attribute navigation when input is empty and no dropdown is shown
-    if (
-      (e.key === "ArrowLeft" || e.key === "ArrowRight") &&
-      !this.showDropdown &&
-      this.searchInput.value.trim() === ""
-    ) {
-      e.preventDefault();
-      console.log("Arrow key pressed for attribute navigation:", e.key);
-
-      if (e.key === "ArrowLeft") {
-        const prevIndex =
-          (currentAttributeIndex - 1 + availableAttributes.length) %
-          availableAttributes.length;
-        console.log(
-          "Changing to previous attribute:",
-          availableAttributes[prevIndex]
-        );
-        this.handleAttributeChange(availableAttributes[prevIndex]);
-      } else if (e.key === "ArrowRight") {
-        const nextIndex =
-          (currentAttributeIndex + 1) % availableAttributes.length;
-        console.log(
-          "Changing to next attribute:",
-          availableAttributes[nextIndex]
-        );
-        this.handleAttributeChange(availableAttributes[nextIndex]);
-      }
-
-      return;
-    }
-
     if (this.showDropdown && this.suggestions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -377,7 +247,7 @@ export class FuzzySearchUI {
             // Shift + Enter: Execute search immediately
             this.handleSearchClick();
           } else {
-            // Enter: Add current input as filter
+            // Enter: Add current input as a search query
             this.handleAddFilter();
           }
         }
@@ -394,28 +264,29 @@ export class FuzzySearchUI {
           // Shift + Enter: Execute search immediately
           this.handleSearchClick();
         } else {
-          // Enter: Add current input as filter
+          // Enter: Add current input as a search query
           this.handleAddFilter();
         }
       }
-    }
-  }
+    }  }
+  
   private handleInputFocus(): void {
     this.selectedIndex = -1; // Reset keyboard navigation
 
-    if (this.selectedAttribute === "query") {
-      this.hideDropdown();
-      return;
-    }
-
     if (this.searchInput.value.trim()) {
-      // Generate suggestions for the currently selected attribute (not 'query')
-      // Note: generateSuggestions is async, but not awaited here, matching existing pattern.
-      this.generateSuggestions(this.selectedAttribute!, this.searchInput.value);
-      this.showDropdown = true;
-      this.renderDropdown();
+      // Generate suggestions for all attributes
+      this.fuzzySearchService.generateAllAttributeSuggestions(this.searchInput.value).then(suggestions => {
+        this.suggestions = suggestions;
+        if (this.suggestions.length > 0) {
+          this.showDropdown = true;
+          this.renderDropdown();
+        } else {
+          this.hideDropdown();
+        }
+      });
     }
   }
+  
   private handleInputBlur(): void {
     setTimeout(() => {
       this.suggestions = [];
@@ -423,44 +294,14 @@ export class FuzzySearchUI {
       this.hideDropdown();
     }, 200); // Timeout to allow suggestion clicks
   }
-  private async handleAttributeChange(attribute: string): Promise<void> {
-    this.selectedAttribute = attribute;
-    this.selectedIndex = -1; // Reset keyboard navigation
-
-    // Update tab visual state
-    this.updateTabSelection();
-
-    // Clear suggestions when attribute changes
-    this.suggestions = [];
-
-    if (attribute === "query") {
-      this.hideDropdown();
-    } else {
-      // If there's already input value, generate suggestions (for non-'query' attributes)
-      if (this.searchInput.value.trim()) {
-        await this.generateSuggestions(
-          attribute,
-          this.searchInput.value.trim()
-        );
-        this.showDropdown = true;
-        this.renderDropdown();
-      } else {
-        this.hideDropdown();
-      }
-    }
-
-    this.updateAttributeIndicator();
-    this.searchInput.focus();
-  }
+  
   private async handleAddFilter(): Promise<void> {
-    if (this.searchInput.value.trim() && this.selectedAttribute) {
+    if (this.searchInput.value.trim()) {
       const trimmedValue = this.searchInput.value.trim();
 
-      // Check if the value isn't already in the filters
-      if (
-        !this.selectedFilters[this.selectedAttribute]?.includes(trimmedValue)
-      ) {
-        this.addFilter(this.selectedAttribute, trimmedValue);
+      // Add as a query filter by default
+      if (!this.selectedFilters["query"]?.includes(trimmedValue)) {
+        this.addFilter("query", trimmedValue);
       }
 
       // Clear input and hide dropdown
@@ -488,10 +329,9 @@ export class FuzzySearchUI {
     // Execute search immediately
     this.executeSearch();
   }
-
   private async handleSearchClick(): Promise<void> {
     // Add current input to filters if not empty
-    if (this.searchInput.value.trim() && this.selectedAttribute) {
+    if (this.searchInput.value.trim()) {
       await this.handleAddFilter();
     }
 
@@ -514,15 +354,35 @@ export class FuzzySearchUI {
       this.renderFilters();
       this.callbacks.onFilterAdded(attribute, value);
     }
-  }
-
-  private removeFilter(attribute: string, value: string): void {
+  }  private removeFilter(attribute: string, value: string): void {
     if (this.selectedFilters[attribute]) {
       this.selectedFilters[attribute] = this.selectedFilters[attribute].filter(
         (v) => v !== value
       );
       this.renderFilters();
       this.callbacks.onFilterRemoved(attribute, value);
+      
+      // Check if we have any filters left
+      const hasAnyFilters = Object.keys(this.selectedFilters).some(
+        key => this.selectedFilters[key] && this.selectedFilters[key].length > 0
+      );
+      
+      // Also check if there's any search input
+      const hasSearchInput = this.searchInput.value.trim().length > 0;
+      
+      console.log(`Filter removed: ${attribute}=${value}`);
+      console.log(`hasAnyFilters: ${hasAnyFilters}, hasSearchInput: ${hasSearchInput}`);
+      console.log('Current filters:', this.selectedFilters);
+      
+      if (hasAnyFilters || hasSearchInput) {
+        // Trigger a fresh search with remaining filters/input
+        console.log("Triggering fresh search with remaining filters/input");
+        this.executeSearch();
+      } else {
+        // Return to clean slate - trigger search with empty filters to reset the view
+        console.log("No filters or input remaining, returning to clean slate");
+        this.executeSearchForCleanSlate();
+      }
     }
   }
   private clearInput(): void {
@@ -539,7 +399,25 @@ export class FuzzySearchUI {
     );
     console.log("Executing search with query:", queryString);
     this.callbacks.onSearchExecuted(queryString, this.selectedFilters);
+  }  private executeSearchForCleanSlate(): void {
+    // For clean slate, set images to empty without making any search request
+    console.log("Clean slate detected - clearing images without search");
+    
+    if (this.callbacks.onCleanSlate) {
+      // Use dedicated clean slate callback if provided
+      console.log("Using onCleanSlate callback");
+      this.callbacks.onCleanSlate();
+    } else if (this.callbacks.onClearImages) {
+      // Alternative callback for clearing images
+      console.log("Using onClearImages callback");
+      this.callbacks.onClearImages();
+    } else {
+      // No search should be made - just log a warning
+      console.warn("No clean slate callback provided. Images may not be cleared. Please implement onCleanSlate or onClearImages callback.");
+      console.warn("To fix this, add onCleanSlate: () => setImages([]) to your callbacks");
+    }
   }
+  
   private renderFilters(): void {
     const filtersHtml = Object.keys(this.selectedFilters)
       .filter((attribute) => this.selectedFilters[attribute].length > 0)
@@ -579,8 +457,7 @@ export class FuzzySearchUI {
         this.removeFilter(attribute, value);
       });
     });
-  }
-  private renderDropdown(): void {
+  }  private renderDropdown(): void {
     if (!this.showDropdown) {
       this.hideDropdown();
       return;
@@ -588,44 +465,68 @@ export class FuzzySearchUI {
 
     const dropdownContent = this.dropdown.querySelector(
       "#dropdown-content"
-    ) as HTMLElement;    // Only show suggestions now (no attribute selection)
+    ) as HTMLElement;    // Group suggestions by attribute for better organization
     if (this.suggestions.length > 0) {
-      const suggestionsHtml = this.suggestions
-        .map((suggestion, index) => {
-          const icon = this.fuzzySearchService.getAttributeIcon(
-            suggestion.attribute
-          );
-          const color = this.fuzzySearchService.getAttributeColor(
-            suggestion.attribute
-          );
-          return `
-          <div class="suggestion-option flex items-center px-3 py-2.5 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
-            this.selectedIndex === index
-              ? "bg-blue-50 border-l-2 border-l-blue-500"
-              : ""
-          }" data-index="${index}">
-            <div class="flex items-center justify-center w-7 h-7 rounded-lg mr-3 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
-              <span class="text-sm">${icon}</span>
+      // Group suggestions by attribute
+      const suggestionsByAttribute = this.suggestions.reduce((acc, suggestion) => {
+        if (!acc[suggestion.attribute]) {
+          acc[suggestion.attribute] = [];
+        }
+        acc[suggestion.attribute].push(suggestion);
+        return acc;
+      }, {} as Record<string, typeof this.suggestions>);
+
+      let suggestionsHtml = '';
+      let currentIndex = 0;
+
+      // Render suggestions grouped by attribute
+      Object.keys(suggestionsByAttribute).forEach((attribute) => {
+        const attributeSuggestions = suggestionsByAttribute[attribute];
+        const icon = this.fuzzySearchService.getAttributeIcon(attribute);
+        const displayName = this.fuzzySearchService.getAttributeDisplayName(attribute);
+        
+        // Add attribute header if we have multiple attributes
+        if (Object.keys(suggestionsByAttribute).length > 1) {
+          suggestionsHtml += `
+            <div class="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-100 flex items-center">
+              <span class="mr-2">${icon}</span>
+              ${displayName}
             </div>
-            <div class="flex-grow">
-              <div class="font-medium text-gray-900 group-hover:text-blue-700 transition-colors duration-200 text-sm">${
-                suggestion.text
-              }</div>
-              <div class="text-xs text-gray-500 flex items-center mt-0.5">
-                <span class="capitalize">
-                  Add to ${suggestion.attribute.replace("_", " ")} search
-                </span>
+          `;
+        }
+
+        // Add suggestions for this attribute
+        attributeSuggestions.forEach((suggestion) => {
+          const color = this.fuzzySearchService.getAttributeColor(suggestion.attribute);
+          suggestionsHtml += `
+            <div class="suggestion-option flex items-center px-3 py-2.5 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
+              this.selectedIndex === currentIndex
+                ? "bg-blue-50 border-l-2 border-l-blue-500"
+                : ""
+            }" data-index="${currentIndex}">
+              <div class="flex items-center justify-center w-7 h-7 rounded-lg mr-3 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
+                <span class="text-sm">${icon}</span>
+              </div>
+              <div class="flex-grow">
+                <div class="font-medium text-gray-900 group-hover:text-blue-700 transition-colors duration-200 text-sm">${
+                  suggestion.text
+                }</div>
+                <div class="text-xs text-gray-500 flex items-center mt-0.5">
+                  <span class="capitalize">
+                    Add to ${suggestion.attribute.replace("_", " ")} search
+                  </span>
+                </div>
+              </div>
+              <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
               </div>
             </div>
-            <div class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-              </svg>
-            </div>
-          </div>
-        `;
-        })
-        .join("");
+          `;
+          currentIndex++;
+        });
+      });
 
       dropdownContent.innerHTML = suggestionsHtml;
 
@@ -648,14 +549,15 @@ export class FuzzySearchUI {
         option.addEventListener("mouseenter", () => {
           this.selectedIndex = index;
           this.updateDropdownSelection();
-        });
-      });    } else {
-      dropdownContent.innerHTML =
-        '<div class="p-3 text-gray-500 text-center text-sm">No suggestions available</div>';
+        });      });
+    } else {
+      // Hide dropdown when no suggestions are available
+      this.hideDropdown();
+      return;
     }
 
     this.dropdown.classList.remove("hidden");
-  }  private updateDropdownSelection(): void {
+  }private updateDropdownSelection(): void {
     const options = this.dropdown.querySelectorAll(
       ".suggestion-option"
     ) as NodeListOf<HTMLElement>;
@@ -679,70 +581,21 @@ export class FuzzySearchUI {
   private hideDropdown(): void {
     this.showDropdown = false;
     this.dropdown.classList.add("hidden");
-  }
-  private updateAttributeIndicator(): void {
-    // Update the attribute button inside the input container
-    const attributeBtnIcon = this.container.querySelector(
-      "#attribute-btn-icon"
-    ) as HTMLElement;
-    const attributeBtnLabel = this.container.querySelector(
-      "#attribute-btn-label"
-    ) as HTMLElement;
-
-    if (this.selectedAttribute && attributeBtnIcon && attributeBtnLabel) {
-      const icon = this.fuzzySearchService.getAttributeIcon(
-        this.selectedAttribute
-      );
-      attributeBtnIcon.textContent = icon;
-      attributeBtnLabel.textContent =
-        this.fuzzySearchService.getAttributeDisplayName(this.selectedAttribute);
-    }
-  }
-  private updateClearButton(): void {
+  }  private updateAttributeIndicator(): void {
+    // This method is no longer needed since we removed attribute selection
+    // Keeping it empty for backwards compatibility
+  }  private updateClearButton(): void {
     const clearBtn = this.container.querySelector(
       "#clear-input-btn"
     ) as HTMLElement;
-    if (this.searchInput.value || this.selectedAttribute) {
+    if (this.searchInput.value) {
       clearBtn.classList.remove("hidden");
       clearBtn.classList.add("flex");
     } else {
       clearBtn.classList.add("hidden");
       clearBtn.classList.remove("flex");
     }
-  }
-  
-
-    private updateTabSelection(): void {
-    const tabs = this.container.querySelectorAll(
-      ".attribute-tab"
-    ) as NodeListOf<HTMLButtonElement>;
-    tabs.forEach((tab) => {
-      const attribute = tab.getAttribute("data-attribute");
-
-      // Aggressively remove focus from all tabs to prevent outline trails
-      tab.blur();
-
-      if (attribute === this.selectedAttribute) {
-        tab.className =
-          "attribute-tab flex items-center px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap bg-white text-blue-700 border border-blue-200 shadow-sm focus:outline-none focus:ring-0 focus:border-transparent";
-        tab.setAttribute("tabindex", "-1");
-        tab.setAttribute(
-          "style",
-          "outline: none !important; box-shadow: none !important;"
-        );
-      } else {
-        tab.className =
-          "attribute-tab flex items-center px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap text-gray-600 hover:text-blue-600 hover:bg-white hover:shadow-sm focus:outline-none focus:ring-0 focus:border-transparent";
-        tab.setAttribute("tabindex", "-1");
-        tab.setAttribute(
-          "style",
-          "outline: none !important; box-shadow: none !important;"
-        );
-      }
-    });
-  }
-
-  public cleanup(): void {
+  }  public cleanup(): void {
     this.fuzzySearchService.cleanup();
   }
 
@@ -752,13 +605,102 @@ export class FuzzySearchUI {
 
   public getCurrentFilters(): SearchFilter {
     return { ...this.selectedFilters };
-  }
-  public clearAllFilters(): void {
+  }  public clearAllFilters(): void {
     this.selectedFilters = {};
     this.fuzzySearchService.getAvailableAttributes().forEach((attr) => {
       this.selectedFilters[attr] = [];
     });
     this.renderFilters();
+    
+    // Return to clean slate
+    this.executeSearchForCleanSlate();
+  }
+
+  /**
+   * Check if clean slate callbacks are properly configured
+   */
+  public hasCleanSlateCallback(): boolean {
+    return !!(this.callbacks.onCleanSlate || this.callbacks.onClearImages);
+  }
+  /**
+   * Get debug information about current state
+   */
+  public getDebugInfo(): object {
+    return {
+      isCleanSlate: this.isCleanSlate(),
+      hasCleanSlateCallback: this.hasCleanSlateCallback(),
+      hasFilters: Object.keys(this.selectedFilters).some(
+        key => this.selectedFilters[key] && this.selectedFilters[key].length > 0
+      ),
+      hasSearchInput: this.searchInput?.value?.trim().length > 0,
+      searchInputValue: this.searchInput?.value || '',
+      filters: { ...this.selectedFilters },
+      suggestionsCount: this.suggestions.length,
+      dropdownVisible: this.showDropdown,
+      callbacksAvailable: {
+        onCleanSlate: !!this.callbacks.onCleanSlate,
+        onClearImages: !!this.callbacks.onClearImages,
+        onSearchExecuted: !!this.callbacks.onSearchExecuted
+      }
+    };
+  }
+
+  /**
+   * Force clear everything and return to clean slate
+   */
+  public forceCleanSlate(): void {
+    console.log("Force clearing to clean slate");
+    
+    // Clear input
+    this.searchInput.value = "";
+    this.updateClearButton();
+    
+    // Clear suggestions and dropdown
+    this.suggestions = [];
+    this.hideDropdown();
+    
+    // Clear all filters
+    this.selectedFilters = {};
+    this.fuzzySearchService.getAvailableAttributes().forEach((attr) => {
+      this.selectedFilters[attr] = [];
+    });
+    this.renderFilters();
+    
+    // Execute clean slate
+    this.executeSearchForCleanSlate();
+  }
+
+  /**
+   * Initialize the component in clean slate mode (empty state)
+   * Call this after construction if you want to ensure clean slate state
+   */
+  public initializeCleanSlate(): void {
+    // Clear any existing state
+    this.clearAllFilters();
+    this.clearInput();
+    
+    // Trigger clean slate if we're truly empty
+    if (this.isCleanSlate() && !this.searchInput.value.trim()) {
+      this.executeSearchForCleanSlate();
+    }
+  }
+
+  /**
+   * Public method to trigger clean slate manually
+   */
+  public triggerCleanSlate(): void {
+    this.executeSearchForCleanSlate();
+  }
+  /**
+   * Check if the search is in clean slate state (no filters applied and no search input)
+   */
+  public isCleanSlate(): boolean {
+    const hasFilters = Object.keys(this.selectedFilters).some(
+      key => this.selectedFilters[key] && this.selectedFilters[key].length > 0
+    );
+    const hasSearchInput = this.searchInput?.value?.trim().length > 0;
+    
+    return !hasFilters && !hasSearchInput;
   }
 
   /**

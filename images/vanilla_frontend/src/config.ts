@@ -1,7 +1,7 @@
 // Configuration utilities for the vanilla frontend
 class Config {
     static get apiUrl(): string {
-        return (window as any).config?.apiUrl || 'http://localhost:8200';
+        return (window as any).config?.apiUrl || 'http://localhost:5000/api';
     }
     static get endpoints(): {[key: string] : string} {
         return {
