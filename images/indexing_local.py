@@ -104,83 +104,6 @@ def generate_image_preview(
     quality = 90
     cv2.imwrite(os.path.join(output_folder,"{}.webp".format(data_hash)), raw_data_resized,[int(cv2.IMWRITE_WEBP_QUALITY),quality])
 
-def index_image_resources(
-     
-    meta_index:MetaIndex,
-    face_index:FaceIndex,
-    semantic_index:ImageIndex,
-    resources_batch:List[os.PathLike],     
-    ):
-    # index a batch of an images!
-    # for each hash, we would be checking for is_indexed flag,
-    # right, can we not use 
-
-    # for each image:
-    # based on the path, not hash, try to get it from the meta-index.
-    # if ok, then.. then make sure hash also matches.
-    # if not.. then have been updated..
-    # we `reindex` it , do it on the spot.. since very few such would be possible
-    # 
-    # check for the hash in the meta-index.
-    # if not ..
-    # then generate meta-data
-    # for now how to detect if a file hash been updated.
-    # it is only if for each path .. i make sure not an hash exists.
-
-    # if not indexed.
-    # make sure no path ->
-
-    hash_2_metaData = meta_index.extract_image_metaData(resources_batch)       # extra meta data
-    for data_hash, meta_data in hash_2_metaData.items():
-        assert data_hash is not None
-        absolute_path = meta_data["absolute_path"]
-        is_indexed = meta_data["is_indexed"]
-        if is_indexed:
-            continue
-        
-        # read raw-data only once.. and share it for image-clip,face and previews
-        frame = cv2.imread(absolute_path)
-        if frame is None:
-            print("[WARNING]: Invalid data for {}".format(absolute_path))
-            continue
-        is_bgr = True
-
-        # generate image embeddings
-        image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
-        if image_embedding is None:
-            print("Invalid data for {}".format(absolute_path))
-            continue
-        
-        meta_data["person"] = ["no_person_detected"] # it is supposed to be updated, after clusters finalizing.
-        # sync/update both the indices.
-        meta_data["is_indexed"] = True
-
-        # TODO: on downloading of remote data, append to the meta-index.
-        # downloading should be equivalent to presence of new images, hence check the hash.
-        # if not indexed, append it..
-        # # merge remote meta-data too if allowed remoted protocol.
-        # if remote_protocol == "google_photos":
-        #     remote_meta_data = googlePhotos.get_remote_meta(data_hash)
-        #     meta_data["remote"] = remote_meta_data  
-        #     meta_data["resource_directory"] = "google_photos"
-        #     meta_data["absolute_path"] = "remote"
-        
-        # TODO: either all should complete or no one! must be in sync!
-        meta_index.update(data_hash, meta_data) # TODO: append instead of update for clearer semantics!
-        semantic_index.update(data_hash, data_embedding = image_embedding)
-        face_index.update(
-            frame = frame,
-            absolute_path = absolute_path,
-            resource_hash = data_hash,
-            is_bgr = True)
-        
-        generate_image_preview(data_hash, 
-                               image = frame, 
-                               face_bboxes = None, 
-                               person_ids=[],
-                               output_folder = appConfig["image_preview_data_path"])                
-
-
 from enum import Enum
 class IndexingStatus(Enum):
     INACTIVE = 0  # no indexing thread active!
@@ -380,23 +303,33 @@ class IndexingLocal(object):
                     self.indexing_info["processed"] = None
                     self.indexing_info["total"] = None
 
-                resource_mapping = next(resource_mapping_generator)
-                if (resource_mapping["finished"] == True):
+                try:
+                    resource_mapping = next(resource_mapping_generator)
+                    contents = resource_mapping["image"]
+                    if len(contents) == 0:
+                        continue
+                    current_directory = resource_mapping["directory_processed"]
+                except StopIteration:
                     del resource_mapping_generator
                     break
-                else:
-                    image_resources = resource_mapping["image"]
-                    if len(image_resources) == 0:
-                        continue
-                    current_directory = list(image_resources.keys())[0]
-                    contents = image_resources[current_directory]
+
+                # resource_mapping = next(resource_mapping_generator)
+                # if (resource_mapping["finished"] == True):
+                #     del resource_mapping_generator
+                #     break
+                # else:
+                #     image_resources = resource_mapping["image"]
+                #     if len(image_resources) == 0:
+                #         continue
+                #     current_directory = list(image_resources.keys())[0]
+                #     contents = image_resources[current_directory]
                 
                 # process the contents in batches.
                 count = 0
                 eta = None # unknown!
                 while True:
                     contents_batch =  contents[count: count + self.batch_size]  # extract a batch
-                    contents_batch = [os.path.join(current_directory, x) for x in contents_batch]
+                    # contents_batch = [os.path.join(current_directory, x) for x in contents_batch]
 
                     if (len(contents_batch) == 0):    # should mean this directory has been 
                         break
