@@ -2,13 +2,17 @@
 // Standalone module to be imported in a vanilla JS/TS SPA or HTML page.
 // It assumes the existence of a root element to mount the UI, and uses fetch for API calls.
 
-import type { IndexStartResponse, IndexStatusResponse } from "../types/indexing";
-import { folderCache } from "../services/folder-cache";
+import type {
+  IndexStartResponse,
+  IndexStatusResponse,
+} from "../types/indexing";
+
 import { html } from "../utils";
 import IndexingService from "../services/indexing";
 import type { Partition } from "../types/indexing";
 import SelectFolder from "./SelectFolder";
 import { endpoints } from "../config";
+import { Signal } from "../reactive";
 
 interface IndexingComponentOptions {
   root: HTMLElement;
@@ -19,29 +23,34 @@ export class IndexingComponent {
   private root: HTMLElement;
   private apiUrl: string;
   private pollingTimeout: number | null = null;
-  private isIndexing: boolean = false;
-  private isCancelling: boolean = false;
-  private indexProgress: number = 0;
-  // private directoryBeingIndexed: string = "";
-  private extraDetails: string = "";
-  private eta: number = 0;
-  private indexDirectoryPath: string = "";
-  private completeRescan: boolean = false;
-  private selectedProtocol: string = "none";
-  private error: string | null = null;
+
+  // Reactive state signals
+  private isIndexing = new Signal<boolean>(false);
+  private isCancelling = new Signal<boolean>(false);
+  private indexProgress = new Signal<number>(0);
+  private extraDetails = new Signal<string>("");
+  private eta = new Signal<number>(0);
+  private indexDirectoryPath = new Signal<string>("");
+  private completeRescan = new Signal<boolean>(false);
+  private selectedProtocol = new Signal<string>("none");
+  private error = new Signal<string | null>(null);
+
+  // Non-reactive state
   private partitions: Partition[] = [];
   private folderSelector: SelectFolder | null = null;
-  private initialPageLoad: boolean = true;
+  private initialPageLoad: boolean = true;  // Subscription cleanup functions
+  private subscriptions: (() => void)[] = [];
 
   constructor(options: IndexingComponentOptions) {
     this.root = options.root;
     this.apiUrl = options.apiUrl;
     this.render();
 
-    
-    this.isIndexing = true;
+    // Set up reactive dependencies
+    this.setupReactiveSystem();
+
+    this.isIndexing.value = true;
     this.pollIndexStatus();
-    
 
     IndexingService.getPartitions()
       .then((partitions) => {
@@ -52,6 +61,59 @@ export class IndexingComponent {
       .catch((error) => {
         console.error("Error fetching partitions:", error);
       });
+  }  /**
+   * Sets up reactive dependencies using simple subscriptions
+   * The reactive system handles batching and scheduling automatically
+   */
+  private setupReactiveSystem() {
+    // Create a single computed-like effect for action buttons
+    const actionButtonsEffect = () => {
+      // Access all dependencies to establish reactive relationships
+      this.isIndexing.value;
+      this.indexDirectoryPath.value; 
+      this.isCancelling.value;
+      this.updateActionButtons();
+    };
+
+    // Create a single computed-like effect for progress section  
+    const progressEffect = () => {
+      this.isIndexing.value;
+      this.indexProgress.value;
+      this.eta.value;
+      this.extraDetails.value;
+      this.updateProgressSection();
+    };
+
+    // Create a single computed-like effect for error section
+    const errorEffect = () => {
+      this.error.value;
+      this.updateErrorSection();
+    };
+
+    // Create a single computed-like effect for input states
+    const inputsEffect = () => {
+      this.isIndexing.value;
+      this.selectedProtocol.value;
+      this.updateInputsState();
+    };
+
+    // Subscribe to any signal that will trigger these effects
+    // The reactive system will batch calls automatically
+    this.subscriptions.push(
+      this.isIndexing.subscribe(actionButtonsEffect),
+      this.indexDirectoryPath.subscribe(actionButtonsEffect),
+      this.isCancelling.subscribe(actionButtonsEffect),
+      
+      this.isIndexing.subscribe(progressEffect),
+      this.indexProgress.subscribe(progressEffect),
+      this.eta.subscribe(progressEffect),
+      this.extraDetails.subscribe(progressEffect),
+      
+      this.error.subscribe(errorEffect),
+      
+      this.isIndexing.subscribe(inputsEffect),
+      this.selectedProtocol.subscribe(inputsEffect)
+    );
   }
 
   private showNotification(
@@ -96,22 +158,13 @@ export class IndexingComponent {
       }
     }, 5000);
   }
-
   private render() {
     this.root.innerHTML = "";
     const card = document.createElement("div");
     card.className =
       "bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-2xl mx-auto";
-    card.innerHTML = html`
-      ${this.error
-        ? `<div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <div class="flex">
-                    <span class="text-red-400 mr-2">⚠️</span>
-                    <span class="text-red-800">${this.error}</span>
-                </div>
-            </div>`
-        : ""}
 
+    card.innerHTML = html`
       <div class="space-y-4">
         <div>
           <label
@@ -125,18 +178,12 @@ export class IndexingComponent {
               id="directory-input"
               type="text"
               placeholder="e.g., C:\\Users\\YourName\\Pictures"
-              value="${this.indexDirectoryPath}"
-              ${this.isIndexing || this.selectedProtocol !== "none"
-                ? "disabled"
-                : ""}
+              value=""
               class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
             />
             <button
               id="browse-btn"
               type="button"
-              ${this.isIndexing || this.selectedProtocol !== "none"
-                ? "disabled"
-                : ""}
               class="px-4 py-2.5 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
               Browse...
@@ -153,60 +200,17 @@ export class IndexingComponent {
           </label>
           <select
             id="protocol-select"
-            ${this.isIndexing ? "disabled" : ""}
             class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
           >
-            <option
-              value="none"
-              ${this.selectedProtocol === "none" ? "selected" : ""}
-            >
-              None (Use folder on computer)
-            </option>
-            <option
-              value="google_photos"
-              ${this.selectedProtocol === "google_photos" ? "selected" : ""}
-            >
-              Google Photos
-            </option>
+            <option value="none" selected>None (Use folder on computer)</option>
+            <option value="google_photos">Google Photos</option>
           </select>
         </div>
-
-        ${this.isIndexing
-          ? `
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-medium text-gray-700">Scan Progress</span>
-                        <span class="text-sm font-semibold text-blue-600">${(
-                          this.indexProgress * 100
-                        ).toFixed(1)}%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
-                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${
-                          this.indexProgress * 100
-                        }%"></div>
-                    </div>
-                    <div class="space-y-1 text-sm text-gray-600">
-                        ${
-                          this.eta
-                            ? `<div><span class="font-medium">Time left:</span> ${this.eta}</div>`
-                            : ""
-                        }
-                        ${
-                          this.extraDetails
-                            ? `<div><span class="font-medium">Status:</span> ${this.extraDetails}</div>`
-                            : ""
-                        }
-                    </div>
-                </div>
-                `
-          : ""}
 
         <div class="flex items-start space-x-3">
           <input
             type="checkbox"
             id="complete-rescan"
-            ${this.completeRescan ? "checked" : ""}
-            ${this.isIndexing ? "disabled" : ""}
             class="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <div>
@@ -226,10 +230,7 @@ export class IndexingComponent {
         <div class="flex space-x-3 pt-4">
           <button
             id="scan-btn"
-            ${this.isIndexing || !this.indexDirectoryPath.trim()
-              ? "disabled"
-              : ""}
-            style="display:${!this.isIndexing ? "flex" : "none"}"
+            disabled
             class="flex-1 flex items-center justify-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600 transition-colors"
           >
             <span class="mr-2">🔍</span>
@@ -237,12 +238,12 @@ export class IndexingComponent {
           </button>
           <button
             id="cancel-btn"
-            ${!this.isIndexing ? "disabled" : ""}
-            style="display:${this.isIndexing ? "flex" : "none"}"
+            disabled
+            style="display:none"
             class="flex-1 flex items-center justify-center px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-red-600 transition-colors"
           >
-            <span class="mr-2">${this.isCancelling ? "⏳" : "⏹️"}</span>
-            ${this.isCancelling ? "Stopping..." : "Stop Scan"}
+            <span class="mr-2">⏹️</span>
+            Stop Scan
           </button>
         </div>
       </div>
@@ -263,17 +264,19 @@ export class IndexingComponent {
 
     this.attachEvents();
   }
-
   private attachEvents() {
     const dirInput =
       this.root.querySelector<HTMLInputElement>("#directory-input");
     if (dirInput) {
       dirInput.addEventListener("input", (e) => {
-        this.indexDirectoryPath = (e.target as HTMLInputElement).value;
-        this.updateActionButtons();
+        this.indexDirectoryPath.value = (e.target as HTMLInputElement).value;
       });
       dirInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !this.isIndexing && this.indexDirectoryPath) {
+        if (
+          e.key === "Enter" &&
+          !this.isIndexing.value &&
+          this.indexDirectoryPath.value
+        ) {
           this.startIndexing();
         }
       });
@@ -282,9 +285,9 @@ export class IndexingComponent {
       this.root.querySelector<HTMLSelectElement>("#protocol-select");
     if (protocolSelect) {
       protocolSelect.addEventListener("change", (e) => {
-        this.selectedProtocol = (e.target as HTMLSelectElement).value;
-        if (this.selectedProtocol === "none") {
-          this.indexDirectoryPath = "";
+        this.selectedProtocol.value = (e.target as HTMLSelectElement).value;
+        if (this.selectedProtocol.value === "none") {
+          this.indexDirectoryPath.value = "";
           // Update the input field value
           const dirInput =
             this.root.querySelector<HTMLInputElement>("#directory-input");
@@ -292,22 +295,21 @@ export class IndexingComponent {
             dirInput.value = "";
           }
         } else {
-          this.indexDirectoryPath = this.selectedProtocol;
+          this.indexDirectoryPath.value = this.selectedProtocol.value;
           // Update the input field value
           const dirInput =
             this.root.querySelector<HTMLInputElement>("#directory-input");
           if (dirInput) {
-            dirInput.value = this.selectedProtocol;
+            dirInput.value = this.selectedProtocol.value;
           }
         }
-        this.updateActionButtons();
       });
     }
     const rescanCheckbox =
       this.root.querySelector<HTMLInputElement>("#complete-rescan");
     if (rescanCheckbox) {
       rescanCheckbox.addEventListener("change", (e) => {
-        this.completeRescan = (e.target as HTMLInputElement).checked;
+        this.completeRescan.value = (e.target as HTMLInputElement).checked;
       });
     }
 
@@ -326,34 +328,33 @@ export class IndexingComponent {
       cancelBtn.addEventListener("click", () => this.cancelIndexing());
     }
   }
-
   private updateProgressSection() {
     // Find the existing progress section or create placeholder
     const existingProgress = this.root.querySelector(".bg-blue-50");
 
-    if (this.isIndexing) {
+    if (this.isIndexing.value) {
       const progressHtml = `
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                     <div class="flex justify-between items-center mb-2">
                         <span class="text-sm font-medium text-gray-700">Scan Progress</span>
                         <span class="text-sm font-semibold text-blue-600">${(
-                          this.indexProgress * 100
+                          this.indexProgress.value * 100
                         ).toFixed(1)}%</span>
                     </div>
                     <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
                         <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${
-                          this.indexProgress * 100
+                          this.indexProgress.value * 100
                         }%"></div>
                     </div>
                     <div class="space-y-1 text-sm text-gray-600">
                         ${
-                          this.eta
-                            ? `<div><span class="font-medium">Time left:</span> ${this.eta}</div>`
+                          this.eta.value
+                            ? `<div><span class="font-medium">Time left:</span> ${this.eta.value}</div>`
                             : ""
                         }
                         ${
-                          this.extraDetails
-                            ? `<div><span class="font-medium">Status:</span> ${this.extraDetails}</div>`
+                          this.extraDetails.value
+                            ? `<div><span class="font-medium">Status:</span> ${this.extraDetails.value}</div>`
                             : ""
                         }
                     </div>
@@ -380,12 +381,12 @@ export class IndexingComponent {
   private updateErrorSection() {
     const existingError = this.root.querySelector(".bg-red-50");
 
-    if (this.error) {
+    if (this.error.value) {
       const errorHtml = `
                 <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                     <div class="flex">
                         <span class="text-red-400 mr-2">⚠️</span>
-                        <span class="text-red-800">${this.error}</span>
+                        <span class="text-red-800">${this.error.value}</span>
                     </div>
                 </div>
             `;
@@ -417,19 +418,21 @@ export class IndexingComponent {
     const browseBtn = this.root.querySelector<HTMLButtonElement>("#browse-btn");
 
     if (dirInput) {
-      dirInput.disabled = this.isIndexing || this.selectedProtocol !== "none";
+      dirInput.disabled =
+        this.isIndexing.value || this.selectedProtocol.value !== "none";
     }
 
     if (browseBtn) {
-      browseBtn.disabled = this.isIndexing || this.selectedProtocol !== "none";
+      browseBtn.disabled =
+        this.isIndexing.value || this.selectedProtocol.value !== "none";
     }
 
     if (protocolSelect) {
-      protocolSelect.disabled = this.isIndexing;
+      protocolSelect.disabled = this.isIndexing.value;
     }
 
     if (rescanCheckbox) {
-      rescanCheckbox.disabled = this.isIndexing;
+      rescanCheckbox.disabled = this.isIndexing.value;
     }
   }
   private updateActionButtons() {
@@ -437,50 +440,49 @@ export class IndexingComponent {
     const cancelBtn = this.root.querySelector<HTMLButtonElement>("#cancel-btn");
 
     if (scanBtn) {
-      scanBtn.style.display = !this.isIndexing ? "flex" : "none";
-      scanBtn.disabled = this.isIndexing || !this.indexDirectoryPath.trim();
+      scanBtn.style.display = !this.isIndexing.value ? "flex" : "none";
+      scanBtn.disabled =
+        this.isIndexing.value || !this.indexDirectoryPath.value.trim();
     }
 
     if (cancelBtn) {
-      cancelBtn.style.display = this.isIndexing ? "flex" : "none";
-      cancelBtn.disabled = !this.isIndexing;
+      cancelBtn.style.display = this.isIndexing.value ? "flex" : "none";
+      cancelBtn.disabled = !this.isIndexing.value;
       // Update button content properly
-      const icon = this.isCancelling ? "⏳" : "⏹️";
-      const text = this.isCancelling ? "Stopping..." : "Stop Scan";
+      const icon = this.isCancelling.value ? "⏳" : "⏹️";
+      const text = this.isCancelling.value ? "Stopping..." : "Stop Scan";
       cancelBtn.innerHTML = `<span class="mr-2">${icon}</span>${text}`;
     }
   }
-
   private async startIndexing() {
     // Preparing data as per new requirements
-    const parts = IndexingService.processDirectoryPath(this.indexDirectoryPath.trim());
+    const parts = IndexingService.processDirectoryPath(
+      this.indexDirectoryPath.value.trim()
+    );
 
     if (!parts.length) {
-      this.error = "Please choose a folder or connect a cloud service.";
-      this.updateErrorSection();
+      this.error.value = "Please choose a folder or connect a cloud service.";
       return;
     }
 
     const identifier = parts[0];
     const uri = parts.slice(1);
-    const location = this.selectedProtocol === "none" ? "LOCAL" : this.selectedProtocol;
+    const location =
+      this.selectedProtocol.value === "none"
+        ? "LOCAL"
+        : this.selectedProtocol.value;
 
-
-    this.error = null;
-    this.isIndexing = true;
-    this.isCancelling = false;
+    this.error.value = null;
+    this.isIndexing.value = true;
+    this.isCancelling.value = false;
     this.showNotification("Preparing to scan...", "info");
-    this.updateErrorSection();
-    this.updateProgressSection();
-    this.updateActionButtons();
-    this.updateInputsState();
 
     try {
       const requestData = {
         location: location,
         identifier: identifier,
         uri: uri,
-        complete_rescan: this.completeRescan,
+        complete_rescan: this.completeRescan.value,
       };
 
       const resp = await fetch(endpoints.INDEX_START, {
@@ -496,67 +498,51 @@ export class IndexingComponent {
         this.showNotification("Photo scan started successfully!", "success");
         this.pollIndexStatus();
       } else {
-        this.error = data.details || "Failed to start scanning photos.";
-        this.isIndexing = false;
-        this.showNotification(this.error, "error");
-        this.updateErrorSection();
-        this.updateProgressSection();
-        this.updateActionButtons();
-        this.updateInputsState();
+        this.error.value = data.details || "Failed to start scanning photos.";
+        this.isIndexing.value = false;
+        this.showNotification(this.error.value, "error");
       }
     } catch (e) {
-      this.error =
+      this.error.value =
         "Could not start scanning. Please check the folder path or service.";
-      this.isIndexing = false;
-      this.showNotification(this.error, "error");
-      this.updateErrorSection();
-      this.updateProgressSection();
-      this.updateActionButtons();
-      this.updateInputsState();
+      this.isIndexing.value = false;
+      this.showNotification(this.error.value, "error");
     }
   }
-
   private async pollIndexStatus() {
-    if (!this.isIndexing) return;
+    if (!this.isIndexing.value) return;
     try {
-      const resp = await fetch(
-        `${this.apiUrl}/getIndexStatus`
-      );
+      const resp = await fetch(`${this.apiUrl}/getIndexStatus`);
       const data: IndexStatusResponse = await resp.json();
       if (data.done) {
         if (!this.initialPageLoad) {
           this.showNotification(`Scan complete! ${data.details}`, "success");
-        } else if (this.isCancelling) {
+        } else if (this.isCancelling.value) {
           this.showNotification("Scan stopped successfully", "warning");
+        } else {
+          this.showNotification("Scan completed successfully!", "success");
         }
-        this.isIndexing = false;
-        this.isCancelling = false;
+        this.isIndexing.value = false;
+        this.isCancelling.value = false;
         this.pollingTimeout = null;
-        this.indexProgress = 0;
-        this.extraDetails = "";
-        this.eta = 0;
-        this.updateProgressSection();
-        this.updateActionButtons();
-        this.updateInputsState();
+        this.indexProgress.value = 0;
+        this.extraDetails.value = "";
+        this.eta.value = 0;
         return;
       }
-      this.indexProgress = (data.processed ?? 0) / (data.total || 1); // Avoid division by zero
-      this.eta = data.eta;
-      this.extraDetails = data.details || "";
-      this.error = null;
-      this.updateProgressSection();
-      this.updateErrorSection();
+      this.indexProgress.value = (data.processed ?? 0) / (data.total || 1); // Avoid division by zero
+      this.eta.value = data.eta;
+      this.extraDetails.value = data.details || "";
+      this.error.value = null;
       if (this.initialPageLoad) {
-        this.updateActionButtons();
-        this.updateInputsState();
+        this.initialPageLoad = false;
       }
       this.pollingTimeout = window.setTimeout(
         () => this.pollIndexStatus(),
         1000
       );
     } catch (e) {
-      this.error = "Couldn't check scan progress. Will retry...";
-      this.updateErrorSection();
+      this.error.value = "Couldn't check scan progress. Will retry...";
       this.pollingTimeout = window.setTimeout(
         () => this.pollIndexStatus(),
         5000
@@ -569,20 +555,17 @@ export class IndexingComponent {
   }
 
   private async cancelIndexing() {
-    if (!this.isIndexing) return;
-    this.isCancelling = true;
+    if (!this.isIndexing.value) return;
+    this.isCancelling.value = true;
     this.showNotification("Stopping scan...", "warning");
-    this.updateActionButtons();
     try {
       await fetch(`${this.apiUrl}/indexCancel`);
       this.pollIndexStatus();
     } catch (e) {
-      this.error = "Could not stop the scan. Please contact administrator.";
-      this.isCancelling = false;
-      this.showNotification(this.error, "error");
-      this.updateErrorSection();
-      this.updateActionButtons();
-      this.updateInputsState();
+      this.error.value =
+        "Could not stop the scan. Please contact administrator.";
+      this.isCancelling.value = false;
+      this.showNotification(this.error.value, "error");
     }
   }
   private openFolderSelector(): void {
@@ -597,14 +580,12 @@ export class IndexingComponent {
     // Extract drive identifiers from partitions
     const availableDrives = this.partitions
       .filter((partition) => partition.location === "LOCAL")
-      .map((partition) => partition.identifier);
-
-    // Create folder selector
+      .map((partition) => partition.identifier); // Create folder selector
     this.folderSelector = new SelectFolder("folder-selector-content", {
       title: "Select Photo Directory",
       drives: availableDrives.length > 0 ? availableDrives : ["C:", "D:", "E:"], // Fallback to default drives
       onFolderSelect: (path: string) => {
-        this.indexDirectoryPath = path;
+        this.indexDirectoryPath.value = path;
 
         // Update the input field
         const dirInput =
@@ -613,7 +594,6 @@ export class IndexingComponent {
           dirInput.value = path;
         }
 
-        this.updateActionButtons();
         this.closeFolderSelector();
       },
       onCancel: () => {
@@ -642,7 +622,6 @@ export class IndexingComponent {
     };
     document.addEventListener("keydown", escapeHandler);
   }
-
   private closeFolderSelector(): void {
     const modal = document.getElementById("folder-selector-modal");
     if (modal) {
@@ -654,7 +633,12 @@ export class IndexingComponent {
       this.folderSelector = null;
     }
   }
+
   public destroy() {
+    // Clean up all subscriptions
+    this.subscriptions.forEach((unsubscribe) => unsubscribe());
+    this.subscriptions = [];
+
     if (this.pollingTimeout) {
       clearTimeout(this.pollingTimeout);
       this.pollingTimeout = null;
