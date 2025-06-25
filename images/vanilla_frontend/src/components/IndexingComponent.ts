@@ -68,21 +68,21 @@ export class IndexingComponent {
     // Subscribe to any signal that will trigger these effects
     // The reactive system will batch calls automatically
     this.subscriptions.push(
-      useEffect(() => this.updateActionButtons(), [
+      useEffect(this.updateActionButtons.bind(this), [
             this.isIndexing,
             this.indexDirectoryPath,
             this.isCancelling
         ]),
-        useEffect(() => this.updateProgressSection(), [
+        useEffect(this.updateProgressSection.bind(this), [
             this.isIndexing,
             this.indexProgress,
             this.eta,
             this.extraDetails
         ]),
-        useEffect(() => this.updateErrorSection(), [
+        useEffect(this.updateErrorSection.bind(this), [
             this.error
         ]),
-        useEffect(() => this.updateInputsState(), [
+        useEffect(this.updateInputsState.bind(this), [
             this.isIndexing,
             this.selectedProtocol
         ])
@@ -302,6 +302,12 @@ export class IndexingComponent {
     }
   }
   private updateProgressSection() {
+    console.log("Updating progress section based on indexing status", {
+      isIndexing: this.isIndexing.value,
+      indexProgress: this.indexProgress.value,
+      eta: this.eta.value,
+      extraDetails: this.extraDetails.value,
+    });
     // Find the existing progress section or create placeholder
     const existingProgress = this.root.querySelector(".bg-blue-50");
 
@@ -352,6 +358,9 @@ export class IndexingComponent {
   }
 
   private updateErrorSection() {
+    console.log("Updating error section based on error state", {
+      error: this.error.value,
+    });
     const existingError = this.root.querySelector(".bg-red-50");
 
     if (this.error.value) {
@@ -382,6 +391,10 @@ export class IndexingComponent {
   }
 
   private updateInputsState() {
+    console.log("Updating inputs state based on indexing status and protocol selection", {
+      isIndexing: this.isIndexing.value,
+      selectedProtocol: this.selectedProtocol.value,
+    });
     const dirInput =
       this.root.querySelector<HTMLInputElement>("#directory-input");
     const protocolSelect =
@@ -409,6 +422,11 @@ export class IndexingComponent {
     }
   }
   private updateActionButtons() {
+    console.log("Updating action buttons based on indexing status", {
+      isIndexing: this.isIndexing.value,
+      isCancelling: this.isCancelling.value,
+      indexDirectoryPath: this.indexDirectoryPath.value,
+    });
     const scanBtn = this.root.querySelector<HTMLButtonElement>("#scan-btn");
     const cancelBtn = this.root.querySelector<HTMLButtonElement>("#cancel-btn");
 

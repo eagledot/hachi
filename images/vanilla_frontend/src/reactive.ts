@@ -1,5 +1,5 @@
 // --- Batch scheduling ---
-const effectQueue = new Set<() => void>();
+const effectQueue = new Set<(...args: any[]) => void>();
 let scheduled = false;
 
 
@@ -27,7 +27,7 @@ function scheduleFlush() {
     }
 }
 
-function queueEffect(effect: () => void) {
+function queueEffect(effect: (...args: any[]) => void) {
     // Add the effect function to the effectQueue
     effectQueue.add(effect);
 
@@ -55,17 +55,17 @@ export class Signal<T> {
 
             // Notify all listeners about the change
             for (const listener of this.listeners) {
-                queueEffect(() => listener(newValue));
+                queueEffect(listener);
             }
         }
     }
 
-    subscribe(listener: (val: T) => void): () => void {
+    subscribe(listener: () => void): () => void {
         // Add a listener to the signal
         this.listeners.add(listener);
 
         // Immediately call the listener with the current value
-        listener(this._value);
+        listener();
 
         // Return a function to unsubscribe the listener
         return () => {
