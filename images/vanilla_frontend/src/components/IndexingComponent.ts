@@ -12,7 +12,7 @@ import IndexingService from "../services/indexing";
 import type { Partition } from "../types/indexing";
 import SelectFolder from "./SelectFolder";
 import { endpoints } from "../config";
-import { Signal } from "../reactive";
+import { Signal, useEffect } from "../reactive";
 
 interface IndexingComponentOptions {
   root: HTMLElement;
@@ -23,6 +23,7 @@ export class IndexingComponent {
   private root: HTMLElement;
   private apiUrl: string;
   private pollingTimeout: number | null = null;
+  private pageLoaded: boolean = true;
 
   // Reactive state signals
   private isIndexing = new Signal<boolean>(false);
@@ -38,7 +39,6 @@ export class IndexingComponent {
   // Non-reactive state
   private partitions: Partition[] = [];
   private folderSelector: SelectFolder | null = null;
-  private initialPageLoad: boolean = true;  // Subscription cleanup functions
   private subscriptions: (() => void)[] = [];
 
   constructor(options: IndexingComponentOptions) {
@@ -48,9 +48,7 @@ export class IndexingComponent {
 
     // Set up reactive dependencies
     this.setupReactiveSystem();
-
-    this.isIndexing.value = true;
-    this.pollIndexStatus();
+    this.pollIndexStatus(this.pageLoaded); // To check if an indexing operation is already in progress
 
     IndexingService.getPartitions()
       .then((partitions) => {
@@ -66,53 +64,28 @@ export class IndexingComponent {
    * The reactive system handles batching and scheduling automatically
    */
   private setupReactiveSystem() {
-    // Create a single computed-like effect for action buttons
-    const actionButtonsEffect = () => {
-      // Access all dependencies to establish reactive relationships
-      this.isIndexing.value;
-      this.indexDirectoryPath.value; 
-      this.isCancelling.value;
-      this.updateActionButtons();
-    };
-
-    // Create a single computed-like effect for progress section  
-    const progressEffect = () => {
-      this.isIndexing.value;
-      this.indexProgress.value;
-      this.eta.value;
-      this.extraDetails.value;
-      this.updateProgressSection();
-    };
-
-    // Create a single computed-like effect for error section
-    const errorEffect = () => {
-      this.error.value;
-      this.updateErrorSection();
-    };
-
-    // Create a single computed-like effect for input states
-    const inputsEffect = () => {
-      this.isIndexing.value;
-      this.selectedProtocol.value;
-      this.updateInputsState();
-    };
 
     // Subscribe to any signal that will trigger these effects
     // The reactive system will batch calls automatically
     this.subscriptions.push(
-      this.isIndexing.subscribe(actionButtonsEffect),
-      this.indexDirectoryPath.subscribe(actionButtonsEffect),
-      this.isCancelling.subscribe(actionButtonsEffect),
-      
-      this.isIndexing.subscribe(progressEffect),
-      this.indexProgress.subscribe(progressEffect),
-      this.eta.subscribe(progressEffect),
-      this.extraDetails.subscribe(progressEffect),
-      
-      this.error.subscribe(errorEffect),
-      
-      this.isIndexing.subscribe(inputsEffect),
-      this.selectedProtocol.subscribe(inputsEffect)
+      useEffect(() => this.updateActionButtons(), [
+            this.isIndexing,
+            this.indexDirectoryPath,
+            this.isCancelling
+        ]),
+        useEffect(() => this.updateProgressSection(), [
+            this.isIndexing,
+            this.indexProgress,
+            this.eta,
+            this.extraDetails
+        ]),
+        useEffect(() => this.updateErrorSection(), [
+            this.error
+        ]),
+        useEffect(() => this.updateInputsState(), [
+            this.isIndexing,
+            this.selectedProtocol
+        ])
     );
   }
 
@@ -509,19 +482,16 @@ export class IndexingComponent {
       this.showNotification(this.error.value, "error");
     }
   }
-  private async pollIndexStatus() {
-    if (!this.isIndexing.value) return;
+  private async pollIndexStatus(pageLoaded: boolean = false) {
+    if (!pageLoaded && !this.isIndexing.value) return; // Don't poll if not indexing and if not at start
     try {
       const resp = await fetch(`${this.apiUrl}/getIndexStatus`);
       const data: IndexStatusResponse = await resp.json();
       if (data.done) {
-        if (!this.initialPageLoad) {
-          this.showNotification(`Scan complete! ${data.details}`, "success");
-        } else if (this.isCancelling.value) {
+        if (this.isCancelling.value) {
           this.showNotification("Scan stopped successfully", "warning");
-        } else {
-          this.showNotification("Scan completed successfully!", "success");
-        }
+        } 
+        
         this.isIndexing.value = false;
         this.isCancelling.value = false;
         this.pollingTimeout = null;
@@ -530,13 +500,13 @@ export class IndexingComponent {
         this.eta.value = 0;
         return;
       }
+      if (this.pageLoaded) {
+         this.isIndexing.value = true; // Ensure indexing is true while polling since just in case it is not set as true
+      }
       this.indexProgress.value = (data.processed ?? 0) / (data.total || 1); // Avoid division by zero
       this.eta.value = data.eta;
       this.extraDetails.value = data.details || "";
       this.error.value = null;
-      if (this.initialPageLoad) {
-        this.initialPageLoad = false;
-      }
       this.pollingTimeout = window.setTimeout(
         () => this.pollIndexStatus(),
         1000
@@ -548,9 +518,7 @@ export class IndexingComponent {
         5000
       );
     } finally {
-      if (!this.initialPageLoad) {
-        this.initialPageLoad = false;
-      }
+      this.pageLoaded = false; // Set pageLoaded to false after the first call
     }
   }
 

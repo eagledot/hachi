@@ -74,3 +74,12 @@ export class Signal<T> {
     }
 }
 
+export function useEffect(effect: () => void, deps: Signal<any>[]): () => void {
+    // Subscribe the effect to all dependencies
+    const unsubscribers = deps.map(dep => dep.subscribe(effect));
+    // Return a cleanup function to unsubscribe all
+    return () => {
+        unsubscribers.forEach(unsub => unsub());
+    };
+}
+
