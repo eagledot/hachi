@@ -21,7 +21,7 @@
     "jsdom": "^25.0.1",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.9"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.8",
