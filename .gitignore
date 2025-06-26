@@ -13,7 +13,7 @@ tmp*
 node_modules/
 preview_image/
 hachiConfig.json
-*.json
+face_clusters.json
 *.jpg
 *.png
 
@@ -23,3 +23,6 @@ hachiConfig.json
 desktop_app/
 research_exp
 venv/
+.vite/
+
+.github/

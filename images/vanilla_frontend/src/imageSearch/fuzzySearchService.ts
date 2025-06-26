@@ -66,6 +66,36 @@ export const ATTRIBUTE_PATTERNS: Record<string, AttributePattern> = {
 
 export class FuzzySearchService {
   private currentSuggestionController: AbortController | null = null;
+  /**
+   * Gets suggestions for a specific attribute and query (without cancellation for batch requests)
+   */
+  async getSuggestionBatch(attribute: string, query: string): Promise<string[]> {
+    console.log('getSuggestionBatch called with:', { attribute, query });
+    
+    try {
+      const formData = new FormData();
+      formData.append("attribute", attribute);
+      formData.append("query", query);
+      
+      const response = await fetch(`${API_ENDPOINTS.GET_SUGGESTION}`, {
+        method: "POST",
+        body: formData
+      });
+      
+      console.log('API response status for', attribute, ':', response.status);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API response data for', attribute, ':', data);
+        return data[attribute] || [];
+      } else {
+        console.error('API response not ok for', attribute, ':', response.status, response.statusText);
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch suggestions for ${attribute}:`, error);
+    }
+    
+    return [];
+  }
 
   /**
    * Gets suggestions for a specific attribute and query
@@ -111,6 +141,54 @@ export class FuzzySearchService {
     
     return [];
   }
+  /**
+   * Generates suggestions for all attributes simultaneously
+   */
+  async generateAllAttributeSuggestions(value: string): Promise<SearchSuggestion[]> {
+    console.log('generateAllAttributeSuggestions called with:', value);
+    
+    if (!value.trim()) {
+      return [];
+    }
+
+    // Filter out 'query' attribute - we don't want suggestions for query
+    const availableAttributes = this.getAvailableAttributes().filter(attr => attr !== 'query');
+    
+    const suggestionPromises = availableAttributes.map(async (attribute) => {
+      try {
+        // Use getSuggestionBatch to avoid request cancellation issues
+        const suggestions = await this.getSuggestionBatch(attribute, value);
+        return suggestions.map((suggestion: string) => ({
+          text: suggestion,
+          attribute: attribute,
+          type: 'suggestion' as const
+        }));
+      } catch (error) {
+        console.warn(`Failed to fetch suggestions for ${attribute}:`, error);
+        return [];
+      }
+    });
+
+    try {
+      const allSuggestionArrays = await Promise.all(suggestionPromises);
+      const allSuggestions = allSuggestionArrays.flat();
+      
+      // Filter out empty suggestions and limit the total number
+      const validSuggestions = allSuggestions.filter(suggestion => suggestion.text && suggestion.text.trim());
+        // Prioritize person and resource_directory suggestions, then others
+      const personSuggestions = validSuggestions.filter(s => s.attribute === 'person');
+      const directorySuggestions = validSuggestions.filter(s => s.attribute === 'resource_directory');
+      const otherSuggestions = validSuggestions.filter(s => s.attribute !== 'person' && s.attribute !== 'resource_directory');
+      
+      // Combine with person and directory suggestions first, then others
+      const combinedSuggestions = [...personSuggestions, ...directorySuggestions, ...otherSuggestions];
+      
+      return combinedSuggestions.slice(0, 15); // Limit to 15 total suggestions
+    } catch (error) {
+      console.error('Error generating all attribute suggestions:', error);
+      return [];
+    }
+  }
 
   /**
    * Generates formatted suggestions for UI display
@@ -130,7 +208,9 @@ export class FuzzySearchService {
         type: 'suggestion' as const
       }));
       
-      return formattedSuggestions.slice(0, 5); // Limit to 5 suggestions
+      // return formattedSuggestions.slice(0, 5); // Limit to 5 suggestions
+      // Not sure if there needs to be a limit here, so leaving it out for now
+      return formattedSuggestions
     } catch (error) {
       console.error('Error generating suggestions:', error);
       return [];

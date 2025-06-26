@@ -110,6 +110,8 @@ index_obj:None | IndexingLocal = None
 ############
 app = Flask(__name__, static_folder = None, static_url_path= None)
 app.secret_key = "Fdfasfdasdfasfasdfas"
+from flask_cors import CORS
+CORS(app)
 
 class IndexBeginAttribute(TypedDict):
     location:str    # TODO: better constraint it to Location Enum!
@@ -587,9 +589,11 @@ def getPartitions() -> Dict[Location, str]:
     ("REMOTE", "googlePhotos) # TODO: in config.py, for now `googlePhotos` is supported only!
     ...
     """
-    return flask.jsonify(
-        [{location:identifier} for location,identifier in appConfig["partitions"]]
-    )   
+    response_data = [
+        {"location": location, "identifier": identifier}
+        for location, identifier in appConfig["partitions"]
+    ]
+    return flask.jsonify(response_data)
 
 from typing import TypedDict
 class SuggestionPathAttributes(TypedDict):

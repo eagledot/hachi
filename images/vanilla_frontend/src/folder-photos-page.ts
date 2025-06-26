@@ -19,11 +19,17 @@ interface FolderPhotoData {
 class FolderPhotosApp {  
   private photos: HachiImageData[] = [];
   private filteredPhotos: HachiImageData[] = [];
+  private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
   private currentPhotoIndex: number = -1;
   private folderPath: string = '';
   private folderName: string = '';
   private uiService!: UIService;
   private photoFilter!: PhotoFilterComponent;
+  
+  // Pagination properties
+  private readonly PAGE_SIZE = 100; // Display 100 photos per page for good performance
+  private currentPage = 1;
+  private totalPages = 0;
 
   constructor() {
     this.init();
@@ -107,9 +113,7 @@ class FolderPhotosApp {
       backBtn.addEventListener('click', () => {
         window.location.href = '/folders.html';
       });
-    }
-
-    // Mobile filter toggle
+    }    // Mobile filter toggle
     this.setupMobileFilterToggle();
 
     // Setup UI service event listeners
@@ -157,9 +161,12 @@ class FolderPhotosApp {
             filterContainer.classList.remove('lg:block');
             filterContainer.classList.add('hidden');
           }
-        }
-          this.updatePhotoCount();
+        }        this.updatePhotoCount();
+        this.updatePagination(); // Initialize pagination
         this.renderPhotos();
+        
+        // Setup pagination event listeners after pagination UI is rendered
+        this.setupPaginationEventListeners();
         
         // Update the folder cache with accurate photo count and preview
         this.updateFolderCache(data.data_hash[0] || undefined);
@@ -172,15 +179,125 @@ class FolderPhotosApp {
     } finally {
       this.showLoading(false);
     }
-  }
-  private updatePhotoCount(): void {
+  }  private updatePhotoCount(): void {
     const photoCountEl = document.getElementById('folder-photo-count');
     if (photoCountEl) {
-      const count = this.photos.length;
-      photoCountEl.textContent = `${count} photo${count !== 1 ? 's' : ''}`;
+      const totalCount = this.photos.length;
+      const filteredCount = this.filteredPhotos.length;
+      
+      if (filteredCount === totalCount) {
+        photoCountEl.textContent = `${totalCount} photo${totalCount !== 1 ? 's' : ''}`;
+      } else {
+        photoCountEl.textContent = `${filteredCount} of ${totalCount} photo${totalCount !== 1 ? 's' : ''} (filtered)`;
+      }
     }
   }
 
+  private updatePagination(): void {
+    this.totalPages = Math.ceil(this.filteredPhotos.length / this.PAGE_SIZE);
+    
+    // Calculate displayed photos for current page
+    const startIndex = (this.currentPage - 1) * this.PAGE_SIZE;
+    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
+    this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
+    
+    this.updatePaginationUI();
+  }  private updatePaginationUI(): void {
+    // Update pagination info
+    const paginationInfo = document.getElementById('pagination-info');
+    if (paginationInfo) {
+      const startIndex = (this.currentPage - 1) * this.PAGE_SIZE + 1;
+      const endIndex = Math.min(this.currentPage * this.PAGE_SIZE, this.filteredPhotos.length);
+      paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${this.filteredPhotos.length} photos`;
+    }
+
+    // Update pagination buttons
+    const prevBtn = document.getElementById('prev-page-btn') as HTMLButtonElement;
+    const nextBtn = document.getElementById('next-page-btn') as HTMLButtonElement;
+    const pageInfo = document.getElementById('page-info');
+
+    if (prevBtn) {
+      prevBtn.disabled = this.currentPage <= 1;
+    }
+    if (nextBtn) {
+      nextBtn.disabled = this.currentPage >= this.totalPages;
+    }
+    if (pageInfo) {
+      pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+    }
+
+    // Show/hide pagination controls based on whether pagination is needed
+    const paginationContainer = document.getElementById('pagination-container');
+    if (paginationContainer) {
+      if (this.totalPages > 1) {
+        paginationContainer.classList.remove('hidden');
+      } else {
+        paginationContainer.classList.add('hidden');
+      }
+    }
+  }  private goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages) return;
+    
+    this.currentPage = page;
+    this.updatePagination();
+    this.renderPhotos();
+    
+    // Scroll to the top of the page instantly for performance
+    window.scrollTo(0, 0);
+  }
+
+  private scrollToFilterLevel(): void {
+    // Find the filter container or photos section to scroll to
+    const filterContainer = document.getElementById('photo-filter-container');
+    const photosSection = document.querySelector('section');
+    
+    // Use the filter container if visible, otherwise use the photos section
+    const targetElement = filterContainer?.classList.contains('lg:block') ? filterContainer : photosSection;
+    
+    if (targetElement) {
+      // Use requestAnimationFrame to ensure DOM updates are complete
+      requestAnimationFrame(() => {
+        const rect = targetElement.getBoundingClientRect();
+        const offsetTop = window.pageYOffset + rect.top - 20; // 20px padding from top
+        
+        window.scrollTo({
+          top: offsetTop,
+          behavior: 'instant'
+        });
+      });
+    }
+  }private setupPaginationEventListeners(): void {
+    const prevBtn = document.getElementById('prev-page-btn') as HTMLButtonElement;
+    const nextBtn = document.getElementById('next-page-btn') as HTMLButtonElement;
+
+    if (prevBtn) {
+      // Remove any existing listeners first
+      const newPrevBtn = prevBtn.cloneNode(true) as HTMLButtonElement;
+      prevBtn.parentNode?.replaceChild(newPrevBtn, prevBtn);
+      
+      newPrevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!newPrevBtn.disabled) {
+          this.goToPage(this.currentPage - 1);
+        }
+      });
+    }
+
+    if (nextBtn) {
+      // Remove any existing listeners first
+      const newNextBtn = nextBtn.cloneNode(true) as HTMLButtonElement;
+      nextBtn.parentNode?.replaceChild(newNextBtn, nextBtn);
+      
+      newNextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!newNextBtn.disabled) {
+          this.goToPage(this.currentPage + 1);
+        }
+      });
+    }
+  }
   private renderPhotos(): void {
     const container = document.getElementById('photo-grid-container');
     const noPhotos = document.getElementById('no-photos');
@@ -195,18 +312,24 @@ class FolderPhotosApp {
 
     noPhotos.classList.add('hidden');
 
-    // Use UIService to update the photo grid
-    this.uiService.updatePhotos(this.filteredPhotos, (photo: HachiImageData) => this.handlePhotoClick(photo));
-  }
-
-  private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
+    // Use UIService to update the photo grid with ONLY the displayed photos (pagination)
+    this.uiService.updatePhotos(this.displayedPhotos, (photo: HachiImageData) => this.handlePhotoClick(photo));
+  }  private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log('Filtered photos updated:', filteredPhotos.length);
     this.filteredPhotos = filteredPhotos;
+    
+    // Reset to page 1 when filters change
+    this.currentPage = 1;
+    
     this.updatePhotoCount();
+    this.updatePagination(); // Update pagination first
     this.renderPhotos();
+    
+    // Re-setup pagination event listeners to ensure they work correctly
+    this.setupPaginationEventListeners();
   }
-
   private handlePhotoClick(photo: HachiImageData): void {
+    // Find the index in the FILTERED photos (not just displayed photos)
     this.currentPhotoIndex = this.filteredPhotos.findIndex(p => 
       p.id === photo.id
     );

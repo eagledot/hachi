@@ -180,20 +180,18 @@ export class PhotoFilterComponent {
   /**
    * Generate the HTML template for the filter component
    */
-  static getTemplate(containerId: string = "photo-filter"): string {
-    return html`
-      <!-- Photo Filter Component - Sidebar Style -->
+  static getTemplate(containerId: string = "photo-filter"): string {    return html`
+      <!-- Photo Filter Component - Compact Sidebar Style -->
       <div
         id="${containerId}"
         class="bg-white border border-gray-200 rounded-lg shadow-sm sticky top-4 max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col"
       >
-        <!-- Header -->
+        <!-- Compact Header -->
         <div
-          class="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50"
-        >
-          <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+          class="flex items-center justify-between p-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100"
+        >          <h3 class="text-base font-semibold text-gray-900 flex items-center">
             <svg
-              class="w-5 h-5 mr-2 text-gray-600"
+              class="w-4 h-4 mr-2 text-gray-600"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -206,52 +204,49 @@ export class PhotoFilterComponent {
               ></path>
             </svg>
             Filters
-          </h3>
-          <button
+          </h3>          <button
             id="reset-filters"
-            class="text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium"
+            class="text-xs text-blue-600 hover:text-blue-800 transition-colors font-medium flex items-center space-x-1"
           >
-            Clear All
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            <span>Reset</span>
           </button>
-        </div>
-
-        <!-- Scrollable Content -->
+        </div>        <!-- Compact Scrollable Content -->
         <div class="flex-1 overflow-y-auto">
-          <div class="p-4 space-y-6">
-            <!-- Search Text Filter -->
+          <div class="p-3 space-y-4">
+            <!-- Compact Search Text Filter -->
             <div class="filter-group">
-              <label class="block text-sm font-medium text-gray-700 mb-3"
+              <label class="block text-xs font-medium text-gray-700 mb-2"
                 >Search</label
               >
               <input
                 type="text"
                 id="filter-search-text"
                 placeholder="Search photos... (Press Enter)"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                class="w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
-            </div>
-
-            <!-- Filter Sections -->
-            <div class="space-y-4">
-              <!-- People Filter -->
+            </div>            <!-- Compact Filter Sections -->
+            <div class="space-y-3">              <!-- Compact People Filter -->
               <div class="filter-section">
                 <button
-                  class="filter-toggle w-full flex items-center justify-between py-2 text-left group"
+                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
                   data-filter="people"
                 >
                   <span class="flex items-center space-x-2">
                     <span
-                      class="text-sm font-medium text-gray-700 group-hover:text-gray-900"
+                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
                       >👥 People</span
                     >
                     <span
                       id="people-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full min-w-[20px] text-center"
+                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                       >0</span
                     >
                   </span>
                   <svg
-                    class="filter-chevron w-4 h-4 text-gray-400 transform transition-transform group-hover:text-gray-600"
+                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -266,35 +261,33 @@ export class PhotoFilterComponent {
                 </button>
                 <div
                   id="people-filter-content"
-                  class="filter-content hidden mt-2 ml-4"
+                  class="filter-content hidden mt-1.5 ml-3"
                 >
                   <div
-                    class="max-h-48 overflow-y-auto border-l-2 border-gray-100 pl-3"
+                    class="max-h-40 overflow-y-auto border-l-2 border-gray-100 pl-2"
                   >
                     <!-- People thumbnails grid will be inserted here -->
                   </div>
                 </div>
-              </div>
-
-              <!-- Years Filter -->
+              </div>              <!-- Compact Years Filter -->
               <div class="filter-section">
                 <button
-                  class="filter-toggle w-full flex items-center justify-between py-2 text-left group"
+                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
                   data-filter="years"
                 >
                   <span class="flex items-center space-x-2">
                     <span
-                      class="text-sm font-medium text-gray-700 group-hover:text-gray-900"
+                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
                       >📅 Years</span
                     >
                     <span
                       id="years-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full min-w-[20px] text-center"
+                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                       >0</span
                     >
                   </span>
                   <svg
-                    class="filter-chevron w-4 h-4 text-gray-400 transform transition-transform group-hover:text-gray-600"
+                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -309,35 +302,33 @@ export class PhotoFilterComponent {
                 </button>
                 <div
                   id="years-filter-content"
-                  class="filter-content hidden mt-2 ml-4"
+                  class="filter-content hidden mt-1.5 ml-3"
                 >
                   <div
-                    class="max-h-32 overflow-y-auto space-y-1 border-l-2 border-gray-100 pl-3"
+                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
                   >
                     <!-- Years checkboxes will be inserted here -->
                   </div>
                 </div>
-              </div>
-
-              <!-- Camera Make Filter -->
+              </div>              <!-- Compact Camera Make Filter -->
               <div class="filter-section">
                 <button
-                  class="filter-toggle w-full flex items-center justify-between py-2 text-left group"
+                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
                   data-filter="cameraMakes"
                 >
                   <span class="flex items-center space-x-2">
                     <span
-                      class="text-sm font-medium text-gray-700 group-hover:text-gray-900"
+                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
                       >📷 Camera</span
                     >
                     <span
                       id="cameraMakes-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full min-w-[20px] text-center"
+                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                       >0</span
                     >
                   </span>
                   <svg
-                    class="filter-chevron w-4 h-4 text-gray-400 transform transition-transform group-hover:text-gray-600"
+                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -352,35 +343,33 @@ export class PhotoFilterComponent {
                 </button>
                 <div
                   id="cameraMakes-filter-content"
-                  class="filter-content hidden mt-2 ml-4"
+                  class="filter-content hidden mt-1.5 ml-3"
                 >
                   <div
-                    class="max-h-32 overflow-y-auto space-y-1 border-l-2 border-gray-100 pl-3"
+                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
                   >
                     <!-- Camera makes checkboxes will be inserted here -->
                   </div>
                 </div>
-              </div>
-
-              <!-- Camera Model Filter -->
+              </div>              <!-- Compact Camera Model Filter -->
               <div class="filter-section">
                 <button
-                  class="filter-toggle w-full flex items-center justify-between py-2 text-left group"
+                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
                   data-filter="cameraModels"
                 >
                   <span class="flex items-center space-x-2">
                     <span
-                      class="text-sm font-medium text-gray-700 group-hover:text-gray-900"
+                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
                       >📸 Model</span
                     >
                     <span
                       id="cameraModels-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full min-w-[20px] text-center"
+                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                       >0</span
                     >
                   </span>
                   <svg
-                    class="filter-chevron w-4 h-4 text-gray-400 transform transition-transform group-hover:text-gray-600"
+                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -395,35 +384,33 @@ export class PhotoFilterComponent {
                 </button>
                 <div
                   id="cameraModels-filter-content"
-                  class="filter-content hidden mt-2 ml-4"
+                  class="filter-content hidden mt-1.5 ml-3"
                 >
                   <div
-                    class="max-h-32 overflow-y-auto space-y-1 border-l-2 border-gray-100 pl-3"
+                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
                   >
                     <!-- Camera models checkboxes will be inserted here -->
                   </div>
                 </div>
-              </div>
-
-              <!-- Places Filter -->
+              </div>              <!-- Compact Places Filter -->
               <div class="filter-section">
                 <button
-                  class="filter-toggle w-full flex items-center justify-between py-2 text-left group"
+                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
                   data-filter="places"
                 >
                   <span class="flex items-center space-x-2">
                     <span
-                      class="text-sm font-medium text-gray-700 group-hover:text-gray-900"
+                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
                       >📍 Places</span
                     >
                     <span
                       id="places-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full min-w-[20px] text-center"
+                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                       >0</span
                     >
                   </span>
                   <svg
-                    class="filter-chevron w-4 h-4 text-gray-400 transform transition-transform group-hover:text-gray-600"
+                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -438,35 +425,33 @@ export class PhotoFilterComponent {
                 </button>
                 <div
                   id="places-filter-content"
-                  class="filter-content hidden mt-2 ml-4"
+                  class="filter-content hidden mt-1.5 ml-3"
                 >
                   <div
-                    class="max-h-32 overflow-y-auto space-y-1 border-l-2 border-gray-100 pl-3"
+                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
                   >
                     <!-- Places checkboxes will be inserted here -->
                   </div>
                 </div>
-              </div>
-
-              <!-- Tags Filter -->
+              </div>              <!-- Compact Tags Filter -->
               <div class="filter-section">
                 <button
-                  class="filter-toggle w-full flex items-center justify-between py-2 text-left group"
+                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
                   data-filter="tags"
                 >
                   <span class="flex items-center space-x-2">
                     <span
-                      class="text-sm font-medium text-gray-700 group-hover:text-gray-900"
+                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
                       >🏷️ Tags</span
                     >
                     <span
                       id="tags-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full min-w-[20px] text-center"
+                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
                       >0</span
                     >
                   </span>
                   <svg
-                    class="filter-chevron w-4 h-4 text-gray-400 transform transition-transform group-hover:text-gray-600"
+                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -481,10 +466,10 @@ export class PhotoFilterComponent {
                 </button>
                 <div
                   id="tags-filter-content"
-                  class="filter-content hidden mt-2 ml-4"
+                  class="filter-content hidden mt-1.5 ml-3"
                 >
                   <div
-                    class="max-h-32 overflow-y-auto space-y-1 border-l-2 border-gray-100 pl-3"
+                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
                   >
                     <!-- Tags checkboxes will be inserted here -->
                   </div>
@@ -719,10 +704,9 @@ export class PhotoFilterComponent {
   }
   /**
    * Update a specific filter section
-   */
-  private updateFilterSection(filterType: string, options: string[]): void {
+   */  private updateFilterSection(filterType: string, options: string[]): void {
     const content = this.container?.querySelector(
-      `#${filterType}-filter-content .max-h-48, #${filterType}-filter-content .max-h-32`
+      `#${filterType}-filter-content .max-h-40, #${filterType}-filter-content .max-h-28`
     );
     const count = this.container?.querySelector(`#${filterType}-count`);
 
@@ -855,13 +839,11 @@ export class PhotoFilterComponent {
     const existingButton = container.querySelector(".show-more-people");
     if (existingButton) {
       existingButton.remove();
-    }
-
-    const remainingCount = allPeople.length - currentlyShown.length;
+    }    const remainingCount = allPeople.length - currentlyShown.length;
     const buttonElement = document.createElement("div");
-    buttonElement.className = "show-more-people col-span-3 mt-2";
+    buttonElement.className = "show-more-people col-span-3 mt-1.5";
     buttonElement.innerHTML = `
-      <button class="w-full py-2 px-3 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 transition-colors">
+      <button class="w-full py-1.5 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 transition-colors">
         Show ${remainingCount} more people...
       </button>
     `;
@@ -993,16 +975,14 @@ export class PhotoFilterComponent {
         ? options
             .map((option) => {
               const isChecked = currentCriteria.includes(option);
-              const display = filterType === "years" ? option : option;
-
-              return `
-        <label class="flex items-center space-x-2 py-1 hover:bg-gray-50 rounded cursor-pointer text-sm">
+              const display = filterType === "years" ? option : option;              return `
+        <label class="flex items-center space-x-1.5 py-0.5 hover:bg-gray-50 rounded cursor-pointer text-xs">
           <input 
             type="checkbox" 
             value="${option}" 
             data-filter-type="${filterType}"
             ${isChecked ? "checked" : ""}
-            class="filter-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+            class="filter-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
           />
           <span class="text-gray-700 truncate flex-1">${display}</span>
         </label>
@@ -1319,24 +1299,22 @@ export class PhotoFilterComponent {
       this.container?.querySelector("#active-filters");
     if (!activeFiltersContainer) return;
 
-    const badges: string[] = [];
-
-    // Search text badge
+    const badges: string[] = [];    // Compact search text badge
     if (this.filterCriteria.searchText) {
       badges.push(`
-        <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors">
-          <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors">
+          <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
           "${this.filterCriteria.searchText}"
-          <button class="ml-2 p-0.5 rounded-full hover:bg-blue-300 transition-colors active-filter-remove" data-type="searchText" data-value="${this.filterCriteria.searchText}">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button class="ml-1.5 p-0.5 rounded-full hover:bg-blue-300 transition-colors active-filter-remove" data-type="searchText" data-value="${this.filterCriteria.searchText}">
+            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
           </button>
         </span>
       `);
-    } // Other filter badges
+    }// Other filter badges
     Object.entries(this.filterCriteria).forEach(([filterType, values]) => {
       // Skip search text and resource directory (context parameter), and empty arrays
       if (
@@ -1376,33 +1354,30 @@ export class PhotoFilterComponent {
             ? value.length > 20
               ? value.substring(0, 20) + "..."
               : value
-            : value;
-        badges.push(`
-          <span class="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+            : value;        badges.push(`
+          <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
             colors[filterType] ||
             "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200"
           }">
-            <span class="mr-1.5">${displayNames[filterType]}</span>
+            <span class="mr-1">${displayNames[filterType]}</span>
             ${displayValue}
-            <button class="ml-2 p-0.5 rounded-full hover:bg-white hover:bg-opacity-50 transition-colors active-filter-remove" data-type="${filterType}" data-value="${value}">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button class="ml-1.5 p-0.5 rounded-full hover:bg-white hover:bg-opacity-50 transition-colors active-filter-remove" data-type="${filterType}" data-value="${value}">
+              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
               </svg>
             </button>
           </span>
         `);
       });
-    });
-
-    if (badges.length > 0) {
+    });    if (badges.length > 0) {
       activeFiltersContainer.innerHTML = `
-        <div class="p-4 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center space-x-2">
-              <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div class="p-3 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center space-x-1.5">
+              <svg class="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
               </svg>
-              <span class="text-sm font-semibold text-gray-700">Active Filters (${
+              <span class="text-xs font-semibold text-gray-700">Active Filters (${
                 badges.length
               })</span>
             </div>
@@ -1410,7 +1385,7 @@ export class PhotoFilterComponent {
               Clear All
             </button>
           </div>
-          <div class="flex flex-wrap gap-2">${badges.join("")}</div>
+          <div class="flex flex-wrap gap-1.5">${badges.join("")}</div>
         </div>
       `;
       activeFiltersContainer.classList.remove("hidden");
@@ -1617,7 +1592,7 @@ export class PhotoFilterComponent {
     // Scroll to top when semantic search results are filtered
     this.scrollToTop();
   }  /**
-   * Scroll to top of the results section smoothly to keep filters visible
+   * Scroll to the very top of the page instantly for performance
    */
   private scrollToTop(): void {
     // Don't scroll if we're currently initializing the component
@@ -1625,27 +1600,8 @@ export class PhotoFilterComponent {
       return;
     }
     
-    // Try to find the results section or photo grid container
-    const resultsSection = document.getElementById('results-section') || 
-                          document.querySelector('section') ||
-                          document.getElementById('photo-grid-container');
-    
-    if (resultsSection) {
-      // Scroll to the results section with some offset to keep filters visible
-      const rect = resultsSection.getBoundingClientRect();
-      const offset = window.pageYOffset + rect.top - 20; // 20px offset from top
-      
-      window.scrollTo({
-        top: Math.max(0, offset),
-        behavior: 'smooth'
-      });
-    } else {
-      // Fallback to scrolling to top if results section not found
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-      });
-    }
+    // Always scroll to the very top of the page instantly
+    window.scrollTo(0, 0);
   }
   /**
    * Perform semantic search with the given term

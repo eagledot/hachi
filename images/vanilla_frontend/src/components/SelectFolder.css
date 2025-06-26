@@ -1,0 +1,337 @@
+/* SelectFolder Component Styles */
+
+.folder-item {
+  border-left: 3px solid transparent;
+  transition: all 0.15s ease-in-out;
+}
+
+.folder-item:hover {
+  background-color: #f8fafc;
+  border-left-color: #e2e8f0;
+}
+
+.folder-item:has(.folder-checkbox:checked) {
+  background-color: #eff6ff;
+  border-left-color: #3b82f6;
+}
+
+.folder-item:has(.folder-checkbox:checked) .bg-blue-50 {
+  background-color: #dbeafe;
+}
+
+.folder-item:has(.folder-checkbox:checked) .text-blue-600 {
+  color: #1d4ed8;
+}
+
+/* Separate click areas for checkbox and folder navigation */
+.folder-item .folder-checkbox {
+  cursor: pointer;
+  z-index: 10;
+  position: relative;
+}
+
+.folder-item .flex-1 {
+  cursor: pointer;
+}
+
+/* Custom scrollbar for folder list */
+.h-96::-webkit-scrollbar {
+  width: 8px;
+}
+
+.h-96::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.h-96::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.h-96::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Focus styles for accessibility */
+.folder-item:focus-within {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+}
+
+.folder-checkbox:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Loading animation */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Button transitions */
+button {
+  transition: all 0.15s ease-in-out;
+}
+
+/* Search input focus ring */
+#search-input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Breadcrumb styling */
+#current-path {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Selected folder highlight */
+#selected-folder {
+  animation: slideDown 0.2s ease-out;
+}
+
+#action-bar {
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Enhanced hover effects */
+.folder-item:hover .p-2 {
+  background-color: #dbeafe;
+}
+
+.folder-item:hover svg {
+  color: #2563eb;
+}
+
+/* Sort button rotation animation */
+#sort-btn svg {
+  transition: transform 0.2s ease-in-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .max-w-3xl {
+    max-width: 100%;
+    margin: 0 1rem;
+  }
+  
+  #current-path {
+    max-width: 200px;
+  }
+  
+  .folder-item {
+    padding: 0.75rem;
+  }
+  
+  .folder-item .space-x-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-left: 0.5rem;
+  }
+}
+
+.h-96::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 6px;
+}
+
+.h-96::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+  border-radius: 6px;
+  border: 2px solid #f1f5f9;
+}
+
+.h-96::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #94a3b8, #64748b);
+}
+
+/* Focus styles for accessibility */
+.folder-item:focus-within {
+  outline: 2px solid #3b82f6;
+  outline-offset: -2px;
+  background-color: #eff6ff;
+}
+
+.folder-checkbox:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+/* Loading animation enhancement */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Button animations */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Search input enhancements */
+#search-input:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  transform: scale(1.02);
+}
+
+/* Breadcrumb styling */
+#current-path {
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all 0.2s ease-in-out;
+}
+
+#current-path:hover {
+  background-color: #f8fafc;
+  transform: scale(1.02);
+}
+
+/* Action bar animations */
+#action-bar {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Selected folder display */
+#selected-folder {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Empty state enhancements */
+#empty-state {
+  animation: fadeIn 0.5s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Sort button rotation */
+#sort-btn svg {
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Gradient backgrounds */
+.bg-gradient-to-r {
+  background-image: linear-gradient(to right, var(--tw-gradient-stops));
+}
+
+/* Enhanced border styles */
+.border-l-4 {
+  border-left-width: 4px;
+}
+
+/* Radio button styling */
+.folder-checkbox {
+  position: relative;
+}
+
+.folder-checkbox:checked {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+}
+
+.folder-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .max-w-3xl {
+    max-width: 100%;
+    margin: 0 1rem;
+  }
+  
+  #current-path {
+    max-width: 200px;
+  }
+  
+  .folder-item {
+    padding: 1rem;
+  }
+  
+  .p-5 {
+    padding: 1rem;
+  }
+}
+
+/* Dark mode support (if needed) */
+@media (prefers-color-scheme: dark) {
+  .bg-white {
+    background-color: #1f2937;
+  }
+  
+  .text-gray-800 {
+    color: #f9fafb;
+  }
+  
+  .border-gray-200 {
+    border-color: #374151;
+  }
+}
