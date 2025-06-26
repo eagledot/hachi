@@ -1,6 +1,5 @@
 // Vanilla JS/TS implementation of the Indexing component
-// Standalone module to be imported in a vanilla JS/TS SPA or HTML page.
-// It assumes the existence of a root element to mount the UI, and uses fetch for API calls.
+// Refactored: Centralized state, grouped responsibilities, reduced DOM queries, improved organization.
 
 import type {
   IndexStartResponse,
@@ -19,129 +18,96 @@ interface IndexingComponentOptions {
   apiUrl: string;
 }
 
+interface IndexingState {
+  isIndexing: boolean;
+  isCancelling: boolean;
+  indexProgress: number;
+  extraDetails: string;
+  eta: number;
+  indexDirectoryPath: string;
+  completeRescan: boolean;
+  selectedProtocol: string;
+  error: string | null;
+  simulateIndexing: boolean;
+}
+
+const initialState: IndexingState = {
+  isIndexing: false,
+  isCancelling: false,
+  indexProgress: 0,
+  extraDetails: "",
+  eta: 0,
+  indexDirectoryPath: "",
+  completeRescan: false,
+  selectedProtocol: "none",
+  error: null,
+  simulateIndexing: false,
+};
+
 export class IndexingComponent {
+  // --- State ---
+  private state = new Signal<IndexingState>({ ...initialState });
   private root: HTMLElement;
   private apiUrl: string;
   private pollingTimeout: number | null = null;
   private pageLoaded: boolean = true;
-  
-
-  // Reactive state signals
-  private isIndexing = new Signal<boolean>(false);
-  private isCancelling = new Signal<boolean>(false);
-  private indexProgress = new Signal<number>(0);
-  private extraDetails = new Signal<string>("");
-  private eta = new Signal<number>(0);
-  private indexDirectoryPath = new Signal<string>("");
-  private completeRescan = new Signal<boolean>(false);
-  private selectedProtocol = new Signal<string>("none");
-  private error = new Signal<string | null>(null);
-  private simulateIndexing = new Signal<boolean>(false);
-
-  // Non-reactive state
   private partitions: Partition[] = [];
   private folderSelector: SelectFolder | null = null;
   private subscriptions: (() => void)[] = [];
 
-  
+  // --- DOM refs ---
+  private refs: { [key: string]: HTMLElement | null } = {};
 
   constructor(options: IndexingComponentOptions) {
     this.root = options.root;
     this.apiUrl = options.apiUrl;
     this.render();
-
-    // Set up reactive dependencies
+    this.cacheDomRefs();
     this.setupReactiveSystem();
-    this.pollIndexStatus(this.pageLoaded); // To check if an indexing operation is already in progress
-
+    this.pollIndexStatus(this.pageLoaded);
     IndexingService.getPartitions()
       .then((partitions) => {
-        console.log("Fetched partitions:", partitions);
         this.partitions = partitions;
-        // Update the state later in the render cycle
       })
       .catch((error) => {
         console.error("Error fetching partitions:", error);
       });
-  }  /**
-   * Sets up reactive dependencies using simple subscriptions
-   * The reactive system handles batching and scheduling automatically
-   */
-  private setupReactiveSystem() {
+  }
 
-    // Subscribe to any signal that will trigger these effects
-    // The reactive system will batch calls automatically
+  // --- State helpers ---
+  private setState(partial: Partial<IndexingState>) {
+    this.state.value = { ...this.state.value, ...partial };
+  }
+
+  // --- DOM refs caching ---
+  private cacheDomRefs() {
+    this.refs = {
+      dirInput: this.root.querySelector<HTMLInputElement>("#directory-input"),
+      protocolSelect: this.root.querySelector<HTMLSelectElement>("#protocol-select"),
+      rescanCheckbox: this.root.querySelector<HTMLInputElement>("#complete-rescan"),
+      browseBtn: this.root.querySelector<HTMLButtonElement>("#browse-btn"),
+      simulateIndexingCheckbox: this.root.querySelector<HTMLInputElement>("#simulate-indexing"),
+      scanBtn: this.root.querySelector<HTMLButtonElement>("#scan-btn"),
+      cancelBtn: this.root.querySelector<HTMLButtonElement>("#cancel-btn"),
+    };
+  }
+
+  // --- Reactive system setup ---
+  private setupReactiveSystem() {
     this.subscriptions.push(
-      useEffect(this.updateActionButtons.bind(this), [
-            this.isIndexing,
-            this.indexDirectoryPath,
-            this.isCancelling,
-            this.simulateIndexing
-        ]),
-        useEffect(this.updateProgressSection.bind(this), [
-            this.isIndexing,
-            this.indexProgress,
-            this.eta,
-            this.extraDetails
-        ]),
-        useEffect(this.updateErrorSection.bind(this), [
-            this.error
-        ]),
-        useEffect(this.updateInputsState.bind(this), [
-            this.isIndexing,
-            this.selectedProtocol
-        ])
+      useEffect(this.updateActionButtons.bind(this), [this.state]),
+      useEffect(this.updateProgressSection.bind(this), [this.state]),
+      useEffect(this.updateErrorSection.bind(this), [this.state]),
+      useEffect(this.updateInputsState.bind(this), [this.state])
     );
   }
 
-  private showNotification(
-    message: string,
-    type: "success" | "error" | "info" | "warning" = "info"
-  ) {
-    // Simple notification system - in a real app you might use a toast library
-    const notification = document.createElement("div");
-    notification.className = `notification notification-${type}`;
-    notification.textContent = message;
-    notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            border-radius: 6px;
-            color: white;
-            font-weight: 500;
-            z-index: 1000;
-            max-width: 400px;
-            word-wrap: break-word;
-        `;
-
-    switch (type) {
-      case "success":
-        notification.style.backgroundColor = "#10b981";
-        break;
-      case "error":
-        notification.style.backgroundColor = "#ef4444";
-        break;
-      case "warning":
-        notification.style.backgroundColor = "#f59e0b";
-        break;
-      default:
-        notification.style.backgroundColor = "#3b82f6";
-    }
-
-    document.body.appendChild(notification);
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 5000);
-  }
+  // --- UI Rendering ---
   private render() {
     this.root.innerHTML = "";
     const card = document.createElement("div");
     card.className =
       "bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-2xl mx-auto";
-
     card.innerHTML = html`
       <div class="space-y-4">
         <div>
@@ -167,8 +133,6 @@ export class IndexingComponent {
               Browse...
             </button>
           </div>
-
-          <!-- Simulate Indexing Checkbox -->
           <div class="flex items-center space-x-2 mt-4">
             <input type="checkbox" id="simulate-indexing" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed" />
             <label
@@ -179,7 +143,6 @@ export class IndexingComponent {
             </label>
           </div>
         </div>
-
         <div>
           <label
             for="protocol-select"
@@ -195,7 +158,6 @@ export class IndexingComponent {
             <option value="google_photos">Google Photos</option>
           </select>
         </div>
-
         <div class="flex items-start space-x-3">
           <input
             type="checkbox"
@@ -215,7 +177,6 @@ export class IndexingComponent {
             </p>
           </div>
         </div>
-
         <div class="flex space-x-3 pt-4">
           <button
             id="scan-btn"
@@ -238,7 +199,6 @@ export class IndexingComponent {
       </div>
     `;
     this.root.appendChild(card);
-
     // Add folder selector modal container
     const modalContainer = document.createElement("div");
     modalContainer.id = "folder-selector-modal";
@@ -250,401 +210,311 @@ export class IndexingComponent {
       </div>
     `;
     document.body.appendChild(modalContainer);
-
+    this.cacheDomRefs();
     this.attachEvents();
   }
-  private attachEvents() {
-    const dirInput =
-      this.root.querySelector<HTMLInputElement>("#directory-input");
-    if (dirInput) {
-      dirInput.addEventListener("input", (e) => {
-        this.indexDirectoryPath.value = (e.target as HTMLInputElement).value;
-      });
-      dirInput.addEventListener("keydown", (e) => {
-        if (
-          e.key === "Enter" &&
-          !this.isIndexing.value &&
-          this.indexDirectoryPath.value
-        ) {
-          this.startIndexing();
-        }
-      });
-    }
 
-    // Simulate indexing checkbox event handler
-    const simulateIndexingCheckbox =
-      this.root.querySelector<HTMLInputElement>("#simulate-indexing");
-    if (simulateIndexingCheckbox) {
-      simulateIndexingCheckbox.addEventListener("change", (e) => {
-        this.simulateIndexing.value = (e.target as HTMLInputElement).checked;
-        console.log("Simulate indexing checkbox changed to:", this.simulateIndexing.value);
-      });
-    }
-
-    const protocolSelect =
-      this.root.querySelector<HTMLSelectElement>("#protocol-select");
-    if (protocolSelect) {
-      protocolSelect.addEventListener("change", (e) => {
-        this.selectedProtocol.value = (e.target as HTMLSelectElement).value;
-        if (this.selectedProtocol.value === "none") {
-          this.indexDirectoryPath.value = "";
-          // Update the input field value
-          const dirInput =
-            this.root.querySelector<HTMLInputElement>("#directory-input");
-          if (dirInput) {
-            dirInput.value = "";
-          }
-        } else {
-          this.indexDirectoryPath.value = this.selectedProtocol.value;
-          // Update the input field value
-          const dirInput =
-            this.root.querySelector<HTMLInputElement>("#directory-input");
-          if (dirInput) {
-            dirInput.value = this.selectedProtocol.value;
-          }
-        }
-      });
-    }
-    const rescanCheckbox =
-      this.root.querySelector<HTMLInputElement>("#complete-rescan");
-    if (rescanCheckbox) {
-      rescanCheckbox.addEventListener("change", (e) => {
-        this.completeRescan.value = (e.target as HTMLInputElement).checked;
-      });
-    }
-
-    // Browse button event handler
-    const browseBtn = this.root.querySelector<HTMLButtonElement>("#browse-btn");
-    if (browseBtn) {
-      browseBtn.addEventListener("click", () => this.openFolderSelector());
-    }
-
-    const scanBtn = this.root.querySelector<HTMLButtonElement>("#scan-btn");
-    if (scanBtn) {
-      scanBtn.addEventListener("click", () => this.startIndexing());
-    }
-    const cancelBtn = this.root.querySelector<HTMLButtonElement>("#cancel-btn");
-    if (cancelBtn) {
-      cancelBtn.addEventListener("click", () => this.cancelIndexing());
-    }
-  }
+  // --- UI Update Methods ---
   private updateProgressSection() {
-    console.log("Updating progress section based on indexing status", {
-      isIndexing: this.isIndexing.value,
-      indexProgress: this.indexProgress.value,
-      eta: this.eta.value,
-      extraDetails: this.extraDetails.value,
-    });
-    // Find the existing progress section or create placeholder
+    const { isIndexing, indexProgress, eta, extraDetails } = this.state.value;
     const existingProgress = this.root.querySelector(".bg-blue-50");
-
-    if (this.isIndexing.value) {
+    if (isIndexing) {
       const progressHtml = `
-                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-sm font-medium text-gray-700">Scan Progress</span>
-                        <span class="text-sm font-semibold text-blue-600">${(
-                          this.indexProgress.value * 100
-                        ).toFixed(1)}%</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
-                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${
-                          this.indexProgress.value * 100
-                        }%"></div>
-                    </div>
-                    <div class="space-y-1 text-sm text-gray-600">
-                        ${
-                          this.eta.value
-                            ? `<div><span class="font-medium">Time left:</span> ${this.eta.value}</div>`
-                            : ""
-                        }
-                        ${
-                          this.extraDetails.value
-                            ? `<div><span class="font-medium">Status:</span> ${this.extraDetails.value}</div>`
-                            : ""
-                        }
-                    </div>
-                </div>
-            `;
-
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm font-medium text-gray-700">Scan Progress</span>
+            <span class="text-sm font-semibold text-blue-600">${(
+              indexProgress * 100
+            ).toFixed(1)}%</span>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2 mb-3">
+            <div class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: ${
+              indexProgress * 100
+            }%"></div>
+          </div>
+          <div class="space-y-1 text-sm text-gray-600">
+            ${eta ? `<div><span class="font-medium">Time left:</span> ${eta}</div>` : ""}
+            ${extraDetails ? `<div><span class="font-medium">Status:</span> ${extraDetails}</div>` : ""}
+          </div>
+        </div>
+      `;
       if (existingProgress) {
         existingProgress.outerHTML = progressHtml;
       } else {
-        // Insert after the select element's parent div
         const selectDiv = this.root.querySelector("select")?.parentElement;
         if (selectDiv) {
           selectDiv.insertAdjacentHTML("afterend", progressHtml);
         }
       }
     } else {
-      // Remove progress section if not indexing
-      if (existingProgress) {
-        existingProgress.remove();
-      }
+      if (existingProgress) existingProgress.remove();
     }
   }
 
   private updateErrorSection() {
-    console.log("Updating error section based on error state", {
-      error: this.error.value,
-    });
+    const { error } = this.state.value;
     const existingError = this.root.querySelector(".bg-red-50");
-
-    if (this.error.value) {
+    if (error) {
       const errorHtml = `
-                <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                    <div class="flex">
-                        <span class="text-red-400 mr-2">⚠️</span>
-                        <span class="text-red-800">${this.error.value}</span>
-                    </div>
-                </div>
-            `;
-
+        <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div class="flex">
+            <span class="text-red-400 mr-2">⚠️</span>
+            <span class="text-red-800">${error}</span>
+          </div>
+        </div>
+      `;
       if (existingError) {
         existingError.outerHTML = errorHtml;
       } else {
-        // Insert after the title
         const title = this.root.querySelector("h2");
-        if (title) {
-          title.insertAdjacentHTML("afterend", errorHtml);
-        }
+        if (title) title.insertAdjacentHTML("afterend", errorHtml);
       }
     } else {
-      // Remove error section if no error
-      if (existingError) {
-        existingError.remove();
-      }
+      if (existingError) existingError.remove();
     }
   }
 
-  // Clear all inputs
-  private clearAllInputs() {
-    // Directory input
-    const dirInput =
-      this.root.querySelector<HTMLInputElement>("#directory-input");
-    if (dirInput) {
-      dirInput.value = "";
-    }
-    // Simulate indexing checkbox
-    const simulateIndexingCheckbox =
-      this.root.querySelector<HTMLInputElement>("#simulate-indexing");
-    if (simulateIndexingCheckbox) {
-      simulateIndexingCheckbox.checked = false;
-    }
-    // Protocol select
-    const protocolSelect =
-      this.root.querySelector<HTMLSelectElement>("#protocol-select");
-    if (protocolSelect) {
-      protocolSelect.value = "none";
-    }
-    // Rescan checkbox
-    const rescanCheckbox =
-      this.root.querySelector<HTMLInputElement>("#complete-rescan");
-    if (rescanCheckbox) {
-      rescanCheckbox.checked = false;
-    }
-  }
-  
   private updateInputsState() {
-    console.log("Updating inputs state based on indexing status and protocol selection", {
-      isIndexing: this.isIndexing.value,
-      selectedProtocol: this.selectedProtocol.value,
-    });
-    const dirInput =
-      this.root.querySelector<HTMLInputElement>("#directory-input");
-    const protocolSelect =
-      this.root.querySelector<HTMLSelectElement>("#protocol-select");
-    const rescanCheckbox =
-      this.root.querySelector<HTMLInputElement>("#complete-rescan");
-    const browseBtn = this.root.querySelector<HTMLButtonElement>("#browse-btn");
-    const simulateIndexingCheckbox =
-      this.root.querySelector<HTMLInputElement>("#simulate-indexing");
-
-    if (dirInput) {
-      dirInput.disabled =
-        this.isIndexing.value || this.selectedProtocol.value !== "none";
-    }
-
-    if (browseBtn) {
-      browseBtn.disabled =
-        this.isIndexing.value || this.selectedProtocol.value !== "none";
-    }
-
-    if (protocolSelect) {
-      protocolSelect.disabled = this.isIndexing.value;
-    }
-
-    if (rescanCheckbox) {
-      rescanCheckbox.disabled = this.isIndexing.value;
-    }
-
-    if (simulateIndexingCheckbox) {
-      simulateIndexingCheckbox.disabled = this.isIndexing.value;
-    }
+    const { isIndexing, selectedProtocol } = this.state.value;
+    const { dirInput, protocolSelect, rescanCheckbox, browseBtn, simulateIndexingCheckbox } = this.refs;
+    if (dirInput) (dirInput as HTMLInputElement).disabled = isIndexing || selectedProtocol !== "none";
+    if (browseBtn) (browseBtn as HTMLButtonElement).disabled = isIndexing || selectedProtocol !== "none";
+    if (protocolSelect) (protocolSelect as HTMLSelectElement).disabled = isIndexing;
+    if (rescanCheckbox) (rescanCheckbox as HTMLInputElement).disabled = isIndexing;
+    if (simulateIndexingCheckbox) (simulateIndexingCheckbox as HTMLInputElement).disabled = isIndexing;
   }
 
   private updateActionButtons() {
-    console.log("Updating action buttons based on indexing status", {
-      isIndexing: this.isIndexing.value,
-      isCancelling: this.isCancelling.value,
-      indexDirectoryPath: this.indexDirectoryPath.value,
-    });
-    const scanBtn = this.root.querySelector<HTMLButtonElement>("#scan-btn");
-    const cancelBtn = this.root.querySelector<HTMLButtonElement>("#cancel-btn");
-
+    const { isIndexing, isCancelling, indexDirectoryPath } = this.state.value;
+    const { scanBtn, cancelBtn } = this.refs;
     if (scanBtn) {
-      scanBtn.style.display = !this.isIndexing.value  ? "flex" : "none";
-      scanBtn.disabled =
-        this.isIndexing.value || (!this.indexDirectoryPath.value.trim() && !this.simulateIndexing.value);
+      (scanBtn as HTMLButtonElement).style.display = !isIndexing ? "flex" : "none";
+      (scanBtn as HTMLButtonElement).disabled = isIndexing || !indexDirectoryPath.trim();
     }
-
     if (cancelBtn) {
-      cancelBtn.style.display = this.isIndexing.value ? "flex" : "none";
-      cancelBtn.disabled = !this.isIndexing.value;
-      // Update button content properly
-      const icon = this.isCancelling.value ? "⏳" : "⏹️";
-      const text = this.isCancelling.value ? "Stopping..." : "Stop Scan";
-      cancelBtn.innerHTML = `<span class="mr-2">${icon}</span>${text}`;
+      (cancelBtn as HTMLButtonElement).style.display = isIndexing ? "flex" : "none";
+      (cancelBtn as HTMLButtonElement).disabled = !isIndexing;
+      const icon = isCancelling ? "⏳" : "⏹️";
+      const text = isCancelling ? "Stopping..." : "Stop Scan";
+      (cancelBtn as HTMLButtonElement).innerHTML = `<span class="mr-2">${icon}</span>${text}`;
     }
   }
 
-  
-  private async startIndexing() {
-    // Preparing data as per new requirements
-    const parts = IndexingService.processDirectoryPath(
-      this.indexDirectoryPath.value.trim()
-    );
+  // --- Event Handlers ---
+  private attachEvents() {
+    this.root.addEventListener("input", (e) => {
+      console.log("Attaching input event to root");
+      const target = e.target as HTMLElement;
+      if (target.id === "directory-input") {
+        this.setState({ indexDirectoryPath: (target as HTMLInputElement).value });
+      }
+    });
+    this.root.addEventListener("keydown", (e) => {
+      console.log("Attaching keydown event to root");
+      const target = e.target as HTMLElement;
+      if (
+        target.id === "directory-input" &&
+        (e as KeyboardEvent).key === "Enter" &&
+        !this.state.value.isIndexing &&
+        this.state.value.indexDirectoryPath
+      ) {
+        this.startIndexing();
+      }
+    });
+    this.root.addEventListener("change", (e) => {
+      console.log("Attaching change event to root");
+      const target = e.target as HTMLElement;
+      if (target.id === "simulate-indexing") {
+        this.setState({ simulateIndexing: (target as HTMLInputElement).checked });
+      } else if (target.id === "protocol-select") {
+        const value = (target as HTMLSelectElement).value;
+        this.setState({ selectedProtocol: value });
+        if (value === "none") {
+          this.setState({ indexDirectoryPath: "" });
+          if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = "";
+        } else {
+          this.setState({ indexDirectoryPath: value });
+          if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = value;
+        }
+      } else if (target.id === "complete-rescan") {
+        this.setState({ completeRescan: (target as HTMLInputElement).checked });
+      }
+    });
+    if (this.refs.browseBtn) {
+      console.log("Attaching click event to browse button");
+      (this.refs.browseBtn as HTMLButtonElement).addEventListener("click", () => this.openFolderSelector());
+    }
+    if (this.refs.scanBtn) {
+      console.log("Attaching click event to scan button");
+      (this.refs.scanBtn as HTMLButtonElement).addEventListener("click", () => this.startIndexing());
+    }
+    if (this.refs.cancelBtn) {
+      console.log("Attaching click event to cancel button");
+      (this.refs.cancelBtn as HTMLButtonElement).addEventListener("click", () => this.cancelIndexing());
+    }
+  }
 
-    if (!parts.length && !this.simulateIndexing.value) {
-      this.error.value = "Please choose a folder or connect a cloud service.";
+  // --- API/Service Calls ---
+  private async startIndexing() {
+    const parts = IndexingService.processDirectoryPath(
+      this.state.value.indexDirectoryPath.trim()
+    );
+    if (!parts.length) {
+      this.setState({ error: "Please choose a folder or connect a cloud service." });
       return;
     }
-
-    const identifier = parts.length > 0 ? parts[0] : "";
-    const uri = parts.length > 1 ? parts.slice(1) : [];
-
-    // If simulate indexing is true, then we need to set the location to "" or null
-    const location = this.simulateIndexing.value ? "" : this.selectedProtocol.value === "none" ? "LOCAL" : this.selectedProtocol.value;
-
-    this.error.value = null;
-    this.isIndexing.value = true;
-    this.isCancelling.value = false;
+    const identifier = parts[0];
+    const uri = parts.slice(1);
+    const location = this.state.value.selectedProtocol === "none" ? "LOCAL" : this.state.value.selectedProtocol;
+    this.setState({ error: null, isIndexing: true, isCancelling: false });
     this.showNotification("Preparing to scan...", "info");
-
     try {
       const requestData = {
         location: location,
         identifier: identifier,
         uri: uri,
-        complete_rescan: this.completeRescan.value,
-        simulate_indexing: this.simulateIndexing.value,
+        complete_rescan: this.state.value.completeRescan,
+        simulate_indexing: this.state.value.simulateIndexing,
       };
-
       const resp = await fetch(endpoints.INDEX_START, {
         method: "POST",
         body: JSON.stringify(requestData),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
       const data = (await resp.json()) as IndexStartResponse;
-
       if (!data.error) {
         this.showNotification("Photo scan started successfully!", "success");
         this.pollIndexStatus();
       } else {
-        this.error.value = data.details || "Failed to start scanning photos.";
-        this.isIndexing.value = false;
-        this.showNotification(this.error.value, "error");
+        this.setState({ error: data.details || "Failed to start scanning photos.", isIndexing: false });
+        this.showNotification(this.state.value.error!, "error");
       }
     } catch (e) {
-      this.error.value =
-        "Could not start scanning. Please check the folder path or service.";
-      this.isIndexing.value = false;
-      this.showNotification(this.error.value, "error");
+      this.setState({ error: "Could not start scanning. Please check the folder path or service.", isIndexing: false });
+      this.showNotification(this.state.value.error!, "error");
     }
   }
+
   private async pollIndexStatus(pageLoaded: boolean = false) {
-    if (!pageLoaded && !this.isIndexing.value) return; // Don't poll if not indexing and if not at start
+    if (!pageLoaded && !this.state.value.isIndexing) return;
     try {
       const resp = await fetch(`${this.apiUrl}/getIndexStatus`);
       const data: IndexStatusResponse = await resp.json();
       if (data.done) {
-        if (this.isCancelling.value) {
+        if (this.state.value.isCancelling) {
           this.showNotification("Scan stopped successfully", "warning");
-        } 
-        
-        this.isIndexing.value = false;
-        this.isCancelling.value = false;
+        }
+        this.setState({
+          isIndexing: false,
+          isCancelling: false,
+          indexProgress: 0,
+          extraDetails: "",
+          eta: 0,
+        });
         this.pollingTimeout = null;
-        this.indexProgress.value = 0;
-        this.extraDetails.value = "";
-        this.eta.value = 0;
         this.clearAllInputs();
         return;
       }
       if (this.pageLoaded) {
-         this.isIndexing.value = true; // Ensure indexing is true while polling since just in case it is not set as true
+        this.setState({ isIndexing: true });
       }
-      this.indexProgress.value = (data.processed ?? 0) / (data.total || 1); // Avoid division by zero
-      this.eta.value = data.eta;
-      this.extraDetails.value = data.details || "";
-      this.error.value = null;
-      this.pollingTimeout = window.setTimeout(
-        () => this.pollIndexStatus(),
-        1000
-      );
+      this.setState({
+        indexProgress: (data.processed ?? 0) / (data.total || 1),
+        eta: data.eta,
+        extraDetails: data.details || "",
+        error: null,
+      });
+      this.pollingTimeout = window.setTimeout(() => this.pollIndexStatus(), 1000);
     } catch (e) {
-      this.error.value = "Couldn't check scan progress. Will retry...";
-      this.pollingTimeout = window.setTimeout(
-        () => this.pollIndexStatus(),
-        5000
-      );
+      this.setState({ error: "Couldn't check scan progress. Will retry..." });
+      this.pollingTimeout = window.setTimeout(() => this.pollIndexStatus(), 5000);
     } finally {
-      this.pageLoaded = false; // Set pageLoaded to false after the first call
+      this.pageLoaded = false;
     }
   }
 
   private async cancelIndexing() {
-    if (!this.isIndexing.value) return;
-    this.isCancelling.value = true;
+    if (!this.state.value.isIndexing) return;
+    this.setState({ isCancelling: true });
     this.showNotification("Stopping scan...", "warning");
     try {
       await fetch(`${this.apiUrl}/indexCancel`);
       this.pollIndexStatus();
     } catch (e) {
-      this.error.value =
-        "Could not stop the scan. Please contact administrator.";
-      this.isCancelling.value = false;
-      this.showNotification(this.error.value, "error");
+      this.setState({ error: "Could not stop the scan. Please contact administrator.", isCancelling: false });
+      this.showNotification(this.state.value.error!, "error");
     }
   }
+
+  // --- Helpers ---
+  private showNotification(
+    message: string,
+    type: "success" | "error" | "info" | "warning" = "info"
+  ) {
+    const notification = document.createElement("div");
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 6px;
+      color: white;
+      font-weight: 500;
+      z-index: 1000;
+      max-width: 400px;
+      word-wrap: break-word;
+    `;
+    switch (type) {
+      case "success":
+        notification.style.backgroundColor = "#10b981";
+        break;
+      case "error":
+        notification.style.backgroundColor = "#ef4444";
+        break;
+      case "warning":
+        notification.style.backgroundColor = "#f59e0b";
+        break;
+      default:
+        notification.style.backgroundColor = "#3b82f6";
+    }
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 5000);
+  }
+
+  private clearAllInputs() {
+    if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = "";
+    if (this.refs.simulateIndexingCheckbox) (this.refs.simulateIndexingCheckbox as HTMLInputElement).checked = false;
+    if (this.refs.protocolSelect) (this.refs.protocolSelect as HTMLSelectElement).value = "none";
+    if (this.refs.rescanCheckbox) (this.refs.rescanCheckbox as HTMLInputElement).checked = false;
+    this.setState({
+      indexDirectoryPath: "",
+      simulateIndexing: false,
+      selectedProtocol: "none",
+      completeRescan: false,
+    });
+  }
+
   private openFolderSelector(): void {
+    console.log("Opening folder selector");
     const modal = document.getElementById("folder-selector-modal");
     const content = document.getElementById("folder-selector-content");
-
     if (!modal || !content) return;
-
-    // Clear previous content
     content.innerHTML = "";
-
-    // Extract drive identifiers from partitions
     const availableDrives = this.partitions
       .filter((partition) => partition.location === "LOCAL")
-      .map((partition) => partition.identifier); // Create folder selector
+      .map((partition) => partition.identifier);
     this.folderSelector = new SelectFolder("folder-selector-content", {
       title: "Select Photo Directory",
-      drives: availableDrives.length > 0 ? availableDrives : ["C:", "D:", "E:"], // Fallback to default drives
+      drives: availableDrives.length > 0 ? availableDrives : ["C:", "D:", "E:"],
       onFolderSelect: (path: string) => {
-        this.indexDirectoryPath.value = path;
-
-        // Update the input field
-        const dirInput =
-          this.root.querySelector<HTMLInputElement>("#directory-input");
-        if (dirInput) {
-          dirInput.value = path;
-        }
-
+        this.setState({ indexDirectoryPath: path });
+        if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = path;
         this.closeFolderSelector();
       },
       onCancel: () => {
@@ -653,18 +523,12 @@ export class IndexingComponent {
       showOkButton: true,
       showCancelButton: true,
     });
-
-    // Show modal
     modal.classList.remove("hidden");
-
-    // Add click outside to close
     modal.addEventListener("click", (e) => {
       if (e.target === modal) {
         this.closeFolderSelector();
       }
     });
-
-    // Add escape key to close
     const escapeHandler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         this.closeFolderSelector();
@@ -673,40 +537,30 @@ export class IndexingComponent {
     };
     document.addEventListener("keydown", escapeHandler);
   }
+
   private closeFolderSelector(): void {
     const modal = document.getElementById("folder-selector-modal");
-    if (modal) {
-      modal.classList.add("hidden");
-    }
-
+    if (modal) modal.classList.add("hidden");
     if (this.folderSelector) {
       this.folderSelector.destroy();
       this.folderSelector = null;
     }
   }
 
+  // --- Cleanup ---
   public destroy() {
-    // Clean up all subscriptions
     this.subscriptions.forEach((unsubscribe) => unsubscribe());
     this.subscriptions = [];
-
     if (this.pollingTimeout) {
       clearTimeout(this.pollingTimeout);
       this.pollingTimeout = null;
     }
-
-    // Clean up folder selector
     if (this.folderSelector) {
       this.folderSelector.destroy();
       this.folderSelector = null;
     }
-
-    // Remove modal from DOM
     const modal = document.getElementById("folder-selector-modal");
-    if (modal) {
-      modal.remove();
-    }
-
+    if (modal) modal.remove();
     this.root.innerHTML = "";
   }
 }
