@@ -9,9 +9,10 @@ import sys
 import traceback
 from copy import deepcopy
 
-from index.meta_indexV2 import MetaIndex, collect_resources
+from index.meta_indexV2 import MetaIndex
 from index.image_index import ImageIndex
 from index.face_clustering import FaceIndex
+from index.metadata import extract_image_metaData, collect_resources
 
 import cv2
 import numpy as np
@@ -36,21 +37,21 @@ clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
 def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
     # for simulating, (TODO: better simulation setup, if get time) 
-    # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
+    return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
-    if isinstance(image,str):
-        assert os.path.exists(image)
-        image_data = cv2.imread(image)
-        is_bgr = True # "If using opencv, is_bgr would be true."
-    else:
-        image_data = image
+    # if isinstance(image,str):
+    #     assert os.path.exists(image)
+    #     image_data = cv2.imread(image)
+    #     is_bgr = True # "If using opencv, is_bgr would be true."
+    # else:
+    #     image_data = image
     
-    if image_data is None:
-        return None
+    # if image_data is None:
+    #     return None
 
-    image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
-    assert image_features.size == IMAGE_EMBEDDING_SIZE
-    return image_features
+    # image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
+    # assert image_features.size == IMAGE_EMBEDDING_SIZE
+    # return image_features
 
 def generate_text_embedding(query:str):
     # return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
@@ -59,6 +60,33 @@ def generate_text_embedding(query:str):
     assert text_features.size == TEXT_EMBEDDING_SIZE
     return text_features
 # -------------------------------------------------------------------------------
+
+import hashlib
+def generate_data_hash(resource_path:str, chunk_size:int = 400) -> str | None:
+    data_hash = None
+    if os.path.exists(resource_path):
+        f = open(resource_path, "rb")
+        file_size = os.stat(resource_path).st_size
+        start_offset = int(0.1 * file_size)
+        m = hashlib.sha256()
+
+        try:
+            f.seek(start_offset, 0)
+            start_bytes = f.read(chunk_size)
+            m.update(start_bytes)
+            
+            end_offset = int(0.1 * file_size)
+            f.seek(-end_offset, 2)
+            end_bytes = f.read(chunk_size)
+            m.update(end_bytes)
+
+            m.update(str(file_size).encode("utf8"))
+            data_hash =  m.hexdigest()
+        except:
+            pass
+        del(m)
+    
+    return data_hash
 
 # ---------------------
 # Databases
@@ -185,30 +213,44 @@ class IndexingLocal(object):
         NOTe that it not parallel `batching` per se, that is possible but not without huge efforts, currently not enough time!
         """
         
-        hash_2_metaData = self.meta_index.extract_image_metaData(resources_batch)       # extra meta data
-        for data_hash, meta_data in hash_2_metaData.items():
-            assert data_hash is not None
-            absolute_path = meta_data["absolute_path"]
-            is_indexed = meta_data["is_indexed"]
-            if is_indexed:
+        # hash_2_metaData = self.meta_index.extract_image_metaData(resources_batch)       # extra meta data
+        # for data_hash, meta_data in hash_2_metaData.items():
+        #     assert data_hash is not None
+        #     absolute_path = meta_data["absolute_path"]
+        #     is_indexed = meta_data["is_indexed"]
+        #     if is_indexed:
+        #         continue
+
+        for resource_path in resources_batch:
+            data_hash = generate_data_hash(
+                resource_path
+            )
+            if data_hash is None:
+                print("Possibly Invalid data for: {}".format(resource_path))
                 continue
             
             # read raw-data only once.. and share it for image-clip,face and previews
-            frame = cv2.imread(absolute_path)
+            frame = cv2.imread(resource_path)
             if frame is None:
-                print("[WARNING]: Invalid data for {}".format(absolute_path))
+                print("[WARNING]: Invalid data for {}".format(resource_path))
                 continue
             is_bgr = True
 
             # generate image embeddings
             image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
-            if image_embedding is None:
-                print("Invalid data for {}".format(absolute_path))
+            if image_embedding is None: # TODO: it cannot be None, if image-data seemed valid!
+                print("Invalid data for {}".format(resource_path))
                 continue
             
-            meta_data["person"] = ["no_person_detected"] # it is supposed to be updated, after clusters finalizing.
+            meta_data = extract_image_metaData(
+                resource_path # TODO: even though few bytes are read, get_image_size routine, we can share the 
+            )
+             # it is supposed to be updated, after clusters finalizing.
+            meta_data["ml_attributes"]["personML"] = ["no_person_detected"]
+            meta_data["resource_hash"] = data_hash  # presence of this field, should indicate `is_indexed` by default!
+
             # sync/update both the indices.
-            meta_data["is_indexed"] = True
+            # meta_data["is_indexed"] = True # No need, since
 
             # TODO: on downloading of remote data, append to the meta-index.
             # downloading should be equivalent to presence of new images, hence check the hash.
@@ -221,11 +263,11 @@ class IndexingLocal(object):
             #     meta_data["absolute_path"] = "remote"
             
             # TODO: either all should complete or no one! must be in sync!
-            self.meta_index.update(data_hash, meta_data) # TODO: append instead of update for clearer semantics!
+            self.meta_index.update(meta_data) # TODO: append instead of update for clearer semantics!
             self.semantic_index.update(data_hash, data_embedding = image_embedding)
             self.face_index.update(
                 frame = frame,
-                absolute_path = absolute_path,
+                absolute_path = resource_path,
                 resource_hash = data_hash,
                 is_bgr = True)
             
@@ -305,7 +347,7 @@ class IndexingLocal(object):
 
                 try:
                     resource_mapping = next(resource_mapping_generator)
-                    contents = resource_mapping["image"]
+                    contents = resource_mapping["Image"]
                     if len(contents) == 0:
                         continue
                     current_directory = resource_mapping["directory_processed"]
@@ -313,18 +355,8 @@ class IndexingLocal(object):
                     del resource_mapping_generator
                     break
 
-                # resource_mapping = next(resource_mapping_generator)
-                # if (resource_mapping["finished"] == True):
-                #     del resource_mapping_generator
-                #     break
-                # else:
-                #     image_resources = resource_mapping["image"]
-                #     if len(image_resources) == 0:
-                #         continue
-                #     current_directory = list(image_resources.keys())[0]
-                #     contents = image_resources[current_directory]
-                
                 # process the contents in batches.
+                print("processing: {}".format(current_directory))
                 count = 0
                 eta = None # unknown!
                 while True:
@@ -386,27 +418,38 @@ class IndexingLocal(object):
                 self.indexing_info["done"] = False
             
             for resource_hash, cluster_ids in cluster_meta_info.items():
-                self.meta_index.modify_meta_data(resource_hash, {"person": list(cluster_ids)}, force = True)
+                self.meta_index.modify_meta_ml(resource_hash, 
+                                                {"personML": list(cluster_ids)}, 
+                                                force = True)
             
         except Exception:
             error_trace = traceback.format_exc() # uses sys.exception() as the exception
+            print("Error: {}".format(error_trace))
         finally:
-            print("Saving...")
-            self.meta_index.save()
-            self.semantic_index.save()
-            # imageIndex.sanity_check()
             with self.lock:
-                if error_trace is not None:
-                    self.indexing_info["details"] = error_trace
-                else:
-                    self.indexing_info["details"] = "Indexing Completed Successfully!"
+                # indicate error first, so as client can read that.. before trying to save
                 self.indexing_info["eta"] = None
                 self.indexing_info["processed"] = None
                 self.indexing_info["total"] = None
-                self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
-
-                self.indexing_status = IndexingStatus.INACTIVE
-            print("All done..")
+                self.indexing_info["done"] = False
+                
+                if error_trace is not None:
+                    self.indexing_info["details"] = error_trace
+                    self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
+                    self.indexing_status = IndexingStatus.INACTIVE
+                    return
+                else:
+                    try:
+                        self.meta_index.save()
+                        self.semantic_index.save()
+                        # imageIndex.sanity_check()
+                        self.indexing_info["details"] = "Indexing Completed Successfully!"
+                    except Exception:
+                        self.indexing_info["details"] = traceback.format_exc
+                    finally:
+                        self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
+                        self.indexing_status = IndexingStatus.INACTIVE
+                        print("All done..")
 
     def begin(self) -> ReturnInfo:
         """
@@ -440,7 +483,7 @@ class IndexingLocal(object):
                     eta = None,
                     processed = None,
                     total = None,
-                    details = "No ongoing indexing.."
+                    details = self.indexing_info["details"] # read the most-recent details, whatever it was!
                 )
 
             if indexing_status == IndexingStatus.REQUESTED:            
