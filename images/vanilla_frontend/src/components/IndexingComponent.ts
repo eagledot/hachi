@@ -24,6 +24,7 @@ export class IndexingComponent {
   private apiUrl: string;
   private pollingTimeout: number | null = null;
   private pageLoaded: boolean = true;
+  
 
   // Reactive state signals
   private isIndexing = new Signal<boolean>(false);
@@ -35,11 +36,14 @@ export class IndexingComponent {
   private completeRescan = new Signal<boolean>(false);
   private selectedProtocol = new Signal<string>("none");
   private error = new Signal<string | null>(null);
+  private simulateIndexing = new Signal<boolean>(false);
 
   // Non-reactive state
   private partitions: Partition[] = [];
   private folderSelector: SelectFolder | null = null;
   private subscriptions: (() => void)[] = [];
+
+  
 
   constructor(options: IndexingComponentOptions) {
     this.root = options.root;
@@ -71,7 +75,8 @@ export class IndexingComponent {
       useEffect(this.updateActionButtons.bind(this), [
             this.isIndexing,
             this.indexDirectoryPath,
-            this.isCancelling
+            this.isCancelling,
+            this.simulateIndexing
         ]),
         useEffect(this.updateProgressSection.bind(this), [
             this.isIndexing,
@@ -161,6 +166,17 @@ export class IndexingComponent {
             >
               Browse...
             </button>
+          </div>
+
+          <!-- Simulate Indexing Checkbox -->
+          <div class="flex items-center space-x-2 mt-4">
+            <input type="checkbox" id="simulate-indexing" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed" />
+            <label
+              for="simulate-indexing"
+              class="block text-sm font-medium text-gray-700"
+            >
+              Simulate Indexing
+            </label>
           </div>
         </div>
 
@@ -254,6 +270,17 @@ export class IndexingComponent {
         }
       });
     }
+
+    // Simulate indexing checkbox event handler
+    const simulateIndexingCheckbox =
+      this.root.querySelector<HTMLInputElement>("#simulate-indexing");
+    if (simulateIndexingCheckbox) {
+      simulateIndexingCheckbox.addEventListener("change", (e) => {
+        this.simulateIndexing.value = (e.target as HTMLInputElement).checked;
+        console.log("Simulate indexing checkbox changed to:", this.simulateIndexing.value);
+      });
+    }
+
     const protocolSelect =
       this.root.querySelector<HTMLSelectElement>("#protocol-select");
     if (protocolSelect) {
@@ -390,6 +417,34 @@ export class IndexingComponent {
     }
   }
 
+  // Clear all inputs
+  private clearAllInputs() {
+    // Directory input
+    const dirInput =
+      this.root.querySelector<HTMLInputElement>("#directory-input");
+    if (dirInput) {
+      dirInput.value = "";
+    }
+    // Simulate indexing checkbox
+    const simulateIndexingCheckbox =
+      this.root.querySelector<HTMLInputElement>("#simulate-indexing");
+    if (simulateIndexingCheckbox) {
+      simulateIndexingCheckbox.checked = false;
+    }
+    // Protocol select
+    const protocolSelect =
+      this.root.querySelector<HTMLSelectElement>("#protocol-select");
+    if (protocolSelect) {
+      protocolSelect.value = "none";
+    }
+    // Rescan checkbox
+    const rescanCheckbox =
+      this.root.querySelector<HTMLInputElement>("#complete-rescan");
+    if (rescanCheckbox) {
+      rescanCheckbox.checked = false;
+    }
+  }
+  
   private updateInputsState() {
     console.log("Updating inputs state based on indexing status and protocol selection", {
       isIndexing: this.isIndexing.value,
@@ -402,6 +457,8 @@ export class IndexingComponent {
     const rescanCheckbox =
       this.root.querySelector<HTMLInputElement>("#complete-rescan");
     const browseBtn = this.root.querySelector<HTMLButtonElement>("#browse-btn");
+    const simulateIndexingCheckbox =
+      this.root.querySelector<HTMLInputElement>("#simulate-indexing");
 
     if (dirInput) {
       dirInput.disabled =
@@ -420,7 +477,12 @@ export class IndexingComponent {
     if (rescanCheckbox) {
       rescanCheckbox.disabled = this.isIndexing.value;
     }
+
+    if (simulateIndexingCheckbox) {
+      simulateIndexingCheckbox.disabled = this.isIndexing.value;
+    }
   }
+
   private updateActionButtons() {
     console.log("Updating action buttons based on indexing status", {
       isIndexing: this.isIndexing.value,
@@ -431,9 +493,9 @@ export class IndexingComponent {
     const cancelBtn = this.root.querySelector<HTMLButtonElement>("#cancel-btn");
 
     if (scanBtn) {
-      scanBtn.style.display = !this.isIndexing.value ? "flex" : "none";
+      scanBtn.style.display = !this.isIndexing.value  ? "flex" : "none";
       scanBtn.disabled =
-        this.isIndexing.value || !this.indexDirectoryPath.value.trim();
+        this.isIndexing.value || (!this.indexDirectoryPath.value.trim() && !this.simulateIndexing.value);
     }
 
     if (cancelBtn) {
@@ -445,23 +507,24 @@ export class IndexingComponent {
       cancelBtn.innerHTML = `<span class="mr-2">${icon}</span>${text}`;
     }
   }
+
+  
   private async startIndexing() {
     // Preparing data as per new requirements
     const parts = IndexingService.processDirectoryPath(
       this.indexDirectoryPath.value.trim()
     );
 
-    if (!parts.length) {
+    if (!parts.length && !this.simulateIndexing.value) {
       this.error.value = "Please choose a folder or connect a cloud service.";
       return;
     }
 
-    const identifier = parts[0];
-    const uri = parts.slice(1);
-    const location =
-      this.selectedProtocol.value === "none"
-        ? "LOCAL"
-        : this.selectedProtocol.value;
+    const identifier = parts.length > 0 ? parts[0] : "";
+    const uri = parts.length > 1 ? parts.slice(1) : [];
+
+    // If simulate indexing is true, then we need to set the location to "" or null
+    const location = this.simulateIndexing.value ? "" : this.selectedProtocol.value === "none" ? "LOCAL" : this.selectedProtocol.value;
 
     this.error.value = null;
     this.isIndexing.value = true;
@@ -474,6 +537,7 @@ export class IndexingComponent {
         identifier: identifier,
         uri: uri,
         complete_rescan: this.completeRescan.value,
+        simulate_indexing: this.simulateIndexing.value,
       };
 
       const resp = await fetch(endpoints.INDEX_START, {
@@ -516,6 +580,7 @@ export class IndexingComponent {
         this.indexProgress.value = 0;
         this.extraDetails.value = "";
         this.eta.value = 0;
+        this.clearAllInputs();
         return;
       }
       if (this.pageLoaded) {
