@@ -29,11 +29,11 @@ TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
 FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
 
 sys.path.insert(0, IMAGE_APP_ML_PATH)
-import clip_python_module as clip
+# import clip_python_module as clip
 
-print("[Debug]: Loading Model, may take a few seconds.")
-clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
-clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
+# print("[Debug]: Loading Model, may take a few seconds.")
+# clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
+# clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
 def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
     # for simulating, (TODO: better simulation setup, if get time) 
@@ -54,11 +54,11 @@ def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, c
     # return image_features
 
 def generate_text_embedding(query:str):
-    # return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
+    return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
 
-    text_features = clip.encode_text(query)
-    assert text_features.size == TEXT_EMBEDDING_SIZE
-    return text_features
+    # text_features = clip.encode_text(query)
+    # assert text_features.size == TEXT_EMBEDDING_SIZE
+    # return text_features
 # -------------------------------------------------------------------------------
 
 import hashlib
@@ -222,13 +222,16 @@ class IndexingLocal(object):
         #         continue
 
         for resource_path in resources_batch:
-            data_hash = generate_data_hash(
+            resource_hash = generate_data_hash(
                 resource_path
             )
-            if data_hash is None:
+            if resource_hash is None:
                 print("Possibly Invalid data for: {}".format(resource_path))
                 continue
             
+            if self.meta_index.is_indexed(resource_hash):
+                return
+
             # read raw-data only once.. and share it for image-clip,face and previews
             frame = cv2.imread(resource_path)
             if frame is None:
@@ -247,7 +250,7 @@ class IndexingLocal(object):
             )
              # it is supposed to be updated, after clusters finalizing.
             meta_data["ml_attributes"]["personML"] = ["no_person_detected"]
-            meta_data["resource_hash"] = data_hash  # presence of this field, should indicate `is_indexed` by default!
+            meta_data["resource_hash"] = resource_hash  # presence of this field, should indicate `is_indexed` by default!
 
             # sync/update both the indices.
             # meta_data["is_indexed"] = True # No need, since
@@ -264,14 +267,14 @@ class IndexingLocal(object):
             
             # TODO: either all should complete or no one! must be in sync!
             self.meta_index.update(meta_data) # TODO: append instead of update for clearer semantics!
-            self.semantic_index.update(data_hash, data_embedding = image_embedding)
+            self.semantic_index.update(resource_hash, data_embedding = image_embedding)
             self.face_index.update(
                 frame = frame,
                 absolute_path = resource_path,
-                resource_hash = data_hash,
+                resource_hash = resource_hash,
                 is_bgr = True)
             
-            generate_image_preview(data_hash, 
+            generate_image_preview(resource_hash, 
                                 image = frame, 
                                 face_bboxes = None, 
                                 person_ids=[],
@@ -356,7 +359,7 @@ class IndexingLocal(object):
                     break
 
                 # process the contents in batches.
-                print("processing: {}".format(current_directory))
+                # print("processing: {}".format(current_directory))
                 count = 0
                 eta = None # unknown!
                 while True:

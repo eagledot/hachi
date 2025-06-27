@@ -101,6 +101,17 @@ dataCache = GlobalDataCache()   # a global data cache to serve raw-data for prev
 # config/data-structures
 global_lock = threading.RLock()
 
+def recreate_local_path(
+        identifier:str,  # like C:, D:,  Local drives/partitions!
+        uri:list[str]   # like [abc, movies,] , without any delimiters like // or \
+    ) -> os.PathLike:
+    
+    if os.sys.platform == "win32":
+        identifier = "{}\\".format(identifier)
+    return os.path.join(
+        identifier,
+        *uri
+    )
 
 from indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
 index_obj:None | IndexingLocal = None
@@ -132,13 +143,11 @@ def indexStart(batch_size = 1) -> ReturnInfo:
     print(post_attributes)
 
     # Re-create the path. (TODO: handle for remote like googlePhotos)
-    identifier = post_attributes["identifier"]
-    if os.sys.platform == "win32":
-        identifier = "{}\\".format(identifier)
-    root_dir = os.path.join(
-        identifier,
-        *post_attributes["uri"]
+    root_dir = recreate_local_path(
+        post_attributes["identifier"], 
+        uri = post_attributes["uri"]
     )
+
     print("Root dir: {}".format(root_dir))
     if not(os.path.exists(root_dir)):
         return flask.jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
@@ -362,37 +371,38 @@ def query():
 
 ##############
 
-@app.route("/getRawData/<data_hash>", methods = ["GET"])
-def getRawData(data_hash:str) -> any:
+@app.route("/getRawData/<resource_hash>", methods = ["GET"])
+def getRawData(resource_hash:str) -> any:
     
-    hash_2_metaData = metaIndex.query(data_hashes = data_hash)
-    temp_meta = hash_2_metaData[data_hash]
-    resource_type = temp_meta["resource_type"]
+    hash_2_metaData = metaIndex.query(resource_hashes = resource_hash)
+    temp_meta = hash_2_metaData[resource_hash]
+    resource_type = "image"
 
-    #leverage preview data if possible by default:
-    preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.webp".format(data_hash)) 
+    #leverage preview data if possiblde by default:
+    preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.webp".format(resource_hash)) 
     if os.path.exists(preview_path):
         resource_extension = ".webp"
         absolute_path = preview_path
     else:
-        print("[WARNING xxxxxxxxxxxx]: no preview_path for {} {}".format(absolute_path, data_hash))
+        print("[WARNING xxxxxxxxxxxx]: no preview_path for {} {}".format(absolute_path, resource_hash))
         resource_extension = temp_meta["resource_extension"]
         absolute_path = temp_meta["absolute_path"]
   
-    raw_data = dataCache.get(data_hash, absolute_path)
+    raw_data = dataCache.get(resource_hash, absolute_path)
     del absolute_path
     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
-@app.route("/getRawDataFull/<data_hash>", methods = ["GET"])
-def getRawDataFull(data_hash:str) -> flask.Response:
-    hash_2_metaData = metaIndex.query(data_hashes = data_hash)
-    temp_meta = hash_2_metaData[data_hash]
-    resource_type = temp_meta["resource_type"]
+@app.route("/getRawDataFull/<resource_hash>", methods = ["GET"])
+def getRawDataFull(resource_hash:str) -> flask.Response:
+    hash_2_metaData = metaIndex.query(resource_hashes = resource_hash)
+    temp_meta = hash_2_metaData[resource_hash]
+    resource_type = "image" # TODO: get it from meta-data?
     resource_extension = temp_meta["resource_extension"]
     resource_directory = temp_meta["resource_directory"]
-    absolute_path = temp_meta["absolute_path"]
+    absolute_path = temp_meta["resource_path"]
 
     raw_data = None
+    # TODO: handle remote data!
     if absolute_path.strip().lower() == "remote":
         remote_meta = temp_meta["remote"]
         if resource_directory == "google_photos":
@@ -451,6 +461,14 @@ def editMetaData():
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
     # get the unique/all possible values for an attribute!
+    # TODO: if resource directory, send as form of `identifier`
+    # and an array of uris, so as to get `case-sensitive-path` back!
+    # when needed!
+
+    #TODO: update on the client side!
+    if attribute == "person":
+        attribute = "personML"
+
     if attribute == "resource_directory":
         new_result = []
         for x in metaIndex.get_unique(attribute):
@@ -462,9 +480,14 @@ def getGroup(attribute:str):
 
 @app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
 def getMeta(attribute:str, value:Any):
-
+    
     if attribute == "resource_directory":
-        value  = os.path.abspath(value.replace("|", "//"))
+        value = value.replace("|", "/")
+        assert os.path.exists(os.path.normpath(value))
+
+    #TODO: update on the client side!
+    if attribute == "person":
+        attribute = "personML"
 
     # TODO: for now force value to be of string type.. or convert into expected type.. for backend.
     # TODO: check path matching for LINUX.. due to slashes orientation may fail to... so have to check it..
@@ -493,12 +516,13 @@ def get_original_cluster_id(cluster_id):
        return cluster_id
       
     # first get the original data even user changed it.
-    original_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = False)
-    new_hash_2_metadata = metaIndex.query(attribute = "person", attribute_value = cluster_id, latest_version = True)
+    # TODO: i think we are saving user-data in a different attribute , update this code!
+    original_hash_2_metadata = metaIndex.query(attribute = "personML", attribute_value = cluster_id, latest_version = False)
+    new_hash_2_metadata = metaIndex.query(attribute = "personML", attribute_value = cluster_id, latest_version = True)
     desired_ix = None
     desired_hash = None
     for hash, new_meta in new_hash_2_metadata.items():
-        for i,p in enumerate(new_meta["person"]):
+        for i,p in enumerate(new_meta["personML"]):
             if p == cluster_id:
                 desired_ix = i
                 desired_hash = hash
@@ -508,7 +532,7 @@ def get_original_cluster_id(cluster_id):
     assert not (desired_ix is None), "should have found it!"
 
     # find the original...
-    original_cluster_id = original_hash_2_metadata[desired_hash]["person"][desired_ix]
+    original_cluster_id = original_hash_2_metadata[desired_hash]["personML"][desired_ix]
     del original_hash_2_metadata, new_hash_2_metadata
     return original_cluster_id
 
@@ -624,12 +648,9 @@ def getSuggestionPath() -> List[str]:
 
     result:List[str] = []
     if post_data["location"].lower() == "local":
-        identifier = post_data["identifier"]
-        if os.sys.platform == "win32":
-            identifier = "{}\\".format(identifier)
-        recreated_path = os.path.join(
-            identifier,
-            *post_data["uri"]
+        recreated_path = recreate_local_path(
+            post_data["identifier"],
+            uri = post_data["uri"]
         )
         print("Recreated path: ", recreated_path)
         if os.path.exists(recreated_path):

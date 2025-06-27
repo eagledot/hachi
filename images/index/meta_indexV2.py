@@ -30,7 +30,8 @@ import meta_index_new_python as mBackend
 
 # import get_image_size
 
-CASE_INSENSITIVE = True  # later make decision in app_config
+CASE_INSENSITIVE = True  # DO IT on `request`, when updating/receiving user-data , otherwise generating info also keep it in lower.
+# also can make decision while searching/querying to be case-insensitive! 
 
 # from typing import TypedDict
 
@@ -379,8 +380,8 @@ class MetaIndex(object):
             
             # may load json a bit faster, parse bytes directly, as we just have to check if how many rows returned!
             attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
-            assert len(attr_2_rowIndices) == 0 or len(attr_2_rowIndices) == 1, "data-hash is supposed to be primary-key, so at-max 1 could be possible, bug somewhere?"
-            return (len(attr_2_rowIndices) == 1)
+            assert len(attr_2_rowIndices["resource_hash"]) == 0 or len(attr_2_rowIndices["resource_hash"]) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
+            return len(attr_2_rowIndices["resource_hash"]) == 1
 
     def suggest(self, attribute:str, query:str):
         """for now we just search substrings in the string, which a column of colString does by default!
@@ -488,12 +489,11 @@ class MetaIndex(object):
                meta_data:ImageMetaAttributes
                ):
 
-        print("[TODO]: rename `update` to `append`")
+        # print("[TODO]: rename `update` to `append`")
 
         with self.lock:
             assert not (meta_data["resource_hash"] is None)
             
-            print(meta_data)
             # NOTE: have to flatten the meta-data for backend, (as supports primitve-data types and array for strings for now!)
             flatten_dict = {}
             flatten_dict["resource_hash"] = meta_data["resource_hash"]
@@ -512,9 +512,8 @@ class MetaIndex(object):
                 if v is None:
                     flatten_dict[k] = "UNK"
             
-            # Check if initialized already, if first time `update`, we initialize it first!
             if self.backend_is_initialized == False:
-                # lazy initialization on first time update...
+                # lazy initialization on first time update, this helps decoupling MetaIndex from application flow!
                 assert self.column_types == []
                 assert self.column_labels == []
                 for k,v in flatten_dict.items():
@@ -537,8 +536,6 @@ class MetaIndex(object):
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
 
-                print("Labels: {}".format(self.column_labels))
-                print("Types: {}".format(self.column_types))
                 mBackend.init(
                     name = self.name,
                     column_labels = self.column_labels,
@@ -547,12 +544,11 @@ class MetaIndex(object):
                 )
                 self.backend_is_initialized = True
             else:
-                # if self.is_indexed(
-                #     meta_data["resource_hash"]
-                # ):
-                    # print("[WARNING]: Don't call metaIndex update/append, when already indexed\nCheck `if_indexed` first")
-                    # return
-                pass
+                if self.is_indexed(
+                    meta_data["resource_hash"]
+                ):
+                    print("[WARNING]: Don't call metaIndex update/append, when already indexed\nCheck `if_indexed` first")
+                    return
             
             # TODO: set resource_hash column to be immutable (kind of primary key..)
             json_meta = json.dumps(flatten_dict) # serialize !
@@ -575,20 +571,14 @@ class MetaIndex(object):
                 print("[WARNING]: calling Modify_meta_data without initIalized, should be an error")
                 return 
 
-            if CASE_INSENSITIVE:  # why did i do this? to match during suggest?
-                new_meta_data:MLAttributes = {}
-                for k,v in meta_data.items():
-                    assert k in MLAttributes.__annotations__, "expected only Ml attributes but got: {}".format(k)
-                    assert not (v is None)
-                    if isinstance(v, str):
-                        new_meta_data[k] = v.lower()
-            
+            assert self.is_indexed(resource_hash)
+
             # update it.
             query = json.dumps({"resource_hash":resource_hash})  
             attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
-            assert len(attr_2_rowIndices) == 1, "expected only 1 but got: {} for {}".format(attr_2_rowIndices, resource_hash)
+            assert len(attr_2_rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
             row_indices = attr_2_rowIndices["resource_hash"]
-            mBackend.modify(row_indices[0], json.dumps(new_meta_data), force = force)
+            mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
 
     def modify_meta_user(self, 
                         resource_hash:str,
@@ -604,22 +594,14 @@ class MetaIndex(object):
                 print("[WARNING]: calling Modify_meta_data without initIalized, should be an error")
                 return 
 
-            if CASE_INSENSITIVE:  # why did i do this? to match during suggest?
-                new_meta_data:UserAttributes = {}
-                for k,v in meta_data:
-                    assert k in UserAttributes.__annotations__, "expected only Ml attributes"
-                    assert not (v is None)
-                    if isinstance(v, str):
-                        new_meta_data[k] = v.lower()
-            
             assert self.is_indexed(resource_hash)
             
             # update it.
             query = json.dumps({"resource_hash":resource_hash})  
             attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
-            assert len(attr_2_rowIndices) == 1, "expected only 1 but got: {} for {}".format(attr_2_rowIndices, resource_hash)
+            assert len(attr_2_rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
             row_indices = attr_2_rowIndices["resource_hash"]
-            mBackend.modify(row_indices[0], json.dumps(new_meta_data), force = force)
+            mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
 
 
     def save(self):

@@ -202,9 +202,8 @@ class ImageMetaAttributes(TypedDict):
     exif_attributes:ImageExifAttributes
 # ---------------------------------------------------------------------
 def get_image_exif_data(resource_path:str) -> ImageExifAttributes:
-    result:ImageExifAttributes = {}
     # NOTE: be-careful using `fromKeys` if an object like `list` is provided as value, it will be shared by all `keys`, weird !!
-    result.fromkeys(ImageExifAttributes.__annotations__.keys(), None)
+    result:ImageExifAttributes = {}.fromkeys(ImageExifAttributes.__annotations__.keys(), None)
     
     # Get exif data!    
     try:
@@ -235,6 +234,13 @@ def get_image_exif_data(resource_path:str) -> ImageExifAttributes:
 
     return result
 
+def normalize_path(resource_path:os.PathLike) -> os.PathLike:
+    result = os.path.normpath(resource_path).replace("\\", "/")
+    # TODO: for now, until front-end keep storing the `case` properly!
+    if os.sys.platform == "win32":
+        return result.lower()
+    else:
+        return result
 
 def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | None:
         """
@@ -254,9 +260,9 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | N
             return None
         
         main_attributes:MainAttributes = {}
-        main_attributes["resource_path"] = resource_path
+        main_attributes["resource_path"] = normalize_path(resource_path)
         main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
-        main_attributes["resource_directory"] = os.path.dirname(resource_path)
+        main_attributes["resource_directory"] = normalize_path(os.path.dirname(resource_path))
         main_attributes["filename"] = os.path.basename(resource_path)
 
         user_attributes:UserAttributes = {}
