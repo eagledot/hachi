@@ -242,7 +242,6 @@ class SelectFolder {
       this.currentFolders = driveList;
       this.renderFolderList(driveList);
       this.updateBreadcrumb();
-      this.updateSelectedFolderDisplay();
     } catch (error) {
       console.error("Error loading drives:", error);
     } finally {
@@ -265,7 +264,6 @@ class SelectFolder {
       this.currentFolders = folders;
       this.renderFolderList(folders);
       this.updateBreadcrumb();
-      this.updateSelectedFolderDisplay();
     } catch (error) {
       console.error("Error loading folders:", error);
     } finally {
@@ -352,7 +350,6 @@ class SelectFolder {
       await this.loadFolders(); // Load subfolders
       this.updateBackButton();
     }
-    this.updateSelectedFolderDisplay();
   }
 
   private navigateBack(): void {
@@ -367,7 +364,6 @@ class SelectFolder {
       this.loadDrives();
     }
     this.updateBackButton();
-    this.updateSelectedFolderDisplay();
   }
 
   private toggleSort(): void {
@@ -411,23 +407,6 @@ class SelectFolder {
     // Enable back button if we're not in drive selection mode OR if we have path depth
     backBtn.disabled =
       this.isDriveSelectionMode && this.currentPath.length === 0;
-  }
-  private updateSelectedFolderDisplay(): void {
-    const selectedPathSpan = this.container.querySelector(
-      "#selected-path"
-    ) as HTMLElement;
-
-    let fullPath = "";
-    if (this.isDriveSelectionMode) {
-      fullPath = "Computer";
-    } else if (this.currentDrive) {
-      fullPath = this.currentDrive;
-      if (this.currentPath.length > 0) {
-        fullPath += "\\" + this.currentPath.join("\\");
-      }
-    }
-
-    selectedPathSpan.textContent = fullPath;
   }
 
   private updateOkButton(): void {
@@ -498,18 +477,17 @@ class SelectFolder {
     this.container.innerHTML = "";
   }
   private attachFolderEventListeners(folderList: HTMLElement): void {
+    // Remove existing event listeners to prevent duplicates
+    folderList.querySelectorAll(".folder-item").forEach((item) => {
+      const newItem = item.cloneNode(true) as HTMLElement;
+      item.parentNode?.replaceChild(newItem, item);
+    });
+
+    // Attach new event listeners
     folderList.querySelectorAll(".folder-item").forEach((item) => {
       const folderName = item.getAttribute("data-folder") as string;
 
-      console.log(
-        `Attaching events for folder: ${folderName}, isDriveSelectionMode: ${this.isDriveSelectionMode}`
-      ); // Click on folder area to navigate
       item.addEventListener("click", () => {
-        console.log(
-          `Folder item clicked: ${folderName}, currentDrive: ${
-            this.currentDrive
-          }, currentPath: [${this.currentPath.join(",")}]`
-        );
         console.log(`Navigating to folder: ${folderName}`);
         this.navigateToFolder(folderName);
       });
