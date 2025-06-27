@@ -248,9 +248,16 @@ class IndexingLocal(object):
             meta_data = extract_image_metaData(
                 resource_path # TODO: even though few bytes are read, get_image_size routine, we can share the 
             )
-             # it is supposed to be updated, after clusters finalizing.
+            # --------------------------------------------
+            # Do manual updates, as necessary here.
+            meta_data["location"]["identifier"] = "Drive" # TODO: C:, D:
+            meta_data["location"]["location"]  = "L"  # local/remote
+
+            # it is supposed to be updated, after clusters finalizing.
             meta_data["ml_attributes"]["personML"] = ["no_person_detected"]
             meta_data["resource_hash"] = resource_hash  # presence of this field, should indicate `is_indexed` by default!
+            # -----------------------------------------------
+
 
             # sync/update both the indices.
             # meta_data["is_indexed"] = True # No need, since

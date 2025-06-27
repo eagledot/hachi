@@ -155,7 +155,7 @@ EXIF_PACKAGE_MAPPING = {
             "device": "device" 
         }
 # --------------------------------------------------------------------------
-
+# NOTE: attributes, grouping is symbolic, must not have a duplicate key among all such attributes!
 class ImageExifAttributes(TypedDict):
     taken_at:str | None
     gps_latitude:float | None
@@ -189,6 +189,8 @@ class MLAttributes(TypedDict):
 class UserAttributes(TypedDict):
     # attributes that could be overwritten/modified by user. 
     # only following attributes could be manipulated directly by a user!
+    # NOTE: if wants to overwriter `ml` info, provide the `attribute/key` without `ML` part!
+    # this way if `user` modifies/amends, we will return `user` amends, rather than ML, but ML data would be preserved too!
     is_favourite:bool
     tags:list[str]
     person:list[str]  # in case user tags them, TODO: if ML predicted, make sure mapping/order matches!       
@@ -258,7 +260,12 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | N
         except:
             print("Invalid data possibly for {}".format(resource_path))
             return None
-        
+
+        # This gets updated, in the main indexing code! depending on location of data being indexed!        
+        l:ResourceLocation = {}
+        l["identifier"] = None
+        l["location"] = None
+
         main_attributes:MainAttributes = {}
         main_attributes["resource_path"] = normalize_path(resource_path)
         main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
@@ -267,8 +274,8 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | N
 
         user_attributes:UserAttributes = {}
         user_attributes["is_favourite"] = False
-        user_attributes["description"] = ""
         user_attributes["tags"] = []
+        user_attributes["person"] = []
         
         ml_attributes:MLAttributes = {}
         ml_attributes["descriptionML"] = ""
@@ -277,6 +284,7 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | N
 
         exif_attributes:ImageExifAttributes = get_image_exif_data(resource_path=resource_path)
 
+        result_meta["location"] = l
         result_meta["exif_attributes"] = exif_attributes
         result_meta["main_attributes"] = main_attributes
         result_meta["ml_attributes"] = ml_attributes

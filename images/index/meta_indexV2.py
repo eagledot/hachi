@@ -490,27 +490,27 @@ class MetaIndex(object):
                ):
 
         # print("[TODO]: rename `update` to `append`")
-
         with self.lock:
             assert not (meta_data["resource_hash"] is None)
             
             # NOTE: have to flatten the meta-data for backend, (as supports primitve-data types and array for strings for now!)
             flatten_dict = {}
-            flatten_dict["resource_hash"] = meta_data["resource_hash"]
-            for k,v in meta_data["main_attributes"].items():
-                flatten_dict[k] = v
-            for k,v in meta_data["exif_attributes"].items():
-                flatten_dict[k] = v
-            for k,v in meta_data["ml_attributes"].items():
-                flatten_dict[k] = v
-            for k,v in meta_data["user_attributes"].items():
-                flatten_dict[k] = v
-
-            # handle None, as currently we don't allow None/Null in the backend.
-            # Its a bare-bone from scratch database, give it time !
-            for k,v in flatten_dict.items():
-                if v is None:
-                    flatten_dict[k] = "UNK"
+            # Only at-max a single level of dict nesting is expected!
+            for parent_key, parent_v in meta_data.items():           
+                if isinstance(parent_v, dict):
+                    for k,v in parent_v.items(): # no-more nesting!
+                        if v is None:                        
+                            flatten_dict[k] = "UNK"
+                        else:
+                            flatten_dict[k] = v
+                else:
+                    if isinstance(parent_v, str):
+                        flatten_dict[parent_key] = parent_v
+                    else:
+                        # handle None, as currently we don't allow None/Null in the backend.
+                        # Its a bare-bone from scratch database, give it time !
+                        assert parent_v is None
+                        flatten_dict[parent_key] = "UNK"
             
             if self.backend_is_initialized == False:
                 # lazy initialization on first time update, this helps decoupling MetaIndex from application flow!
@@ -562,7 +562,12 @@ class MetaIndex(object):
                         force:bool = False):
         
         """
-        modify existing ML attributes for a resource, like when clusters have been finalized!
+        Modify existing ML attributes for a resource, like when clusters have been finalized!
+        NOTE: it is called internally only , and should never be called based on some client/user event.
+        For now only being called to modify/update cluster-ids for a resource !
+        
+        For user-specific events `modify_meta_user` should be called! 
+        
         I think could also be useful, in case user later wants to test with Multiple ML models.. 
         I think distinction b/w attributes' types, make it easier to track bugs when modifications occur!
         """
@@ -572,6 +577,12 @@ class MetaIndex(object):
                 return 
 
             assert self.is_indexed(resource_hash)
+            
+            # more assertion, only ML attributes are expected!
+            temp_keys = MLAttributes.__annotations__.keys()
+            for k in meta_data:
+                assert k in temp_keys
+            del temp_keys
 
             # update it.
             query = json.dumps({"resource_hash":resource_hash})  
@@ -580,9 +591,23 @@ class MetaIndex(object):
             row_indices = attr_2_rowIndices["resource_hash"]
             mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
 
+            # -----------------------------------------
+            # By default, if there is a matching `attribute` with ML for `user` also, fill the ML information.
+            # Later, user can amend/update that info, UserAttributes are supposed to be writable by users/external-events!
+            user_meta = {}
+            for k in meta_data.keys():
+                # for example: personML, person for UserAttributes!
+                if k.replace("ML", "") in UserAttributes.__annotations__.keys():
+                    user_meta[k.replace("ML","")] = meta_data[k]
+
+            if len(user_meta) > 0:
+                mBackend.modify(row_indices[0], json.dumps(user_meta), force = force)
+            del user_meta
+            #----------------------------------------------
+
     def modify_meta_user(self, 
                         resource_hash:str,
-                        meta_data:UserAttributes,
+                        meta_data:UserAttributes, # or a subset!
                         force:bool = False):
         
         """
