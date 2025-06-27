@@ -1,10 +1,14 @@
 # imports
+# Trying to refactor this to better type-contraint various attributes.
+# Should incorporate `remote` data possibility from beginning.
+# Note: we strive to use `previews` locally, even for remote data, so default type will only contain local attributes.
+# a separate type should contain meta-data to 
 
 import os
 import copy
 import hashlib
 from threading import RLock
-from typing import Optional, Union, Iterable, List, Dict, Any
+from typing import Optional, Union, Iterable, List, Dict, Any, Generator
 from queue import Queue
 import pickle
 import random
@@ -15,150 +19,251 @@ import json
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../"))
 from config import appConfig
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
-from exif import Image
+# sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
+# from exif import Image
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
-from reverse_geocode import GeocodeIndex
+# sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
+# from reverse_geocode import GeocodeIndex
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "./nim"))
 import meta_index_new_python as mBackend
 
-import get_image_size
+# import get_image_size
 
-CASE_INSENSITIVE = True  # later make decision in app_config
+CASE_INSENSITIVE = True  # DO IT on `request`, when updating/receiving user-data , otherwise generating info also keep it in lower.
+# also can make decision while searching/querying to be case-insensitive! 
 
-ALLOWED_RESOURCES = {       
-    "audio": set([".mp3", ".aac"]),                              # TODO:
-    "video": set([".mp4", ".avi", ".mkv"]),                     # opencv should allow to read almost all type of video containers and codecs
-    "image": set([".jpg", ".jpeg", ".png", ".tiff", ".raw"]),   # opencv is being used to read raw-data, so almost all extensions are generally supported.
-    "text":  set([".pdf", ".txt", ".epub"])                     # TODO:
-}
+# from typing import TypedDict
 
-def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = appConfig["to_skip_paths"]) ->bool:
-    """Supposed to tell if a resource directory is contained in the to_skip directories
-    """
+# ----------------------------------------------
+# Allowed Resources 
+# ---------------------
+# from enum import Enum
+# class Audio(Enum):
+#     MP3 = 0
+#     AAC = 1
+# class Video(Enum):
+#     MP4 = 0
+#     AVI = 1
+#     MKV = 2
+# class Image(Enum):
+#     JPG = 0
+#     JPEG = 1
+#     PNG = 2
+#     TIFF = 3
+#     RAW = 4
+# class Text(Enum):
+#     PDF = 0
+#     HTML = 1
+#     EPUB = 2
+#     TXT = 3
 
-    # NOTE: i think good enough!! (should work on all Os)
-    temp_resource = os.path.abspath(resource_directory)
-    result = False
-    for x in to_skip:
-        try:
-            temp_result = os.path.commonpath([temp_resource, x])
-        except:
-            continue
-        if os.path.normcase(temp_result) == os.path.normcase(x):
-            result = True
-            break        
-    return result
+# ALLOWED_RESOURCES = [
+#     Audio,
+#     Video,
+#     Image,
+#     Text
+# ]
+# # Generate from previous information.
+# # keys would be  : ["Image", "Video", "Text", ...] mimicing ALLOWED_RESOURCES items! 
+# ALLOWED_RESOURCES_MAPPING = {
+#     k.__name__ : [".{}".format(x._name_.lower()) for x in k] for k in ALLOWED_RESOURCES
+#     }
+# print(ALLOWED_RESOURCES_MAPPING)
 
-def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Dict[os.PathLike, str]:
+# def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = appConfig["to_skip_paths"]) ->bool:
+#     """Supposed to tell if a resource directory is contained in the to_skip directories
+#     """
 
-    resources_queue = Queue()
-    resources_queue.put(os.path.abspath(root_path))
+#     # NOTE: i think good enough!! (should work on all Os)
+#     temp_resource = os.path.abspath(resource_directory)
+#     result = False
+#     for x in to_skip:
+#         try:
+#             temp_result = os.path.commonpath([temp_resource, x])
+#         except:
+#             continue
+#         if os.path.normcase(temp_result) == os.path.normcase(x):
+#             result = True
+#             break        
+#     return result
+
+# class ResourceGenerator(TypedDict):
+#     directory_processed:os.PathLike  # results of which directory!
+#     Audio:List[os.PathLike]
+#     Video:List[os.PathLike]
+#     Text:List[os.PathLike]
+#     Images:List[os.PathLike]
+
+# def get_resource_type(resource_extension:str) -> str|None:
+#     "Given a resource extension, match it to one of allowed Parent type of resources!"
+#     temp_extension = resource_extension.lower()
+#     for k,v in ALLOWED_RESOURCES_MAPPING.items():
+#         for extension in v:
+#             if temp_extension == extension:
+#                 return k
+#     print("[Warning]: {} Could not matched".format(resource_extension))
+#     return None
+
+# def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Generator[Any, Any, ResourceGenerator]:
+#     """
+#     It is a generator, to output a `directory's` direct `children` at each iteration.
+#     For each `file` (not a directory), we map it to the correspoding `parent type` of `allowed_resources`,
+#     So this could be consumed universally depending on the `type` of content we would be indexing, for now `images` only.
+#     For each output, corresponding `resource_type` can be queried to get Absolute path to index!
+#     """
+
+#     resources_queue:List[os.PathLike] = []
+#     resources_queue.append(
+#         os.path.abspath(root_path)
+#         )
     
-    while True:
-        result = {}
-        for k in appConfig["allowed_resources"]:
-            result[k] = {}
-        result["finished"] = False
-
-        if resources_queue.qsize() == 0:     #    "This is ok, since we are putting, and getting inside same iteration of function. So checking length is trustworthy."
-            result["finished"] = True
-            break
+#     while True:
+#         # check if resources have been exhausted! (previous iteration would have not been put data if was exhausted!)
+#         if len(resources_queue) == 0:    
+#             return
         
-        current_directory = resources_queue.get()
-        if should_skip_indexing(current_directory):
-            continue
+#         current_directory = resources_queue.pop(0)  # at each return only a single-directory files are returned!
+#         if should_skip_indexing(current_directory):
+#             continue    
+#         try: 
+#             temp_resources = os.listdir(
+#                 current_directory
+#                 )
+#         except:
+#             print("Error while listing: {}".format(current_directory))
+#             continue
         
-        try: 
-            temp_resources = os.listdir(current_directory)
-        except:
-            print("Error while listing: {}".format(current_directory))
-            continue
+#         result:ResourceGenerator = {}
+#         for k in ALLOWED_RESOURCES_MAPPING:
+#             result[k] = []
         
-        
-        for temp_resource in temp_resources:
-            if os.path.isdir(os.path.join(current_directory, temp_resource)):
-                resources_queue.put(os.path.join(current_directory, temp_resource))
-            else:
-                resource_extension = os.path.splitext(temp_resource)[1]
-                temp_resource_type = get_resource_type(resource_extension)
-                if temp_resource_type is not None:
-                    if result[temp_resource_type].get(current_directory):
-                        result[temp_resource_type][current_directory].append(temp_resource)
-                    else:
-                        result[temp_resource_type][current_directory] = [temp_resource]
-        
-        yield result
+#         for temp_resource in temp_resources:
+#             if os.path.isdir(os.path.join(current_directory, temp_resource)):
+#                 resources_queue.append(
+#                     os.path.join(current_directory, temp_resource)
+#                 )
+#             else:
+#                 resource_extension = os.path.splitext(temp_resource)[1]
+#                 temp_resource_type = get_resource_type(resource_extension)
+#                 if temp_resource_type is not None:
+#                     result[temp_resource_type].append(os.path.join(current_directory, temp_resource))
+#         yield result
                 
-        if include_subdirectories == False:
-            break
-        
-    yield result
-
-def get_resource_type(resource_extension:str) -> Optional[str]:
-    for k,v in appConfig["allowed_resources"].items():
-        if resource_extension.lower() in v:
-            return k
-    return None
-
-geoCodeIndex = GeocodeIndex()                                    # initialize our geocoding database/index.
-
-def get_exif_data(resource_path:str, resource_type:str) -> Dict:
+#         if include_subdirectories == False:
+#             break
     
-    result_exif_data = {}
-    if resource_type == "image":
-        __allowed_image_fields = appConfig[resource_type]["exif_attributes"]
+#     return  # no more (fresh) data can be there in result, right?
+# # ----------------------------------------------------------------------------
 
-        result_exif_data = {k:None for k in __allowed_image_fields}
+# # ---------------------
+# # Geo Code index
+# # -------------------------
+# geoCodeIndex = GeocodeIndex()                                    # initialize our geocoding database/index.
 
-        result_exif_data["taken_at"] = "unknown"
-        result_exif_data["gps_latitude"] = None
-        result_exif_data["gps_longitude"] = None
-        result_exif_data["make"] = ""
-        result_exif_data["model"] = ""
-        result_exif_data["device"] = ""
+# # To map primary `exif-tags`, to our Terminology!
+# EXIF_PACKAGE_MAPPING = {
+#             "make": "make",
+#             "model": "model",
+#             "datetime_original": "taken_at",
+#             "gps_latitude": "gps_latitude",
+#             "gps_longitude": "gps_longitude",
+#             "device": "device" 
+#         }
+
+# class ImageExifAttributes(TypedDict):
+#     taken_at:str | None
+#     gps_latitude:float | None
+#     gps_longitude:float | None
+#     make:str | None
+#     model:str | None
+#     device:str | None
+
+# def get_image_exif_data(resource_path:str, resource_type:str) -> ImageExifAttributes:
+#     result:ImageExifAttributes = {}
+#     # NOTE: be-careful using `fromKeys` if an object like `list` is provided as value, it will be shared by all `keys`, weird !!
+#     result.fromkeys(ImageExifAttributes.__annotations__.keys(), value = None)
+
+#     # Get exif data!    
+#     try:
+#         # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
+#         temp_handle = Image(resource_path)
+#         if temp_handle.has_exif:
+#             for k,v in exif_package_mapping.items():
+#                 if "gps" in k:
+#                     # convert to degrees.. (From degrees, minutes, seconds)
+#                     temp = float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600
+#                     result[v] = temp
+#                 else:
+#                     result[v] = str(temp_handle[k])
+#     except:
+#             pass        # some error while extracting exif data.            
+    
+#     try:
+#         width,height = get_image_size.get_image_size(resource_path)
+#     except:
+#         print("Image size error for: {}".format(resource_path))
+#         width, height = 1, 1
+#     result["width"] = int(width)
+#     result["height"] = int(height)
+#     result["device"] = "{}".format(result["make"].strip() + " " + result["model"].strip())  # a single field for device.
+#     result["place"] = str(geoCodeIndex.query((result["gps_latitude"], result["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.
+        
+
+#     # result_exif_data = {}
+
+
+    # if resource_type == "image":
+    #     __allowed_image_fields = appConfig[resource_type]["exif_attributes"]
+
+    #     result_exif_data = {k:None for k in __allowed_image_fields}
+
+    #     result_exif_data["taken_at"] = "unknown"
+    #     result_exif_data["gps_latitude"] = None
+    #     result_exif_data["gps_longitude"] = None
+    #     result_exif_data["make"] = ""
+    #     result_exif_data["model"] = ""
+    #     result_exif_data["device"] = ""
  
-        # exif package mapping to result_exif_data fields. 
-        exif_package_mapping = {
-            "make": "make",
-            "model": "model",
-            "datetime_original": "taken_at",
-            "gps_latitude": "gps_latitude",
-            "gps_longitude": "gps_longitude" 
-        }
+    #     # exif package mapping to result_exif_data fields. 
+    #     exif_package_mapping = {
+    #         "make": "make",
+    #         "model": "model",
+    #         "datetime_original": "taken_at",
+    #         "gps_latitude": "gps_latitude",
+    #         "gps_longitude": "gps_longitude" 
+    #     }
 
-        try:
-            # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
-            temp_handle = Image(resource_path)
-            if temp_handle.has_exif:
-                for k,v in exif_package_mapping.items():
-                    if "gps" in k:
-                        # convert to degrees.. (From degrees, minutes, seconds)
-                        temp = str(float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600 )
-                        result_exif_data[v] = temp
-                    else:
-                        result_exif_data[v] = str(temp_handle[k])
-        except:
-            pass        # some error while extracting exif data.            
+    #     try:
+    #         # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
+    #         temp_handle = Image(resource_path)
+    #         if temp_handle.has_exif:
+    #             for k,v in exif_package_mapping.items():
+    #                 if "gps" in k:
+    #                     # convert to degrees.. (From degrees, minutes, seconds)
+    #                     temp = str(float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600 )
+    #                     result_exif_data[v] = temp
+    #                 else:
+    #                     result_exif_data[v] = str(temp_handle[k])
+    #     except:
+    #         pass        # some error while extracting exif data.            
         
-        # Read image size information. 
-        try:
-            width,height = get_image_size.get_image_size(resource_path)
-        except:
-            print("Image size error for: {}".format(resource_path))
-            width, height = 1, 1
-        result_exif_data["width"] = str(width)
-        result_exif_data["height"] = str(height)
-        result_exif_data["device"] = "{}".format(result_exif_data["make"].strip() + " " + result_exif_data["model"].strip())  # a single field for device.
-        result_exif_data["place"] = str(geoCodeIndex.query((result_exif_data["gps_latitude"], result_exif_data["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.
+    #     # Read image size information. 
+    #     try:
+    #         width,height = get_image_size.get_image_size(resource_path)
+    #     except:
+    #         print("Image size error for: {}".format(resource_path))
+    #         width, height = 1, 1
+    #     result_exif_data["width"] = str(width)
+    #     result_exif_data["height"] = str(height)
+    #     result_exif_data["device"] = "{}".format(result_exif_data["make"].strip() + " " + result_exif_data["model"].strip())  # a single field for device.
+    #     result_exif_data["place"] = str(geoCodeIndex.query((result_exif_data["gps_latitude"], result_exif_data["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.
 
-    return result_exif_data
+    # return result_exif_data
 
-def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]:
+def generate_resource_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]:
     
-    data_hash = None
+    resource_hash = None
     if os.path.exists(resource_path):
         f = open(resource_path, "rb")
         file_size = os.stat(resource_path).st_size
@@ -176,15 +281,52 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]
             m.update(end_bytes)
 
             m.update(str(file_size).encode("utf8"))
-            data_hash =  m.hexdigest()
+            resource_hash =  m.hexdigest()
         except:
             pass
         del(m)
     
-    return data_hash
+    return resource_hash
 
 
-# config
+# TODO: using this type, we will get the actual Raw data for a resource!
+# class ResourceLocation(TypedDict):
+#     # enough info to retrive original file/data if required.
+#     location: str   # local | remote
+#     identifier: str # like C: D: or dropbox, googlePhotos.. etc . combination should be enough to dispatch a corresponding routine to retrive original data!
+
+# class MainAttributes(TypedDict):
+#     is_indexed:bool
+#     filename:str          # could even include name from a remote directory!
+#     absolute_path:os.PathLike | str   # in case on a remote server or something, then custom path should be allowed!
+#     resource_extension:str
+#     resource_directory:os.PathLike | str | None
+#     resource_type:Audio | Video | Text | Image
+
+# class MLAttributes(TypedDict):
+#     # resulting from Machine learning processing. (best effort basis)
+#     personML:list[str]        # generally resulting from a face-recognition!
+#     descriptionML:str   # may be a model could predict some description of a photo or result of an OCR  operation!
+#     tagsML:list[str]    #
+
+# class UserAttributes(TypedDict):
+#     # attributes that could be overwritten/modified by user. 
+#     # only following attributes could be manipulated directly by a user!
+#     is_favourite:bool
+#     tags:list[str]
+#     place:str 
+#     person:list[str]  # in case user tags them, TODO: if ML predicted, make sure mapping/order matches!       
+
+# class ImageMetaAttributes(TypedDict):
+#     location:ResourceLocation
+#     main_attributes:MainAttributes
+#     ml_attributes:MLAttributes
+#     user_attributes:UserAttributes
+#     exif_attributes:ImageExifAttributes
+
+# --------------------------------------------------------------------
+from metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes
+
 # making sure relativiness of resources is respected.
 META_DATA_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./meta_indices")
 META_INDEX_FILE = os.path.join(META_DATA_INDEX_DIRECTORY, "meta_data.json")
@@ -222,73 +364,24 @@ class MetaIndex(object):
         # resources:
         self.lock = RLock()
 
-    def _meta_data_template(self, resource_type:str)-> Dict[str, Any]:
-        temp = {}
-        assert resource_type in appConfig["allowed_resources"]
-        for attribute in appConfig[resource_type]["meta_attributes"]:
-            temp[attribute] = None        
-        # common attributes for all resources
-        temp["is_indexed"] = False
-        temp["resource_type"] = resource_type
-        return temp
-        
-    
-    def extract_image_metaData(self, resources:Iterable[os.PathLike]) -> Dict[str, Dict]:
-        """Routine to extract valid metaData for image resource type.
-
-        Returns a resource_hash to meta-data (dict) mapping.
+    def is_indexed(self,
+                   resource_hash:str) -> bool:
         """
-        result = {}
-        for resource_path in resources:
-            assert os.path.isfile(resource_path), "{} ".format(resource_path)
-            data_hash  = generate_data_hash(resource_path)
-            if data_hash is None:
-                # TODO: warning atleast to indicate invalid hash...
-                continue
+        Given a data-hash, we could check if given data-hash is present.
+        If present, then we conclude this resource hash been indexed!
+        """
+        
+        if self.backend_is_initialized == False:
+            # for now there is not data-present, not on disk and not from application. so false!
+            return False
+        else:
+            # query = json.dumps({"resource_hash":resource_hash})
+            query = '{"resource_hash": "' + resource_hash + '"}' # generate expected json faster.
             
-            # check if data_hash already indexed
-            if self.backend_is_initialized == True:
-                if mBackend.check(json.dumps({"resource_hash":data_hash})):
-                    # for now it is bit slower.. we will make later the resource hash the primary key..
-                    # print("yes: {} exists already:".format(data_hash))
-                    continue
-
-            try:
-                (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
-            except:
-                print("Invalid data possibly for {}".format(resource_path))
-                continue
-
-            # common meta-data attributes.
-            temp = self._meta_data_template(resource_type = "image")
-            temp["absolute_path"] = resource_path
-            temp["resource_directory"] = os.path.dirname(resource_path)
-            temp["resource_extension"] = os.path.splitext(resource_path)[1]
-            temp["is_favourite"] = False
-            temp["filename"] = os.path.basename(resource_path)
-            temp["modified_at"] = time.ctime(os.path.getmtime(resource_path))
-            temp["description"] = ""
-            temp["tags"] = ""
-
-            assert set(temp.keys()) == set(appConfig["image"]["meta_attributes"]), "Config meta-attributes must match"
-
-            # resource specific meta-data attributes.
-            temp_exif_data = get_exif_data(resource_path=resource_path, resource_type = "image")
-            for k,v in temp_exif_data.items():
-                temp[k] = v
-
-            new_temp = temp
-            if CASE_INSENSITIVE:
-                # by default we do this... atleast it would match.. rather than providing no results due to case mismatching.
-                for k,v in temp.items():  # forgot if allowed to write while reading from a dict/list!
-                    if isinstance(v, str):
-                        new_temp[k.lower()] = v.lower()
-            del temp
-            result[data_hash] = new_temp
-        return result
-
-    
-
+            # may load json a bit faster, parse bytes directly, as we just have to check if how many rows returned!
+            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
+            assert len(attr_2_rowIndices["resource_hash"]) == 0 or len(attr_2_rowIndices["resource_hash"]) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
+            return len(attr_2_rowIndices["resource_hash"]) == 1
 
     def suggest(self, attribute:str, query:str):
         """for now we just search substrings in the string, which a column of colString does by default!
@@ -328,27 +421,27 @@ class MetaIndex(object):
             return result
 
     # @profile
-    def query(self, data_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None,  latest_version:bool = True) -> Dict[str, Dict]:
-        """ Queries the meta index based on either data_hashes or given a fuzzy attribute/value pair.
+    def query(self, resource_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None,  latest_version:bool = True) -> Dict[str, Dict]:
+        """ Queries the meta index based on either resource_hashes or given a fuzzy attribute/value pair.
         
         latest_version: bool, can be set to false to collect original version, 
         NOTE: we still match with the latest version to get matching indices, but can choose to collect original version of data!
         # useful when match againt user provided data, but may need original version to query some auxiliary data like face clusters (which have no info about user updates)
         
-        NOTE: current meta-index treat data_hash as just another field.. so i func signature can be simplified.. TODO
+        NOTE: current meta-index treat resource_hash as just another field.. so i func signature can be simplified.. TODO
         """
-        # we want to return the rows/meta-data associated with data_hashes or from a specific column/attribute matching.
+        # we want to return the rows/meta-data associated with resource_hashes or from a specific column/attribute matching.
         # for example user may search for "place"[attribute]  for value "norway", 
         # then first collect the rows matching this pair.
 
-        # flow:  querying for now is allowed for one attribute/value pair.. (on python side we can do a for loop for data_hashes!)
-        # we find first the relevant row_indices for an attribute/value pair. since data_hash/resource_hash is just another column.
-        # in case of data_hash, we collect row_index for each such data_hash.
+        # flow:  querying for now is allowed for one attribute/value pair.. (on python side we can do a for loop for resource_hashes!)
+        # we find first the relevant row_indices for an attribute/value pair. since resource_hash/resource_hash is just another column.
+        # in case of resource_hash, we collect row_index for each such resource_hash.
         # once we row_indices, we can collect corresponding rows.
         if self.backend_is_initialized == False:
             return {}
 
-        if data_hashes is None:
+        if resource_hashes is None:
             # create the query
             query = {attribute:attribute_value}
             
@@ -367,16 +460,16 @@ class MetaIndex(object):
                 result[meta["resource_hash"]] = meta
             del meta_array
             return result
-
+        
         else:
-            if isinstance(data_hashes, str):
-                data_hashes = [data_hashes]
+            if isinstance(resource_hashes, str):
+                resource_hashes = [resource_hashes]
 
             row_indices = []
-            for data_hash in data_hashes:
+            for resource_hash in resource_hashes:
                 # collect all possible row indices.
                 attribute = "resource_hash"
-                query = {attribute:data_hash}
+                query = {attribute:resource_hash}
                 result_json = mBackend.query(json.dumps(query))
                 attr_2_rowIndices = json.loads(result_json)
                 del result_json
@@ -392,33 +485,47 @@ class MetaIndex(object):
             return result
 
     # TODO: name it append/put instead of update!
-    def update(self, data_hash:str, meta_data:dict):
-        # TODO: make the decision of lowering...
-        assert data_hash is not None
+    def update(self,
+               meta_data:ImageMetaAttributes
+               ):
+
+        # print("[TODO]: rename `update` to `append`")
 
         with self.lock:
-            assert ("resource_hash" in meta_data) == False, meta_data["resource_hash"]
-            meta_data["resource_hash"] = data_hash # we save resource_hash just as another field.
+            assert not (meta_data["resource_hash"] is None)
             
-            # handle None..
-            for k,v in meta_data.items():
+            # NOTE: have to flatten the meta-data for backend, (as supports primitve-data types and array for strings for now!)
+            flatten_dict = {}
+            flatten_dict["resource_hash"] = meta_data["resource_hash"]
+            for k,v in meta_data["main_attributes"].items():
+                flatten_dict[k] = v
+            for k,v in meta_data["exif_attributes"].items():
+                flatten_dict[k] = v
+            for k,v in meta_data["ml_attributes"].items():
+                flatten_dict[k] = v
+            for k,v in meta_data["user_attributes"].items():
+                flatten_dict[k] = v
+
+            # handle None, as currently we don't allow None/Null in the backend.
+            # Its a bare-bone from scratch database, give it time !
+            for k,v in flatten_dict.items():
                 if v is None:
-                    # TODO: warning converting None to string type, as we donot allow null values in backend for now.
-                    meta_data[k] = "UNK"
+                    flatten_dict[k] = "UNK"
             
             if self.backend_is_initialized == False:
-                # lazy initialization on first time update...
+                # lazy initialization on first time update, this helps decoupling MetaIndex from application flow!
                 assert self.column_types == []
                 assert self.column_labels == []
-                for k,v in meta_data.items():
+                for k,v in flatten_dict.items():
                     assert isinstance(k, str)
                     self.column_labels.append(k)
                     
                     if isinstance(v, str):
                         self.column_types.append("string")
-                    elif isinstance(v, bool):  # order matters.. otherwise int can be matched!
+                    elif isinstance(v, bool):  # order matters.. otherwise int can be matched first!
                         self.column_types.append("bool")
                     elif isinstance(v, int):
+                        assert v >= (-2**31) and v <= (2**31 - 1) 
                         self.column_types.append("int32")
                     elif isinstance(v, float):
                         self.column_types.append("float32")
@@ -429,7 +536,6 @@ class MetaIndex(object):
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
 
-                    
                 mBackend.init(
                     name = self.name,
                     column_labels = self.column_labels,
@@ -437,36 +543,67 @@ class MetaIndex(object):
                     capacity = self.capacity,
                 )
                 self.backend_is_initialized = True
+            else:
+                if self.is_indexed(
+                    meta_data["resource_hash"]
+                ):
+                    print("[WARNING]: Don't call metaIndex update/append, when already indexed\nCheck `if_indexed` first")
+                    return
             
             # TODO: set resource_hash column to be immutable (kind of primary key..)
-            json_meta = json.dumps(meta_data) # serialize !
+            json_meta = json.dumps(flatten_dict) # serialize !
             mBackend.put(json_meta)
+            
             del json_meta
     
-    def modify_meta_data(self, data_hash:str, meta_data:Dict, force:bool = False):
+    def modify_meta_ml(self, 
+                        resource_hash:str,
+                        meta_data:MLAttributes,
+                        force:bool = False):
+        
+        """
+        modify existing ML attributes for a resource, like when clusters have been finalized!
+        I think could also be useful, in case user later wants to test with Multiple ML models.. 
+        I think distinction b/w attributes' types, make it easier to track bugs when modifications occur!
+        """
         with self.lock:
             if self.backend_is_initialized == False:
+                print("[WARNING]: calling Modify_meta_data without initIalized, should be an error")
                 return 
 
-            # create a query. using this first we get the desired row_indices.
-            # TODO: it can be speed up storing a mapping from resource_hash to row but extra work. (but donot want to create new resources either ! first benchmark this !)
-            
-            new_meta = meta_data
-            if CASE_INSENSITIVE:
-                for k, v in meta_data.items():
-                    assert v is not None
-                    if isinstance(v, str):
-                        new_meta[k.lower()] = v.lower()
-            del meta_data
-
-            query = json.dumps({"resource_hash":data_hash})  
-            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
-            assert len(attr_2_rowIndices) == 1, "expected only 1 but got: {} for {}".format(attr_2_rowIndices, data_hash)
+            assert self.is_indexed(resource_hash)
 
             # update it.
+            query = json.dumps({"resource_hash":resource_hash})  
+            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
+            assert len(attr_2_rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
             row_indices = attr_2_rowIndices["resource_hash"]
-            mBackend.modify(row_indices[0], json.dumps(new_meta), force = force)
-    
+            mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
+
+    def modify_meta_user(self, 
+                        resource_hash:str,
+                        meta_data:UserAttributes,
+                        force:bool = False):
+        
+        """
+        modify existing User attributes for a resource, like when clusters have been finalized!
+        I think distinction b/w attributes' types, make it easier to track bugs when modifications occur!
+        """
+        with self.lock:
+            if self.backend_is_initialized == False:
+                print("[WARNING]: calling Modify_meta_data without initIalized, should be an error")
+                return 
+
+            assert self.is_indexed(resource_hash)
+            
+            # update it.
+            query = json.dumps({"resource_hash":resource_hash})  
+            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
+            assert len(attr_2_rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
+            row_indices = attr_2_rowIndices["resource_hash"]
+            mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
+
+
     def save(self):
         with self.lock:
             assert self.backend_is_initialized == True
@@ -487,7 +624,6 @@ class MetaIndex(object):
             self.backend_is_initialized = False  # so when next time update is called... we will initialize it.
             mBackend.reset()
 
-    
     def get_unique(self, attribute:str) -> Iterable[Any]:
         if self.backend_is_initialized == False:
             return set()
@@ -506,7 +642,7 @@ class MetaIndex(object):
         result = {}
         for k in appConfig["allowed_resources"]:
             result[k] = {"count":0}  # add more fields in the future if needed.
-            result["available_resource_attributes"] = ["person", "place", "filename", "resource_directory"]
+            result["available_resource_attributes"] = ["personML", "place", "filename", "resource_directory"]
 
 
         with self.lock:
@@ -517,7 +653,7 @@ class MetaIndex(object):
                 result["image"]["unique_resource_directories_count"] = 0
             else:
                 result["image"]["count"] = len(self.get_unique("resource_hash"))
-                result["image"]["unique_people_count"] = len(self.get_unique("person"))
+                result["image"]["unique_people_count"] = len(self.get_unique("personML"))
                 result["image"]["unique_place_count"] = len(self.get_unique("place"))
                 result["image"]["unique_resource_directories_count"] = len(self.get_unique("resource_directory"))
 
@@ -534,17 +670,17 @@ if __name__ == "__main__":
 
     # # it seems to work.. 
     # count = 0
-    # for data_hash, meta_data in stored_meta_data.items():
-    #     test.update(data_hash, meta_data)
+    # for resource_hash, meta_data in stored_meta_data.items():
+    #     test.update(resource_hash, meta_data)
     #     if count == 0:
-    #         print(data_hash)
+    #         print(resource_hash)
     #     count += 1
     #     if count % 100 == 0:
     #         print(count)
     # test.save() # this also...
 
     # then query.. ?
-    # result = test.query(data_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
+    # result = test.query(resource_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
     
     # result = test.query(attribute = "filename", attribute_value = "insta_bk0S3J5hejJ_0.jpg", exact_string=True)
     # temp = test.get_unique("filename")
@@ -556,10 +692,10 @@ if __name__ == "__main__":
 
     # modify say filename attribute for a given hash..
     # test.modify_meta_data(
-    #     data_hash = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f",
+    #     resource_hash = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f",
     #     meta_data = {"filename": "random file name"})
     
-    # result = test.query(data_hashes="38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
+    # result = test.query(resource_hashes="38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
     # for hash, meta in result.items():
     #     print(meta["filename"])
 
@@ -578,8 +714,8 @@ if __name__ == "__main__":
     # sample = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f"
     # tic = time.time()
     # for i in range(100):
-    #     result = test.query(data_hashes = sample)
+    #     result = test.query(resource_hashes = sample)
     # print("[QUERYING]: {}ms".format((time.time()- tic)*1000))
-    # result = test.query(data_hashes = sample)
+    # result = test.query(resource_hashes = sample)
     # print(result)
     # print(test.get_unique("resource_extension"))
