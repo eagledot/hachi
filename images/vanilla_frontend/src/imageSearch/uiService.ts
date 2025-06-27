@@ -487,10 +487,10 @@ export class UIService {
     const metadataItems = [
       { label: 'Filename', value: metadata.filename },
       { label: 'Dimensions', value: metadata.width && metadata.height ? `${metadata.width} × ${metadata.height}` : null },
-      { label: 'Date Taken', value: metadata.taken_at },
-      { label: 'Location', value: metadata.place !== 'unk' ? metadata.place : null },
+      { label: 'Date Taken', value: metadata.taken_at && metadata.taken_at.toLowerCase() !== 'unk' ? metadata.taken_at : null },
+      { label: 'Location', value: metadata.place && metadata.place.toLowerCase() !== 'unk' ? metadata.place : null },
       { label: 'Description', value: metadata.description },
-      { label: 'Device', value: metadata.device },
+      { label: 'Device', value: metadata.device && metadata.device.toLowerCase() !== 'unk' ? metadata.device : null },
     ].filter(item => item.value && item.value.toString().trim() !== '');
     
     // Use DocumentFragment for efficient DOM building
@@ -515,9 +515,9 @@ export class UIService {
     });
         
     // Add people section if available
-    const hasPeople = metadata.person && 
-                      metadata.person.length > 0 && 
-                      !metadata.person.every(p => p === "no_person_detected" || p === "no_categorical_info");      
+    const hasPeople = metadata.personML && 
+                      metadata.personML.length > 0 && 
+                      !metadata.personML.every(p => p === "no_person_detected" || p === "no_categorical_info");      
 
     if (hasPeople) {
       const peopleDiv = document.createElement('div');
@@ -532,7 +532,7 @@ export class UIService {
       peopleContainer.setAttribute('data-people-container', 'true');
       
       // Create person avatars efficiently
-      const validPeople = metadata.person?.filter(personId => 
+      const validPeople = metadata.personML?.filter(personId => 
         personId !== "no_person_detected" && personId !== "no_categorical_info"
       ) || [];
       

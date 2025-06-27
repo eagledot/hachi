@@ -3,6 +3,7 @@ import { Layout } from "./components/layout";
 import Config from "./config";
 import { folderCache } from "./services/folder-cache";
 import type { CachedFolderData } from "./services/folder-cache";
+import { html } from "./utils";
 
 const API_URL = Config.apiUrl;
 
@@ -28,7 +29,11 @@ class FoldersApp {
   private searchTerm: string = "";
   private sortBy: string = "name";
   private pageSize: number = 20;
-  private currentPage: number = 1;  private isLoading: boolean = false;constructor() {
+  private currentPage: number = 1;
+  private isLoading: boolean = false;
+  private imageErrorRetryCount: Map<string, number> = new Map();
+  private readonly MAX_RETRY_ATTEMPTS = 2;
+  constructor() {
     this.setupEventListeners();
     this.loadFolders();
   }
@@ -53,7 +58,7 @@ class FoldersApp {
         const sortBy = (e.target as HTMLSelectElement).value;
         this.sortFolders(sortBy);
       });
-    }    // Load more button
+    } // Load more button
     const loadMoreBtn = document.getElementById("load-more-btn");
     if (loadMoreBtn) {
       loadMoreBtn.addEventListener("click", () => {
@@ -81,7 +86,6 @@ class FoldersApp {
       if (isValidCache) {
         const cachedData = await folderCache.getCachedFolderData();
         if (cachedData && cachedData.length > 0) {
-
           // Transform cached data to our interface
           this.folders = cachedData.map((cached: CachedFolderData) => ({
             name: this.getDisplayName(cached.name),
@@ -143,6 +147,9 @@ class FoldersApp {
     // Transform the data to match our interface
     // The API returns an array of directory names
     if (Array.isArray(data)) {
+      // Reset image error tracking
+      this.imageErrorRetryCount.clear();
+      
       this.folders = data.map((dirName: string) => ({
         name: this.getDisplayName(dirName),
         fullPath: dirName,
@@ -226,7 +233,6 @@ class FoldersApp {
     }
   }
   private async loadFolderPreviews(): Promise<void> {
-
     // Load preview images for all folders, but limit concurrent requests
     const concurrentLimit = 5;
 
@@ -241,7 +247,6 @@ class FoldersApp {
               .toString()
               .toLowerCase()
               .replace(/\//g, "|");
-            
 
             const response = await fetch(
               `${API_URL}/getMeta/resource_directory/${filename}`
@@ -250,16 +255,14 @@ class FoldersApp {
             if (response.ok) {
               const data = await response.json();
 
-
               if (data && data.meta_data && Array.isArray(data.meta_data)) {
                 folder.imageCount = data.meta_data.length;
-                
+
                 // Get first image hash as preview
                 if (data.data_hash && data.data_hash.length > 0) {
                   const firstImageHash = data.data_hash[0];
                   if (firstImageHash) {
                     folder.previewImage = `${API_URL}/getRawData/${firstImageHash}`;
-                    
                   }
                 }
               }
@@ -280,14 +283,11 @@ class FoldersApp {
       // Re-render after each batch to show progressive updates
       this.renderFolders();
     }
-
   }
 
   private async loadFolderPreviewsForList(
     foldersList: DirectoryWithPreview[]
   ): Promise<void> {
-    
-
     // Load preview images for all folders, but limit concurrent requests
     const concurrentLimit = 5;
 
@@ -331,7 +331,6 @@ class FoldersApp {
         })
       );
     }
-
   }
 
   private getDisplayName(fullPath: string): string {
@@ -371,7 +370,8 @@ class FoldersApp {
     });
 
     this.renderFolders();
-  }  private renderFolders(): void {
+  }
+  private renderFolders(): void {
     const grid = document.getElementById("folders-grid");
     const noFolders = document.getElementById("no-folders");
 
@@ -387,9 +387,11 @@ class FoldersApp {
       grid.classList.add("hidden");
       noFolders.classList.add("hidden");
       return;
-    }    noFolders.classList.add("hidden");
-    grid.classList.remove("hidden");    // Set grid layout - improved spacing for photo-focused cards
-    grid.className = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4";
+    }
+    noFolders.classList.add("hidden");
+    grid.classList.remove("hidden"); // Set grid layout - improved spacing for photo-focused cards
+    grid.className =
+      "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4";
 
     // Calculate which folders to show based on pagination
     const startIndex = 0;
@@ -404,13 +406,15 @@ class FoldersApp {
     this.updateLoadMoreButton();
 
     // Setup click handlers for folder cards
-    this.setupFolderClickHandlers();  }
+    this.setupFolderClickHandlers();
+  }
   private renderFolderCard(folder: DirectoryWithPreview): string {
     return this.renderGridViewCard(folder);
-  }  private renderGridViewCard(folder: DirectoryWithPreview): string {
+  }
+  private renderGridViewCard(folder: DirectoryWithPreview): string {
     const previewImage = folder.previewImage
-      ? `<img src="${folder.previewImage}" alt="${folder.name}" class="w-full h-48 object-cover">`
-      : `<div class="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+      ? html`<img loading="lazy" src="${folder.previewImage}" alt="${folder.name}" class="w-full h-48 object-cover" onerror="foldersApp.handleImageError('${folder.fullPath}', this)">`
+      : html`<div class="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
            <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
            </svg>
@@ -423,14 +427,18 @@ class FoldersApp {
         
         <!-- Overlay with folder info -->
         <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2.5">
-          <h3 class="font-semibold text-white text-xs leading-tight mb-1 line-clamp-2" title="${folder.name}">
+          <h3 class="font-semibold text-white text-xs leading-tight mb-1 line-clamp-2" title="${
+            folder.name
+          }">
             ${folder.name}
           </h3>
           <div class="flex items-center justify-between text-xs">
             <span class="text-gray-200 text-xs">
               ${
                 folder.imageCount > 0
-                  ? `${folder.imageCount} photo${folder.imageCount !== 1 ? "s" : ""}`
+                  ? `${folder.imageCount} photo${
+                      folder.imageCount !== 1 ? "s" : ""
+                    }`
                   : "Loading..."
               }
             </span>
@@ -509,16 +517,19 @@ class FoldersApp {
     if (errorDiv) {
       errorDiv.classList.add("hidden");
     }
-  }  private async refreshFolders(): Promise<void> {
+  }
+  private async refreshFolders(): Promise<void> {
     // Disable the refresh button and show loading state
-    const refreshBtn = document.getElementById("refresh-btn") as HTMLButtonElement;
+    const refreshBtn = document.getElementById(
+      "refresh-btn"
+    ) as HTMLButtonElement;
     const refreshIcon = document.getElementById("refresh-icon");
-    
+
     if (refreshBtn) {
       refreshBtn.disabled = true;
       refreshBtn.classList.add("opacity-50", "cursor-not-allowed");
     }
-    
+
     if (refreshIcon) {
       refreshIcon.classList.add("animate-spin");
     }
@@ -532,15 +543,18 @@ class FoldersApp {
       // Clear the cache
       await folderCache.clearCache();
       console.log("Folder cache cleared successfully");
-        // Reset the current state
+      
+      // Reset image error tracking
+      this.imageErrorRetryCount.clear();
+      
+      // Reset the current state
       this.folders = [];
       this.filteredFolders = [];
       this.currentPage = 1;
-      
+
       // Hide load more button immediately after pagination reset
-      this.updateLoadMoreButton();// Reload folders from API
+      this.updateLoadMoreButton(); // Reload folders from API
       await this.loadFoldersFromAPI();
-      
     } catch (error) {
       console.error("Error refreshing folders:", error);
       this.showError(
@@ -552,16 +566,48 @@ class FoldersApp {
       // Re-enable the refresh button and stop loading state
       this.isLoading = false;
       this.showLoading(false);
-      
+
       if (refreshBtn) {
         refreshBtn.disabled = false;
         refreshBtn.classList.remove("opacity-50", "cursor-not-allowed");
       }
-      
+
       if (refreshIcon) {
         refreshIcon.classList.remove("animate-spin");
       }
     }
+  }
+
+  private handleImageError(folderPath: string, element: HTMLImageElement): void {
+    console.warn(`Image failed to load for folder: ${folderPath}`);
+    
+    // Show placeholder immediately
+    this.showImagePlaceholder(element);
+    
+    // Check retry count and refresh on first error only
+    const retryCount = this.imageErrorRetryCount.get(folderPath) || 0;
+    if (retryCount >= this.MAX_RETRY_ATTEMPTS) {
+      console.log(`Max retry attempts reached for folder: ${folderPath}`);
+      return;
+    }
+    
+    // Increment retry count and refresh on first error
+    this.imageErrorRetryCount.set(folderPath, retryCount + 1);
+    if (retryCount === 0) {
+      this.refreshFolders();
+    }
+  }
+
+  private showImagePlaceholder(element: HTMLImageElement): void {
+    element.style.display = 'none';
+    const placeholder = document.createElement('div');
+    placeholder.className = 'w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center';
+    placeholder.innerHTML = `
+      <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+      </svg>
+    `;
+    element.parentNode?.insertBefore(placeholder, element);
   }
 }
 
@@ -570,4 +616,3 @@ const foldersApp = new FoldersApp();
 
 // Make it globally accessible for onclick handlers
 (window as any).foldersApp = foldersApp;
-

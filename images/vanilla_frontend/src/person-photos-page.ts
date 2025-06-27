@@ -149,7 +149,7 @@ class PersonPhotosApp {
     
     try {
       // Load person photos
-      const response = await fetch(`${API_URL}/getMeta/person/${this.personId}`);
+      const response = await fetch(`${API_URL}/getMeta/personML/${this.personId}`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       
       this.personPhotosData = await response.json();

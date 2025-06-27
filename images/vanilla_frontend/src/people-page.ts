@@ -77,7 +77,7 @@ class PeopleApp {
 
     try {
       console.log("Fetching people...");
-      const response = await fetch(`${API_URL}/getGroup/person`);
+      const response = await fetch(`${API_URL}/getGroup/personML`);
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
 
