@@ -29,36 +29,36 @@ TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
 FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
 
 sys.path.insert(0, IMAGE_APP_ML_PATH)
-# import clip_python_module as clip
+import clip_python_module as clip
 
-# print("[Debug]: Loading Model, may take a few seconds.")
-# clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
-# clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
+print("[Debug]: Loading Model, may take a few seconds.")
+clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
+clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
 def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
     # for simulating, (TODO: better simulation setup, if get time) 
-    return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
+    # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
-    # if isinstance(image,str):
-    #     assert os.path.exists(image)
-    #     image_data = cv2.imread(image)
-    #     is_bgr = True # "If using opencv, is_bgr would be true."
-    # else:
-    #     image_data = image
+    if isinstance(image,str):
+        assert os.path.exists(image)
+        image_data = cv2.imread(image)
+        is_bgr = True # "If using opencv, is_bgr would be true."
+    else:
+        image_data = image
     
-    # if image_data is None:
-    #     return None
+    if image_data is None:
+        return None
 
-    # image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
-    # assert image_features.size == IMAGE_EMBEDDING_SIZE
-    # return image_features
+    image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
+    assert image_features.size == IMAGE_EMBEDDING_SIZE
+    return image_features
 
 def generate_text_embedding(query:str):
-    return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
+    # return np.random.uniform(size = (1, TEXT_EMBEDDING_SIZE)).astype(np.float32)
 
-    # text_features = clip.encode_text(query)
-    # assert text_features.size == TEXT_EMBEDDING_SIZE
-    # return text_features
+    text_features = clip.encode_text(query)
+    assert text_features.size == TEXT_EMBEDDING_SIZE
+    return text_features
 # -------------------------------------------------------------------------------
 
 import hashlib

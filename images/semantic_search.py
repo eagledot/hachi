@@ -267,7 +267,7 @@ def query():
     query_completed = True  # by default.
     temp = {}                                   
     temp["meta_data"] = []
-    temp["data_hash"] = []
+    temp["data_hash"] = []       # TODO: may rename it `resource_hash` on client side!
     temp["score"] = []
     if not rerank_approach:
         # This means semantic query. (without any meta-attributes.)
@@ -289,7 +289,7 @@ def query():
             if i == top_k:
                 break
                 
-        temp_something = metaIndex.query(data_hashes= top_keys) # hash to metaData
+        temp_something = metaIndex.query(resource_hashes = top_keys) # hash to metaData
         
         del top_keys
         for k,v in temp_something.items():
@@ -336,7 +336,7 @@ def query():
             del or_keys
 
         # TODO: isn't and keys is a subset of or keys, we already have meta-data, do away with this another query call !
-        temp_something = metaIndex.query(data_hashes = and_keys)
+        temp_something = metaIndex.query(resource_hashes = and_keys)
         for k,v in temp_something.items():
             temp["meta_data"].append(v)
             temp["data_hash"].append(k)
@@ -575,7 +575,7 @@ def getfaceBboxIdMapping(resource_hash:str):
         orig_cluster_ids.append(get_original_cluster_id(c_id))
 
     # TODO: reading full image data from cache if possible !
-    temp_meta = metaIndex.query(data_hashes = resource_hash)[resource_hash]
+    temp_meta = metaIndex.query(resource_hashes = resource_hash)[resource_hash]
     absolute_path = temp_meta["absolute_path"]
     frame = cv2.imread(absolute_path) # bit costly, should come from cache if possible.
     if frame is None:
