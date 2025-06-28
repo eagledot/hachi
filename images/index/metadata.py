@@ -51,10 +51,11 @@ ALLOWED_RESOURCES_MAPPING = {
     k.__name__ : [".{}".format(x._name_.lower()) for x in k] for k in ALLOWED_RESOURCES
     }
 
-# we skip anything inside the `images` application/code!
+# we skip everything inside the APP folder. (for example D://hachi)
 TO_SKIP_PATHS = [
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 ]  # Children would also be excluded from indexing.
+print("PATHs to SKIP: {}",TO_SKIP_PATHS)
 
 def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = TO_SKIP_PATHS) -> bool:
     """Supposed to tell if a resource directory is contained in the to_skip directories
@@ -87,7 +88,7 @@ def get_resource_type(resource_extension:str) -> str|None:
         for extension in v:
             if temp_extension == extension:
                 return k
-    print("[Warning]: {} Could not matched".format(resource_extension))
+    # print("[Warning]: {} Could not matched".format(resource_extension))
     return None
 
 def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Generator[Any, Any, ResourceGenerator]:
@@ -109,7 +110,9 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
             return
         
         current_directory = resources_queue.pop(0)  # at each return only a single-directory files are returned!
-        if should_skip_indexing(current_directory, to_skip=[]):
+        if should_skip_indexing(current_directory):
+            # It works correctly, if this was `root_dir`, then done, otherwise we wouldn't enter!
+            print("Skipping: {}".format(current_directory))
             continue    
         try: 
             temp_resources = os.listdir(

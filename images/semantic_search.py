@@ -542,7 +542,7 @@ def get_original_cluster_id(cluster_id):
        return cluster_id
 
     assert metaIndex.backend_is_initialized == True
-    from .index.meta_indexV2 import mBackend    
+    from index.meta_indexV2 import mBackend    
 
     attr_2_rowIndices = json.loads(
         mBackend.query(

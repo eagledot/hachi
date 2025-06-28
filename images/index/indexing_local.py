@@ -245,6 +245,8 @@ class IndexingLocal(object):
             meta_data = extract_image_metaData(
                 resource_path # TODO: even though few bytes are read, get_image_size routine, we can share the 
             )
+            if meta_data is None:
+                continue  # TO investigate, get_image_size, sometimes, not able to parse?
             # --------------------------------------------
             # Do manual updates, as necessary here.
             meta_data["location"]["identifier"] = "Drive" # TODO: C:, D:
