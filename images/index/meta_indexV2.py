@@ -1,266 +1,18 @@
-# imports
-# Trying to refactor this to better type-contraint various attributes.
-# Should incorporate `remote` data possibility from beginning.
-# Note: we strive to use `previews` locally, even for remote data, so default type will only contain local attributes.
-# a separate type should contain meta-data to 
+# Wraps the Nim (backend) Meta Index.
+# TODO: improvements could be made in backend like a `replace` routine, better `batching`... start collecting latencies!
 
 import os
 import copy
 import hashlib
 from threading import RLock
 from typing import Optional, Union, Iterable, List, Dict, Any, Generator
-from queue import Queue
-import pickle
-import random
-import time
 import sys
 import json
-
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../"))
-from config import appConfig
-
-# sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
-# from exif import Image
-
-# sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../geocoding"))
-# from reverse_geocode import GeocodeIndex
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "./nim"))
 import meta_index_new_python as mBackend
 
-# import get_image_size
-
 CASE_INSENSITIVE = True  # DO IT on `request`, when updating/receiving user-data , otherwise generating info also keep it in lower.
-# also can make decision while searching/querying to be case-insensitive! 
-
-# from typing import TypedDict
-
-# ----------------------------------------------
-# Allowed Resources 
-# ---------------------
-# from enum import Enum
-# class Audio(Enum):
-#     MP3 = 0
-#     AAC = 1
-# class Video(Enum):
-#     MP4 = 0
-#     AVI = 1
-#     MKV = 2
-# class Image(Enum):
-#     JPG = 0
-#     JPEG = 1
-#     PNG = 2
-#     TIFF = 3
-#     RAW = 4
-# class Text(Enum):
-#     PDF = 0
-#     HTML = 1
-#     EPUB = 2
-#     TXT = 3
-
-# ALLOWED_RESOURCES = [
-#     Audio,
-#     Video,
-#     Image,
-#     Text
-# ]
-# # Generate from previous information.
-# # keys would be  : ["Image", "Video", "Text", ...] mimicing ALLOWED_RESOURCES items! 
-# ALLOWED_RESOURCES_MAPPING = {
-#     k.__name__ : [".{}".format(x._name_.lower()) for x in k] for k in ALLOWED_RESOURCES
-#     }
-# print(ALLOWED_RESOURCES_MAPPING)
-
-# def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = appConfig["to_skip_paths"]) ->bool:
-#     """Supposed to tell if a resource directory is contained in the to_skip directories
-#     """
-
-#     # NOTE: i think good enough!! (should work on all Os)
-#     temp_resource = os.path.abspath(resource_directory)
-#     result = False
-#     for x in to_skip:
-#         try:
-#             temp_result = os.path.commonpath([temp_resource, x])
-#         except:
-#             continue
-#         if os.path.normcase(temp_result) == os.path.normcase(x):
-#             result = True
-#             break        
-#     return result
-
-# class ResourceGenerator(TypedDict):
-#     directory_processed:os.PathLike  # results of which directory!
-#     Audio:List[os.PathLike]
-#     Video:List[os.PathLike]
-#     Text:List[os.PathLike]
-#     Images:List[os.PathLike]
-
-# def get_resource_type(resource_extension:str) -> str|None:
-#     "Given a resource extension, match it to one of allowed Parent type of resources!"
-#     temp_extension = resource_extension.lower()
-#     for k,v in ALLOWED_RESOURCES_MAPPING.items():
-#         for extension in v:
-#             if temp_extension == extension:
-#                 return k
-#     print("[Warning]: {} Could not matched".format(resource_extension))
-#     return None
-
-# def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Generator[Any, Any, ResourceGenerator]:
-#     """
-#     It is a generator, to output a `directory's` direct `children` at each iteration.
-#     For each `file` (not a directory), we map it to the correspoding `parent type` of `allowed_resources`,
-#     So this could be consumed universally depending on the `type` of content we would be indexing, for now `images` only.
-#     For each output, corresponding `resource_type` can be queried to get Absolute path to index!
-#     """
-
-#     resources_queue:List[os.PathLike] = []
-#     resources_queue.append(
-#         os.path.abspath(root_path)
-#         )
-    
-#     while True:
-#         # check if resources have been exhausted! (previous iteration would have not been put data if was exhausted!)
-#         if len(resources_queue) == 0:    
-#             return
-        
-#         current_directory = resources_queue.pop(0)  # at each return only a single-directory files are returned!
-#         if should_skip_indexing(current_directory):
-#             continue    
-#         try: 
-#             temp_resources = os.listdir(
-#                 current_directory
-#                 )
-#         except:
-#             print("Error while listing: {}".format(current_directory))
-#             continue
-        
-#         result:ResourceGenerator = {}
-#         for k in ALLOWED_RESOURCES_MAPPING:
-#             result[k] = []
-        
-#         for temp_resource in temp_resources:
-#             if os.path.isdir(os.path.join(current_directory, temp_resource)):
-#                 resources_queue.append(
-#                     os.path.join(current_directory, temp_resource)
-#                 )
-#             else:
-#                 resource_extension = os.path.splitext(temp_resource)[1]
-#                 temp_resource_type = get_resource_type(resource_extension)
-#                 if temp_resource_type is not None:
-#                     result[temp_resource_type].append(os.path.join(current_directory, temp_resource))
-#         yield result
-                
-#         if include_subdirectories == False:
-#             break
-    
-#     return  # no more (fresh) data can be there in result, right?
-# # ----------------------------------------------------------------------------
-
-# # ---------------------
-# # Geo Code index
-# # -------------------------
-# geoCodeIndex = GeocodeIndex()                                    # initialize our geocoding database/index.
-
-# # To map primary `exif-tags`, to our Terminology!
-# EXIF_PACKAGE_MAPPING = {
-#             "make": "make",
-#             "model": "model",
-#             "datetime_original": "taken_at",
-#             "gps_latitude": "gps_latitude",
-#             "gps_longitude": "gps_longitude",
-#             "device": "device" 
-#         }
-
-# class ImageExifAttributes(TypedDict):
-#     taken_at:str | None
-#     gps_latitude:float | None
-#     gps_longitude:float | None
-#     make:str | None
-#     model:str | None
-#     device:str | None
-
-# def get_image_exif_data(resource_path:str, resource_type:str) -> ImageExifAttributes:
-#     result:ImageExifAttributes = {}
-#     # NOTE: be-careful using `fromKeys` if an object like `list` is provided as value, it will be shared by all `keys`, weird !!
-#     result.fromkeys(ImageExifAttributes.__annotations__.keys(), value = None)
-
-#     # Get exif data!    
-#     try:
-#         # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
-#         temp_handle = Image(resource_path)
-#         if temp_handle.has_exif:
-#             for k,v in exif_package_mapping.items():
-#                 if "gps" in k:
-#                     # convert to degrees.. (From degrees, minutes, seconds)
-#                     temp = float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600
-#                     result[v] = temp
-#                 else:
-#                     result[v] = str(temp_handle[k])
-#     except:
-#             pass        # some error while extracting exif data.            
-    
-#     try:
-#         width,height = get_image_size.get_image_size(resource_path)
-#     except:
-#         print("Image size error for: {}".format(resource_path))
-#         width, height = 1, 1
-#     result["width"] = int(width)
-#     result["height"] = int(height)
-#     result["device"] = "{}".format(result["make"].strip() + " " + result["model"].strip())  # a single field for device.
-#     result["place"] = str(geoCodeIndex.query((result["gps_latitude"], result["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.
-        
-
-#     # result_exif_data = {}
-
-
-    # if resource_type == "image":
-    #     __allowed_image_fields = appConfig[resource_type]["exif_attributes"]
-
-    #     result_exif_data = {k:None for k in __allowed_image_fields}
-
-    #     result_exif_data["taken_at"] = "unknown"
-    #     result_exif_data["gps_latitude"] = None
-    #     result_exif_data["gps_longitude"] = None
-    #     result_exif_data["make"] = ""
-    #     result_exif_data["model"] = ""
-    #     result_exif_data["device"] = ""
- 
-    #     # exif package mapping to result_exif_data fields. 
-    #     exif_package_mapping = {
-    #         "make": "make",
-    #         "model": "model",
-    #         "datetime_original": "taken_at",
-    #         "gps_latitude": "gps_latitude",
-    #         "gps_longitude": "gps_longitude" 
-    #     }
-
-    #     try:
-    #         # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
-    #         temp_handle = Image(resource_path)
-    #         if temp_handle.has_exif:
-    #             for k,v in exif_package_mapping.items():
-    #                 if "gps" in k:
-    #                     # convert to degrees.. (From degrees, minutes, seconds)
-    #                     temp = str(float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600 )
-    #                     result_exif_data[v] = temp
-    #                 else:
-    #                     result_exif_data[v] = str(temp_handle[k])
-    #     except:
-    #         pass        # some error while extracting exif data.            
-        
-    #     # Read image size information. 
-    #     try:
-    #         width,height = get_image_size.get_image_size(resource_path)
-    #     except:
-    #         print("Image size error for: {}".format(resource_path))
-    #         width, height = 1, 1
-    #     result_exif_data["width"] = str(width)
-    #     result_exif_data["height"] = str(height)
-    #     result_exif_data["device"] = "{}".format(result_exif_data["make"].strip() + " " + result_exif_data["model"].strip())  # a single field for device.
-    #     result_exif_data["place"] = str(geoCodeIndex.query((result_exif_data["gps_latitude"], result_exif_data["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.
-
-    # return result_exif_data
-
 def generate_resource_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]:
     
     resource_hash = None
@@ -287,45 +39,8 @@ def generate_resource_hash(resource_path:str, chunk_size:int = 400) -> Optional[
         del(m)
     
     return resource_hash
-
-
-# TODO: using this type, we will get the actual Raw data for a resource!
-# class ResourceLocation(TypedDict):
-#     # enough info to retrive original file/data if required.
-#     location: str   # local | remote
-#     identifier: str # like C: D: or dropbox, googlePhotos.. etc . combination should be enough to dispatch a corresponding routine to retrive original data!
-
-# class MainAttributes(TypedDict):
-#     is_indexed:bool
-#     filename:str          # could even include name from a remote directory!
-#     absolute_path:os.PathLike | str   # in case on a remote server or something, then custom path should be allowed!
-#     resource_extension:str
-#     resource_directory:os.PathLike | str | None
-#     resource_type:Audio | Video | Text | Image
-
-# class MLAttributes(TypedDict):
-#     # resulting from Machine learning processing. (best effort basis)
-#     personML:list[str]        # generally resulting from a face-recognition!
-#     descriptionML:str   # may be a model could predict some description of a photo or result of an OCR  operation!
-#     tagsML:list[str]    #
-
-# class UserAttributes(TypedDict):
-#     # attributes that could be overwritten/modified by user. 
-#     # only following attributes could be manipulated directly by a user!
-#     is_favourite:bool
-#     tags:list[str]
-#     place:str 
-#     person:list[str]  # in case user tags them, TODO: if ML predicted, make sure mapping/order matches!       
-
-# class ImageMetaAttributes(TypedDict):
-#     location:ResourceLocation
-#     main_attributes:MainAttributes
-#     ml_attributes:MLAttributes
-#     user_attributes:UserAttributes
-#     exif_attributes:ImageExifAttributes
-
 # --------------------------------------------------------------------
-from metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes
+from .metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes
 
 # making sure relativiness of resources is respected.
 META_DATA_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./meta_indices")
@@ -665,7 +380,8 @@ class MetaIndex(object):
         Some stats about the amount and type of data indexed, add more information in the future if needed.
         """
         result = {}
-        for k in appConfig["allowed_resources"]:
+        # for k in appConfig["allowed_resources"]:
+        for k in ["image"]:  # TODO: use ALLOWED_RESOURCES from metadata.py
             result[k] = {"count":0}  # add more fields in the future if needed.
             result["available_resource_attributes"] = ["personML", "place", "filename", "resource_directory"]
 
@@ -685,62 +401,6 @@ class MetaIndex(object):
         return result
 
 if __name__ == "__main__":
-    import pickle
+    pass
 
-    test = MetaIndex()
-    # with open("./meta_indices/meta_data_old.pkl", "rb") as f:
-    #     stored_meta_data = pickle.load(f)
     
-    # print("done..")
-
-    # # it seems to work.. 
-    # count = 0
-    # for resource_hash, meta_data in stored_meta_data.items():
-    #     test.update(resource_hash, meta_data)
-    #     if count == 0:
-    #         print(resource_hash)
-    #     count += 1
-    #     if count % 100 == 0:
-    #         print(count)
-    # test.save() # this also...
-
-    # then query.. ?
-    # result = test.query(resource_hashes = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
-    
-    # result = test.query(attribute = "filename", attribute_value = "insta_bk0S3J5hejJ_0.jpg", exact_string=True)
-    # temp = test.get_unique("filename")
-    # print(len(temp))
-    # result = test.query(attribute = "filename", attribute_value = "insta_0")
-    # for hash, meta in result.items():
-    #     print(meta["filename"])
-    #     print(meta["absolute_path"])
-
-    # modify say filename attribute for a given hash..
-    # test.modify_meta_data(
-    #     resource_hash = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f",
-    #     meta_data = {"filename": "random file name"})
-    
-    # result = test.query(resource_hashes="38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f")
-    # for hash, meta in result.items():
-    #     print(meta["filename"])
-
-    # test.save()
-
-    print(test.backend_is_initialized)
-    import time
-    all_hashes = test.get_unique("resource_hash")
-
-
-    print(test.suggest(attribute="person", query ="some"))
-    print("\n")
-    print(test.suggest(attribute="person", query ="bedi"))
-
-
-    # sample = "38920e82fb39811f56b2478a37508ce42a954709bff1e58ca7c70b94678ae18f"
-    # tic = time.time()
-    # for i in range(100):
-    #     result = test.query(resource_hashes = sample)
-    # print("[QUERYING]: {}ms".format((time.time()- tic)*1000))
-    # result = test.query(resource_hashes = sample)
-    # print(result)
-    # print(test.get_unique("resource_extension"))

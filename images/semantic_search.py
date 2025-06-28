@@ -7,12 +7,12 @@ import time
 
 PYTHON_MODULES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_modules")
 IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".")
-IMAGE_APP_INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "index")
-IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "ml")
+# IMAGE_APP_INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "index")
+# IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "ml")
 
 sys.path.insert(0, IMAGE_APP_PATH)
-sys.path.insert(0, IMAGE_APP_INDEX_PATH)
-sys.path.insert(0, IMAGE_APP_ML_PATH)
+# sys.path.insert(0, IMAGE_APP_INDEX_PATH)
+# sys.path.insert(0, IMAGE_APP_ML_PATH)
 sys.path.insert(0, PYTHON_MODULES_PATH)
 
 # imports
@@ -20,28 +20,43 @@ from typing import Optional, Union, TypedDict, NamedTuple, Tuple, List, Iterable
 from threading import RLock
 import threading
 import time
-from collections import OrderedDict
 import uuid
 import base64
-import traceback
 
 import cv2
 from flask import Flask
 import flask
 import numpy as np
 
-from config import appConfig
-from config import Location
+# --------------------------------
+# configuration:
+IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index","preview_image")
+IMAGE_INDEX_SHARD_SIZE = 1200  # should be around 10_000, for dataset with around 50k or more images !
+TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
+IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview_image")
+if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
+    os.mkdir(IMAGE_PREVIEW_DATA_PATH)
 
-# config:
-IMAGE_PREVIEW_DATA_PATH = appConfig["image_preview_data_path"]
-IMAGE_INDEX_SHARD_SIZE = appConfig["image_index_shard_size"]
-TOP_K_SHARD = appConfig["topK_per_shard"]
+def get_drives() -> List[str]:
+    """ Courtesy of SO, but simple to understand!
+    we call the loaded kernel32 dll and then go through possible One character volume Names! Not exhaustive, but for now !
+    """
+    from ctypes import windll
+    import string
+    drives = []
+    bitmask = windll.kernel32.GetLogicalDrives()
+    for letter in string.ascii_uppercase:
+        if bitmask & 1:
+            drives.append("{}:".format(letter))
+        bitmask >>= 1
 
-from image_index import ImageIndex
-from face_clustering import FaceIndex
-from meta_indexV2 import MetaIndex
-from global_data_cache import GlobalDataCache
+    return drives
+# --------------------------------
+
+from index.image_index import ImageIndex
+from index.face_clustering import FaceIndex
+from index.meta_indexV2 import MetaIndex
+from index.global_data_cache import GlobalDataCache
 
 # a (session-only)cache, to keep track of `original cluster` mapping to `user aliased tags`, so as to speed up getting previews for a `person`.
 Cluster_alias = {}
@@ -114,7 +129,7 @@ def recreate_local_path(
         *uri
     )
 
-from indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
+from index.indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
 index_obj:None | IndexingLocal = None
 
 ############
@@ -149,7 +164,7 @@ def indexStart(batch_size = 1) -> ReturnInfo:
         uri = post_attributes["uri"]
     )
 
-    print("Root dir: {}".format(root_dir))
+    # print("Root dir: {}".format(root_dir))
     if not(os.path.exists(root_dir)):
         return flask.jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
 
@@ -158,7 +173,7 @@ def indexStart(batch_size = 1) -> ReturnInfo:
             # TODO: leverage the `location` attribute to select appropriate Class!
             index_obj = IndexingLocal(
                 root_dir = root_dir,
-                config = appConfig,
+                image_preview_data_path = IMAGE_PREVIEW_DATA_PATH,
                 meta_index = metaIndex,
                 face_index = faceIndex,
                 semantic_index = imageIndex,
@@ -173,7 +188,7 @@ def indexStart(batch_size = 1) -> ReturnInfo:
                 # Client may not have read the `done` status. (shouldn't happen though, but we will schedule next one!)
                 index_obj = IndexingLocal(
                 root_dir = root_dir,
-                config = appConfig,
+                image_preview_data_path = IMAGE_PREVIEW_DATA_PATH,
                 meta_index = metaIndex,
                 face_index = faceIndex,
                 semantic_index = imageIndex,
@@ -419,6 +434,9 @@ def tagPerson():
     """
     Tag a person, by replacing the old `person` attribute with newer.
     It does all the stuff for finding all resources with that `old id` and replaces correctly and save the db too!
+    
+    TODO: do a `replace` routine in backend, to speed such operations!
+    
     """
     new_person_id = flask.request.form["new_person_id"].strip()
     old_person_id = flask.request.form["old_person_id"].strip()
@@ -524,7 +542,7 @@ def get_original_cluster_id(cluster_id):
        return cluster_id
 
     assert metaIndex.backend_is_initialized == True
-    from meta_indexV2 import mBackend    
+    from .index.meta_indexV2 import mBackend    
 
     attr_2_rowIndices = json.loads(
         mBackend.query(
@@ -614,18 +632,26 @@ def ping():
     return "ok"
 
 @app.route("/getPartitions", methods = ["GET"])
-def getPartitions() -> Dict[Location, str]:
+def getPartitions() -> Dict[str, str]:
     """
     It returns a list of tuple containing `location` and an `identifier` for partitions available to index from:
     ("LOCAL", "C:"),
     ("LOCAL", "D:"),
-    ("REMOTE", "googlePhotos) # TODO: in config.py, for now `googlePhotos` is supported only!
+    ("REMOTE", "googlePhotos) 
     ...
     """
-    response_data = [
-        {"location": location, "identifier": identifier}
-        for location, identifier in appConfig["partitions"]
-    ]
+    # TODO: handle `remote extensions` too, somewhere `register them` to be read here!
+    if sys.platform == "win32":
+        response_data = [
+            {"location": "local", "identifier": identifier}
+            for identifier in get_drives()
+        ]
+    else:
+        # TODO: test, only a single `/` (root) for Linux should be enough!
+        response_data = [
+            {"location": "local", "identifier": "/"}
+            for identifier in get_drives()
+            ]
     return flask.jsonify(response_data)
 
 from typing import TypedDict
@@ -661,7 +687,7 @@ def getSuggestionPath() -> List[str]:
             post_data["identifier"],
             uri = post_data["uri"]
         )
-        print("Recreated path: ", recreated_path)
+        # print("Recreated path: ", recreated_path)
         if os.path.exists(recreated_path):
             result = os.listdir(recreated_path)
     return flask.jsonify(result)
@@ -753,6 +779,7 @@ def statusGAuthFlow():
 
 ############################################################################
 def check_extension_status(remote_protocol:str) -> Tuple[bool, str]:
+    # TODO: deprecated, would be handled with other extension code!
     if remote_protocol not in appConfig["supported_remote_protocols"]:
         return (False, "Not a supported protocol")
     else:
