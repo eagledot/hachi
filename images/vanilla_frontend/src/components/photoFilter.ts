@@ -583,8 +583,8 @@ export class PhotoFilterComponent {
     this.photos.forEach((photo) => {
       const metadata = photo.metadata;
       if (!metadata) return; // People
-      if (metadata.personML && Array.isArray(metadata.personML)) {
-        metadata.personML.forEach((person) => {
+      if (metadata.person && Array.isArray(metadata.person)) {
+        metadata.person.forEach((person) => {
           if (
             person &&
             person !== "no_person_detected" &&
@@ -1189,7 +1189,7 @@ export class PhotoFilterComponent {
         metadata.absolute_path,
         metadata.description,
         metadata.place,
-        ...(metadata.personML || []),
+        ...(metadata.person || []),
         ...(Array.isArray(metadata.tags)
           ? metadata.tags
           : [metadata.tags].filter(Boolean)),
@@ -1206,9 +1206,9 @@ export class PhotoFilterComponent {
 
     // People filter
     if (criteria.people && criteria.people.length > 0) {
-      if (!metadata.personML || !Array.isArray(metadata.personML)) return false;
+      if (!metadata.person || !Array.isArray(metadata.person)) return false;
       const hasMatch = criteria.people.some((person) =>
-        metadata.personML!.includes(person)
+        metadata.person!.includes(person)
       );
       if (!hasMatch) return false;
     } // Year filter
