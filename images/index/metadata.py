@@ -50,9 +50,13 @@ ALLOWED_RESOURCES = [
 ALLOWED_RESOURCES_MAPPING = {
     k.__name__ : [".{}".format(x._name_.lower()) for x in k] for k in ALLOWED_RESOURCES
     }
-print(ALLOWED_RESOURCES_MAPPING)
 
-def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike]) -> bool:
+# we skip anything inside the `images` application/code!
+TO_SKIP_PATHS = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+]  # Children would also be excluded from indexing.
+
+def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = TO_SKIP_PATHS) -> bool:
     """Supposed to tell if a resource directory is contained in the to_skip directories
     """
 
@@ -141,7 +145,7 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
 ##--------------------------
 ## Exif data extraction 
 # -------------------------------
-import get_image_size  # just reading enough headers to get the `image dimensions`.
+from . import get_image_size  # just reading enough headers to get the `image dimensions`.
 from geocoding.reverse_geocode import GeocodeIndex
 
 geoCodeIndex = GeocodeIndex()    

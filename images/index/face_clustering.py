@@ -12,8 +12,8 @@ import os
 import uuid
 import json
 
-from face_utils import collect_aligned_faces, collect_eyes, compare_hog_image, compare_face_embedding
-from hog import get_hog_image
+from .face_utils import collect_aligned_faces, collect_eyes, compare_hog_image, compare_face_embedding
+from .hog import get_hog_image
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ml"))

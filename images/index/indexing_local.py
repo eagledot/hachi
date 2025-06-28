@@ -9,21 +9,19 @@ import sys
 import traceback
 from copy import deepcopy
 
-from index.meta_indexV2 import MetaIndex
-from index.image_index import ImageIndex
-from index.face_clustering import FaceIndex
-from index.metadata import extract_image_metaData, collect_resources
+from .meta_indexV2 import MetaIndex
+from .image_index import ImageIndex
+from .face_clustering import FaceIndex
+from .metadata import extract_image_metaData, collect_resources
 
 import cv2
 import numpy as np
 
-from config import appConfig
-
 # -----------------
 # Ml
 # ------------------
-IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".")
-IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "ml")
+IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ml")
 IMAGE_EMBEDDING_SIZE = 512  # depends on the model architecture.
 TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
 FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
@@ -153,8 +151,7 @@ class ReturnInfo(TypedDict):
 class IndexingLocal(object):
     def __init__(self,
                  root_dir:os.PathLike,
-                 config:dict,           # read configuration, suppose to generated during application start-up!
-                 
+                 image_preview_data_path:os.PathLike,         
                  meta_index:MetaIndex,  # meta-data index/database
                  face_index:FaceIndex,  # face_index, embeddings and stuff
                  semantic_index:ImageIndex, # semantic information!
@@ -168,7 +165,7 @@ class IndexingLocal(object):
         
         assert os.path.exists(root_dir)
         self.root_dir = root_dir        
-        self.config = config
+        self.image_preview_data_path = image_preview_data_path
         self.meta_index:MetaIndex = meta_index
         self.face_index:FaceIndex = face_index
         self.semantic_index:ImageIndex = semantic_index
@@ -286,7 +283,7 @@ class IndexingLocal(object):
                                 image = frame, 
                                 face_bboxes = None, 
                                 person_ids=[],
-                                output_folder = appConfig["image_preview_data_path"])                
+                                output_folder = self.image_preview_data_path)                
 
         
     def indexing_thread(
@@ -302,21 +299,21 @@ class IndexingLocal(object):
                     self.indexing_info["processed"] = None
                     self.indexing_info["total"] = None
                                 
-                # delete person previews.
-                preview_data =  os.listdir(self.config["image_person_preview_data_path"])
-                for i, preview_person in enumerate(preview_data):
-                    try:
-                        os.remove(os.path.join(self.config["image_person_preview_data_path"], preview_person))
-                    except:
-                        print("Error deleting: {}".format(preview_data))
+                # # delete person previews.
+                # preview_data =  os.listdir(self.config["image_person_preview_data_path"])
+                # for i, preview_person in enumerate(preview_data):
+                #     try:
+                #         os.remove(os.path.join(self.config["image_person_preview_data_path"], preview_person))
+                #     except:
+                #         print("Error deleting: {}".format(preview_data))
                     
-                    if (i % 20) == 0:
-                        with self.lock:
-                            self.indexing_info["details"] = "Removing  person previews.."
-                            self.indexing_info["done"] = False
-                            self.indexing_info["eta"] = None
-                            self.indexing_info["processed"] = None
-                            self.indexing_info["total"] = None
+                #     if (i % 20) == 0:
+                #         with self.lock:
+                #             self.indexing_info["details"] = "Removing  person previews.."
+                #             self.indexing_info["done"] = False
+                #             self.indexing_info["eta"] = None
+                #             self.indexing_info["processed"] = None
+                #             self.indexing_info["total"] = None
 
                 # reset/remove old indices data.
                 # indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
