@@ -1628,13 +1628,8 @@ export class PhotoFilterComponent {
       this.filterCriteria.resourceDirectory &&
       this.filterCriteria.resourceDirectory.length > 0
     ) {
-      const resourceDirs = this.filterCriteria.resourceDirectory.map((dir) =>
-        dir.replace(/\//g, "\\")
-      );
-      // Convert forward slashes to backslashes for Windows
-      
 
-      searchFilters.resource_directory = resourceDirs;
+      searchFilters.resource_directory = this.filterCriteria.resourceDirectory;
     }
 
     // Always include person context if it exists in filter criteria
@@ -1697,14 +1692,9 @@ export class PhotoFilterComponent {
    * Set resource directory context for filtering
    */
   setResourceDirectory(directories: string[]): void {
-    // Convert forward slashes to backslashes for Windows paths
-    const normalizedDirectories = directories.map((dir) =>
-      dir.replace(/\//g, "\\")
-    );
-
     // Set as context, not as a user filter - this won't appear in the UI
     this.filterCriteria.resourceDirectory =
-      normalizedDirectories.length > 0 ? normalizedDirectories : undefined;
+      directories.length > 0 ? directories : undefined;
 
     // If we're in semantic search mode, restart the search to include the new context
     if (this.isSemanticSearchMode && this.currentSearchTerm) {
