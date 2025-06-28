@@ -515,9 +515,9 @@ export class UIService {
     });
         
     // Add people section if available
-    const hasPeople = metadata.personML && 
-                      metadata.personML.length > 0 && 
-                      !metadata.personML.every(p => p === "no_person_detected" || p === "no_categorical_info");      
+    const hasPeople = metadata.person && 
+                      metadata.person.length > 0 && 
+                      !metadata.person.every(p => p === "no_person_detected" || p === "no_categorical_info");      
 
     if (hasPeople) {
       const peopleDiv = document.createElement('div');
@@ -532,7 +532,7 @@ export class UIService {
       peopleContainer.setAttribute('data-people-container', 'true');
       
       // Create person avatars efficiently
-      const validPeople = metadata.personML?.filter(personId => 
+      const validPeople = metadata.person?.filter(personId => 
         personId !== "no_person_detected" && personId !== "no_categorical_info"
       ) || [];
       

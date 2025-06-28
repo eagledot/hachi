@@ -13,7 +13,7 @@ export interface ImageMetaData {
   make?: string;
   model?: string;
   modified_at?: string;
-  personML?: string[];
+  person?: string[];
   place?: string;
   resource_directory?: string;
   resource_extension?: string;
