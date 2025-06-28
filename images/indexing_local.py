@@ -255,6 +255,7 @@ class IndexingLocal(object):
 
             # it is supposed to be updated, after clusters finalizing.
             meta_data["ml_attributes"]["personML"] = ["no_person_detected"]
+            meta_data["user_attributes"]["person"] = ["no_person_detected"] # by default, same value for `user Person` attribute. (ML info should be copied as it is one default, later user can make changes to it!)
             meta_data["resource_hash"] = resource_hash  # presence of this field, should indicate `is_indexed` by default!
             # -----------------------------------------------
 

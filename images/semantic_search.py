@@ -43,7 +43,8 @@ from face_clustering import FaceIndex
 from meta_indexV2 import MetaIndex
 from global_data_cache import GlobalDataCache
 
-USER_CLUSTER_ID_2_ORIGINAL = {} # a session cache to help ..
+# a (session-only)cache, to keep track of `original cluster` mapping to `user aliased tags`, so as to speed up getting previews for a `person`.
+Cluster_alias = {}
 
 def generate_endpoint(directory_path:str) -> str:
     statusEndpoint = directory_path.replace("/", "-")
@@ -416,36 +417,57 @@ def getRawDataFull(resource_hash:str) -> flask.Response:
 @app.route("/tagPerson", methods = ["POST"])
 def tagPerson():
     """
-    tag a person. (update cluster id  with a user provided label.)
-    It cannot be modelled cleanly, as lots of images may have that cluster/person (along with other persons/clusters) so we go through all of those image and replace old id with new id with correct index!
-    current logic seems sound and working as intended!
+    Tag a person, by replacing the old `person` attribute with newer.
+    It does all the stuff for finding all resources with that `old id` and replaces correctly and save the db too!
     """
     new_person_id = flask.request.form["new_person_id"].strip()
     old_person_id = flask.request.form["old_person_id"].strip()
-    # we make sure new tag/cluster is not already present, so there is never some ambiguity.
-    if new_person_id in metaIndex.get_unique(attribute = "person"):
-        return flask.jsonify({"success":False, "reason":"{} already present, choose a different tag".format(new_person_id)})
 
-    # we find all the rows/resource where old person id is present.
-    # we replace old person id with new person_id for each such resource !
+    if "cluster" in new_person_id: 
+        return flask.jsonify({"success":False, "reason":"`cluster` is reserved, choose a different tag"})
+    
+    # we make sure new tag/cluster is not already present, so there is never some ambiguity.
+    if new_person_id in metaIndex.get_unique(attribute = "personML"):
+        return flask.jsonify({"success":False, "reason":"{} already present, choose a different tag".format(new_person_id)})
+    
     hash_2_metaData = metaIndex.query(attribute = "person", attribute_value = old_person_id)
     for hash, meta_data in hash_2_metaData.items():
-        old_array = meta_data["person"]
-        new_person_meta = {"person":[]}
-        for p in (old_array):
-            if p == old_person_id:
-                new_person_meta["person"].append(new_person_id)
-            else:
-                new_person_meta["person"].append(p)
-        metaIndex.modify_meta_data(data_hash = hash, meta_data = new_person_meta)
+        old_array = meta_data["person"]  # an array of strings is expected!
+        count = 0
+        idx = None
+        for i,d in enumerate(old_array):
+            if old_person_id == d:
+                count += 1
+                idx =  i # count must be 1, then only one (desired) idx would be returned, 
+        assert count == 1, "{} Must have been found in: {}".format(old_person_id, old_array)
+        old_array[idx] = new_person_id
+
+        # modify it, for each `resource` indicating presence of that `person`
+        metaIndex.modify_meta_user(
+            resource_hash = hash, 
+            meta_data = {"person":old_array},
+            force = True        # as we would be overwriting it!
+            )
     
+    with global_lock:
+        if old_person_id in Cluster_alias:
+            assert "cluster" in Cluster_alias[old_person_id], Cluster_alias[old_person_id]
+            Cluster_alias[new_person_id] = Cluster_alias[old_person_id]
+        
+            # any new key is added in `getPreviewCluster`
+            _ = Cluster_alias.pop(old_person_id) # like if was `shelly` --> cluster_xx, replaced `shelly` -> `rafa`, so we `pop` `shelly`
+
     result = {"success":True, "reason":""}
     metaIndex.save() # write to disk too..
     return flask.jsonify(result)
    
 @app.route("/editMetaData", methods = ["POST"])
 def editMetaData():
-    """ Supposed to update/modify meta-index upon an user request"""
+    """ 
+    TODO: only user Attributes are supposed to be updated/edited.
+    just call `modify_meta_user`,
+    TODO: complete it! 
+    """
     
     temp_meta_data = {}
     for k,v in flask.request.form.items():
@@ -454,20 +476,14 @@ def editMetaData():
             temp_meta_data[k] = v
 
     data_hash = flask.request.form["data_hash"]
-    metaIndex.modify_meta_data(data_hash, temp_meta_data)
+    metaIndex.modify_user_data(data_hash, temp_meta_data)
     metaIndex.save()
     return flask.jsonify({"success":True})
 
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
     # get the unique/all possible values for an attribute!
-    # TODO: if resource directory, send as form of `identifier`
-    # and an array of uris, so as to get `case-sensitive-path` back!
-    # when needed!
-
-    #TODO: update on the client side!
-    if attribute == "person":
-        attribute = "personML"
+    # TODO: if `resource directory`, send as form of `identifier` and an array of uris, so as to get `case-sensitive-path` back!
 
     if attribute == "resource_directory":
         new_result = []
@@ -481,16 +497,11 @@ def getGroup(attribute:str):
 @app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
 def getMeta(attribute:str, value:Any):
     
+    # NOTE: we use a single `forward` slash while saving `meta-data` for paths. Should work well on `linux`, TODO: test it.
     if attribute == "resource_directory":
         value = value.replace("|", "/")
         assert os.path.exists(os.path.normpath(value))
 
-    #TODO: update on the client side!
-    if attribute == "person":
-        attribute = "personML"
-
-    # TODO: for now force value to be of string type.. or convert into expected type.. for backend.
-    # TODO: check path matching for LINUX.. due to slashes orientation may fail to... so have to check it..
     result = metaIndex.query(attribute = attribute, attribute_value = value) # exact make sure we match full string rather than substring.
     temp = {}
     temp["data_hash"]= list(result.keys())
@@ -506,52 +517,51 @@ def getMetaStats():
 
 def get_original_cluster_id(cluster_id):
     """
-    Given a cluster id get the corresponding original cluster id.
-    Note: a bit costly as we have to scan all the data, (along with alia/versioned data), having to call query twice.
-    But we store a mapping, resulting in faster subsequent call to getPreviewcluster .
-    
-    NOTE: trying to understand the limits of meta backend without resorting to index/new-datastructure to speed up things!  
+    Given some cluster_id or user provided person_id, we get the corresponding `original_cluster_id`.
+    Should be fast enough for most cases, using a cache/dict to speed-up subsequent requests! 
     """
-    if ("cluster_" in cluster_id.lower()):
+    if ("cluster" in cluster_id.lower()):
        return cluster_id
+
+    assert metaIndex.backend_is_initialized == True
+    from meta_indexV2 import mBackend    
+
+    attr_2_rowIndices = json.loads(
+        mBackend.query(
+        json.dumps({"person":cluster_id})
+        ))
+    # We need only 1 row, to get the corresponding Original Meta-data!
+    row_idx = attr_2_rowIndices["person"][0]
+    idx = None
+    meta_array = json.loads(mBackend.collect_rows([row_idx], latest_version = True))[0]
+    print(meta_array)
+    person_user_arr = meta_array["person"]
+    person_ml_arr = meta_array["personML"]
+    assert len(person_ml_arr) == len(person_user_arr), "Expected to be same, only content may differ"
+    for i in range(len(person_user_arr)):
+        if person_user_arr[i] == cluster_id:
+            idx = i 
+            break
+    assert not(idx is None)
+    return person_ml_arr[idx]
       
-    # first get the original data even user changed it.
-    # TODO: i think we are saving user-data in a different attribute , update this code!
-    original_hash_2_metadata = metaIndex.query(attribute = "personML", attribute_value = cluster_id, latest_version = False)
-    new_hash_2_metadata = metaIndex.query(attribute = "personML", attribute_value = cluster_id, latest_version = True)
-    desired_ix = None
-    desired_hash = None
-    for hash, new_meta in new_hash_2_metadata.items():
-        for i,p in enumerate(new_meta["personML"]):
-            if p == cluster_id:
-                desired_ix = i
-                desired_hash = hash
-                break
-        del new_meta
-        break
-    assert not (desired_ix is None), "should have found it!"
-
-    # find the original...
-    original_cluster_id = original_hash_2_metadata[desired_hash]["personML"][desired_ix]
-    del original_hash_2_metadata, new_hash_2_metadata
-    return original_cluster_id
-
-@app.route("/getPreviewPerson/<cluster_id>", methods = ["GET"])
-def getPreviewCluster(cluster_id):
-    if cluster_id not in USER_CLUSTER_ID_2_ORIGINAL:
-        original_cluster_id = get_original_cluster_id(cluster_id)
-        # update session mappping for future reference
-        USER_CLUSTER_ID_2_ORIGINAL[cluster_id] = original_cluster_id
-    else:
-        original_cluster_id = USER_CLUSTER_ID_2_ORIGINAL[cluster_id]
-
+@app.route("/getPreviewPerson/<person_id>", methods = ["GET"])
+def getPreviewCluster(person_id):
     # TODO: have to add a cluster for no detection too... not a priority(i think have added just to incorporate)
-    if original_cluster_id.lower() == "no_person_detected":
+    if person_id.lower() == "no_person_detected":
         flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
         raw_data = poster.tobytes()
         del flag, poster
         return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
     else:
+        # Do the dance of getting original `corresponding` cluster_id, so that we can retrive the `face preview`
+        with global_lock:            
+            if Cluster_alias.get(person_id, False):
+                original_cluster_id = Cluster_alias[person_id]
+            else:
+                original_cluster_id = get_original_cluster_id(person_id)
+                Cluster_alias[person_id] = original_cluster_id
+
         c = faceIndex.get(original_cluster_id)
         png_data = c.preview_data
         del c
