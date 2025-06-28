@@ -534,7 +534,6 @@ def get_original_cluster_id(cluster_id):
     row_idx = attr_2_rowIndices["person"][0]
     idx = None
     meta_array = json.loads(mBackend.collect_rows([row_idx], latest_version = True))[0]
-    print(meta_array)
     person_user_arr = meta_array["person"]
     person_ml_arr = meta_array["personML"]
     assert len(person_ml_arr) == len(person_user_arr), "Expected to be same, only content may differ"
