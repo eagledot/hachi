@@ -643,13 +643,13 @@ def getPartitions() -> Dict[str, str]:
     # TODO: handle `remote extensions` too, somewhere `register them` to be read here!
     if sys.platform == "win32":
         response_data = [
-            {"location": "local", "identifier": identifier}
+            {"location": "LOCAL", "identifier": identifier}
             for identifier in get_drives()
         ]
     else:
         # TODO: test, only a single `/` (root) for Linux should be enough!
         response_data = [
-            {"location": "local", "identifier": "/"}
+            {"location": "LOCAL", "identifier": "/"}
             for identifier in get_drives()
             ]
     return flask.jsonify(response_data)
