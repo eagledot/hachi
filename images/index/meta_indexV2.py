@@ -40,7 +40,7 @@ def generate_resource_hash(resource_path:str, chunk_size:int = 400) -> Optional[
     
     return resource_hash
 # --------------------------------------------------------------------
-from .metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes
+from .metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes, flatten_the_metadata
 
 # making sure relativiness of resources is respected.
 META_DATA_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./meta_indices")
@@ -206,26 +206,8 @@ class MetaIndex(object):
 
         # print("[TODO]: rename `update` to `append`")
         with self.lock:
-            assert not (meta_data["resource_hash"] is None)
-            
-            # NOTE: have to flatten the meta-data for backend, (as supports primitve-data types and array for strings for now!)
-            flatten_dict = {}
-            # Only at-max a single level of dict nesting is expected!
-            for parent_key, parent_v in meta_data.items():           
-                if isinstance(parent_v, dict):
-                    for k,v in parent_v.items(): # no-more nesting!
-                        if v is None:                        
-                            flatten_dict[k] = "UNK"
-                        else:
-                            flatten_dict[k] = v
-                else:
-                    if isinstance(parent_v, str):
-                        flatten_dict[parent_key] = parent_v
-                    else:
-                        # handle None, as currently we don't allow None/Null in the backend.
-                        # Its a bare-bone from scratch database, give it time !
-                        assert parent_v is None
-                        flatten_dict[parent_key] = "UNK"
+            assert len(meta_data["resource_hash"]) > 10 # (assuming atleast 10 chars), proper hash was supposed to be generated!
+            flatten_dict = flatten_the_metadata(meta_data)
             
             if self.backend_is_initialized == False:
                 # lazy initialization on first time update, this helps decoupling MetaIndex from application flow!
@@ -346,7 +328,10 @@ class MetaIndex(object):
 
     def save(self):
         with self.lock:
-            assert self.backend_is_initialized == True
+            if self.backend_is_initialized == False:
+                # It is possible.. that sometimes an update/append may not occur, before calling `save`, we ignore this.
+                print("[WARNING]: Not enough data to save in MetaIndex!")
+                return 
             # if no resource on python side just calling save on backend is enough i guess!
             mBackend.save(self.meta_index_path)
     
