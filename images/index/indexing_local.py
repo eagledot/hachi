@@ -457,7 +457,7 @@ class IndexingLocal(object):
                         # imageIndex.sanity_check()
                         self.indexing_info["details"] = "Indexing Completed Successfully!"
                     except Exception:
-                        print(traceback.format_exc)
+                        print(traceback.format_exc())
                         self.indexing_info["details"] = traceback.format_exc
                     finally:
                         self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
