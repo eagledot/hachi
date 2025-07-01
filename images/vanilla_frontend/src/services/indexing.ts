@@ -20,7 +20,13 @@ export default class IndexingService {
   static processDirectoryPath(directoryPath: string): string[] {
     // Split the directory path into parts
     const parts = directoryPath.split(/[/\\]/); // Split by both forward and backward slashes
-    // Remove empty parts (in case of leading/trailing slashes)
+    
+    // Handle root directory case - preserve leading slash
+    if (parts[0] === '' && parts.length > 1) {
+      return ['/', ...parts.slice(1).filter((part) => part.length > 0)];
+    }
+    
+    // Remove empty parts (in case of trailing slashes)
     return parts.filter((part) => part.length > 0);
   }
 
