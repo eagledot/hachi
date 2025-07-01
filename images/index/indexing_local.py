@@ -9,21 +9,19 @@ import sys
 import traceback
 from copy import deepcopy
 
-from index.meta_indexV2 import MetaIndex
-from index.image_index import ImageIndex
-from index.face_clustering import FaceIndex
-from index.metadata import extract_image_metaData, collect_resources
+from .meta_indexV2 import MetaIndex
+from .image_index import ImageIndex
+from .face_clustering import FaceIndex
+from .metadata import extract_image_metaData, collect_resources
 
 import cv2
 import numpy as np
 
-from config import appConfig
-
 # -----------------
 # Ml
 # ------------------
-IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".")
-IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "ml")
+IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ml")
 IMAGE_EMBEDDING_SIZE = 512  # depends on the model architecture.
 TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
 FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
@@ -150,11 +148,33 @@ class ReturnInfo(TypedDict):
     error:bool    # If true, then terminating response, use the `details` field to communicate to the user/client !
     details:str
 
+class ProfileInfoNaive(object):
+    def __init__(self) -> None:
+        self.last_tic:float = time.time()
+        self.container = {}
+    def reset(self):
+        self.container:dict = {}
+        self.last_tic = time.time()
+    def add(self, key:str):
+        if not(key in self.container):
+            self.container[key] = 0.00
+        cur_time = time.time()
+        self.container[key] += (cur_time - self.last_tic)
+        self.last_tic = cur_time
+    
+    def __str__(self) -> str:
+        result = ""
+        total = 1e-7
+        for v in self.container.values():
+            total += v
+        for k,v  in self.container.items():
+            result = result + ("{}:\t{}\t{}%\n".format(k,int(v), int(v/total * 100)))
+        return result
+    
 class IndexingLocal(object):
     def __init__(self,
                  root_dir:os.PathLike,
-                 config:dict,           # read configuration, suppose to generated during application start-up!
-                 
+                 image_preview_data_path:os.PathLike,         
                  meta_index:MetaIndex,  # meta-data index/database
                  face_index:FaceIndex,  # face_index, embeddings and stuff
                  semantic_index:ImageIndex, # semantic information!
@@ -168,7 +188,7 @@ class IndexingLocal(object):
         
         assert os.path.exists(root_dir)
         self.root_dir = root_dir        
-        self.config = config
+        self.image_preview_data_path = image_preview_data_path
         self.meta_index:MetaIndex = meta_index
         self.face_index:FaceIndex = face_index
         self.semantic_index:ImageIndex = semantic_index
@@ -189,7 +209,9 @@ class IndexingLocal(object):
                 eta = None,
                 details = "No info.."
                 )
-    
+        
+        self.profile_info = ProfileInfoNaive()
+
     def cancel(self) -> ReturnInfo:
         """Cancel an ongoing indexing,
         If not ongoing, assertion error.
@@ -205,26 +227,19 @@ class IndexingLocal(object):
     
     def __index_batch(
         self,
-        resources_batch:List[os.PathLike],
-        remote_protocol:Optional[str] = None   # TODO: remove/clean it, when handling googlePhotos and stuff! 
+        resources_batch:List[os.PathLike] # Absolute path!
     ):
         """Actual logic for indexing. This would need to be speed up or benchmarked if ever!
         Batching mainly provides `breakpoints` to collect the `current state/info` for ongoing indexing. (mainly to send back to client).
         NOTe that it not parallel `batching` per se, that is possible but not without huge efforts, currently not enough time!
         """
         
-        # hash_2_metaData = self.meta_index.extract_image_metaData(resources_batch)       # extra meta data
-        # for data_hash, meta_data in hash_2_metaData.items():
-        #     assert data_hash is not None
-        #     absolute_path = meta_data["absolute_path"]
-        #     is_indexed = meta_data["is_indexed"]
-        #     if is_indexed:
-        #         continue
-
         for resource_path in resources_batch:
+            self.profile_info.add("misc")
             resource_hash = generate_data_hash(
                 resource_path
             )
+            self.profile_info.add("hash-generation")
             if resource_hash is None:
                 print("Possibly Invalid data for: {}".format(resource_path))
                 continue
@@ -233,21 +248,29 @@ class IndexingLocal(object):
                 return
 
             # read raw-data only once.. and share it for image-clip,face and previews
+            self.profile_info.add("misc") # dummy
             frame = cv2.imread(resource_path)
+            self.profile_info.add("imread")
             if frame is None:
                 print("[WARNING]: Invalid data for {}".format(resource_path))
                 continue
             is_bgr = True
 
             # generate image embeddings
+            self.profile_info.add("misc")
             image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
+            self.profile_info.add("image-embedding")
             if image_embedding is None: # TODO: it cannot be None, if image-data seemed valid!
                 print("Invalid data for {}".format(resource_path))
                 continue
             
+            self.profile_info.add("misc")
             meta_data = extract_image_metaData(
                 resource_path # TODO: even though few bytes are read, get_image_size routine, we can share the 
             )
+            self.profile_info.add("extra-metadata")
+            if meta_data is None:
+                continue  # TO investigate, get_image_size, sometimes, not able to parse?
             # --------------------------------------------
             # Do manual updates, as necessary here.
             meta_data["location"]["identifier"] = "Drive" # TODO: C:, D:
@@ -258,10 +281,6 @@ class IndexingLocal(object):
             meta_data["user_attributes"]["person"] = ["no_person_detected"] # by default, same value for `user Person` attribute. (ML info should be copied as it is one default, later user can make changes to it!)
             meta_data["resource_hash"] = resource_hash  # presence of this field, should indicate `is_indexed` by default!
             # -----------------------------------------------
-
-
-            # sync/update both the indices.
-            # meta_data["is_indexed"] = True # No need, since
 
             # TODO: on downloading of remote data, append to the meta-index.
             # downloading should be equivalent to presence of new images, hence check the hash.
@@ -274,50 +293,32 @@ class IndexingLocal(object):
             #     meta_data["absolute_path"] = "remote"
             
             # TODO: either all should complete or no one! must be in sync!
+            self.profile_info.add("misc")
             self.meta_index.update(meta_data) # TODO: append instead of update for clearer semantics!
+            self.profile_info.add("meta-index-update")
             self.semantic_index.update(resource_hash, data_embedding = image_embedding)
+            self.profile_info.add("semantic-index-update")
             self.face_index.update(
                 frame = frame,
                 absolute_path = resource_path,
                 resource_hash = resource_hash,
                 is_bgr = True)
-            
+            self.profile_info.add("face-index-update")           
             generate_image_preview(resource_hash, 
                                 image = frame, 
                                 face_bboxes = None, 
                                 person_ids=[],
-                                output_folder = appConfig["image_preview_data_path"])                
+                                output_folder = self.image_preview_data_path)                
+            self.profile_info.add("image-preview-generate")           
 
         
     def indexing_thread(
             self,
             ):
         
+        self.profile_info.reset()
         try:
             if self.complete_rescan == True:
-                with self.lock:
-                    self.indexing_info["details"] = "Removing  person previews.."
-                    self.indexing_info["done"] = False
-                    self.indexing_info["eta"] = None
-                    self.indexing_info["processed"] = None
-                    self.indexing_info["total"] = None
-                                
-                # delete person previews.
-                preview_data =  os.listdir(self.config["image_person_preview_data_path"])
-                for i, preview_person in enumerate(preview_data):
-                    try:
-                        os.remove(os.path.join(self.config["image_person_preview_data_path"], preview_person))
-                    except:
-                        print("Error deleting: {}".format(preview_data))
-                    
-                    if (i % 20) == 0:
-                        with self.lock:
-                            self.indexing_info["details"] = "Removing  person previews.."
-                            self.indexing_info["done"] = False
-                            self.indexing_info["eta"] = None
-                            self.indexing_info["processed"] = None
-                            self.indexing_info["total"] = None
-
                 # reset/remove old indices data.
                 # indexStatus.update_status(client_id, current_directory="", progress = 0, eta = "unknown", details = "Removing Old indices..")
                 with self.lock:
@@ -448,7 +449,7 @@ class IndexingLocal(object):
                     self.indexing_info["details"] = error_trace
                     self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
                     self.indexing_status = IndexingStatus.INACTIVE
-                    return
+                    
                 else:
                     try:
                         self.meta_index.save()
@@ -456,11 +457,13 @@ class IndexingLocal(object):
                         # imageIndex.sanity_check()
                         self.indexing_info["details"] = "Indexing Completed Successfully!"
                     except Exception:
+                        print(traceback.format_exc())
                         self.indexing_info["details"] = traceback.format_exc
                     finally:
                         self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
                         self.indexing_status = IndexingStatus.INACTIVE
                         print("All done..")
+            print(self.profile_info)
 
     def begin(self) -> ReturnInfo:
         """
@@ -473,10 +476,10 @@ class IndexingLocal(object):
             threading.Thread(target = self.indexing_thread).start()            
             self.indexing_status = IndexingStatus.ACTIVE
             
-            result:ReturnInfo = {}
-            result["error"] = False
-            result["details"] =  "Indexing started successfully!"
-            return result
+        result:ReturnInfo = {}
+        result["error"] = False
+        result["details"] =  "Indexing started successfully!"
+        return result
 
     def getStatus(self) -> IndexingInfo:
         """
@@ -514,6 +517,7 @@ class IndexingLocal(object):
         return result   
 
 class IndexGooglePhotos(IndexingLocal):
+    # TODO:
     def __init__(self, drive: str, uri: List[str], meta_index: MetaIndex, face_index: FaceIndex, semantic_index: ImageIndex) -> None:
         super().__init__(drive, uri, meta_index, face_index, semantic_index)
         # other stuff, i guess!
@@ -534,22 +538,3 @@ class IndexGooglePhotos(IndexingLocal):
             self.cancelDownload()
         else:
             super().cancel()
-
-
-if __name__ ==  "__main__":
-
-    # user provide a (hopefully) valid path to begin the indexing, right!
-    # then we would create an index_obj for that indexing (cheap enough)
-    # begin the indexing..
-    # index_obj = IndexingLocal(
-    #     root_dir="D://movies"
-    # )
-    # index_obj.begin()
-    # return 
-    pass
-
-    # how to return the suggestion
-    # getPartitions :
-    # (local, C:)
-    # (remote, "googlePhotos")
-    # ..

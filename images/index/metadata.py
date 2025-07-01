@@ -12,6 +12,9 @@ grouped by `resource-type`. It does it so recursively, once provided a root-dire
 
 from typing import TypedDict, List, Generator, Iterable, Any
 import os
+import traceback
+
+from exif import Image as ImageExif
 
 # sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
 
@@ -50,9 +53,14 @@ ALLOWED_RESOURCES = [
 ALLOWED_RESOURCES_MAPPING = {
     k.__name__ : [".{}".format(x._name_.lower()) for x in k] for k in ALLOWED_RESOURCES
     }
-print(ALLOWED_RESOURCES_MAPPING)
 
-def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike]) -> bool:
+# we skip everything inside the APP folder. (for example D://hachi)
+TO_SKIP_PATHS = [
+    os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+]  # Children would also be excluded from indexing.
+print("PATHs to SKIP: {}",TO_SKIP_PATHS)
+
+def should_skip_indexing(resource_directory:os.PathLike, to_skip:List[os.PathLike] = TO_SKIP_PATHS) -> bool:
     """Supposed to tell if a resource directory is contained in the to_skip directories
     """
 
@@ -83,7 +91,7 @@ def get_resource_type(resource_extension:str) -> str|None:
         for extension in v:
             if temp_extension == extension:
                 return k
-    print("[Warning]: {} Could not matched".format(resource_extension))
+    # print("[Warning]: {} Could not matched".format(resource_extension))
     return None
 
 def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True) -> Generator[Any, Any, ResourceGenerator]:
@@ -105,7 +113,9 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
             return
         
         current_directory = resources_queue.pop(0)  # at each return only a single-directory files are returned!
-        if should_skip_indexing(current_directory, to_skip=[]):
+        if should_skip_indexing(current_directory):
+            # It works correctly, if this was `root_dir`, then done, otherwise we wouldn't enter!
+            print("Skipping: {}".format(current_directory))
             continue    
         try: 
             temp_resources = os.listdir(
@@ -141,7 +151,7 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
 ##--------------------------
 ## Exif data extraction 
 # -------------------------------
-import get_image_size  # just reading enough headers to get the `image dimensions`.
+from . import get_image_size  # just reading enough headers to get the `image dimensions`.
 from geocoding.reverse_geocode import GeocodeIndex
 
 geoCodeIndex = GeocodeIndex()    
@@ -152,20 +162,43 @@ EXIF_PACKAGE_MAPPING = {
             "datetime_original": "taken_at",
             "gps_latitude": "gps_latitude",
             "gps_longitude": "gps_longitude",
-            "device": "device" 
         }
 # --------------------------------------------------------------------------
 # NOTE: attributes, grouping is symbolic, must not have a duplicate key among all such attributes!
+
+def populate_default_dict(class_typeddict):
+    """
+    Following logic corresponds to constraints in the Nim backend.
+    We want to provide valid/default initialized values to backend always even if some attribute is not available for a resource!
+    """
+    result = {}
+    for k,v in class_typeddict.__annotations__.items():
+        if v is int:
+            result[k] = 0
+        elif v is float:
+            result[k] = 0.0
+        elif v is bool:
+            result[k] = False
+        elif v is str:
+            result[k] = ""
+        elif v is os.PathLike:
+            result[k] = ""
+        elif "list" in str(v):
+            result[k] = []  #only string of list is supported for now!
+        else:
+            assert False, "Not supported type in backend: {}".format(v)
+    return result
+
 class ImageExifAttributes(TypedDict):
-    taken_at:str | None
-    gps_latitude:float | None
-    gps_longitude:float | None
-    make:str | None
-    model:str | None
-    device:str | None
+    taken_at:str 
+    gps_latitude:float
+    gps_longitude:float
+    make:str
+    model:str
+    device:str
     width:int
     height:int
-    place:str | None
+    place:str
 
 class ResourceLocation(TypedDict):
     # enough info to retrive original file/data if required.
@@ -173,12 +206,12 @@ class ResourceLocation(TypedDict):
     identifier: str # like C: D: or dropbox, googlePhotos.. etc . combination should be enough to dispatch a corresponding routine to retrive original data!
 
 class MainAttributes(TypedDict):
-    is_indexed:bool
     filename:str          # could even include name from a remote directory!
-    absolute_path:os.PathLike | str   # in case on a remote server or something, then custom path should be allowed!
+    absolute_path:os.PathLike   # in case on a remote server or something, then custom path should be allowed!
     resource_extension:str
-    resource_directory:os.PathLike | str | None
-    resource_type:Audio | Video | Text | Image
+    resource_directory:os.PathLike
+    # resource_type:Audio | Video | Text | Image
+    resource_type:str
 
 class MLAttributes(TypedDict):
     # resulting from Machine learning processing. (best effort basis)
@@ -203,14 +236,13 @@ class ImageMetaAttributes(TypedDict):
     user_attributes:UserAttributes
     exif_attributes:ImageExifAttributes
 # ---------------------------------------------------------------------
-def get_image_exif_data(resource_path:str) -> ImageExifAttributes:
-    # NOTE: be-careful using `fromKeys` if an object like `list` is provided as value, it will be shared by all `keys`, weird !!
-    result:ImageExifAttributes = {}.fromkeys(ImageExifAttributes.__annotations__.keys(), None)
-    
+def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> ImageExifAttributes:
+    # NOTE: `result` is supposed to contain default values, we overwrite them if and when exif-attributes are available!
+
     # Get exif data!    
     try:
         # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
-        temp_handle = Image(resource_path)
+        temp_handle = ImageExif(resource_path)
         if temp_handle.has_exif:
             for k,v in EXIF_PACKAGE_MAPPING.items():
                 if "gps" in k:
@@ -219,11 +251,11 @@ def get_image_exif_data(resource_path:str) -> ImageExifAttributes:
                     result[v] = temp
                 else:
                     result[v] = str(temp_handle[k])
-        result["device"] = "{}".format(result["make"].strip() + " " + result["model"].strip())  # a single field for device.
-        result["place"] = str(geoCodeIndex.query((result["gps_latitude"], result["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.     
-    except:
-        pass        # some error while extracting exif data.            
-    
+            result["place"] = str(geoCodeIndex.query((result["gps_latitude"], result["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.     
+            result["device"] = "{}".format(result["make"].strip() + " " + result["model"].strip())  # a single field for device.
+    except Exception:
+        pass
+        # print("[WARNING Exif extraction]: {}".format(traceback.format_exc()))
     try:
         width,height = get_image_size.get_image_size(resource_path)
         result["width"] = int(width)
@@ -244,7 +276,7 @@ def normalize_path(resource_path:os.PathLike) -> os.PathLike:
     else:
         return result
 
-def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | None:
+def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes:
         """
         Extract necessary meta-data for a (local) image file.
         It would be on `callee` to decide when to call this, like if some image is already indexed, avoid calling this.
@@ -262,27 +294,26 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | N
             return None
 
         # This gets updated, in the main indexing code! depending on location of data being indexed!        
-        l:ResourceLocation = {}
-        l["identifier"] = None
-        l["location"] = None
+        l:ResourceLocation = populate_default_dict(ResourceLocation)
 
-        main_attributes:MainAttributes = {}
+        main_attributes:MainAttributes = populate_default_dict(MainAttributes)
         main_attributes["resource_path"] = normalize_path(resource_path)
         main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
         main_attributes["resource_directory"] = normalize_path(os.path.dirname(resource_path))
         main_attributes["filename"] = os.path.basename(resource_path)
 
-        user_attributes:UserAttributes = {}
-        user_attributes["is_favourite"] = False
-        user_attributes["tags"] = []
-        user_attributes["person"] = []
+        user_attributes:UserAttributes = populate_default_dict(UserAttributes)
+        # user_attributes["is_favourite"] = False
+        # user_attributes["tags"] = []
+        # user_attributes["person"] = []
         
-        ml_attributes:MLAttributes = {}
-        ml_attributes["descriptionML"] = ""
-        ml_attributes["personML"] = []
-        ml_attributes["tagsML"] = []
+        ml_attributes:MLAttributes = populate_default_dict(MLAttributes)
+        # ml_attributes["descriptionML"] = ""
+        # ml_attributes["personML"] = []
+        # ml_attributes["tagsML"] = []
 
-        exif_attributes:ImageExifAttributes = get_image_exif_data(resource_path=resource_path)
+        exif_attributes:ImageExifAttributes = populate_default_dict(ImageExifAttributes)
+        populate_image_exif_data(exif_attributes, resource_path=resource_path)
 
         result_meta["location"] = l
         result_meta["exif_attributes"] = exif_attributes
@@ -292,3 +323,30 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes | N
         del exif_attributes, ml_attributes, user_attributes, main_attributes
         
         return result_meta
+
+def flatten_the_metadata(meta_data:ImageMetaAttributes) -> dict:
+    # -----------------------------------------------------------------------
+    # flatten the dictionary to be directly consumed when updating meta-data!
+    flatten_dict = {} # TODO: extend the base class to not have duplicates, make sure data being entered confirms to type !
+    temp_set = set()
+
+    # Only at-max a single level of dict nesting is expected!
+    for parent_key, parent_v in meta_data.items():
+        if isinstance(parent_v, dict):
+            for k,v in parent_v.items(): # no-more nesting!
+                
+                assert not (k in temp_set), "Duplicate key: {} !".format(k)
+                temp_set.add(k)
+                flatten_dict[k] = v
+        else:
+            assert not (parent_key in temp_set), "Duplicate key: {} !".format(k)
+            temp_set.add(parent_key)
+            flatten_dict[parent_key] = parent_v
+    
+    # Necessary assertions, for Nim backend. (need to be strict).
+    # TODO: create a custom dict to model `flatten_dict`, to handle it more cleanly!
+    for k,v in flatten_dict.items():
+        assert not(v is None), "Cannot be None, instead provide an appropriate default value, like 0.0 for float and stuff!"
+        assert isinstance(k, str), "keys are column Labels in the backend, so only string are allowed for now!"           
+    # -----------------------------------------------------------------------------------
+    return flatten_dict
