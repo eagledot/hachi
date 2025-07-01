@@ -103,9 +103,7 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> str | None:
 
 def generate_image_preview(
     data_hash:str, 
-    image:Union[str, np.ndarray], 
-    face_bboxes:Optional[List[List[int]]], 
-    person_ids:List[str],
+    image:Union[str, np.ndarray],
     output_folder:os.PathLike):
     """ Generate image previews and face-previews
     NOTE: it does take up space and create previews, but it is optional but on by default.
@@ -220,8 +218,8 @@ class IndexingLocal(object):
                 )
         
         self.profile_info = ProfileInfoNaive()
-        # self.preview_queue = Queue[QueueData](maxsize = 50)  # shouldn't be case of being blocked, due to not being read.. we monitor the progress anyway!
-        # self.preview_done = Queue[bool](maxsize = 1)
+        self.preview_queue = Queue[QueueData](maxsize = 50)  # shouldn't be case of being blocked, due to not being read.. we monitor the progress anyway!
+        self.preview_done = Queue[bool](maxsize = 1)
 
     def cancel(self) -> ReturnInfo:
         """Cancel an ongoing indexing,
@@ -279,7 +277,7 @@ class IndexingLocal(object):
             meta_data = extract_image_metaData(
                 resource_path # TODO: even though few bytes are read, get_image_size routine, we can share the 
             )
-            self.profile_info.add("extra-metadata")
+            self.profile_info.add("extract-metadata")
             if meta_data is None:
                 continue  # TO investigate, get_image_size, sometimes, not able to parse?
             # --------------------------------------------
@@ -316,37 +314,35 @@ class IndexingLocal(object):
                 is_bgr = True)
             self.profile_info.add("face-index-update")
 
-            # temp_data = QueueData(
-            #     resource_hash = resource_hash,
-            #     image = frame,
-            #     is_batch_done = False,
-            #     is_thread_done= False
-            # )
-            # self.preview_queue.put(temp_data)
-            # del temp_data
+            temp_data = QueueData(
+                resource_hash = resource_hash,
+                image = frame,
+                is_batch_done = False,
+                is_thread_done= False
+            )
+            self.preview_queue.put(temp_data)
+            del temp_data
 
-            generate_image_preview(resource_hash, 
-                                image = frame, 
-                                face_bboxes = None, 
-                                person_ids=[],
-                                output_folder = self.image_preview_data_path)                
-            self.profile_info.add("image-preview-generate")           
+            # generate_image_preview(resource_hash, 
+            #                     image = frame, 
+            #                     output_folder = self.image_preview_data_path)                
+            # self.profile_info.add("image-preview-generate")           
         
         # --------------------------------------------------------
         # since batch done, we wait for preview generation to be completed!
-        # temp_data = QueueData(
-        #     resource_hash = None,
-        #     image = None,
-        #     is_batch_done = True,
-        #     is_thread_done= False
-        #     )
-        # self.preview_queue.put(temp_data)
-        # del temp_data
-        # while True:
-        #     if self.preview_done.get() == True: # we get the signal that previews for this batch are completed!
-        #         break
-        #     else:
-        #         time.sleep(0.02) # 20 ms wait!
+        temp_data = QueueData(
+            resource_hash = None,
+            image = None,
+            is_batch_done = True,
+            is_thread_done= False
+            )
+        self.preview_queue.put(temp_data)
+        del temp_data
+        while True:
+            if self.preview_done.get() == True: # we get the signal that previews for this batch are completed!
+                break
+            else:
+                time.sleep(0.02) # 20 ms wait!
         # -------------------------------------------
         
     def indexing_thread(
@@ -496,22 +492,22 @@ class IndexingLocal(object):
             
             # -------------
             # signal, that indexing thread is done.. so exit from preview thread.. we wouldn't want zombie thread!
-            # print("terminating preview generation thread..")
-            # temp_data = QueueData(
-            #     resource_hash = None,
-            #     image = None,
-            #     is_batch_done = True, # don't matter true/false!, thread flag would be read first!
-            #     is_thread_done= True
-            # )
-            # # send signal
-            # self.preview_queue.put(
-            #     temp_data
-            # )
-            # while True:
-            #     if self.preview_done.get() == True: # it can only be true!
-            #         break
-            #     else:
-            #         time.sleep(0.02)
+            print("terminating preview generation thread..")
+            temp_data = QueueData(
+                resource_hash = None,
+                image = None,
+                is_batch_done = True, # don't matter true/false!, thread flag would be read first!
+                is_thread_done= True
+            )
+            # send signal
+            self.preview_queue.put(
+                temp_data
+            )
+            while True:
+                if self.preview_done.get() == True: # it can only be true!
+                    break
+                else:
+                    time.sleep(0.02)
             # -------------------------------
                     
             print("All done..")
@@ -520,6 +516,9 @@ class IndexingLocal(object):
             print(self.profile_info)
 
     def preview_generation_thread(self):
+        """
+        A thread to generate image previews, (generally batch-by-batch basis!)
+        """
         while True:
             (resource_hash, frame, is_batch_done, is_indexing_thread_done) = self.preview_queue.get()
             if is_indexing_thread_done == True:
@@ -531,8 +530,6 @@ class IndexingLocal(object):
                 generate_image_preview(
                     data_hash = resource_hash,
                     image = frame,
-                    face_bboxes = None,
-                    person_ids = [],
                     output_folder = self.image_preview_data_path
                 )
         self.preview_done.put(True)
@@ -548,7 +545,7 @@ class IndexingLocal(object):
             threading.Thread(target = self.indexing_thread).start()            
             self.indexing_status = IndexingStatus.ACTIVE
 
-            # threading.Thread(target = self.preview_generation_thread).start()
+            threading.Thread(target = self.preview_generation_thread).start()
             
         result:ReturnInfo = {}
         result["error"] = False
