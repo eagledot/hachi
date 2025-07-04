@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Photos - Hachi</title>
+    <style>
+        /* Enhanced animations and modern UI styles */
+        .skeleton {
+            animation: skeleton-loading 1.5s infinite linear;
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+        }
+        @keyframes skeleton-loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Floating animation for decorative elements */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+        
+        .floating {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        /* Mobile responsiveness enhancements */        @media (max-width: 768px) {
+            .text-4xl { font-size: 2rem; }
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, #2563eb, #7c3aed);
+        }
+    </style>
+  <script type="module" crossorigin src="/assets/indexing-CU8keXVl.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-Cl7HKdRu.js">
+  <link rel="modulepreload" crossorigin href="/assets/utils-B3qE-N8V.js">
+  <link rel="stylesheet" crossorigin href="/assets/config-CXITBh5P.css">
+  <link rel="stylesheet" crossorigin href="/assets/style-J0C0nh5Z.css">
+</head>
+<body class="bg-gradient-to-br from-gray-50 via-white to-blue-50 min-h-screen">
+    <!-- Navbar will be inserted here by Layout -->
+    
+    <main>
+        <div class="container mx-auto px-4 py-8 max-w-7xl">            <!-- Compact Enhanced Header -->
+            <header class="text-center mb-6 relative">
+                <!-- Simplified background decoration -->
+                <div class="absolute inset-0 -z-10 overflow-hidden">
+                    <div class="absolute top-0 left-1/3 w-48 h-48 bg-gradient-to-br from-purple-50 to-purple-100 rounded-full mix-blend-multiply filter blur-2xl opacity-40"></div>
+                    <div class="absolute top-5 right-1/3 w-40 h-40 bg-gradient-to-br from-blue-50 to-blue-100 rounded-full mix-blend-multiply filter blur-2xl opacity-30"></div>
+                </div>
+                
+                <div class="relative z-10 py-3">
+                    <!-- Compact Logo and Title -->
+                    <div class="inline-flex items-center space-x-3 group">
+                        <div class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-green-600 via-blue-600 to-purple-600 rounded-lg shadow-md transform group-hover:scale-105 transition-transform duration-300 relative">
+                            <!-- Subtle glow effect -->
+                            <div class="absolute inset-0 bg-gradient-to-br from-green-400 to-purple-400 rounded-lg blur-md opacity-25 group-hover:opacity-40 transition-opacity duration-300"></div>
+                            <svg class="w-5 h-5 text-white relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                        </div>
+                        <div class="text-left">
+                            <h1 class="text-2xl font-bold text-transparent bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text leading-tight tracking-tight">Add Photos</h1>
+                            <p class="text-gray-600 text-xs mt-0.5 font-medium">Add your photos to start organizing and searching</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Enhanced description -->
+                    <div class="mt-4 max-w-2xl mx-auto">
+                        <p class="text-sm text-gray-600">
+                            Choose a folder on your computer or connect a cloud service to get started with organizing your photo collection.
+                        </p>
+                    </div>
+                </div>
+            </header>
+            <!-- Indexing component will be mounted here -->
+            <div id="indexing-root" class="flex justify-center">
+                <div class="loading-spinner">Loading...</div>
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>

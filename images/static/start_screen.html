@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Hachi</title>
+    <style>
+        body {
+            background-color: #E9E5E5; /* Black background */
+            color: #fff; /* White text */
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            text-align: center;
+        }
+        h1 {
+            font-family: 'Courier New', Courier, monospace;
+            color: #000000D3; 
+            font-size: 5em; 
+        }
+        /* HTML: <div class="loader"></div> */
+        .loader {
+            color: #000000D3; 
+            margin: auto;
+            width: fit-content;
+            font-weight: bold;
+            font-family: sans-serif;
+            font-size: 30px;
+            padding: 0 5px 8px 0;
+            background: repeating-linear-gradient(90deg,currentColor 0 8%,#0000 0 10%) 200% 100%/200% 3px no-repeat;
+            animation: l3 2s steps(6) infinite;
+        }
+        .loader:before {
+            content:"Loading..."
+        }
+        @keyframes l3 {to{background-position: 80% 100%}}
+        
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>HACHI</h1>
+        <div class="loader"></div>
+    </div>
+    <script>
+        const MAIN_APP_URL = "http://localhost:5000"
+        const PING_URL = "http://localhost:5000/api/ping"
+
+        function ping_timeout() {
+            fetch(PING_URL, {signal: AbortSignal.timeout(600) })
+                .then((response) => {
+                    clearInterval(interval_id);
+
+                    if(response.ok){
+                        window.location.href = MAIN_APP_URL;
+                        return;
+                    } else {
+                        alert("Expected Response to be OK. Try force-reload using F5");
+                    }
+                });
+        }
+        let interval_id = setInterval(ping_timeout, 1000);
+    </script>
+</body>
+</html>

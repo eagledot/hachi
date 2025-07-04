@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Person Photos - Hachi</title>    
+    <style>
+        /* Modal and grid styles will be injected by components */
+    </style>
+  <script type="module" crossorigin src="/assets/personPhotos-DHD6yuci.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-Cl7HKdRu.js">
+  <link rel="modulepreload" crossorigin href="/assets/utils-B3qE-N8V.js">
+  <link rel="modulepreload" crossorigin href="/assets/photoFilter-WowTT1ro.js">
+  <link rel="stylesheet" crossorigin href="/assets/config-CXITBh5P.css">
+</head>
+<body>    <!-- Navbar will be inserted here by Layout -->
+    
+    <main id="main">
+        <div class="container mx-auto px-4 py-8 max-w-7xl">            <!-- Header with back button and person info -->
+            <header class="mb-4">
+                <div class="flex items-center py-3">
+                    <!-- Left: Back button -->
+                    <button id="back-btn" class="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg font-medium transition-colors duration-200 text-sm">
+                        ← Back
+                    </button>
+                    
+                    <!-- Center: Person info -->
+                    <div class="flex-1 flex justify-center">
+                        <div class="flex items-center space-x-3">
+                            <img id="person-avatar" src="" alt="" class="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md">
+                            <div class="text-center">
+                                <!-- Person name display/edit section -->
+                                <div class="group relative">
+                                    <div id="person-name-display" class="flex items-center justify-center space-x-2">
+                                        <h1 id="person-name" class="text-xl font-semibold text-gray-900 hover:text-gray-700 transition-colors duration-200 cursor-pointer leading-tight"></h1>
+                                        <button id="edit-name-btn" class="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-all duration-200" title="Edit name">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Inline edit form (hidden by default) -->
+                                    <div id="person-name-edit" class="hidden">
+                                        <div class="flex items-center space-x-2 mb-2">
+                                            <input 
+                                                type="text" 
+                                                id="person-name-input" 
+                                                class="flex-1 text-lg font-semibold bg-transparent border-0 border-b-2 border-gray-300 focus:border-blue-500 outline-none px-0 py-1 text-gray-900 placeholder-gray-400 text-center"
+                                                placeholder="Enter person's name"
+                                            >
+                                            <div class="flex items-center space-x-1">
+                                                <button id="save-name-btn" class="p-1 text-green-600 hover:text-green-700 hover:bg-green-50 rounded transition-all duration-200" title="Save">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                    </svg>
+                                                </button>
+                                                <button id="cancel-edit-btn" class="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all duration-200" title="Cancel">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <p class="text-xs text-gray-500 mb-2">Press Enter to save, Esc to cancel</p>                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Empty space for balance -->
+                    <div class="w-20"></div>
+                </div>
+            </header><!-- Photos section header -->
+            <section class="mb-6">
+
+                <div class="flex flex-col lg:flex-row gap-6">
+                    <!-- Mobile Filter Toggle Button -->
+                    <div class="lg:hidden">
+                        <button id="mobile-filter-toggle" class="w-full flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                            <span class="flex items-center space-x-2">
+                                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
+                                </svg>
+                                <span class="font-medium text-gray-900">Filters</span>
+                            </span>
+                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Left Sidebar - Filters -->
+                    <aside id="photo-filter-container" class="hidden lg:block w-full lg:w-80 lg:flex-shrink-0">
+                        <!-- Photo filters will be injected here -->
+                    </aside>
+                      <!-- Main Content Area - Photo Grid -->
+                    <main class="flex-1 min-w-0">
+                        <div id="photo-grid-container">
+                            <!-- Photo grid components will be injected here -->
+                        </div>                        
+                        <!-- Pagination Controls -->
+                        <div id="pagination-container" class="hidden mt-6 mb-4">
+                            <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                                <!-- Pagination Info -->
+                                <div class="text-xs text-gray-600">
+                                    <span id="pagination-info">Showing 1-100 of 25000 photos</span>
+                                </div>
+                                
+                                <!-- Pagination Controls -->
+                                <div class="flex items-center space-x-3">
+                                    <button 
+                                        id="prev-page-btn"
+                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                        disabled
+                                    >
+                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                        </svg>
+                                        Previous
+                                    </button>
+                                    
+                                    <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
+                                        Page 1 of 250
+                                    </span>
+                                    
+                                    <button 
+                                        id="next-page-btn"
+                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                    >
+                                        Next
+                                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            </section></div>
+    </main>
+
+    <!-- Modal will be injected here by ImageModalComponent -->
+
+</body>
+</html>
