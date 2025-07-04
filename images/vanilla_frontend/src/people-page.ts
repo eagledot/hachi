@@ -41,7 +41,8 @@ class PeopleApp {
       "people-search"
     ) as HTMLInputElement;
     if (searchInput) {
-      let searchTimeout: NodeJS.Timeout;
+      // let searchTimeout: NodeJS.Timeout;
+      let searchTimeout: number;
       searchInput.addEventListener("input", (e) => {
         const query = (e.target as HTMLInputElement).value.toLowerCase();
         
