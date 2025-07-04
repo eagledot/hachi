@@ -256,6 +256,11 @@ class PersonPhotosApp {
     // Update photo filter with loaded photos
     this.photoFilter.updatePhotos(this.allPhotos);
     
+    // Set person context for semantic search
+    if (this.personId) {
+      this.photoFilter.setPersonContext(this.personId);
+    }
+    
     // Show filter container if we have photos
     const filterContainer = document.getElementById('photo-filter-container');
     if (filterContainer) {

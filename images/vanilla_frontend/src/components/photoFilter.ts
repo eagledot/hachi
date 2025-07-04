@@ -19,6 +19,7 @@ export interface FilterCriteria {
   tags?: string[];
   searchText?: string;
   resourceDirectory?: string[];
+  personContext?: string; // Add person context for person pages
 }
 
 export interface FilterOptions {
@@ -104,9 +105,10 @@ export class PhotoFilterComponent {
   /**
    * Reset all filters
    */  resetFilters(): void {
-    // Preserve resource directory context when resetting
+    // Preserve resource directory and person context when resetting
     const resourceDirectory = this.filterCriteria.resourceDirectory;
-    this.filterCriteria = { resourceDirectory };
+    const personContext = this.filterCriteria.personContext;
+    this.filterCriteria = { resourceDirectory, personContext };
     this.applyFilters();
     this.updateFilterUI();
     
@@ -1473,8 +1475,9 @@ export class PhotoFilterComponent {
    * Clear all filters
    */
   private clearAllFilters(): void {
-    // Preserve resource directory context while clearing user filters
+    // Preserve resource directory and person context while clearing user filters
     const resourceDirectory = this.filterCriteria.resourceDirectory;
+    const personContext = this.filterCriteria.personContext;
 
     // Reset all filter criteria
     this.filterCriteria = {
@@ -1486,6 +1489,7 @@ export class PhotoFilterComponent {
       places: [],
       tags: [],
       resourceDirectory: resourceDirectory, // Preserve context
+      personContext: personContext, // Preserve context
     };
 
     // Clear search input
@@ -1624,13 +1628,13 @@ export class PhotoFilterComponent {
       this.filterCriteria.resourceDirectory &&
       this.filterCriteria.resourceDirectory.length > 0
     ) {
-      const resourceDirs = this.filterCriteria.resourceDirectory.map((dir) =>
-        dir.replace(/\//g, "\\")
-      );
-      // Convert forward slashes to backslashes for Windows
-      
 
-      searchFilters.resource_directory = resourceDirs;
+      searchFilters.resource_directory = this.filterCriteria.resourceDirectory;
+    }
+
+    // Always include person context if it exists in filter criteria
+    if (this.filterCriteria.personContext) {
+      searchFilters.person = [this.filterCriteria.personContext];
     }
 
     // Use FuzzySearchService to build the query string
@@ -1678,7 +1682,7 @@ export class PhotoFilterComponent {
     this.currentSearchTerm = "";
     this.semanticSearchResults = [];
 
-    // Clear the search text from filter criteria but preserve resource directory context
+    // Clear the search text from filter criteria but preserve resource directory and person context
     this.filterCriteria.searchText = undefined;
 
     // Apply normal filters to original photos
@@ -1688,14 +1692,25 @@ export class PhotoFilterComponent {
    * Set resource directory context for filtering
    */
   setResourceDirectory(directories: string[]): void {
-    // Convert forward slashes to backslashes for Windows paths
-    const normalizedDirectories = directories.map((dir) =>
-      dir.replace(/\//g, "\\")
-    );
-
     // Set as context, not as a user filter - this won't appear in the UI
     this.filterCriteria.resourceDirectory =
-      normalizedDirectories.length > 0 ? normalizedDirectories : undefined;
+      directories.length > 0 ? directories : undefined;
+
+    // If we're in semantic search mode, restart the search to include the new context
+    if (this.isSemanticSearchMode && this.currentSearchTerm) {
+      this.performSemanticSearch(this.currentSearchTerm);
+    } else {
+      // Otherwise apply normal filters
+      this.applyFilters();
+    }
+  }
+
+  /**
+   * Set person context for filtering (used in person photos pages)
+   */
+  setPersonContext(personId: string): void {
+    // Set as context, not as a user filter - this won't appear in the UI
+    this.filterCriteria.personContext = personId;
 
     // If we're in semantic search mode, restart the search to include the new context
     if (this.isSemanticSearchMode && this.currentSearchTerm) {

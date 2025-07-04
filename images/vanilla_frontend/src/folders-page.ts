@@ -413,7 +413,7 @@ class FoldersApp {
   }
   private renderGridViewCard(folder: DirectoryWithPreview): string {
     const previewImage = folder.previewImage
-      ? html`<img loading="lazy" src="${folder.previewImage}" alt="${folder.name}" class="w-full h-48 object-cover" onerror="foldersApp.handleImageError('${folder.fullPath}', this)">`
+      ? html`<img loading="lazy" src="${folder.previewImage}" alt="${folder.name}" class="w-full h-48 object-cover">`
       : html`<div class="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
            <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
@@ -576,38 +576,6 @@ class FoldersApp {
         refreshIcon.classList.remove("animate-spin");
       }
     }
-  }
-
-  private handleImageError(folderPath: string, element: HTMLImageElement): void {
-    console.warn(`Image failed to load for folder: ${folderPath}`);
-    
-    // Show placeholder immediately
-    this.showImagePlaceholder(element);
-    
-    // Check retry count and refresh on first error only
-    const retryCount = this.imageErrorRetryCount.get(folderPath) || 0;
-    if (retryCount >= this.MAX_RETRY_ATTEMPTS) {
-      console.log(`Max retry attempts reached for folder: ${folderPath}`);
-      return;
-    }
-    
-    // Increment retry count and refresh on first error
-    this.imageErrorRetryCount.set(folderPath, retryCount + 1);
-    if (retryCount === 0) {
-      this.refreshFolders();
-    }
-  }
-
-  private showImagePlaceholder(element: HTMLImageElement): void {
-    element.style.display = 'none';
-    const placeholder = document.createElement('div');
-    placeholder.className = 'w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center';
-    placeholder.innerHTML = `
-      <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-      </svg>
-    `;
-    element.parentNode?.insertBefore(placeholder, element);
   }
 }
 
