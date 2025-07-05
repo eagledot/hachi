@@ -1,7 +1,8 @@
 // Configuration utilities for the vanilla frontend
 class Config {
     static get apiUrl(): string {
-        return (window as any).config?.apiUrl || 'http://localhost:5000/api';
+        console.log("THE API URL IS: ", import.meta.env.VITE_API_URL || "/api");
+        return import.meta.env.VITE_API_URL || "/api";
     }
     static get endpoints(): {[key: string] : string} {
         return {
