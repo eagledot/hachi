@@ -24,7 +24,10 @@ interface IndexingState {
   indexProgress: number;
   extraDetails: string;
   eta: number;
-  indexDirectoryPath: string;
+  // New structure: instead of indexDirectoryPath, we now use:
+  uri: string[];      // Array of path components (e.g., ["Users", "John", "Pictures"])
+  location: string;   // "LOCAL" or cloud service name (e.g., "google_photos")
+  identifier: string; // Drive letter for local (e.g., "C:") or service identifier
   completeRescan: boolean;
   selectedProtocol: string;
   error: string | null;
@@ -37,7 +40,9 @@ const initialState: IndexingState = {
   indexProgress: 0,
   extraDetails: "",
   eta: 0,
-  indexDirectoryPath: "",
+  uri: [],
+  location: "",
+  identifier: "",
   completeRescan: false,
   selectedProtocol: "none",
   error: null,
@@ -64,6 +69,7 @@ export class IndexingComponent {
     this.render();
     this.cacheDomRefs();
     this.setupReactiveSystem();
+    this.updateSelectedPathDisplay(""); // Initialize display
     this.pollIndexStatus(this.pageLoaded);
     IndexingService.getPartitions()
       .then((partitions) => {
@@ -79,10 +85,16 @@ export class IndexingComponent {
     this.state.value = { ...this.state.value, ...partial };
   }
 
+  private hasValidSelection(): boolean {
+    const { identifier, selectedProtocol } = this.state.value;
+    return identifier !== "" && identifier !== "none" && (
+      selectedProtocol === "none" || selectedProtocol !== "none"
+    );
+  }
+
   // --- DOM refs caching ---
   private cacheDomRefs() {
     this.refs = {
-      dirInput: this.root.querySelector<HTMLInputElement>("#directory-input"),
       protocolSelect: this.root.querySelector<HTMLSelectElement>("#protocol-select"),
       rescanCheckbox: this.root.querySelector<HTMLInputElement>("#complete-rescan"),
       browseBtn: this.root.querySelector<HTMLButtonElement>("#browse-btn"),
@@ -111,26 +123,19 @@ export class IndexingComponent {
     card.innerHTML = html`
       <div class="space-y-4">
         <div>
-          <label
-            for="directory-input"
-            class="block text-sm font-medium text-gray-700 mb-2"
-          >
-            📁 Folder on Your Computer
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            📁 Select Folder on Your Computer
           </label>
           <div class="flex space-x-2">
-            <input
-              id="directory-input"
-              type="text"
-              placeholder="e.g., C:\\Users\\YourName\\Pictures"
-              value=""
-              class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
-            />
+            <div class="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm min-h-[42px] flex items-center">
+              <span id="selected-path">No folder selected</span>
+            </div>
             <button
               id="browse-btn"
               type="button"
-              class="px-4 py-2.5 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              class="px-4 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors shadow-sm"
             >
-              Browse...
+              📁 Browse...
             </button>
           </div>
           <div class="flex items-center space-x-2 mt-4">
@@ -276,8 +281,7 @@ export class IndexingComponent {
 
   private updateInputsState() {
     const { isIndexing, selectedProtocol } = this.state.value;
-    const { dirInput, protocolSelect, rescanCheckbox, browseBtn, simulateIndexingCheckbox } = this.refs;
-    if (dirInput) (dirInput as HTMLInputElement).disabled = isIndexing || selectedProtocol !== "none";
+    const { protocolSelect, rescanCheckbox, browseBtn, simulateIndexingCheckbox } = this.refs;
     if (browseBtn) (browseBtn as HTMLButtonElement).disabled = isIndexing || selectedProtocol !== "none";
     if (protocolSelect) (protocolSelect as HTMLSelectElement).disabled = isIndexing;
     if (rescanCheckbox) (rescanCheckbox as HTMLInputElement).disabled = isIndexing;
@@ -285,11 +289,12 @@ export class IndexingComponent {
   }
 
   private updateActionButtons() {
-    const { isIndexing, isCancelling, indexDirectoryPath } = this.state.value;
+    const { isIndexing, isCancelling } = this.state.value;
     const { scanBtn, cancelBtn } = this.refs;
+    const hasSelection = this.hasValidSelection();
     if (scanBtn) {
       (scanBtn as HTMLButtonElement).style.display = !isIndexing ? "flex" : "none";
-      (scanBtn as HTMLButtonElement).disabled = isIndexing || !indexDirectoryPath.trim();
+      (scanBtn as HTMLButtonElement).disabled = isIndexing || !hasSelection;
     }
     if (cancelBtn) {
       (cancelBtn as HTMLButtonElement).style.display = isIndexing ? "flex" : "none";
@@ -302,25 +307,6 @@ export class IndexingComponent {
 
   // --- Event Handlers ---
   private attachEvents() {
-    this.root.addEventListener("input", (e) => {
-      console.log("Attaching input event to root");
-      const target = e.target as HTMLElement;
-      if (target.id === "directory-input") {
-        this.setState({ indexDirectoryPath: (target as HTMLInputElement).value });
-      }
-    });
-    this.root.addEventListener("keydown", (e) => {
-      console.log("Attaching keydown event to root");
-      const target = e.target as HTMLElement;
-      if (
-        target.id === "directory-input" &&
-        (e as KeyboardEvent).key === "Enter" &&
-        !this.state.value.isIndexing &&
-        this.state.value.indexDirectoryPath
-      ) {
-        this.startIndexing();
-      }
-    });
     this.root.addEventListener("change", (e) => {
       console.log("Attaching change event to root");
       const target = e.target as HTMLElement;
@@ -330,11 +316,11 @@ export class IndexingComponent {
         const value = (target as HTMLSelectElement).value;
         this.setState({ selectedProtocol: value });
         if (value === "none") {
-          this.setState({ indexDirectoryPath: "" });
-          if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = "";
+          this.setState({ identifier: "", uri: [], location: "" });
+          this.updateSelectedPathDisplay("");
         } else {
-          this.setState({ indexDirectoryPath: value });
-          if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = value;
+          this.setState({ identifier: value, uri: [], location: value });
+          this.updateSelectedPathDisplay(this.getDisplayPath());
         }
       } else if (target.id === "complete-rescan") {
         this.setState({ completeRescan: (target as HTMLInputElement).checked });
@@ -356,16 +342,13 @@ export class IndexingComponent {
 
   // --- API/Service Calls ---
   private async startIndexing() {
-    const parts = IndexingService.processDirectoryPath(
-      this.state.value.indexDirectoryPath.trim()
-    );
-    if (!parts.length) {
+    const { identifier, uri, location } = this.state.value;
+    
+    if (!identifier || identifier === "" || identifier === "none") {
       this.setState({ error: "Please choose a folder or connect a cloud service." });
       return;
     }
-    const identifier = parts[0];
-    const uri = parts.slice(1);
-    const location = this.state.value.selectedProtocol === "none" ? "LOCAL" : this.state.value.selectedProtocol;
+
     this.setState({ error: null, isIndexing: true, isCancelling: false });
     this.showNotification("Preparing to scan...", "info");
     try {
@@ -447,6 +430,28 @@ export class IndexingComponent {
   }
 
   // --- Helpers ---
+  private updateSelectedPathDisplay(path: string) {
+    const selectedPathSpan = this.root.querySelector("#selected-path");
+    if (selectedPathSpan) {
+      selectedPathSpan.textContent = path || "No folder selected";
+    }
+  }
+
+  private getDisplayPath(): string {
+    const { identifier, uri, location, selectedProtocol } = this.state.value;
+    if (!identifier || identifier === "none") {
+      return "";
+    }
+    
+    if (selectedProtocol === "none" && location === "LOCAL") {
+      // For local paths, reconstruct the full path
+      return uri.length > 0 ? `${identifier}\\${uri.join("\\")}` : identifier;
+    } else {
+      // For cloud services, return the service name
+      return selectedProtocol;
+    }
+  }
+
   private showNotification(
     message: string,
     type: "success" | "error" | "info" | "warning" = "info"
@@ -488,16 +493,18 @@ export class IndexingComponent {
   }
 
   private clearAllInputs() {
-    if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = "";
     if (this.refs.simulateIndexingCheckbox) (this.refs.simulateIndexingCheckbox as HTMLInputElement).checked = false;
     if (this.refs.protocolSelect) (this.refs.protocolSelect as HTMLSelectElement).value = "none";
     if (this.refs.rescanCheckbox) (this.refs.rescanCheckbox as HTMLInputElement).checked = false;
     this.setState({
-      indexDirectoryPath: "",
+      uri: [],
+      location: "",
+      identifier: "",
       simulateIndexing: false,
       selectedProtocol: "none",
       completeRescan: false,
     });
+    this.updateSelectedPathDisplay("");
   }
 
   private openFolderSelector(): void {
@@ -512,9 +519,20 @@ export class IndexingComponent {
     this.folderSelector = new SelectFolder("folder-selector-content", {
       title: "Select Photo Directory",
       drives: availableDrives.length > 0 ? availableDrives : ["C:", "D:", "E:"],
-      onFolderSelect: (path: string) => {
-        this.setState({ indexDirectoryPath: path });
-        if (this.refs.dirInput) (this.refs.dirInput as HTMLInputElement).value = path;
+      onFolderSelect: (path: {
+        identifier: string;
+        uri: string[];
+        location: string;
+      }) => {
+        // Update state with the received path object
+        this.setState({ 
+          identifier: path.identifier,
+          uri: path.uri,
+          location: path.location
+        });
+        // Create a display-friendly path string
+        const displayPath = path.uri.length > 0 ? `${path.identifier}/${path.uri.join("/")}` : path.identifier;
+        this.updateSelectedPathDisplay(displayPath);
         this.closeFolderSelector();
       },
       onCancel: () => {

@@ -17,19 +17,6 @@ export default class IndexingService {
     }
     }
 
-  static processDirectoryPath(directoryPath: string): string[] {
-    // Split the directory path into parts
-    const parts = directoryPath.split(/[/\\]/); // Split by both forward and backward slashes
-    
-    // Handle root directory case - preserve leading slash
-    if (parts[0] === '' && parts.length > 1) {
-      return ['/', ...parts.slice(1).filter((part) => part.length > 0)];
-    }
-    
-    // Remove empty parts (in case of trailing slashes)
-    return parts.filter((part) => part.length > 0);
-  }
-
   static async getSuggestionPath(data: GetSuggestionPathRequest) {
     try {
       const response = await fetch(endpoints.GET_SUGGESTION_PATH, {

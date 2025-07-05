@@ -1,13 +1,5 @@
 import IndexingService from "../services/indexing";
-
-// Extend Window interface for testing
-declare global {
-  interface Window {
-    MockIndexingService?: {
-      getSuggestionPath: (request: FolderRequest) => Promise<string[]>;
-    };
-  }
-}
+import { html } from "../utils";
 
 interface FolderRequest {
   location: string;
@@ -16,40 +8,42 @@ interface FolderRequest {
 }
 
 interface FolderResponse {
+  // We are not currently getting the type from the backend, only the name
   name: string;
-  type: "folder" | "file";
+  type: "folder" | "file"; 
 }
 
 interface SelectFolderOptions {
-  onFolderSelect?: (path: string) => void;
+  onFolderSelect?: (path: FolderRequest) => void;
   onCancel?: () => void;
   showOkButton?: boolean;
   showCancelButton?: boolean;
   title?: string;
-  drives?: string[]; // Available drives like ['C:', 'D:', 'E:']
+  drives?: string[]; // Available drives like ['C:', 'D:', 'E:'] or in case for linux, ['/', '/home', '/mnt']
 }
 
 class SelectFolder {
   private container: HTMLElement;
-  private currentPath: string[] = [];
-  private currentDrive: string | null = null;
+  private currentPath: string[] = []; // This will be the path array, e.g., ["Documents", "Projects"] for "C:/Documents/Projects"
+  private currentDrive: string | null = null; // This will be the identifier for the selected drive. Example: "C:", "D:" in Windows or "/" in Linux
   private searchQuery: string = "";
   private sortOrder: "asc" | "desc" = "asc";
   private options: SelectFolderOptions;
   private isLoading: boolean = false;
   private availableDrives: string[] = [];
-  private isDriveSelectionMode: boolean = true;
+  private isDriveSelectionMode: boolean = true; // Flag to indicate if we are in drive selection mode or folder navigation mode
   constructor(containerId: string, options: SelectFolderOptions = {}) {
     this.container = document.getElementById(containerId) as HTMLElement;
     this.options = {
       showOkButton: true,
       showCancelButton: true,
       title: "Select Folder",
-      drives: ["C:", "D:", "E:"], // Default drives
+      // drives: ["C:", "D:", "E:"], // Default drives
+      drives: [], // Default to empty, will be set later. Setting with default drives causes confusion in case the API request fails
       ...options,
     };
 
-    this.availableDrives = this.options.drives || [];
+    this.availableDrives = this.options.drives || []; // Now it can be just this.options.drives. But let's not touch it for now
     this.render();
     this.loadDrives();
   }
@@ -57,12 +51,13 @@ class SelectFolder {
     request: FolderRequest
   ): Promise<FolderResponse[]> {
     // Reset search query when making new requests
-    this.searchQuery = "";
+    this.searchQuery = ""; // Should this be a part of this.clearSearchInput()?
     this.clearSearchInput();
 
     try {
       const suggestionPaths = await IndexingService.getSuggestionPath(request);
       // Filter out files (items that have file extensions like .txt, .jpg, etc.)
+      // TODO: This is a temporary solution. The backend should ideally return only folders or return a type field
       const foldersOnly = suggestionPaths.filter((path: string) => {
         // Check if the path ends with a file extension pattern (dot followed by characters)
         const fileExtensionRegex = /\.[a-zA-Z0-9]+$/;
@@ -91,7 +86,7 @@ class SelectFolder {
   }
 
   private render(): void {
-    this.container.innerHTML = `
+    this.container.innerHTML = html`
       <div class="bg-white border border-gray-200 rounded-xl shadow-xl max-w-3xl mx-auto flex flex-col max-h-[80vh]">
         <!-- Header -->
         <div class="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-xl">
@@ -177,7 +172,7 @@ class SelectFolder {
           }
           ${
             this.options.showOkButton
-              ? `            <button id="ok-btn" class="px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-all duration-200">
+              ? `            <button id="ok-btn" class="px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" ${this.isDriveSelectionMode ? 'disabled' : ''}>
               <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
               </svg>
@@ -242,6 +237,7 @@ class SelectFolder {
       this.currentFolders = driveList;
       this.renderFolderList(driveList);
       this.updateBreadcrumb();
+      this.updateOkButton();
     } catch (error) {
       console.error("Error loading drives:", error);
     } finally {
@@ -264,6 +260,7 @@ class SelectFolder {
       this.currentFolders = folders;
       this.renderFolderList(folders);
       this.updateBreadcrumb();
+      this.updateOkButton();
     } catch (error) {
       console.error("Error loading folders:", error);
     } finally {
@@ -318,6 +315,7 @@ class SelectFolder {
     // Attach event listeners using centralized method
     this.attachFolderEventListeners(folderList);
   }
+
   private filterFolders(folders: FolderResponse[]): FolderResponse[] {
     if (!this.searchQuery.trim()) return folders;
 
@@ -326,6 +324,16 @@ class SelectFolder {
     );
   }
 
+  /**
+   * Sorts an array of `FolderResponse` objects by their `name` property.
+   *
+   * The sorting order is determined by the `sortOrder` property of the class instance:
+   * - If `sortOrder` is `"asc"`, folders are sorted in ascending (A-Z) order.
+   * - If `sortOrder` is any other value (typically `"desc"`), folders are sorted in descending (Z-A) order.
+   *
+   * @param folders - The array of `FolderResponse` objects to sort.
+   * @returns A new array of `FolderResponse` objects sorted by name according to the specified order.
+   */
   private sortFolders(folders: FolderResponse[]): FolderResponse[] {
     return [...folders].sort((a, b) => {
       const comparison = a.name.localeCompare(b.name);
@@ -333,10 +341,6 @@ class SelectFolder {
     });
   }
 
-  private filterAndRenderFolders(): void {
-    // Just re-render current folders with filters/sorting - no API calls
-    this.renderFilteredFolders();
-  }
   private async navigateToFolder(folderName: string): Promise<void> {
     if (this.isDriveSelectionMode) {
       // User is selecting a drive (e.g., "C:", "D:")
@@ -344,11 +348,13 @@ class SelectFolder {
       this.currentPath = []; // Reset path when selecting a new drive
       await this.loadFolders(); // Load folders in the selected drive
       this.updateBackButton();
+      this.updateOkButton();
     } else {
       // User is navigating into a folder within the drive
       this.currentPath.push(folderName); // Add folder to uri array
       await this.loadFolders(); // Load subfolders
       this.updateBackButton();
+      this.updateOkButton();
     }
   }
 
@@ -364,6 +370,7 @@ class SelectFolder {
       this.loadDrives();
     }
     this.updateBackButton();
+    this.updateOkButton();
   }
 
   private toggleSort(): void {
@@ -386,18 +393,33 @@ class SelectFolder {
     const currentPathElement = this.container.querySelector(
       "#current-path"
     ) as HTMLElement;
+    const breadcrumbElement = this.container.querySelector(
+      "#breadcrumb"
+    ) as HTMLElement;
+    
     let pathText = "Computer";
 
     if (this.isDriveSelectionMode) {
       pathText = "Computer";
+      // Hide breadcrumb in drive selection mode
+      if (breadcrumbElement) {
+        breadcrumbElement.classList.add("invisible");
+      }
     } else if (this.currentDrive) {
       pathText = this.currentDrive;
       if (this.currentPath.length > 0) {
-        pathText += "\\" + this.currentPath.join("\\");
+        pathText += "/" + this.currentPath.join("/");
+      }
+      // Show breadcrumb when navigating folders
+      if (breadcrumbElement) {
+        breadcrumbElement.classList.remove("invisible");
       }
     }
-
-    currentPathElement.textContent = pathText;
+    
+    console.log(`Updating breadcrumb: ${pathText}`);
+    if (currentPathElement) {
+      currentPathElement.textContent = pathText;
+    }
   }
 
   private updateBackButton(): void {
@@ -412,8 +434,7 @@ class SelectFolder {
   private updateOkButton(): void {
     const okBtn = this.container.querySelector("#ok-btn") as HTMLButtonElement;
     if (okBtn) {
-      // OK button is always enabled since we can always select the current location
-      okBtn.disabled = false;
+      okBtn.disabled = this.isDriveSelectionMode;
     }
   }
 
@@ -434,19 +455,17 @@ class SelectFolder {
       folderList.classList.remove("hidden");
     }
   }
+
+
   private handleOk(): void {
     if (this.options.onFolderSelect) {
-      let fullPath = "";
-      if (this.isDriveSelectionMode) {
-        fullPath = "Computer";
-      } else if (this.currentDrive) {
-        fullPath = this.currentDrive;
-        if (this.currentPath.length > 0) {
-          fullPath += "\\" + this.currentPath.join("\\");
-        }
-      }
-
-      this.options.onFolderSelect(fullPath);
+      const selectedFolder: FolderRequest = {
+        location: this.currentDrive ? "LOCAL" : "REMOTE",
+        identifier: this.currentDrive || "",
+        uri: this.currentPath.length > 0 ? this.currentPath : [],
+      };
+      
+      this.options.onFolderSelect(selectedFolder);
     }
   }
 
@@ -455,27 +474,26 @@ class SelectFolder {
       this.options.onCancel();
     }
   }
+
+
   // Public methods
-  public getCurrentPath(): string {
-    let fullPath = "";
-    if (this.isDriveSelectionMode) {
-      fullPath = "Computer";
-    } else if (this.currentDrive) {
-      fullPath = this.currentDrive;
-      if (this.currentPath.length > 0) {
-        fullPath += "\\" + this.currentPath.join("\\");
-      }
-    }
-    return fullPath;
+  public getCurrentPath(): FolderRequest {
+    // It should return the object representing the current folder path
+    return {
+      location: this.currentDrive ? "LOCAL" : "REMOTE",
+      identifier: this.currentDrive || "",
+      uri: this.currentPath.length > 0 ? this.currentPath : [],
+    };
   }
 
-  public getSelectedFolder(): string | null {
+  public getSelectedFolder(): FolderRequest {
     return this.getCurrentPath();
   }
 
   public destroy(): void {
     this.container.innerHTML = "";
   }
+
   private attachFolderEventListeners(folderList: HTMLElement): void {
     // Remove existing event listeners to prevent duplicates
     folderList.querySelectorAll(".folder-item").forEach((item) => {
@@ -493,6 +511,7 @@ class SelectFolder {
       });
     });
   }
+
   private generateFolderHTML(folder: FolderResponse): string {
     return `
       <div class="folder-item text-xsm flex items-center p-4 hover:bg-gray-50 cursor-pointer transition-all duration-200 border-l-4 border-transparent hover:border-blue-200" data-folder="${folder.name}">
