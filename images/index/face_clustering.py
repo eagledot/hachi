@@ -18,7 +18,7 @@ from .hog import get_hog_image
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ml"))
 import faceEmbeddings_python_module as pipeline
-weights_path = os.path.join(os.path.dirname(__file__),"..", "data", "PipelineRetinafaceV2.bin")
+weights_path = os.path.join(os.path.dirname(__file__),"..", "data", "pipelineRetinafaceV2.bin")
 pipeline.load_model(weightFile = weights_path, from_stream=True)
 
 import numpy as np

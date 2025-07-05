@@ -650,7 +650,6 @@ def getPartitions() -> Dict[str, str]:
         # TODO: test, only a single `/` (root) for Linux should be enough!
         response_data = [
             {"location": "LOCAL", "identifier": "/"}
-            for identifier in get_drives()
             ]
     return flask.jsonify(response_data)
 

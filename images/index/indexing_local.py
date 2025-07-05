@@ -155,20 +155,27 @@ class ProfileInfoNaive(object):
         self.container:dict = {}
         self.last_tic = time.time()
     def add(self, key:str):
+        assert key != "total", "reserved, so that don't get confused later!"
         if not(key in self.container):
             self.container[key] = 0.00
         cur_time = time.time()
         self.container[key] += (cur_time - self.last_tic)
         self.last_tic = cur_time
-    
-    def __str__(self) -> str:
-        result = ""
+    def get_summary(self) -> dict[str, (int, int)]:
+        result = {}
         total = 1e-7
         for v in self.container.values():
             total += v
-        print("Total:\t\t{}seconds".format(int(total)))
         for k,v  in self.container.items():
-            result = result + ("{}:\t{}\t{}%\n".format(k,int(v), int(v/total * 100)))
+            result[k] = (v, int(v/total)*100)
+        result["total"] = (total, 100)
+        return result
+
+    def __str__(self) -> str:
+        result = ""
+        summary = self.get_summary()
+        for k, (time_taken, percentage) in summary.items():
+           result = result + ("{}  |  {}  | {}\n".format(k, time_taken, percentage))  
         return result
     
 from queue import Queue

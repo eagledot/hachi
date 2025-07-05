@@ -1,10 +1,16 @@
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 
+const outDir = '../static'
+
 export default defineConfig({
   plugins: [
     tailwindcss(),
   ],  build: {
+    
+    outDir,
+    emptyOutDir: false,
+
     rollupOptions: {
       input: {
         main: './index.html',
