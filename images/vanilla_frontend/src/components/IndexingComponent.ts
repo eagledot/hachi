@@ -1,6 +1,7 @@
 // Vanilla JS/TS implementation of the Indexing component
 // Refactored: Centralized state, grouped responsibilities, reduced DOM queries, improved organization.
 
+
 import type {
   IndexStartResponse,
   IndexStatusResponse,
@@ -61,7 +62,7 @@ export class IndexingComponent {
   private subscriptions: (() => void)[] = [];
 
   // --- DOM refs ---
-  private refs: { [key: string]: HTMLElement | null } = {};
+  private refs: { [key: string]: HTMLElement | SVGElement | null } = {};
 
   constructor(options: IndexingComponentOptions) {
     this.root = options.root;
@@ -101,6 +102,9 @@ export class IndexingComponent {
       simulateIndexingCheckbox: this.root.querySelector<HTMLInputElement>("#simulate-indexing"),
       scanBtn: this.root.querySelector<HTMLButtonElement>("#scan-btn"),
       cancelBtn: this.root.querySelector<HTMLButtonElement>("#cancel-btn"),
+      advancedToggle: this.root.querySelector<HTMLButtonElement>("#advanced-toggle"),
+      advancedOptions: this.root.querySelector<HTMLDivElement>("#advanced-options"),
+      advancedChevron: this.root.querySelector<SVGElement>("#advanced-chevron"),
     };
   }
 
@@ -119,9 +123,9 @@ export class IndexingComponent {
     this.root.innerHTML = "";
     const card = document.createElement("div");
     card.className =
-      "bg-white rounded-lg shadow-md p-6 border border-gray-200 max-w-2xl mx-auto";
+      "bg-white rounded-lg shadow-md p-6 border border-gray-200 w-full max-w-2xl mx-auto";
     card.innerHTML = html`
-      <div class="space-y-4">
+      <div class="space-y-4 w-full">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">
             📁 Select Folder on Your Computer
@@ -138,15 +142,6 @@ export class IndexingComponent {
               📁 Browse...
             </button>
           </div>
-          <div class="flex items-center space-x-2 mt-4">
-            <input type="checkbox" id="simulate-indexing" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed" />
-            <label
-              for="simulate-indexing"
-              class="block text-sm font-medium text-gray-700"
-            >
-              Simulate Indexing
-            </label>
-          </div>
         </div>
         <div>
           <label
@@ -155,34 +150,82 @@ export class IndexingComponent {
           >
             ☁️ Or, Connect a Cloud Service
           </label>
-          <select
-            id="protocol-select"
-            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm"
-          >
-            <option value="none" selected>None (Use folder on computer)</option>
-            <option value="google_photos">Google Photos</option>
-          </select>
-        </div>
-        <div class="flex items-start space-x-3">
-          <input
-            type="checkbox"
-            id="complete-rescan"
-            class="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <div>
-            <label
-              for="complete-rescan"
-              class="text-sm font-medium text-gray-700 cursor-pointer"
+          <div class="relative">
+            <select
+              id="protocol-select"
+              class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm appearance-none bg-white shadow-sm transition-colors"
             >
-              Re-scan All Photos
-            </label>
-            <p class="text-xs text-gray-500 mt-1 leading-relaxed">
-              Scans all photos again, even if already added. Use this if photos
-              were missed, changed, or for a more thorough update.
-            </p>
+              <option value="none" selected>None (Use folder on computer)</option>
+              <option value="google_photos">🌟 Google Photos</option>
+            </select>
+            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
           </div>
         </div>
-        <div class="flex space-x-3 pt-4">
+        <div class="">
+          <button
+            type="button"
+            id="advanced-toggle"
+            class="flex items-center justify-between w-full text-left text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md p-2 hover:bg-gray-50 transition-colors"
+          >
+            <span class="flex items-center">
+              <span class="mr-2">⚙️</span>
+              Advanced Options
+            </span>
+            <svg
+              id="advanced-chevron"
+              class="w-4 h-4 mr-1 transform transition-transform duration-200"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </button>
+          <div id="advanced-options" class="hidden mt-3 space-y-4 pl-8">
+            <div class="flex items-start space-x-3">
+              <input
+                type="checkbox"
+                id="complete-rescan"
+                class="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div>
+                <label
+                  for="complete-rescan"
+                  class="text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  Re-scan All Photos
+                </label>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Scans all photos again, even if already added. Use this if photos
+                  were missed, changed, or for a more thorough update.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-start space-x-3">
+              <input
+                type="checkbox"
+                id="simulate-indexing"
+                class="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              />
+              <div>
+                <label
+                  for="simulate-indexing"
+                  class="text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  Simulate Indexing
+                </label>
+                <p class="text-xs text-gray-500 mt-1 leading-relaxed">
+                  Perform a dry run without actually indexing photos. Useful for testing.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="flex space-x-3 pt-2">
           <button
             id="scan-btn"
             disabled
@@ -281,11 +324,12 @@ export class IndexingComponent {
 
   private updateInputsState() {
     const { isIndexing, selectedProtocol } = this.state.value;
-    const { protocolSelect, rescanCheckbox, browseBtn, simulateIndexingCheckbox } = this.refs;
+    const { protocolSelect, rescanCheckbox, browseBtn, simulateIndexingCheckbox, advancedToggle } = this.refs;
     if (browseBtn) (browseBtn as HTMLButtonElement).disabled = isIndexing || selectedProtocol !== "none";
     if (protocolSelect) (protocolSelect as HTMLSelectElement).disabled = isIndexing;
     if (rescanCheckbox) (rescanCheckbox as HTMLInputElement).disabled = isIndexing;
     if (simulateIndexingCheckbox) (simulateIndexingCheckbox as HTMLInputElement).disabled = isIndexing;
+    if (advancedToggle) (advancedToggle as HTMLButtonElement).disabled = isIndexing;
   }
 
   private updateActionButtons() {
@@ -337,6 +381,10 @@ export class IndexingComponent {
     if (this.refs.cancelBtn) {
       console.log("Attaching click event to cancel button");
       (this.refs.cancelBtn as HTMLButtonElement).addEventListener("click", () => this.cancelIndexing());
+    }
+    if (this.refs.advancedToggle) {
+      console.log("Attaching click event to advanced toggle");
+      (this.refs.advancedToggle as HTMLButtonElement).addEventListener("click", () => this.toggleAdvancedOptions());
     }
   }
 
@@ -562,6 +610,20 @@ export class IndexingComponent {
     if (this.folderSelector) {
       this.folderSelector.destroy();
       this.folderSelector = null;
+    }
+  }
+
+  private toggleAdvancedOptions(): void {
+    const { advancedOptions, advancedChevron } = this.refs;
+    if (!advancedOptions || !advancedChevron) return;
+    
+    const isHidden = advancedOptions.classList.contains("hidden");
+    if (isHidden) {
+      advancedOptions.classList.remove("hidden");
+      (advancedChevron as SVGElement).style.transform = "rotate(180deg)";
+    } else {
+      advancedOptions.classList.add("hidden");
+      (advancedChevron as SVGElement).style.transform = "rotate(0deg)";
     }
   }
 
