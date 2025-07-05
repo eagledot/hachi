@@ -6,7 +6,8 @@ import { API_ENDPOINTS, API_URL_BUILDERS, CONFIG, CONTENT_TYPES } from './consta
 export class SearchApiService {
   /**
    * Performs a search request to the backend
-   */  static async searchImages(
+   */
+  static async searchImages(
     searchTerm: string, 
     options: SearchRequestOptions
   ): Promise<ImageSearchResponse> {
