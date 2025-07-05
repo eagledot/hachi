@@ -755,7 +755,7 @@ export class PhotoFilterComponent {
     let gridContainer = content.querySelector(".people-grid") as HTMLElement;
     if (!gridContainer) {
       gridContainer = document.createElement("div");
-      gridContainer.className = "people-grid grid grid-cols-3 gap-2 py-2";
+      gridContainer.className = "people-grid grid grid-cols-4 gap-1 py-2";
       content.innerHTML = "";
       content.appendChild(gridContainer);
     }
@@ -788,7 +788,7 @@ export class PhotoFilterComponent {
       ...selectedPeople,
       ...unselectedPeople.slice(
         0,
-        this.INITIAL_PEOPLE_LIMIT - selectedPeople.length
+        Math.max(32 - selectedPeople.length, 16) // Show more people initially
       ),
     ];
 
@@ -843,10 +843,10 @@ export class PhotoFilterComponent {
       existingButton.remove();
     }    const remainingCount = allPeople.length - currentlyShown.length;
     const buttonElement = document.createElement("div");
-    buttonElement.className = "show-more-people col-span-3 mt-1.5";
+    buttonElement.className = "show-more-people col-span-4 mt-1";
     buttonElement.innerHTML = `
-      <button class="w-full py-1.5 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 transition-colors">
-        Show ${remainingCount} more people...
+      <button class="w-full py-1 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 transition-colors">
+        +${remainingCount} more
       </button>
     `;
 
@@ -899,20 +899,12 @@ export class PhotoFilterComponent {
               : `src="${avatarUrl}"`
           }
           alt="${displayName}"
-          class="person-avatar w-12 h-12 rounded-full object-cover border-2 transition-all duration-200 bg-gray-100"
+          class="person-avatar w-10 h-10 rounded-full object-cover border-2 transition-all duration-200 bg-gray-100"
           loading="lazy"
         />
-        <div class="person-fallback w-12 h-12 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-xs text-gray-500 font-medium">
+        <div class="person-fallback w-10 h-10 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-xs text-gray-500 font-medium">
           ${personId.substring(0, 2).toUpperCase()}
         </div>
-        <div class="person-checkmark absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full hidden items-center justify-center">
-          <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-          </svg>
-        </div>
-      </div>
-      <div class="text-xs text-center mt-1 text-gray-600 truncate max-w-[48px]" title="${displayName}">
-        ${displayName}
       </div>
     `;
 
@@ -948,16 +940,22 @@ export class PhotoFilterComponent {
     isSelected: boolean
   ): void {
     const avatar = element.querySelector(".person-avatar") as HTMLElement;
-    const checkmark = element.querySelector(".person-checkmark") as HTMLElement;
+    const fallback = element.querySelector(".person-fallback") as HTMLElement;
 
     if (isSelected) {
       avatar.className =
-        "person-avatar w-12 h-12 rounded-full object-cover border-2 transition-all duration-200 border-blue-500 ring-2 ring-blue-200";
-      checkmark.style.display = "flex";
+        "person-avatar w-10 h-10 rounded-full object-cover border-2 transition-all duration-200 border-blue-500 ring-2 ring-blue-200";
+      if (fallback) {
+        fallback.className = 
+          "person-fallback w-10 h-10 rounded-full bg-gray-200 border-2 border-blue-500 ring-2 ring-blue-200 hidden items-center justify-center text-xs text-gray-500 font-medium";
+      }
     } else {
       avatar.className =
-        "person-avatar w-12 h-12 rounded-full object-cover border-2 transition-all duration-200 border-gray-300 group-hover:border-blue-400";
-      checkmark.style.display = "none";
+        "person-avatar w-10 h-10 rounded-full object-cover border-2 transition-all duration-200 border-gray-300 group-hover:border-blue-400";
+      if (fallback) {
+        fallback.className = 
+          "person-fallback w-10 h-10 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-xs text-gray-500 font-medium";
+      }
     }
   }
 
