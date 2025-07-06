@@ -127,27 +127,8 @@ class ImageSearchApp {
       onModalPrevious: () => this.handleModalPrevious()
     });    // Listen for global search events (if any external components trigger searches)
     this.setupGlobalSearchListener();
-    
-    // Setup mobile filter toggle
-    this.setupMobileFilterToggle();
   }
-  
-  private setupMobileFilterToggle(): void {
-    const mobileToggle = document.getElementById('mobile-filter-toggle');
-    const filterContainer = document.getElementById('photo-filter-container');
-    
-    if (mobileToggle && filterContainer) {
-      mobileToggle.addEventListener('click', () => {
-        filterContainer.classList.toggle('hidden');
-        
-        // Update toggle button icon
-        const chevron = mobileToggle.querySelector('svg:last-child');
-        if (chevron) {
-          chevron.classList.toggle('rotate-180');
-        }
-      });
-    }
-  }
+
   private setupGlobalSearchListener(): void {
     console.log('Setting up global search listener');
     // Listen for custom search events from other components

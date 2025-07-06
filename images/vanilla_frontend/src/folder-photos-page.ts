@@ -113,9 +113,8 @@ class FolderPhotosApp {
       backBtn.addEventListener('click', () => {
         window.location.href = '/folders.html';
       });
-    }    // Mobile filter toggle
-    this.setupMobileFilterToggle();
-
+    }
+    
     // Setup UI service event listeners
     this.uiService.setupEventListeners({
       onPhotoClick: (photo: HachiImageData) => this.handlePhotoClick(photo),
@@ -421,22 +420,6 @@ class FolderPhotosApp {
       }
     } catch (error) {
       console.warn('Failed to update folder cache:', error);
-    }
-  }
-  private setupMobileFilterToggle(): void {
-    const mobileToggle = document.getElementById('mobile-filter-toggle');
-    const filterContainer = document.getElementById('photo-filter-container');
-    
-    if (mobileToggle && filterContainer) {
-      mobileToggle.addEventListener('click', () => {
-        filterContainer.classList.toggle('hidden');
-        
-        // Update toggle button icon
-        const chevron = mobileToggle.querySelector('svg:last-child');
-        if (chevron) {
-          chevron.classList.toggle('rotate-180');
-        }
-      });
     }
   }
 }

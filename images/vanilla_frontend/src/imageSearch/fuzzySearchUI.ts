@@ -26,11 +26,12 @@ export class FuzzySearchUI {
   private filtersContainer!: HTMLElement;
   private inputContainer!: HTMLElement;
   private searchInput!: HTMLInputElement;  private searchButton!: HTMLButtonElement;
-  private dropdown!: HTMLElement;// State
+  private dropdown!: HTMLElement;  private searchTips!: HTMLElement;  // State
   private selectedFilters: SearchFilter = { query: [] };
   private suggestions: SearchSuggestion[] = [];
   private showDropdown = false;
   private selectedIndex = -1;
+  private hasSearched = false;
   constructor(container: HTMLElement, callbacks: FuzzySearchCallbacks) {
     this.container = container;
     this.callbacks = callbacks;
@@ -61,12 +62,12 @@ export class FuzzySearchUI {
     });
   }  private createUI(): void {
     this.container.innerHTML = html`
-      <div class="w-full max-w-5xl mx-auto p-4 fuzzy-search-container">
+      <div class="w-full max-w-5xl mx-auto p-2 sm:p-4 fuzzy-search-container">
         <div class="w-full relative">
           <!-- Active Filters Display -->
           <div
             id="filters-container"
-            class="flex w-full items-center mb-4 flex-wrap gap-2 min-h-[2rem]"
+            class="flex w-full items-center mb-3 sm:mb-4 flex-wrap gap-1 sm:gap-2 min-h-[2rem]"
           >
             <!-- Filters will be rendered here -->
           </div>
@@ -74,15 +75,15 @@ export class FuzzySearchUI {
           <!-- Modern Search Container -->
           <div class="flex flex-col space-y-3">
             <!-- Main Search Row -->
-            <div class="flex space-x-3">
+            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
               <div id="input-container" class="relative flex-grow">
                 <!-- Modern Input Container -->
                 <div
-                  class="relative border border-gray-200 rounded-xl focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200 bg-white flex items-center h-12 shadow-sm hover:shadow-md group"
+                  class="relative border border-gray-200 rounded-xl focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200 bg-white flex items-center h-12 sm:h-12 shadow-sm hover:shadow-md group"
                 >
                   <!-- Search Icon -->
-                  <div class="flex items-center justify-center w-12 h-12 text-gray-400 group-focus-within:text-blue-500">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div class="flex items-center justify-center w-10 sm:w-12 h-12 text-gray-400 group-focus-within:text-blue-500">
+                    <svg class="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                   </div>
@@ -93,7 +94,7 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-0 text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal"
+                    class="flex-1 h-full px-0 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal"
                   />
                   
                   <!-- Modern Clear Button -->
@@ -102,7 +103,7 @@ export class FuzzySearchUI {
                     class="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg mr-2 transition-all duration-200 hidden"
                   >
                     <svg
-                      class="w-4 h-4"
+                      class="w-3 sm:w-4 h-3 sm:h-4"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -120,7 +121,7 @@ export class FuzzySearchUI {
                 <!-- Modern Smart Dropdown -->
                 <div
                   id="fuzzy-dropdown"
-                  class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl mt-2 z-50 max-h-80 overflow-y-auto hidden"
+                  class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl mt-2 z-50 max-h-64 sm:max-h-80 overflow-y-auto hidden"
                   style="box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);"
                 >
                   <div id="dropdown-content">
@@ -132,10 +133,10 @@ export class FuzzySearchUI {
               <!-- Modern Search Button -->
               <button
                 id="fuzzy-search-btn"
-                class="h-12 px-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center space-x-2 text-base"
+                class="h-12 px-4 sm:px-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-auto"
               >
                 <svg
-                  class="w-5 h-5"
+                  class="w-4 sm:w-5 h-4 sm:h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -149,6 +150,33 @@ export class FuzzySearchUI {
                 </svg>
                 <span id="search-btn-text">Search</span>
               </button>
+            </div>
+            
+            <!-- Search Tips (shown only before first search) -->
+            <div id="search-tips" class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+              <h3 class="font-medium text-blue-900 mb-2 flex items-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Search Tips
+              </h3>
+              <div class="text-blue-800 space-y-2">
+                <p class="font-medium">You can search for:</p>
+                <ul class="space-y-1 ml-4">
+                  <li><strong>People:</strong> John, Sarah</li>
+                  <li><strong>Keywords:</strong> beach, sunset, birthday, vacation</li>
+                  <li><strong>Folders:</strong> 2023, Summer Photos, Wedding</li>
+                </ul>
+                <p class="font-medium mt-3">Multiple filters work together:</p>
+                <ul class="space-y-1 ml-4 text-sm">
+                  <li>• Person + Folder = Photos of that person in that folder</li>
+                  <li>• Keyword + Folder = Photos with that keyword in that folder</li>
+                  <li>• Person + Keyword = Photos of that person with that keyword</li>
+                </ul>
+                <p class="text-blue-700 text-xs mt-2 italic">
+                  Tip: Type to see suggestions, click to add as filters, then search to find photos
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -170,6 +198,9 @@ export class FuzzySearchUI {
       "#fuzzy-search-btn"
     ) as HTMLButtonElement;    this.dropdown = this.container.querySelector(
       "#fuzzy-dropdown"
+    ) as HTMLElement;
+    this.searchTips = this.container.querySelector(
+      "#search-tips"
     ) as HTMLElement;
   }
 
@@ -210,6 +241,14 @@ export class FuzzySearchUI {
 
     this.selectedIndex = -1; // Reset keyboard navigation
     this.updateClearButton();
+
+    // Hide search tips when user starts typing (if they haven't searched yet)
+    if (value.trim() && !this.hasSearched) {
+      this.hideSearchTips();
+    } else if (!value.trim() && !this.hasSearched) {
+      // Show tips again if input is cleared and no search has been done
+      this.showSearchTips();
+    }
 
     if (value.trim()) {
       // Generate suggestions for all attributes simultaneously
@@ -401,6 +440,12 @@ export class FuzzySearchUI {
     this.suggestions = [];
     this.hideDropdown();
     this.updateClearButton();
+    
+    // Show search tips when input is cleared (if no search has been done)
+    if (!this.hasSearched) {
+      this.showSearchTips();
+    }
+    
     this.searchInput.focus();
   }
 
@@ -409,10 +454,21 @@ export class FuzzySearchUI {
       this.selectedFilters
     );
     console.log("Executing search with query:", queryString);
+    
+    // Hide search tips after first search
+    if (!this.hasSearched) {
+      this.hasSearched = true;
+      this.hideSearchTips();
+    }
+    
     this.callbacks.onSearchExecuted(queryString, this.selectedFilters);
   }  private executeSearchForCleanSlate(): void {
     // For clean slate, set images to empty without making any search request
     console.log("Clean slate detected - clearing images without search");
+    
+    // Show search tips when returning to clean slate
+    this.hasSearched = false;
+    this.showSearchTips();
     
     if (this.callbacks.onCleanSlate) {
       // Use dedicated clean slate callback if provided
@@ -438,10 +494,10 @@ export class FuzzySearchUI {
             const icon = this.fuzzySearchService.getAttributeIcon(attribute);
             const color = this.fuzzySearchService.getAttributeColor(attribute);
             return `
-            <div class="flex items-center px-3 py-2 rounded-xl border-2 ${color} hover:shadow-lg transition-all duration-200 cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
-              <span class="mr-2 text-sm">${icon}</span>
-              <span class="text-sm font-medium">${value}</span>
-              <button class="ml-2 text-current opacity-60 hover:opacity-100 hover:bg-white hover:bg-opacity-30 rounded-lg p-1 transition-all duration-200 remove-filter-btn" data-attribute="${attribute}" data-value="${value}">
+            <div class="flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl border-2 ${color} hover:shadow-lg transition-all duration-200 cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
+              <span class="mr-1 sm:mr-2 text-xs sm:text-sm">${icon}</span>
+              <span class="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-none">${value}</span>
+              <button class="ml-1 sm:ml-2 text-current opacity-60 hover:opacity-100 hover:bg-white hover:bg-opacity-30 rounded-lg p-1 transition-all duration-200 remove-filter-btn" data-attribute="${attribute}" data-value="${value}">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -501,8 +557,8 @@ export class FuzzySearchUI {
         // Add attribute header if we have multiple attributes
         if (Object.keys(suggestionsByAttribute).length > 1) {
           suggestionsHtml += `
-            <div class="px-4 py-3 text-sm font-semibold text-gray-600 bg-gray-50 border-b border-gray-100 flex items-center">
-              <span class="mr-3">${icon}</span>
+            <div class="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-semibold text-gray-600 bg-gray-50 border-b border-gray-100 flex items-center">
+              <span class="mr-2 sm:mr-3">${icon}</span>
               ${displayName}
             </div>
           `;
@@ -512,26 +568,26 @@ export class FuzzySearchUI {
         attributeSuggestions.forEach((suggestion) => {
           const color = this.fuzzySearchService.getAttributeColor(suggestion.attribute);
           suggestionsHtml += `
-            <div class="suggestion-option flex items-center px-4 py-3 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
+            <div class="suggestion-option flex items-center px-3 sm:px-4 py-2 sm:py-3 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
               this.selectedIndex === currentIndex
                 ? "bg-blue-50 border-l-4 border-l-blue-500"
                 : ""
             }" data-index="${currentIndex}">
-              <div class="flex items-center justify-center w-10 h-10 rounded-xl mr-4 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
-                <span class="text-base">${icon}</span>
+              <div class="flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-xl mr-3 sm:mr-4 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
+                <span class="text-sm sm:text-base">${icon}</span>
               </div>
-              <div class="flex-grow">
-                <div class="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 text-base">${
+              <div class="flex-grow min-w-0">
+                <div class="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 text-sm sm:text-base truncate">${
                   suggestion.text
                 }</div>
-                <div class="text-sm text-gray-500 flex items-center mt-1">
+                <div class="text-xs sm:text-sm text-gray-500 flex items-center mt-1">
                   <span class="capitalize">
                     Add to ${suggestion.attribute.replace("_", " ")} search
                   </span>
                 </div>
               </div>
-              <div class="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex items-center justify-center w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
+                <svg class="w-3 sm:w-4 h-3 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                 </svg>
               </div>
@@ -730,5 +786,17 @@ export class FuzzySearchUI {
    */
   public executeSearchExternal(): void {
     this.executeSearch();
+  }
+
+  private hideSearchTips(): void {
+    if (this.searchTips) {
+      this.searchTips.style.display = 'none';
+    }
+  }
+
+  private showSearchTips(): void {
+    if (this.searchTips) {
+      this.searchTips.style.display = 'block';
+    }
   }
 }
