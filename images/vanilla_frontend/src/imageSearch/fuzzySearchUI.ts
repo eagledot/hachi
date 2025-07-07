@@ -7,14 +7,6 @@ export interface FuzzySearchCallbacks {
   onSearchExecuted: (query: string, filters: SearchFilter) => void;
   onFilterAdded: (attribute: string, value: string) => void;
   onFilterRemoved: (attribute: string, value: string) => void;
-  
-  // IMPORTANT: Implement at least one of these to handle clean slate (empty state)
-  // Without these, images won't be cleared when all filters are removed!
-  onCleanSlate?: () => void; // Preferred: called when returning to empty state
-  onClearImages?: () => void; // Alternative: explicitly clear images
-  
-  // Example implementation:
-  // onCleanSlate: () => setImages([])
 }
 
 export class FuzzySearchUI {
@@ -36,12 +28,6 @@ export class FuzzySearchUI {
     this.container = container;
     this.callbacks = callbacks;
     this.fuzzySearchService = new FuzzySearchService();
-
-    // Warn if no clean slate callbacks are provided
-    if (!this.hasCleanSlateCallback()) {
-      console.warn('FuzzySearchUI: No clean slate callbacks provided. Images may not be cleared when all filters are removed.');
-      console.warn('Please implement onCleanSlate or onClearImages in your callbacks.');
-    }
 
     this.initializeFilters();
     this.createUI();
@@ -428,10 +414,6 @@ export class FuzzySearchUI {
         // Trigger a fresh search with remaining filters/input
         console.log("Triggering fresh search with remaining filters/input");
         this.executeSearch();
-      } else {
-        // Return to clean slate - trigger search with empty filters to reset the view
-        console.log("No filters or input remaining, returning to clean slate");
-        this.executeSearchForCleanSlate();
       }
     }
   }
@@ -462,27 +444,6 @@ export class FuzzySearchUI {
     }
     
     this.callbacks.onSearchExecuted(queryString, this.selectedFilters);
-  }  private executeSearchForCleanSlate(): void {
-    // For clean slate, set images to empty without making any search request
-    console.log("Clean slate detected - clearing images without search");
-    
-    // Show search tips when returning to clean slate
-    this.hasSearched = false;
-    this.showSearchTips();
-    
-    if (this.callbacks.onCleanSlate) {
-      // Use dedicated clean slate callback if provided
-      console.log("Using onCleanSlate callback");
-      this.callbacks.onCleanSlate();
-    } else if (this.callbacks.onClearImages) {
-      // Alternative callback for clearing images
-      console.log("Using onClearImages callback");
-      this.callbacks.onClearImages();
-    } else {
-      // No search should be made - just log a warning
-      console.warn("No clean slate callback provided. Images may not be cleared. Please implement onCleanSlate or onClearImages callback.");
-      console.warn("To fix this, add onCleanSlate: () => setImages([]) to your callbacks");
-    }
   }
   
   private renderFilters(): void {
@@ -682,24 +643,13 @@ export class FuzzySearchUI {
       this.selectedFilters[attr] = [];
     });
     this.renderFilters();
-    
-    // Return to clean slate
-    this.executeSearchForCleanSlate();
   }
 
-  /**
-   * Check if clean slate callbacks are properly configured
-   */
-  public hasCleanSlateCallback(): boolean {
-    return !!(this.callbacks.onCleanSlate || this.callbacks.onClearImages);
-  }
   /**
    * Get debug information about current state
    */
   public getDebugInfo(): object {
     return {
-      isCleanSlate: this.isCleanSlate(),
-      hasCleanSlateCallback: this.hasCleanSlateCallback(),
       hasFilters: Object.keys(this.selectedFilters).some(
         key => this.selectedFilters[key] && this.selectedFilters[key].length > 0
       ),
@@ -709,8 +659,6 @@ export class FuzzySearchUI {
       suggestionsCount: this.suggestions.length,
       dropdownVisible: this.showDropdown,
       callbacksAvailable: {
-        onCleanSlate: !!this.callbacks.onCleanSlate,
-        onClearImages: !!this.callbacks.onClearImages,
         onSearchExecuted: !!this.callbacks.onSearchExecuted
       }
     };
@@ -736,9 +684,6 @@ export class FuzzySearchUI {
       this.selectedFilters[attr] = [];
     });
     this.renderFilters();
-    
-    // Execute clean slate
-    this.executeSearchForCleanSlate();
   }
 
   /**
@@ -749,19 +694,8 @@ export class FuzzySearchUI {
     // Clear any existing state
     this.clearAllFilters();
     this.clearInput();
-    
-    // Trigger clean slate if we're truly empty
-    if (this.isCleanSlate() && !this.searchInput.value.trim()) {
-      this.executeSearchForCleanSlate();
-    }
   }
 
-  /**
-   * Public method to trigger clean slate manually
-   */
-  public triggerCleanSlate(): void {
-    this.executeSearchForCleanSlate();
-  }
   /**
    * Check if the search is in clean slate state (no filters applied and no search input)
    */

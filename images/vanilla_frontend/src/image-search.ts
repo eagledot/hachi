@@ -29,15 +29,15 @@ class ImageSearchApp {
       gridId: 'photo-grid'
     });    // Initialize photo filter component
     this.photoFilter = new PhotoFilterComponent({
-      onFilterChange: (filteredPhotos) => this.handleFilteredPhotosUpdate(filteredPhotos)
+      onFilterChange: (filteredPhotos) => this.handleFilteredPhotosUpdate(filteredPhotos),
+      hideSearchInput: true // Hide search input in image-search page
     });    // Initialize filter UI immediately but keep it hidden
     const filterContainer = document.getElementById('photo-filter-container');
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.remove('lg:block');
       filterContainer.classList.add('hidden');
       
-      filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter');
+      filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter', true);
       this.photoFilter.initialize('photo-filter');
     }
 
@@ -173,9 +173,7 @@ class ImageSearchApp {
     if (filterContainer) {
       if (photos.length > 0) {
         filterContainer.classList.remove('hidden');
-        filterContainer.classList.add('lg:block');
       } else {
-        filterContainer.classList.remove('lg:block');
         filterContainer.classList.add('hidden');
       }
     }
@@ -274,7 +272,7 @@ class ImageSearchApp {
     const resultsSection = document.getElementById('results-section');
     
     // Use the filter container if visible, otherwise use the results section
-    const targetElement = filterContainer?.classList.contains('lg:block') ? filterContainer : resultsSection;
+    const targetElement = filterContainer && !filterContainer.classList.contains('hidden') ? filterContainer : resultsSection;
     
     if (targetElement) {
       // Use requestAnimationFrame to ensure DOM updates are complete

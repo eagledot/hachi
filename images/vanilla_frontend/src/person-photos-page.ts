@@ -75,7 +75,6 @@ class PersonPhotosApp {
     const filterContainer = document.getElementById('photo-filter-container');
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.remove('lg:block');
       filterContainer.classList.add('hidden');
       
       filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter');

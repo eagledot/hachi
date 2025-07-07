@@ -69,7 +69,6 @@ class FolderPhotosApp {
     const filterContainer = document.getElementById('photo-filter-container');
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.remove('lg:block');
       filterContainer.classList.add('hidden');
       
       filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter');
@@ -155,9 +154,7 @@ class FolderPhotosApp {
         if (filterContainer) {
           if (this.photos.length > 0) {
             filterContainer.classList.remove('hidden');
-            filterContainer.classList.add('lg:block');
           } else {
-            filterContainer.classList.remove('lg:block');
             filterContainer.classList.add('hidden');
           }
         }        this.updatePhotoCount();
@@ -251,7 +248,7 @@ class FolderPhotosApp {
     const photosSection = document.querySelector('section');
     
     // Use the filter container if visible, otherwise use the photos section
-    const targetElement = filterContainer?.classList.contains('lg:block') ? filterContainer : photosSection;
+    const targetElement = filterContainer && !filterContainer.classList.contains('hidden') ? filterContainer : photosSection;
     
     if (targetElement) {
       // Use requestAnimationFrame to ensure DOM updates are complete

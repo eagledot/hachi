@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Search - Hachi</title>    <style>
+    <title>Image Search - Hachi</title>
+    <style>
         /* Modal and grid styles will be injected by components */
     </style>
   <script type="module" crossorigin src="/assets/imageSearch-VsYE1OCZ.js"></script>
@@ -27,73 +28,59 @@
                         <div id="fuzzy-search-container"></div>
                     </div>
                 </div>
-            </section>            <!-- Results Section with Sidebar Layout -->
+            </section>            <!-- Results Section with Filter Bar Above Photo Grid -->
             <section id="results-section" class="mb-8">
-                <div class="flex flex-col lg:flex-row gap-6">                    <!-- Mobile Filter Toggle Button -->
-                    <div class="lg:hidden">
-                        <button id="mobile-filter-toggle" class="w-full flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-lg shadow-sm">
-                            <span class="flex items-center space-x-2">
-                                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
-                                </svg>
-                                <span class="font-medium text-gray-900 text-sm">Filters</span>
-                            </span>
-                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <!-- Left Sidebar - Filters -->
-                    <aside id="photo-filter-container" class="hidden lg:block w-full lg:w-80 lg:flex-shrink-0">
-                        <!-- Photo filters will be injected here -->
-                    </aside>
-                      <!-- Main Content Area - Photo Grid -->
-                    <main class="flex-1 min-w-0">
-                        <div id="photo-grid-container">
-                            <!-- Photo grid components will be injected here -->
-                        </div>                        
-                        <!-- Pagination Controls -->
-                        <div id="pagination-container" class="hidden mt-6 mb-4">
-                            <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
-                                <!-- Pagination Info -->
-                                <div class="text-xs text-gray-600">
-                                    <span id="pagination-info">Showing 1-100 of 25000 photos</span>
-                                </div>
-                                
-                                <!-- Pagination Controls -->
-                                <div class="flex items-center space-x-3">
-                                    <button 
-                                        id="prev-page-btn"
-                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                                        disabled
-                                    >
-                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                                        </svg>
-                                        Previous
-                                    </button>                                    
-                                    <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
-                                        Page 1 of 250
-                                    </span>
-                                    
-                                    <button 
-                                        id="next-page-btn"
-                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                                    >
-                                        Next
-                                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
+                <!-- Filter Bar Above Photo Grid -->
+                <div id="photo-filter-container" class="hidden mb-6">
+                    <!-- Photo filters will be injected here -->
+                </div>
+                
+                <!-- Photo Grid -->
+                <div id="photo-grid-container">
+                    <!-- Photo grid components will be injected here -->
+                </div>                        
+                
+                <!-- Pagination Controls -->
+                <div id="pagination-container" class="hidden mt-6 mb-4">
+                    <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                        <!-- Pagination Info -->
+                        <div class="text-xs text-gray-600">
+                            <span id="pagination-info">Showing 1-100 of 25000 photos</span>
                         </div>
-                    </main>
+                        
+                        <!-- Pagination Controls -->
+                        <div class="flex items-center space-x-3">
+                            <button 
+                                id="prev-page-btn"
+                                class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                disabled
+                            >
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                                Previous
+                            </button>                                    
+                            
+                            <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
+                                Page 1 of 250
+                            </span>
+                            
+                            <button 
+                                id="next-page-btn"
+                                class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                            >
+                                Next
+                                <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </section>
         </div>
     </main>    <!-- Modal will be injected here by ImageModalComponent -->
-
+
+
 </body>
 </html>
