@@ -305,9 +305,10 @@ template aliasImpl(c_t:var Column, row_idx_t:Natural, data_t:typed, type_t:typed
 
       let temp_new = alloc0(new_capacity * sizeof(Natural))
       copyMem(temp_new, c_t.alias.row_indices, old_capacity*sizeof(Natural))
-      dealloc(temp_new) # free resources..
+      dealloc(c_t.alias.row_indices) # free resources.. , TODO: (be sure.. idon't remember full flow now!), earlier i think `temp_new` was being deallocated by mistake!
       
       # update
+      c_t.alias.row_indices = cast[ptr UncheckedArray[Natural]](temp_new) # TODO: be sure, it was not there before!!
       c_t.alias.payload = temp
       c_t.alias.capacity = new_capacity
 
@@ -399,7 +400,7 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
 ######################################################################################
 # querying API (These must be as fast as possibly, currently OK, all optimizations should be focussed on faster queries)
 #############################################################
-template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, boundary_t, top_k_t:Natural, type_t:typedesc)=
+template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, boundary_t, top_k_t:Natural, type_t:typedesc):Natural=
   
   let alias_table = checkAlias[type_t](c_t)
   var count = 0
@@ -417,11 +418,11 @@ template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, bounda
     if count == top_k:
       break 
   
-  return result[0..<count]
+  count # return this..
 
 template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural, exact_string_t:bool, 
 splitter_t:string,
-uniqueOnly_t:bool = false)=
+uniqueOnly_t:bool = false):Natural = 
 
   # NOTE: i understand lots of if and else branching leading to harm the branch-predictor, but i have to search both new versions and original too..
   # NOTE: after checking if string or arrayString, split function bottleneck effects only few columns . (pure string columns are much faster to search for)
@@ -430,6 +431,8 @@ uniqueOnly_t:bool = false)=
 
   # Inputs:
   # uniqueOnly_t: being checked, only when exact string is passed as false!
+
+  doAssert c_t.kind == colString or c_t.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
 
   let alias_table = checkAlias[string](c_t)
   var count = 0
@@ -499,58 +502,45 @@ uniqueOnly_t:bool = false)=
     if count == top_k:
       break 
   
-  return result[0..<count]
+  count    # return this..
 
 proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100, exact_string:bool = false, splitter:string = "|",
   unique_only:bool = false):seq[Natural]=
   # returns the matching row indices in the 
   # boundary: is provided by MetaIndex, telling it how many elements are currently in this/all columns.
-  
+
   # This matches substring(query) in strings, if match is found, we collect the corresponding index.
   # later actually merges this somehow with fuzzySearch, for now just roll with it!
   
-  assert c.kind == colString or c.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
   let top_k = min(boundary, top_k)
-  result = newSeq[Natural](top_k)
-  queryStringImpl(result, c, query, boundary, top_k, exact_string, splitter, unique_only)
-
-  # var count = 0
-  # let arr = cast[ptr UncheckedArray[string]](c.payload)
-  # for row_idx in 0..<boundary:
-  #   # not using cursor would creat a copy for value, which we don't want.
-  #   let value{.cursor.} = arr[row_idx] # compiler doesn't figure this out automatically!
-  #   # if arr[row_idx] == query:  # this compiler can figure out !!
-  #   if value == query:
-  #     result[count] = row_idx
-  #     count = count + 1
-  #   if count == top_k:
-  #     break
-  # return result[0..<count]
-
-  # can i just through alias then..
-
-  
+  var top_k_seq = newSeq[Natural](top_k)
+  let count_filled:Natural  = queryStringImpl(top_k_seq, c, query, boundary, top_k, exact_string, splitter, unique_only)
+  result = top_k_seq[0..<count_filled] # TODO: prevent this copy! 
+  return result
 
 proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
   assert c.kind == colInt32
   
   let top_k = min(boundary, top_k)
-  result = newSeq[Natural](top_k) # allocate at once... 
-  queryImpl(result, c, query, boundary, top_k, int32)
-  
+  var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
+  let count_filled = queryImpl(top_k_seq, c, query, boundary, top_k, int32)
+  result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
+
 proc query_float32(c:Column, query:float32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
   assert c.kind == colFloat32
   
   let top_k = min(boundary, top_k)
-  result = newSeq[Natural](top_k) # allocate at once... 
-  queryImpl(result, c, query, boundary, top_k, float32)
+  var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
+  let count_filled = queryImpl(top_k_seq, c, query, boundary, top_k, float32)
+  result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
 proc query_bool(c:Column, query:bool, boundary:Natural, top_k:Natural = 100):seq[Natural]=
   assert c.kind == colBool
   
   let top_k = min(boundary, top_k)
-  result = newSeq[Natural](top_k) # allocate at once... 
-  queryImpl(result, c, query, boundary, top_k, bool)
+  var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
+  let count_filled = queryImpl(top_k_seq, c, query, boundary, top_k, bool)
+  result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
 ################################################################################################################
 
@@ -649,7 +639,8 @@ proc init*(name:string, column_labels:varargs[string], column_types:varargs[colT
   result.dbRowPointer = rowPointer
   return result
 
-proc `[]`(m:MetaIndex, key:string):lent Column {.inline.} =
+# proc `[]`(m:MetaIndex, key:string):lent Column {.inline.} =
+proc `[]`(m:MetaIndex, key:string): Column =
   # i think we have to use borrow semantics if want to return column like this for read purposes, as copy is prohibited !
   let idx = m.fields[key]
   result = m.columns[idx]
@@ -810,12 +801,13 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, to
   # attribute_value: key/label value pairs, value is value is match for corresponding column.
   var top_k = top_k
   if top_k == 0:
-    top_k = high(int32)
+    top_k = high(int32)  # use the boundary instead to set upper limit instead!!
   
   doAssert attribute_value.kind == JObject
   doAssert len(attribute_value) == 1
   
   let boundary = m.dbRowPointer
+  # TODO: use `boundary` to set the upper limit of resulting sequence ??
   for label, value in attribute_value:
     let c = m[label]
     if c.kind == colString or c.kind == colArrayString:
