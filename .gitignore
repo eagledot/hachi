@@ -26,3 +26,4 @@ venv/
 .vite/
 
 .github/
+*.ts.md

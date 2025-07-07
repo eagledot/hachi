@@ -54,6 +54,9 @@ export function transformRawDataChunk(rawData: ImageSearchResponse): HachiImageD
  * Merges new photos with existing photos, accumulating scores and updating metadata
  */
 export function mergePhotos(existingPhotos: HachiImageData[], newPhotos: HachiImageData[]): HachiImageData[] {
+  if (!newPhotos || !newPhotos.length) {
+    return existingPhotos
+  }
   const updatedPhotosMap = new Map(existingPhotos.map(p => [p.id, { ...p }]));
 
   newPhotos.forEach(newPhoto => {
