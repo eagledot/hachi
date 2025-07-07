@@ -105,7 +105,7 @@ export class SearchService {
       this.updateState({
         photos: updatedPhotos,
         isSearchDone: rawData.query_completed,
-        isLoading: false // Stop loading when first chunk is received
+        // isLoading: false // Stop loading when first chunk is received
       });
 
       // Handle search completion or start polling

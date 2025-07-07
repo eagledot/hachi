@@ -329,6 +329,13 @@ class ImageSearchApp {
   private handleLoadingChange(isLoading: boolean): void {
     console.log('Loading state changed:', isLoading);
     this.uiService.updateLoading(isLoading);
+    
+    // Disable/enable fuzzy search inputs based on loading state
+    if (isLoading) {
+      this.fuzzySearchUI.disableInputs();
+    } else {
+      this.fuzzySearchUI.enableInputs();
+    }
   }
 
   private handleErrorChange(error: string | null): void {
@@ -338,6 +345,11 @@ class ImageSearchApp {
 
   private handleSearchDoneChange(isSearchDone: boolean): void {
     console.log('Search done state changed:', isSearchDone);
+    
+    // Ensure inputs are enabled when search is done
+    if (isSearchDone) {
+      this.fuzzySearchUI.enableInputs();
+    }
     
     // Update no results display if needed
     const state = this.searchService.getState();

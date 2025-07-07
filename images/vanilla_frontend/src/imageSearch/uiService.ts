@@ -40,7 +40,8 @@ export class UIService {
     this.container = container;
     this.initializeElements();
     this.injectResponsivePhotoStyles();
-  }private initializeElements(): void {
+  }
+  private initializeElements(): void {
     // Elements within the container - search elements no longer needed as handled by FuzzySearchUI
     this.loadingIndicator = this.container.querySelector('#loading-indicator') as HTMLElement;
     this.errorDisplay = this.container.querySelector('#error-display') as HTMLElement;

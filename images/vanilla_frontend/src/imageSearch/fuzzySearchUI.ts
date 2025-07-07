@@ -17,8 +17,10 @@ export class FuzzySearchUI {
   private searchContainer!: HTMLElement;
   private filtersContainer!: HTMLElement;
   private inputContainer!: HTMLElement;
-  private searchInput!: HTMLInputElement;  private searchButton!: HTMLButtonElement;
-  private dropdown!: HTMLElement;  private searchTips!: HTMLElement;  // State
+  private searchInput!: HTMLInputElement;
+  private searchButton!: HTMLButtonElement;
+  private dropdown!: HTMLElement;
+  private searchTips!: HTMLElement; // State
   private selectedFilters: SearchFilter = { query: [] };
   private suggestions: SearchSuggestion[] = [];
   private showDropdown = false;
@@ -46,7 +48,8 @@ export class FuzzySearchUI {
     availableAttributes.forEach((attr) => {
       this.selectedFilters[attr] = [];
     });
-  }  private createUI(): void {
+  }
+  private createUI(): void {
     this.container.innerHTML = html`
       <div class="w-full max-w-5xl mx-auto p-2 sm:p-4 fuzzy-search-container">
         <div class="w-full relative">
@@ -61,19 +64,33 @@ export class FuzzySearchUI {
           <!-- Modern Search Container -->
           <div class="flex flex-col space-y-3">
             <!-- Main Search Row -->
-            <div class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
+            <div
+              class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3"
+            >
               <div id="input-container" class="relative flex-grow">
                 <!-- Modern Input Container -->
                 <div
                   class="relative border border-gray-200 rounded-xl focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200 bg-white flex items-center h-12 sm:h-12 shadow-sm hover:shadow-md group"
                 >
                   <!-- Search Icon -->
-                  <div class="flex items-center justify-center w-10 sm:w-12 h-12 text-gray-400 group-focus-within:text-blue-500">
-                    <svg class="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                  <div
+                    class="flex items-center justify-center w-10 sm:w-12 h-12 text-gray-400 group-focus-within:text-blue-500"
+                  >
+                    <svg
+                      class="w-4 sm:w-5 h-4 sm:h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      ></path>
                     </svg>
                   </div>
-                  
+
                   <!-- Modern Input Field -->
                   <input
                     id="fuzzy-search-input"
@@ -82,7 +99,7 @@ export class FuzzySearchUI {
                     placeholder="Search by people, folders, or keywords..."
                     class="flex-1 h-full px-0 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal"
                   />
-                  
+
                   <!-- Modern Clear Button -->
                   <button
                     id="clear-input-btn"
@@ -115,7 +132,7 @@ export class FuzzySearchUI {
                   </div>
                 </div>
               </div>
-              
+
               <!-- Modern Search Button -->
               <button
                 id="fuzzy-search-btn"
@@ -137,12 +154,25 @@ export class FuzzySearchUI {
                 <span id="search-btn-text">Search</span>
               </button>
             </div>
-            
+
             <!-- Search Tips (shown only before first search) -->
-            <div id="search-tips" class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+            <div
+              id="search-tips"
+              class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm"
+            >
               <h3 class="font-medium text-blue-900 mb-2 flex items-center">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <svg
+                  class="w-4 h-4 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
                 </svg>
                 Search Tips
               </h3>
@@ -150,24 +180,35 @@ export class FuzzySearchUI {
                 <p class="font-medium">You can search for:</p>
                 <ul class="space-y-1 ml-4">
                   <li><strong>People:</strong> John, Sarah</li>
-                  <li><strong>Keywords:</strong> beach, sunset, birthday, vacation</li>
-                  <li><strong>Folders:</strong> 2023, Summer Photos, Wedding</li>
+                  <li>
+                    <strong>Keywords:</strong> beach, sunset, birthday, vacation
+                  </li>
+                  <li>
+                    <strong>Folders:</strong> 2023, Summer Photos, Wedding
+                  </li>
                 </ul>
                 <p class="font-medium mt-3">Multiple filters work together:</p>
                 <ul class="space-y-1 ml-4 text-sm">
-                  <li>• Person + Folder = Photos of that person in that folder</li>
-                  <li>• Keyword + Folder = Photos with that keyword in that folder</li>
-                  <li>• Person + Keyword = Photos of that person with that keyword</li>
+                  <li>
+                    • Person + Folder = Photos of that person in that folder
+                  </li>
+                  <li>
+                    • Keyword + Folder = Photos with that keyword in that folder
+                  </li>
+                  <li>
+                    • Person + Keyword = Photos of that person with that keyword
+                  </li>
                 </ul>
                 <p class="text-blue-700 text-xs mt-2 italic">
-                  Tip: Type to see suggestions, click to add as filters, then search to find photos
+                  Tip: Type to see suggestions, click to add as filters, then
+                  search to find photos
                 </p>
               </div>
             </div>
           </div>
         </div>
       </div>
-    `;// Get references to elements
+    `; // Get references to elements
     this.searchContainer = this.container.querySelector(
       ".fuzzy-search-container"
     ) as HTMLElement;
@@ -182,7 +223,8 @@ export class FuzzySearchUI {
     ) as HTMLInputElement;
     this.searchButton = this.container.querySelector(
       "#fuzzy-search-btn"
-    ) as HTMLButtonElement;    this.dropdown = this.container.querySelector(
+    ) as HTMLButtonElement;
+    this.dropdown = this.container.querySelector(
       "#fuzzy-dropdown"
     ) as HTMLElement;
     this.searchTips = this.container.querySelector(
@@ -207,7 +249,7 @@ export class FuzzySearchUI {
     this.searchButton.addEventListener(
       "click",
       this.handleSearchClick.bind(this)
-    );    // Clear input button
+    ); // Clear input button
     const clearBtn = this.container.querySelector(
       "#clear-input-btn"
     ) as HTMLButtonElement;
@@ -218,8 +260,9 @@ export class FuzzySearchUI {
       if (!this.inputContainer.contains(e.target as Node)) {
         this.hideDropdown();
       }
-    });  }
-  
+    });
+  }
+
   private async handleInputChange(e: Event): Promise<void> {
     const target = e.target as HTMLInputElement;
     const value = target.value;
@@ -238,7 +281,8 @@ export class FuzzySearchUI {
 
     if (value.trim()) {
       // Generate suggestions for all attributes simultaneously
-      this.suggestions = await this.fuzzySearchService.generateAllAttributeSuggestions(value);
+      this.suggestions =
+        await this.fuzzySearchService.generateAllAttributeSuggestions(value);
       if (this.suggestions.length > 0) {
         this.showDropdown = true;
         this.renderDropdown();
@@ -304,25 +348,28 @@ export class FuzzySearchUI {
           this.handleAddFilter();
         }
       }
-    }  }
-  
+    }
+  }
+
   private handleInputFocus(): void {
     this.selectedIndex = -1; // Reset keyboard navigation
 
     if (this.searchInput.value.trim()) {
       // Generate suggestions for all attributes
-      this.fuzzySearchService.generateAllAttributeSuggestions(this.searchInput.value).then(suggestions => {
-        this.suggestions = suggestions;
-        if (this.suggestions.length > 0) {
-          this.showDropdown = true;
-          this.renderDropdown();
-        } else {
-          this.hideDropdown();
-        }
-      });
+      this.fuzzySearchService
+        .generateAllAttributeSuggestions(this.searchInput.value)
+        .then((suggestions) => {
+          this.suggestions = suggestions;
+          if (this.suggestions.length > 0) {
+            this.showDropdown = true;
+            this.renderDropdown();
+          } else {
+            this.hideDropdown();
+          }
+        });
     }
   }
-  
+
   private handleInputBlur(): void {
     setTimeout(() => {
       this.suggestions = [];
@@ -330,7 +377,7 @@ export class FuzzySearchUI {
       this.hideDropdown();
     }, 200); // Timeout to allow suggestion clicks
   }
-  
+
   private async handleAddFilter(): Promise<void> {
     if (this.searchInput.value.trim()) {
       const trimmedValue = this.searchInput.value.trim();
@@ -390,26 +437,30 @@ export class FuzzySearchUI {
       this.renderFilters();
       this.callbacks.onFilterAdded(attribute, value);
     }
-  }  private removeFilter(attribute: string, value: string): void {
+  }
+  private removeFilter(attribute: string, value: string): void {
     if (this.selectedFilters[attribute]) {
       this.selectedFilters[attribute] = this.selectedFilters[attribute].filter(
         (v) => v !== value
       );
       this.renderFilters();
       this.callbacks.onFilterRemoved(attribute, value);
-      
+
       // Check if we have any filters left
       const hasAnyFilters = Object.keys(this.selectedFilters).some(
-        key => this.selectedFilters[key] && this.selectedFilters[key].length > 0
+        (key) =>
+          this.selectedFilters[key] && this.selectedFilters[key].length > 0
       );
-      
+
       // Also check if there's any search input
       const hasSearchInput = this.searchInput.value.trim().length > 0;
-      
+
       console.log(`Filter removed: ${attribute}=${value}`);
-      console.log(`hasAnyFilters: ${hasAnyFilters}, hasSearchInput: ${hasSearchInput}`);
-      console.log('Current filters:', this.selectedFilters);
-      
+      console.log(
+        `hasAnyFilters: ${hasAnyFilters}, hasSearchInput: ${hasSearchInput}`
+      );
+      console.log("Current filters:", this.selectedFilters);
+
       if (hasAnyFilters || hasSearchInput) {
         // Trigger a fresh search with remaining filters/input
         console.log("Triggering fresh search with remaining filters/input");
@@ -422,12 +473,12 @@ export class FuzzySearchUI {
     this.suggestions = [];
     this.hideDropdown();
     this.updateClearButton();
-    
+
     // Show search tips when input is cleared (if no search has been done)
     if (!this.hasSearched) {
       this.showSearchTips();
     }
-    
+
     this.searchInput.focus();
   }
 
@@ -436,16 +487,16 @@ export class FuzzySearchUI {
       this.selectedFilters
     );
     console.log("Executing search with query:", queryString);
-    
+
     // Hide search tips after first search
     if (!this.hasSearched) {
       this.hasSearched = true;
       this.hideSearchTips();
     }
-    
+
     this.callbacks.onSearchExecuted(queryString, this.selectedFilters);
   }
-  
+
   private renderFilters(): void {
     const filtersHtml = Object.keys(this.selectedFilters)
       .filter((attribute) => this.selectedFilters[attribute].length > 0)
@@ -485,7 +536,8 @@ export class FuzzySearchUI {
         this.removeFilter(attribute, value);
       });
     });
-  }  private renderDropdown(): void {
+  }
+  private renderDropdown(): void {
     if (!this.showDropdown) {
       this.hideDropdown();
       return;
@@ -494,27 +546,31 @@ export class FuzzySearchUI {
     const dropdownContent = this.dropdown.querySelector(
       "#dropdown-content"
     ) as HTMLElement;
-    
+
     // Group suggestions by attribute for better organization
     if (this.suggestions.length > 0) {
       // Group suggestions by attribute
-      const suggestionsByAttribute = this.suggestions.reduce((acc, suggestion) => {
-        if (!acc[suggestion.attribute]) {
-          acc[suggestion.attribute] = [];
-        }
-        acc[suggestion.attribute].push(suggestion);
-        return acc;
-      }, {} as Record<string, typeof this.suggestions>);
+      const suggestionsByAttribute = this.suggestions.reduce(
+        (acc, suggestion) => {
+          if (!acc[suggestion.attribute]) {
+            acc[suggestion.attribute] = [];
+          }
+          acc[suggestion.attribute].push(suggestion);
+          return acc;
+        },
+        {} as Record<string, typeof this.suggestions>
+      );
 
-      let suggestionsHtml = '';
+      let suggestionsHtml = "";
       let currentIndex = 0;
 
       // Render suggestions grouped by attribute
       Object.keys(suggestionsByAttribute).forEach((attribute) => {
         const attributeSuggestions = suggestionsByAttribute[attribute];
         const icon = this.fuzzySearchService.getAttributeIcon(attribute);
-        const displayName = this.fuzzySearchService.getAttributeDisplayName(attribute);
-        
+        const displayName =
+          this.fuzzySearchService.getAttributeDisplayName(attribute);
+
         // Add attribute header if we have multiple attributes
         if (Object.keys(suggestionsByAttribute).length > 1) {
           suggestionsHtml += `
@@ -527,7 +583,9 @@ export class FuzzySearchUI {
 
         // Add suggestions for this attribute
         attributeSuggestions.forEach((suggestion) => {
-          const color = this.fuzzySearchService.getAttributeColor(suggestion.attribute);
+          const color = this.fuzzySearchService.getAttributeColor(
+            suggestion.attribute
+          );
           suggestionsHtml += `
             <div class="suggestion-option flex items-center px-3 sm:px-4 py-2 sm:py-3 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
               this.selectedIndex === currentIndex
@@ -595,11 +653,7 @@ export class FuzzySearchUI {
     ) as NodeListOf<HTMLElement>;
     options.forEach((option, index) => {
       if (index === this.selectedIndex) {
-        option.classList.add(
-          "bg-blue-50",
-          "border-l-4",
-          "border-l-blue-500"
-        );
+        option.classList.add("bg-blue-50", "border-l-4", "border-l-blue-500");
       } else {
         option.classList.remove(
           "bg-blue-50",
@@ -613,10 +667,12 @@ export class FuzzySearchUI {
   private hideDropdown(): void {
     this.showDropdown = false;
     this.dropdown.classList.add("hidden");
-  }  private updateAttributeIndicator(): void {
+  }
+  private updateAttributeIndicator(): void {
     // This method is no longer needed since we removed attribute selection
     // Keeping it empty for backwards compatibility
-  }  private updateClearButton(): void {
+  }
+  private updateClearButton(): void {
     const clearBtn = this.container.querySelector(
       "#clear-input-btn"
     ) as HTMLElement;
@@ -627,7 +683,8 @@ export class FuzzySearchUI {
       clearBtn.classList.add("hidden");
       clearBtn.classList.remove("flex");
     }
-  }  public cleanup(): void {
+  }
+  public cleanup(): void {
     this.fuzzySearchService.cleanup();
   }
 
@@ -637,7 +694,8 @@ export class FuzzySearchUI {
 
   public getCurrentFilters(): SearchFilter {
     return { ...this.selectedFilters };
-  }  public clearAllFilters(): void {
+  }
+  public clearAllFilters(): void {
     this.selectedFilters = {};
     this.fuzzySearchService.getAvailableAttributes().forEach((attr) => {
       this.selectedFilters[attr] = [];
@@ -651,16 +709,17 @@ export class FuzzySearchUI {
   public getDebugInfo(): object {
     return {
       hasFilters: Object.keys(this.selectedFilters).some(
-        key => this.selectedFilters[key] && this.selectedFilters[key].length > 0
+        (key) =>
+          this.selectedFilters[key] && this.selectedFilters[key].length > 0
       ),
       hasSearchInput: this.searchInput?.value?.trim().length > 0,
-      searchInputValue: this.searchInput?.value || '',
+      searchInputValue: this.searchInput?.value || "",
       filters: { ...this.selectedFilters },
       suggestionsCount: this.suggestions.length,
       dropdownVisible: this.showDropdown,
       callbacksAvailable: {
-        onSearchExecuted: !!this.callbacks.onSearchExecuted
-      }
+        onSearchExecuted: !!this.callbacks.onSearchExecuted,
+      },
     };
   }
 
@@ -669,15 +728,15 @@ export class FuzzySearchUI {
    */
   public forceCleanSlate(): void {
     console.log("Force clearing to clean slate");
-    
+
     // Clear input
     this.searchInput.value = "";
     this.updateClearButton();
-    
+
     // Clear suggestions and dropdown
     this.suggestions = [];
     this.hideDropdown();
-    
+
     // Clear all filters
     this.selectedFilters = {};
     this.fuzzySearchService.getAvailableAttributes().forEach((attr) => {
@@ -701,10 +760,10 @@ export class FuzzySearchUI {
    */
   public isCleanSlate(): boolean {
     const hasFilters = Object.keys(this.selectedFilters).some(
-      key => this.selectedFilters[key] && this.selectedFilters[key].length > 0
+      (key) => this.selectedFilters[key] && this.selectedFilters[key].length > 0
     );
     const hasSearchInput = this.searchInput?.value?.trim().length > 0;
-    
+
     return !hasFilters && !hasSearchInput;
   }
 
@@ -724,13 +783,97 @@ export class FuzzySearchUI {
 
   private hideSearchTips(): void {
     if (this.searchTips) {
-      this.searchTips.style.display = 'none';
+      this.searchTips.style.display = "none";
     }
   }
 
   private showSearchTips(): void {
     if (this.searchTips) {
-      this.searchTips.style.display = 'block';
+      this.searchTips.style.display = "block";
     }
+  }
+
+  /**
+   * Disable all input elements and show loading state
+   */
+  public disableInputs(): void {
+    // Disable search input
+    this.searchInput.disabled = true;
+    this.searchInput.classList.add("opacity-50", "cursor-not-allowed");
+
+    // Disable search button and show loading state
+    this.searchButton.disabled = true;
+    this.searchButton.classList.add("opacity-50", "cursor-not-allowed");
+
+    // Update button text to show loading
+    const buttonText = this.searchButton.querySelector("#search-btn-text");
+    if (buttonText) {
+      buttonText.textContent = "Searching...";
+    }
+
+    // Hide dropdown
+    this.hideDropdown();
+
+    // Disable clear button
+    const clearBtn = this.container.querySelector(
+      "#clear-input-btn"
+    ) as HTMLButtonElement;
+    if (clearBtn) {
+      clearBtn.disabled = true;
+      clearBtn.classList.add("opacity-50", "cursor-not-allowed");
+    }
+
+    // Disable all filter remove buttons
+    const removeButtons = this.filtersContainer.querySelectorAll(
+      ".remove-filter-btn"
+    ) as NodeListOf<HTMLButtonElement>;
+    removeButtons.forEach((btn) => {
+      btn.disabled = true;
+      btn.classList.add("opacity-50", "cursor-not-allowed");
+    });
+  }
+
+  /**
+   * Enable all input elements and restore normal state
+   */
+  public enableInputs(): void {
+    // Enable search input
+    this.searchInput.disabled = false;
+    this.searchInput.classList.remove("opacity-50", "cursor-not-allowed");
+
+    // Enable search button and restore normal state
+    this.searchButton.disabled = false;
+    this.searchButton.classList.remove("opacity-50", "cursor-not-allowed");
+
+    // Restore button text
+    const buttonText = this.searchButton.querySelector("#search-btn-text");
+    if (buttonText) {
+      buttonText.textContent = "Search";
+    }
+
+    // Enable clear button
+    const clearBtn = this.container.querySelector(
+      "#clear-input-btn"
+    ) as HTMLButtonElement;
+    if (clearBtn) {
+      clearBtn.disabled = false;
+      clearBtn.classList.remove("opacity-50", "cursor-not-allowed");
+    }
+
+    // Enable all filter remove buttons
+    const removeButtons = this.filtersContainer.querySelectorAll(
+      ".remove-filter-btn"
+    ) as NodeListOf<HTMLButtonElement>;
+    removeButtons.forEach((btn) => {
+      btn.disabled = false;
+      btn.classList.remove("opacity-50", "cursor-not-allowed");
+    });
+  }
+
+  /**
+   * Check if inputs are currently disabled
+   */
+  public areInputsDisabled(): boolean {
+    return this.searchInput.disabled;
   }
 }
