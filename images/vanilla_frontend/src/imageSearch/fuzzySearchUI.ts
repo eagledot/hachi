@@ -419,7 +419,8 @@ export class FuzzySearchUI {
     }
 
     // Execute search with existing filters
-    this.executeSearch();
+    // Do not need to call search. handleAddFilter will handle it.
+    // this.executeSearch();
   }
 
   private addFilter(attribute: string, value: string): void {
@@ -438,6 +439,7 @@ export class FuzzySearchUI {
       this.callbacks.onFilterAdded(attribute, value);
     }
   }
+  
   private removeFilter(attribute: string, value: string): void {
     if (this.selectedFilters[attribute]) {
       this.selectedFilters[attribute] = this.selectedFilters[attribute].filter(
