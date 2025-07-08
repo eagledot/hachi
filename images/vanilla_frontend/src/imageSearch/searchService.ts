@@ -207,15 +207,6 @@ export class SearchService {
    * Cleans up resources
    */
   destroy(): void {
-    this.updateState({
-      photos: [],
-      isLoading: true,
-      isSearchDone: false,
-      error: null,
-      selectedPhoto: null,
-      currentPhotoIndex: null,
-      pollingSearchTerm: "",
-      clientId: null,
-    });
+    // This gets called before the page is refreshed or navigated away
   }
 }

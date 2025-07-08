@@ -661,16 +661,11 @@ export class FuzzySearchUI {
     }
   }
 
-  private showSearchTips(): void {
-    if (this.searchTips) {
-      this.searchTips.style.display = "block";
-    }
-  }
-
   /**
    * Disable all input elements and show loading state
    */
   public disableInputs(): void {
+    console.log("Disabling inputs and showing loading state...");
     // Disable search input
     this.searchInput.disabled = true;
     this.searchInput.classList.add("opacity-50", "cursor-not-allowed");
