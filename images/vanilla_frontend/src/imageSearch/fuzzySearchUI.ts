@@ -416,11 +416,9 @@ export class FuzzySearchUI {
     // Add current input to filters if not empty
     if (this.searchInput.value.trim()) {
       await this.handleAddFilter();
+    } else {
+      this.executeSearch();
     }
-
-    // Execute search with existing filters
-    // Do not need to call search. handleAddFilter will handle it.
-    // this.executeSearch();
   }
 
   private addFilter(attribute: string, value: string): void {
