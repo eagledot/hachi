@@ -52,9 +52,7 @@ class ImageSearchApp {
     
     // Initialize fuzzy search UI
     this.fuzzySearchUI = new FuzzySearchUI(fuzzyContainer, {
-      onSearchExecuted: (query, _filters) => this.handleSearch(query),
-      onFilterAdded: (attribute, value) => this.handleFilterAdded(attribute, value),
-      onFilterRemoved: (attribute, value) => this.handleFilterRemoved(attribute, value)
+      onSearchExecuted: (query) => this.handleSearch(query)
     });    // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
     this.uiService = new UIService('photo-grid-container');
 
@@ -70,52 +68,8 @@ class ImageSearchApp {
     this.init();
   }  private init(): void {
     console.log('ImageSearch app initialized');
-    
-    // Process URL parameters to initialize search state
-    this.processUrlParameters();
-  }
-  /**
-   * Process URL search parameters to initialize default search attributes
-   */
-  private processUrlParameters(): void {
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    // Check for various search parameters and add them as filters
-    const supportedAttributes = ['query', 'person', 'resource_directory', 'camera_make', 'camera_model', 'location'];
-    let hasFilters = false;
-    
-    supportedAttributes.forEach(attribute => {
-      const value = urlParams.get(attribute);
-      if (value) {
-        console.log(`Found URL parameter: ${attribute}=${value}`);
-        let processedValue = decodeURIComponent(value);
-        
-        // Fix path separators for resource_directory on Windows
-        if (attribute === 'resource_directory') {
-          processedValue = processedValue.replace(/\//g, '\\');
-        }
-        
-        this.fuzzySearchUI.addFilterExternal(attribute, processedValue);
-        hasFilters = true;
-      }
-    });
-    
-    // If we have filters from URL, execute search automatically
-    if (hasFilters) {
-      console.log('Executing search based on URL parameters');
-      this.fuzzySearchUI.executeSearchExternal();
-    }
   }
 
-  private handleFilterAdded(attribute: string, value: string): void {
-    console.log('Filter added:', attribute, value);
-    // Optional: Track filter changes for analytics or recent searches
-  }
-
-  private handleFilterRemoved(attribute: string, value: string): void {
-    console.log('Filter removed:', attribute, value);
-    // Optional: Track filter changes for analytics
-  }
   
   private setupEventListeners(): void {
     console.log('Setting up event listeners for ImageSearchApp');

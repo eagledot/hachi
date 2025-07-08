@@ -1,12 +1,10 @@
 // FuzzySearchUI
-import { FuzzySearchService, ATTRIBUTE_PATTERNS } from "./fuzzySearchService";
-import type { SearchFilter, SearchSuggestion } from "./fuzzySearchService";
+import { FuzzySearchService, type SearchFilter, type SearchSuggestion } from "./fuzzySearchService";
+
 import { html } from "../utils";
 
 export interface FuzzySearchCallbacks {
-  onSearchExecuted: (query: string, filters: SearchFilter) => void;
-  onFilterAdded: (attribute: string, value: string) => void;
-  onFilterRemoved: (attribute: string, value: string) => void;
+  onSearchExecuted: (query: string) => void;
 }
 
 export class FuzzySearchUI {
@@ -14,7 +12,6 @@ export class FuzzySearchUI {
   private fuzzySearchService: FuzzySearchService;
   private callbacks: FuzzySearchCallbacks;
   // UI Elements
-  private searchContainer!: HTMLElement;
   private filtersContainer!: HTMLElement;
   private inputContainer!: HTMLElement;
   private searchInput!: HTMLInputElement;
@@ -26,6 +23,16 @@ export class FuzzySearchUI {
   private showDropdown = false;
   private selectedIndex = -1;
   private hasSearched = false;
+
+  /**
+   * Initializes a new instance of the fuzzy search UI component.
+   *
+   * @param container - The HTML element that will contain the fuzzy search UI.
+   * @param callbacks - An object containing callback functions for fuzzy search events.
+   *
+   * Sets up the fuzzy search service, initializes filters, creates the UI, and attaches event listeners.
+   * Automatically focuses the search input when the component is initialized.
+   */
   constructor(container: HTMLElement, callbacks: FuzzySearchCallbacks) {
     this.container = container;
     this.callbacks = callbacks;
@@ -41,6 +48,12 @@ export class FuzzySearchUI {
     }, 0);
   }
 
+  /**
+   * Initializes the `selectedFilters` object by creating an empty array for each available attribute.
+   * This prepares the filter state for all attributes that can be used in the fuzzy search.
+   *
+   * @private
+   */
   private initializeFilters(): void {
     // Initialize filters for all available attributes
     const availableAttributes =
@@ -49,9 +62,10 @@ export class FuzzySearchUI {
       this.selectedFilters[attr] = [];
     });
   }
+
   private createUI(): void {
     this.container.innerHTML = html`
-      <div class="w-full max-w-5xl mx-auto p-2 sm:p-4 fuzzy-search-container">
+            <div class="w-full max-w-5xl mx-auto p-2 sm:p-4 fuzzy-search-container">
         <div class="w-full relative">
           <!-- Active Filters Display -->
           <div
@@ -100,25 +114,7 @@ export class FuzzySearchUI {
                     class="flex-1 h-full px-0 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal"
                   />
 
-                  <!-- Modern Clear Button -->
-                  <button
-                    id="clear-input-btn"
-                    class="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg mr-2 transition-all duration-200 hidden"
-                  >
-                    <svg
-                      class="w-3 sm:w-4 h-3 sm:h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M6 18L18 6M6 6l12 12"
-                      ></path>
-                    </svg>
-                  </button>
+                  
                 </div>
 
                 <!-- Modern Smart Dropdown -->
@@ -208,10 +204,8 @@ export class FuzzySearchUI {
           </div>
         </div>
       </div>
-    `; // Get references to elements
-    this.searchContainer = this.container.querySelector(
-      ".fuzzy-search-container"
-    ) as HTMLElement;
+    `;
+    
     this.filtersContainer = this.container.querySelector(
       "#filters-container"
     ) as HTMLElement;
@@ -232,28 +226,37 @@ export class FuzzySearchUI {
     ) as HTMLElement;
   }
 
+  /**
+   * Sets up all necessary event listeners for the fuzzy search UI component.
+   *
+   * This includes:
+   * - Handling input events on the search input (input, keydown, focus, blur).
+   * - Handling click events on the search and clear buttons.
+   * - Closing the dropdown when clicking outside the input container.
+   *
+   * @private
+   */
   private setupEventListeners(): void {
     // Search input events
     this.searchInput.addEventListener(
       "input",
       this.handleInputChange.bind(this)
     );
+
     this.searchInput.addEventListener("keydown", this.handleKeyDown.bind(this));
+
     this.searchInput.addEventListener(
       "focus",
       this.handleInputFocus.bind(this)
     );
+
     this.searchInput.addEventListener("blur", this.handleInputBlur.bind(this));
 
     // Search button
     this.searchButton.addEventListener(
       "click",
       this.handleSearchClick.bind(this)
-    ); // Clear input button
-    const clearBtn = this.container.querySelector(
-      "#clear-input-btn"
-    ) as HTMLButtonElement;
-    clearBtn.addEventListener("click", this.clearInput.bind(this));
+    );
 
     // Close dropdown when clicking outside
     document.addEventListener("click", (e) => {
@@ -268,16 +271,9 @@ export class FuzzySearchUI {
     const value = target.value;
     console.log("Input changed to:", value);
 
-    this.selectedIndex = -1; // Reset keyboard navigation
-    this.updateClearButton();
+    // TODO: Implement debounce or throttle if needed
 
-    // Hide search tips when user starts typing (if they haven't searched yet)
-    if (value.trim() && !this.hasSearched) {
-      this.hideSearchTips();
-    } else if (!value.trim() && !this.hasSearched) {
-      // Show tips again if input is cleared and no search has been done
-      this.showSearchTips();
-    }
+    this.selectedIndex = -1; // Reset keyboard navigation
 
     if (value.trim()) {
       // Generate suggestions for all attributes simultaneously
@@ -295,6 +291,8 @@ export class FuzzySearchUI {
       this.hideDropdown();
     }
   }
+
+
   private handleKeyDown(e: KeyboardEvent): void {
     if (this.showDropdown && this.suggestions.length > 0) {
       if (e.key === "ArrowDown") {
@@ -323,13 +321,9 @@ export class FuzzySearchUI {
           this.handleSuggestionClick(suggestion);
         } else {
           // No item selected, use default enter behavior
-          if (e.shiftKey) {
-            // Shift + Enter: Execute search immediately
-            this.handleSearchClick();
-          } else {
-            // Enter: Add current input as a search query
-            this.handleAddFilter();
-          }
+
+          // Enter: Add current input as a search query
+          this.handleAddFilter();
         }
       } else if (e.key === "Escape") {
         this.selectedIndex = -1;
@@ -340,13 +334,8 @@ export class FuzzySearchUI {
       // Handle keys when dropdown is not shown
       if (e.key === "Enter") {
         e.preventDefault();
-        if (e.shiftKey) {
-          // Shift + Enter: Execute search immediately
-          this.handleSearchClick();
-        } else {
-          // Enter: Add current input as a search query
-          this.handleAddFilter();
-        }
+        // Enter: Add current input as a search query
+        this.handleAddFilter();
       }
     }
   }
@@ -391,36 +380,36 @@ export class FuzzySearchUI {
       this.searchInput.value = "";
       this.suggestions = [];
       this.hideDropdown();
-      this.updateClearButton();
 
       // Execute search immediately for consistency with other actions
       this.executeSearch();
     }
   }
+
+
+
   private async handleSuggestionClick(
     suggestion: SearchSuggestion
   ): Promise<void> {
-    console.log("Suggestion clicked:", suggestion);
     // Add the suggestion as a filter
     this.addFilter(suggestion.attribute, suggestion.text);
     // Clear input but keep attribute selected
     this.searchInput.value = "";
     this.suggestions = [];
     this.hideDropdown();
-    this.updateClearButton();
 
     // Execute search immediately
     this.executeSearch();
   }
+
+
   private async handleSearchClick(): Promise<void> {
     // Add current input to filters if not empty
     if (this.searchInput.value.trim()) {
       await this.handleAddFilter();
+    } else {
+      this.executeSearch();
     }
-
-    // Execute search with existing filters
-    // Do not need to call search. handleAddFilter will handle it.
-    // this.executeSearch();
   }
 
   private addFilter(attribute: string, value: string): void {
@@ -436,7 +425,6 @@ export class FuzzySearchUI {
         this.selectedFilters[attribute].push(value);
       }
       this.renderFilters();
-      this.callbacks.onFilterAdded(attribute, value);
     }
   }
   
@@ -446,7 +434,6 @@ export class FuzzySearchUI {
         (v) => v !== value
       );
       this.renderFilters();
-      this.callbacks.onFilterRemoved(attribute, value);
 
       // Check if we have any filters left
       const hasAnyFilters = Object.keys(this.selectedFilters).some(
@@ -457,31 +444,11 @@ export class FuzzySearchUI {
       // Also check if there's any search input
       const hasSearchInput = this.searchInput.value.trim().length > 0;
 
-      console.log(`Filter removed: ${attribute}=${value}`);
-      console.log(
-        `hasAnyFilters: ${hasAnyFilters}, hasSearchInput: ${hasSearchInput}`
-      );
-      console.log("Current filters:", this.selectedFilters);
-
       if (hasAnyFilters || hasSearchInput) {
         // Trigger a fresh search with remaining filters/input
-        console.log("Triggering fresh search with remaining filters/input");
         this.executeSearch();
       }
     }
-  }
-  private clearInput(): void {
-    this.searchInput.value = "";
-    this.suggestions = [];
-    this.hideDropdown();
-    this.updateClearButton();
-
-    // Show search tips when input is cleared (if no search has been done)
-    if (!this.hasSearched) {
-      this.showSearchTips();
-    }
-
-    this.searchInput.focus();
   }
 
   private executeSearch(): void {
@@ -496,7 +463,7 @@ export class FuzzySearchUI {
       this.hideSearchTips();
     }
 
-    this.callbacks.onSearchExecuted(queryString, this.selectedFilters);
+    this.callbacks.onSearchExecuted(queryString);
   }
 
   private renderFilters(): void {
@@ -539,6 +506,8 @@ export class FuzzySearchUI {
       });
     });
   }
+
+
   private renderDropdown(): void {
     if (!this.showDropdown) {
       this.hideDropdown();
@@ -649,6 +618,8 @@ export class FuzzySearchUI {
 
     this.dropdown.classList.remove("hidden");
   }
+
+
   private updateDropdownSelection(): void {
     const options = this.dropdown.querySelectorAll(
       ".suggestion-option"
@@ -670,117 +641,18 @@ export class FuzzySearchUI {
     this.showDropdown = false;
     this.dropdown.classList.add("hidden");
   }
-  private updateAttributeIndicator(): void {
-    // This method is no longer needed since we removed attribute selection
-    // Keeping it empty for backwards compatibility
-  }
-  private updateClearButton(): void {
-    const clearBtn = this.container.querySelector(
-      "#clear-input-btn"
-    ) as HTMLElement;
-    if (this.searchInput.value) {
-      clearBtn.classList.remove("hidden");
-      clearBtn.classList.add("flex");
-    } else {
-      clearBtn.classList.add("hidden");
-      clearBtn.classList.remove("flex");
-    }
-  }
+
   public cleanup(): void {
     this.fuzzySearchService.cleanup();
   }
 
-  public getSearchQuery(): string {
-    return this.searchInput.value.trim();
-  }
 
-  public getCurrentFilters(): SearchFilter {
-    return { ...this.selectedFilters };
-  }
   public clearAllFilters(): void {
     this.selectedFilters = {};
     this.fuzzySearchService.getAvailableAttributes().forEach((attr) => {
       this.selectedFilters[attr] = [];
     });
     this.renderFilters();
-  }
-
-  /**
-   * Get debug information about current state
-   */
-  public getDebugInfo(): object {
-    return {
-      hasFilters: Object.keys(this.selectedFilters).some(
-        (key) =>
-          this.selectedFilters[key] && this.selectedFilters[key].length > 0
-      ),
-      hasSearchInput: this.searchInput?.value?.trim().length > 0,
-      searchInputValue: this.searchInput?.value || "",
-      filters: { ...this.selectedFilters },
-      suggestionsCount: this.suggestions.length,
-      dropdownVisible: this.showDropdown,
-      callbacksAvailable: {
-        onSearchExecuted: !!this.callbacks.onSearchExecuted,
-      },
-    };
-  }
-
-  /**
-   * Force clear everything and return to clean slate
-   */
-  public forceCleanSlate(): void {
-    console.log("Force clearing to clean slate");
-
-    // Clear input
-    this.searchInput.value = "";
-    this.updateClearButton();
-
-    // Clear suggestions and dropdown
-    this.suggestions = [];
-    this.hideDropdown();
-
-    // Clear all filters
-    this.selectedFilters = {};
-    this.fuzzySearchService.getAvailableAttributes().forEach((attr) => {
-      this.selectedFilters[attr] = [];
-    });
-    this.renderFilters();
-  }
-
-  /**
-   * Initialize the component in clean slate mode (empty state)
-   * Call this after construction if you want to ensure clean slate state
-   */
-  public initializeCleanSlate(): void {
-    // Clear any existing state
-    this.clearAllFilters();
-    this.clearInput();
-  }
-
-  /**
-   * Check if the search is in clean slate state (no filters applied and no search input)
-   */
-  public isCleanSlate(): boolean {
-    const hasFilters = Object.keys(this.selectedFilters).some(
-      (key) => this.selectedFilters[key] && this.selectedFilters[key].length > 0
-    );
-    const hasSearchInput = this.searchInput?.value?.trim().length > 0;
-
-    return !hasFilters && !hasSearchInput;
-  }
-
-  /**
-   * Public method to add a filter programmatically
-   */
-  public addFilterExternal(attribute: string, value: string): void {
-    this.addFilter(attribute, value);
-  }
-
-  /**
-   * Public method to execute search programmatically
-   */
-  public executeSearchExternal(): void {
-    this.executeSearch();
   }
 
   private hideSearchTips(): void {
@@ -816,15 +688,6 @@ export class FuzzySearchUI {
     // Hide dropdown
     this.hideDropdown();
 
-    // Disable clear button
-    const clearBtn = this.container.querySelector(
-      "#clear-input-btn"
-    ) as HTMLButtonElement;
-    if (clearBtn) {
-      clearBtn.disabled = true;
-      clearBtn.classList.add("opacity-50", "cursor-not-allowed");
-    }
-
     // Disable all filter remove buttons
     const removeButtons = this.filtersContainer.querySelectorAll(
       ".remove-filter-btn"
@@ -853,15 +716,6 @@ export class FuzzySearchUI {
       buttonText.textContent = "Search";
     }
 
-    // Enable clear button
-    const clearBtn = this.container.querySelector(
-      "#clear-input-btn"
-    ) as HTMLButtonElement;
-    if (clearBtn) {
-      clearBtn.disabled = false;
-      clearBtn.classList.remove("opacity-50", "cursor-not-allowed");
-    }
-
     // Enable all filter remove buttons
     const removeButtons = this.filtersContainer.querySelectorAll(
       ".remove-filter-btn"
@@ -870,12 +724,5 @@ export class FuzzySearchUI {
       btn.disabled = false;
       btn.classList.remove("opacity-50", "cursor-not-allowed");
     });
-  }
-
-  /**
-   * Check if inputs are currently disabled
-   */
-  public areInputsDisabled(): boolean {
-    return this.searchInput.disabled;
   }
 }
