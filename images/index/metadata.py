@@ -327,8 +327,8 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes:
 def flatten_the_metadata(meta_data:ImageMetaAttributes) -> dict:
     # -----------------------------------------------------------------------
     # flatten the dictionary to be directly consumed when updating meta-data!
-    flatten_dict = {} # TODO: extend the base class to not have duplicates, make sure data being entered confirms to type !
-    temp_set = set()
+    flatten_dict = {}
+    temp_set = set() # Duplicate/same key from same or different type of Attributes, are not allowed!
 
     # Only at-max a single level of dict nesting is expected!
     for parent_key, parent_v in meta_data.items():
