@@ -30,6 +30,11 @@
 import std/json # may be use jsony
 import strutils
 import std/tables
+import os
+
+
+import jsony
+
 
 ######################################################
 # compatible to nim string.(for most of use cases.) terminated by zero/null, sequence of bytes.. len gives us the number of bytes, not UNICODE points or any encoding for that matter.
@@ -75,7 +80,7 @@ import std/tables
 # Columns for our database/table
 ########################################
 type
-  colType* = enum
+  ColType* = enum
     colString
     colInt32      # to handle int values..
     colFloat32    # to handle float values..
@@ -122,7 +127,7 @@ type
     # i.e we may not want to lock the the whole metaIndex when writing to a single column is done right! 
     # but have to figure out a lot of things/theory.. just here to remind me!
     # not writing a production database or something.. but yeah can choose to experiments like keeping a big column on disk on-demand and stuff like that!
-    kind*:colType
+    kind*:ColType
     
     # allocate enough memory for payload during metaIndex initialization!
     payload:pointer = nil  # packed array of int32/MyString/float32. (condition on the type field, we can know which) and using size to know the number of values/elements. 
@@ -165,17 +170,48 @@ proc checkAlias[T](c:Column):Table[Natural, T]{.inline.}=
       result[key] = value        # we keep overwriting, as latest version would be in the last for each key!
   return result
 
-proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = "|", latest_version:bool = true):JsonNode =
+# Type to help serialize a column into Json encoding!
+type
+  ColJson = tuple
+    kind:ColType
+    data_json:string        # all data in json-encoded string
+
+proc toJson(
+    c:Column, 
+    row_end:Natural, 
+    row_start:Natural = 0, 
+    splitter:string = "|", 
+    latest_version:bool = true
+    # ):JsonNode =
+    ):ColJson =   # directly return as json encoded string..
+
   # JArray
   # assuming that it would be easier to print a JsonNode.
 
   # ignore split, splitter only to be used to strings.. making it a bit easier to return expected array of strings...
   # otherwise have to do it more place too..
 
+  # so if not split, in the first place.. then what..
+  # just just "a|b|c|d" stuff like that..
+  # user can do the splitting where it sees fit..  right..
+  # this means we allow user to pass an array of strings, 
+  # but may return a single string, when asked.. user can do so for specific stirng..
+  # we DO support search for `query` as if an array of strings..
+  # but during returning bulk data.. it may be better to let use do splitting..
+  # as much rarer ... i guess. than to put load for each query.. for something..
+  # in case of python.. it may take a longer time right..
+  # we will take a look at that..
+  # 
 
-  result = JsonNode(kind:JArray)
+
+
+  # result = JsonNode(kind:JArray)
+  # NOTE: for now we don't split the `colArrayString` using splitter!
+  result.kind = c.kind  # we can use this to further make decisions, to split, while consuming in a process or transformation!
 
   if c.kind == colString  or c.kind == colArrayString:
+    var result_container = newSeq[string](row_end - row_start)
+    
     let alias_table = checkAlias[string](c)
     let temp = cast[ptr UncheckedArray[string]](c.payload)
     for i in row_start..<row_end:
@@ -185,17 +221,23 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
         if alias_table.hasKey(i):
           value = alias_table[i]
 
-      if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
-        # it means... it was an array when stored.
-        var temp_node = JsonNode(kind:JArray)        
-        for v_s in value.split(splitter):
-          if len(v_s) > 0:
-            temp_node.add(JsonNode(kind:Jstring, str:v_s))
-        result.add(temp_node)
-      else:
-        result.add(JsonNode(kind:JString, str:value))
+      # if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
+      #   # it means... it was an array when stored.
+      #   var temp_node = JsonNode(kind:JArray)        
+      #   for v_s in value.split(splitter):
+      #     if len(v_s) > 0:
+      #       temp_node.add(JsonNode(kind:Jstring, str:v_s))
+      #   result.add(temp_node)
+      # else:
+      #   result.add(JsonNode(kind:JString, str:value))
+
+      # NOTE: For now we are not splitting it!
+      result_container[i] = value   # for now we are not splitting it!
+    
+    result.data_json = result_container.toJson()
       
   elif c.kind == colInt32:
+    var result_container = newSeq[int32](row_end - row_start)
     let alias_table = checkAlias[int32](c)
     let temp = cast[ptr UncheckedArray[int32]](c.payload)
     for i in row_start..<row_end:
@@ -203,9 +245,12 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
       if latest_version:
         if alias_table.hasKey(i):
           value = alias_table[i]
-      result.elems.add(JsonNode(kind:JInt, num:BiggestInt(value)))
+      # result.elems.add(JsonNode(kind:JInt, num:BiggestInt(value)))
+      result_container[i] = value
+    result.data_json = result_container.toJson()
 
   elif c.kind == colBool:
+    var result_container = newSeq[bool](row_end - row_start)
     let alias_table = checkAlias[bool](c)
     let temp = cast[ptr UncheckedArray[bool]](c.payload)
     for i in row_start..<row_end:
@@ -215,9 +260,12 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
         if alias_table.hasKey(i):
           value = alias_table[i]
       
-      result.elems.add(JsonNode(kind:JBool, bval:bool(value)))
-  
+      # result.elems.add(JsonNode(kind:JBool, bval:bool(value)))
+      result_container[i] = value
+    result.data_json = result_container.toJson()
+      
   elif c.kind == colFloat32:
+    var result_container = newSeq[float32](row_end - row_start)
     let alias_table = checkAlias[float32](c)
     let temp = cast[ptr UncheckedArray[float32]](c.payload)
     for i in row_start..<row_end:
@@ -227,10 +275,14 @@ proc toJson(c:Column, row_end:Natural, row_start:Natural = 0, splitter:string = 
         if alias_table.hasKey(i):
           value = alias_table[i]
         
-      result.elems.add(JsonNode(kind:JFloat, fnum:value))
-
+      # result.elems.add(JsonNode(kind:JFloat, fnum:value))
+      result_container[i] = value
+    result.data_json = result_container.toJson()
+    
   else:
     doAssert 1 == 0, "not expected" & $c.kind
+
+  return result
 
   # if c.aliased == true and latest_version == false:
     
@@ -580,10 +632,10 @@ proc `=copy`(a:var MetaIndex, b:MetaIndex) {.error.}
 
 const reserved_literals = ["dbName", "dbCapacity", "dbRowPointer", "alias"]
 
-proc init*(name:string, column_labels:varargs[string], column_types:varargs[colType], capacity:Natural = 1_000, rowPointer:Natural = 0):MetaIndex=
+proc init*(name:string, column_labels:varargs[string], column_types:varargs[ColType], capacity:Natural = 1_000, rowPointer:Natural = 0):MetaIndex=
   # initialize the metaIndex based on the labels/column-names.
   # column_types: corresponding type for data being stored in each column.
-  # note of python, we would create a  mapping from string to colType.
+  # note of python, we would create a  mapping from string to ColType.
   # in the end it becomes the problem of correct syncing .. if i update at one place ?
 
   # TODO: a mapping from the label to the index in the columns sequence.
@@ -597,7 +649,7 @@ proc init*(name:string, column_labels:varargs[string], column_types:varargs[colT
     let column_type = column_types[i]
     doAssert not (column_label in reserved_literals), $column_label & "is reserved. Use a different label/identifier for column!"
 
-    if column_type ==  colString:
+    if column_type ==  colString or column_type == colArrayString:
 
         var column = new ColumnObj
         column.kind = colString
@@ -669,6 +721,8 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, 
   # NOTE: also supports flattened array of strings. Concatenated  into a single string using a separator like | and splitted into (original) strings, when collecting .
   # multiple strings allowed helps in one to many modelling situations like say multiple artists for a song (where song is a document/resource). 
 
+  # TODO: instead use the colKind to be supplied to this routine..
+
   if data_t.kind == JInt:
     c_t.add_int32(row_idx = row_idx_t, getInt(data_t).int32, aliasing = aliasing_t)
   elif data_t.kind == JString:
@@ -695,7 +749,7 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, 
       for json_data in data_t[1..<len(data_t)]:
         doAssert json_data.kind == JString
         let data_str = getStr(json_data)
-        doAssert not data_str.contains(concatenator_t)
+        doAssert not data_str.contains(concatenator_t), "| is a reserved char to separate b/w elements of a list when stored as a single string.."
         final_string = final_string & concatenator_t  & data_str
       final_string = final_string & concatenator_t    # so that we can always know that it was an array even a single element and can send array back.
       
@@ -764,8 +818,9 @@ proc set_immutable()=
 proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
   result = JsonNode(kind:JObject)
   let limit = min(m.dbRowPointer, count)
-  for c in m.columns:
-    result[c.label] = c.toJson(row_end = limit)
+  for c in m.columns: 
+    let (c_kind, raw_json) = c.toJson(row_end = limit)
+    result[c.label] = raw_json.fromJson(JsonNode)
   return result
 
 proc `$`*(m:MetaIndex, count:Natural = 10):string=
@@ -830,33 +885,115 @@ proc query*(m:MetaIndex, attribute_value:JsonNode, exact_string:bool = false, to
 # it is on user to do OR AND operations.. once done.. use a set of indices to collect the rows...
 # optionally can specify the labels to collect a subset of rows.n
 
-proc collect_rows*(m:MetaIndex, indices:varargs[Natural], latest_version:bool = true):JsonNode=
-  # latest version is useful in case we want to collect the original data rather than latest version.
-  # Note we can match against the latest version during query but still want to collect the original vesion.
-  # for example face clusters are supposed to be indexed using original ids.
-  # but user searched for new tag say `sam`, in this case we can query to get relevant row indices, but actual data we may want is original.
+
+# proc collect_rows*(m:MetaIndex, indices:varargs[Natural], latest_version:bool = true):JsonNode=
+#   # latest version is useful in case we want to collect the original data rather than latest version.
+#   # Note we can match against the latest version during query but still want to collect the original vesion.
+#   # for example face clusters are supposed to be indexed using original ids.
+#   # but user searched for new tag say `sam`, in this case we can query to get relevant row indices, but actual data we may want is original.
   
-  # somehow find the desired indices/rows and then pass these to this routine to return an array.
-  result = JsonNode(kind:JArray)
-  for idx in indices:
-    assert idx < m.dbRowPointer
-    var result_temp = JsonNode(kind:JObject)
-    for c in m.columns:
-      # we use c.toJson to extract one row only ! (so don't have to write multiple implementations!)
-      if c.kind == colString:
-        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, splitter = m.stringConcatenator, latest_version = latest_version))[0]
-      else:
-        result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, latest_version = latest_version))[0]
-    result.add(result_temp)
-  return result
+
+#   # i think it is better to collect raw-data/original type..
+#   # then how we are supposed to pass to python..
+#   # we are inheriting this extra cost .. first json encoding..
+#   # then json decoding in python..
+#   # first try to make encoding faster.. at least..
+
+#   # how..
+#   # since we know the type for each column..
+#   # 
+
+#   # def collect rows.
+#   # 4 columns.
+#   # c_1,c_2, c_3,c_4.
+#   # row[0] = [c_1[0], c_2[0], c_3[0], c_4[0]]
+#   # let python do the split..
+
+
+
+
+#   # somehow find the desired indices/rows and then pass these to this routine to return an array.
+#   result = JsonNode(kind:JArray)
+#   for idx in indices:
+#     assert idx < m.dbRowPointer
+#     var result_temp = JsonNode(kind:JObject)
+#     for c in m.columns:
+#       # we use c.toJson to extract one row only ! (so don't have to write multiple implementations!)
+#       if c.kind == colString:
+#         result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, splitter = m.stringConcatenator, latest_version = latest_version))[0]
+#       else:
+#         result_temp[c.label] = (c.toJson(row_start = idx, row_end = idx + 1, latest_version = latest_version))[0]
+#     result.add(result_temp)
+#   return result
+
+type
+  MetaJson = tuple
+    dbRowPointer:Natural
+    dbName:string
+    dbCapacity:Natural
+
+proc save_test*(
+  m:MetaIndex,
+  save_dir:string    # Directory to save .json info to.
+  ):Natural =
+  
+  assert dirExists(save_dir)
+  for c in m.columns:
+    # save each column meta-data separately!
+    let info:ColJson = c.toJson(row_end = m.dbRowPointer)
+    
+    # TODO: also alias data...
+
+    let path = os.joinPath(save_dir, m.dbName & "_" & c.label & ".json")
+    var f = open(path, fmWrite)
+    f.write(jsony.toJson(info)) 
+    f.close()
+
+  # save necessary meta-data too.
+  var other_meta:MetaJson
+  other_meta.dbCapacity = m.dbCapacity
+  other_meta.dbRowPointer = m.dbRowPointer
+  other_meta.dbName = m.dbName
+  
+  let path = os.joinPath(save_dir,m.dbName & "_" & "meta_data.json")
+  var f = open(path, fmWrite)
+  f.write(jsony.toJson(other_meta))
+  f.close()
+
+  return 1
+
+
+
+proc load_test(
+  name:string,
+  load_dir:string
+)=
+  # during load, we should be able to populate column, right..
+
+  # but how..
+  # by reading the colData directly..
+  assert os.dirExists(load_dir)
+
+  # load base meta-data.
+  var path = os.joinPath(load_dir,name & "_" & "meta_data.json")
+  var f = open(path, fmRead)
+  var json_data = f.readAll()
+  f.close()
+  var base_meta:MetaJson = jsony.fromJson(json_data, MetaJson)
+  echo "[GOT IT]: ", base_meta
+
 
 proc save*(m:MetaIndex, path:string)=
 
   # this contains all columns.. json data.
   let json_schema = JsonNode(kind:JObject)
   for c in m.columns:
-    json_schema[c.label] = c.toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator,  latest_version = false)
-  
+    # json_schema[c.label] = c.toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator,  latest_version = false)
+
+    let (col_kind, raw_json) = c.toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator,  latest_version = false)
+    json_schema[c.label] = raw_json.fromJson(JsonNode)
+    echo $col_kind
+
   ##########################################################
   # saving aliasing data tooo
   # alias object would be the last element for already stored data if column is aliased
@@ -880,12 +1017,14 @@ proc save*(m:MetaIndex, path:string)=
           let payload_data = cast[ptr UncheckedArray[string]](c.alias.payload)
           let value = payload_data[i]
           if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
-            # it means... it was an array when stored.
-            var temp_node = JsonNode(kind:JArray)        
-            for v_s in value.split(splitter):
-              if len(v_s) > 0:
-                temp_node.add(JsonNode(kind:Jstring, str:v_s))
-            row_data_node.add(temp_node)
+            # # it means... it was an array when stored.
+            # var temp_node = JsonNode(kind:JArray)        
+            # for v_s in value.split(splitter):
+            #   if len(v_s) > 0:
+            #     temp_node.add(JsonNode(kind:Jstring, str:v_s))
+            # row_data_node.add(temp_node)
+            
+            discard
           else:
             row_data_node.add(JsonNode(kind:JString, str:value))
 
@@ -945,9 +1084,13 @@ proc load*(path:string):MetaIndex=
   # TODO: assuming one to one dependence with from json kind to colkind..
   # we predict the colKind.. later can be more verbose/rigid.
   var column_labels:seq[string]
-  var column_types:seq[colType]
+  var column_types:seq[ColType]
   for k, column_json in json_schema:
     column_labels.add(k)
+
+    # here get the ColType given each label
+    #let col_type = getcoltype(k)
+
 
 
     doAssert column_json.kind == JArray, "each column is supposed to be an array of type str/int/float/bool"
@@ -962,7 +1105,7 @@ proc load*(path:string):MetaIndex=
       column_types.add(colBool)
     elif column_json[0].kind == JArray:
       # for now only array of strings is allowed!
-      column_types.add(colString)
+      column_types.add(colArrayString)
     else:
       doAssert 1 == 0, "unexpected type: "  & $column_json.kind & " for " & $k
   
@@ -1014,7 +1157,9 @@ proc get_all*(m:MetaIndex, label:string, flatten:bool = false):JsonNode=
   # an array of string/float32/bool/int32
   # may not be unique, more like flattened.. even if an array was provided for a row, like name = ["sam","ra"] .
   # return all possible values for a label... have to remove duplicates by user !
-  result = m[label].toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator)
+  let (col_kind, raw_json) = m[label].toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator)
+  result = raw_json.fromJson(JsonNode)
+
   if flatten:
     var temp = JsonNode(kind:JArray)
     for elem in result:
@@ -1062,15 +1207,33 @@ when isMainModule:
   j2["details"] = %* {"age":35, "pi":3.1415}
 
 
-  var j3 = %* {"name":"nain", "age":30}
-  var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colString])
+  var j3 = %* {"name": ["nain"], "age":30}
+  var m = init(name = "test", column_labels = ["age", "name"], column_types = [colInt32, colArrayString])
   
 
 
   # adding some data/rows.
   m.add_row(column_data = j3)
-  m.add_row(column_data = %* {"name":"nain", "age":21})
+  # m.add_row(column_data = %* {"name":"nain", "age":21})
+  m.add_row(column_data = %* {"name":["tyson" , "samy"], "age":40})
+  # m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
   echo m   # good enough for a preview !
+
+  m.save("./test_meta_save.json")
+  echo m.save_test(
+    save_dir = "."
+  )
+
+  load_test(
+    name = "test",
+    load_dir = "."
+  )
+
+  # var m2 = load("./test_meta_save.json")
+  # echo m2
+
+  # var m2 = load("./test_meta_save.json")
+  # echo m2.toJson()
 
   # then check if query is working
   # echo m.query_string(attribute = "name", query = "baf")
@@ -1078,7 +1241,7 @@ when isMainModule:
 
   
   # collect some rows, 
-  echo m.collect_rows(indices = [Natural(1)])
+  # echo m.collect_rows(indices = [Natural(1)])
 
   # modification
   #proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode)=
@@ -1086,28 +1249,28 @@ when isMainModule:
   # m.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
   # m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
 
-  echo m.collect_rows(indices = [Natural(1)])
-  echo m.toJson()
-  echo m["name"].kind
-  m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
-  echo m["name"].kind
-  # save
-  m.save("./test_meta_save.json")
-  echo m
+  # echo m.collect_rows(indices = [Natural(1)])
+  # echo m.toJson()
+  # echo m["name"].kind
+  # m.modify_row(row_idx = 1, meta_data = %* {"name":["tyson" , "samy"]})
+  # echo m["name"].kind
+  # # save
+  # m.save("./test_meta_save.json")
+  # echo m
 
-  var m2 = load("./test_meta_save.json")
-  echo m2.toJson()
-  echo m2
-  echo m
-
-  m2.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
-  # echo m2
+  # var m2 = load("./test_meta_save.json")
   # echo m2.toJson()
-  m2.modify_row(row_idx = 1, meta_data = %* {"name":"iownyou"}, force = true)
-  echo m2.toJson()
-  m2.save("./test_meta_save.json")
+  # echo m2
+  # echo m
+
+  # m2.modify_row(row_idx = 1, meta_data = %* {"name":"malcom"})
+  # # echo m2
+  # # echo m2.toJson()
+  # m2.modify_row(row_idx = 1, meta_data = %* {"name":"iownyou"}, force = true)
+  # echo m2.toJson()
+  # m2.save("./test_meta_save.json")
   
-  echo m2
+  # echo m2
 
 
 
@@ -1131,3 +1294,26 @@ when isMainModule:
   # let serial_json = $m.toJson()
   # echo typeof(serial_json)
   # echo parseJson(serial_json)
+
+
+# have to save schema more clearly..
+# but how..
+# have to save, columnType too...
+# so as to know.. what to expect.
+
+# MetaIndexMeta
+# labels:seq[string]
+# columnTypes: seq[ColType]
+# then to save each column right..
+
+# proc save
+# save meta-data like dbRowPointer.
+# plus some columnnMetadata like kind..
+# save each column separ
+
+# kind..
+# and then data..
+# prefix  + label.json
+
+
+# load
