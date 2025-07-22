@@ -128,8 +128,8 @@ type
     label*:string
 
     # alias
-    aliased:bool = false   # this we can use to condition on if we need to search alias version too..
-    alias:ColumnAlias
+    # aliased:bool = false   # this we can use to condition on if we need to search alias version too..
+    # alias:ColumnAlias
 
 
 proc `=copy`(a:var ColumnObj, b:ColumnObj) {.error.}
@@ -138,7 +138,7 @@ proc `=sink`(a:var ColumnObj, b:ColumnObj) {.error.}
 proc `=destroy`(c:var ColumnObj)=
   echo "[WARNING] XXXXXXXX find a way to add row count in column object, not freeeing GC memory!!!"
   
-  reset(c.alias)
+  # reset(c.alias)
   if not isNil(c.payload):
     if c.kind == colString:
       # deallocate GC allocate strings too..
@@ -179,13 +179,13 @@ proc `[]=`[T:AllowedColumnTypes](c:Column, idx:Natural, data:T)=
     doAssert c.kind == colBool
     cast[ptr UncheckedArray[T]](c.payload)[idx] = data 
 
-proc checkAlias[T](c:Column):Table[Natural, T]{.inline.}=
-  if c.aliased:  
-    for ix in 0..<c.alias.counter:
-      let key = c.alias.row_indices[ix]
-      let value = cast[ptr UncheckedArray[T]](c.alias.payload)[ix]
-      result[key] = value        # we keep overwriting, as latest version would be in the last for each key!
-  return result
+# proc checkAlias[T](c:Column):Table[Natural, T]{.inline.}=
+#   if c.aliased:  
+#     for ix in 0..<c.alias.counter:
+#       let key = c.alias.row_indices[ix]
+#       let value = cast[ptr UncheckedArray[T]](c.alias.payload)[ix]
+#       result[key] = value        # we keep overwriting, as latest version would be in the last for each key!
+#   return result
 
 # Type to help serialize a column into Json encoding!
 type
@@ -254,47 +254,48 @@ proc toJson(
   return result
 
 template aliasImpl(c_t:var Column, row_idx_t:Natural, data_t:typed, type_t:typedesc)=
-  # i think it can model any number of versions/revisions.. since we are always appending.
-  # we can then scan and find the row indices if repeated more than it represents different versions..
-  let temp_payload = c_t.alias.payload
-  if isNil(temp_payload):
-    # initializing alias..
-    let capacity = 1000
-    c_t.alias.payload = alloc0(capacity * sizeof(type_t))
-    c_t.alias.row_indices = cast[ptr UncheckedArray[Natural]](alloc0(capacity * sizeof(Natural)))
-    c_t.alias.counter = 0
-    c_t.alias.capacity = capacity
-  else:
-    assert c_t.aliased == true, "expected this to be true..."
-    if c_t.alias.counter >= c_t.alias.capacity:
-      let old_capacity = c_t.alias.capacity
+  discard
+#   # i think it can model any number of versions/revisions.. since we are always appending.
+#   # we can then scan and find the row indices if repeated more than it represents different versions..
+#   let temp_payload = c_t.alias.payload
+#   if isNil(temp_payload):
+#     # initializing alias..
+#     let capacity = 1000
+#     c_t.alias.payload = alloc0(capacity * sizeof(type_t))
+#     c_t.alias.row_indices = cast[ptr UncheckedArray[Natural]](alloc0(capacity * sizeof(Natural)))
+#     c_t.alias.counter = 0
+#     c_t.alias.capacity = capacity
+#   else:
+#     assert c_t.aliased == true, "expected this to be true..."
+#     if c_t.alias.counter >= c_t.alias.capacity:
+#       let old_capacity = c_t.alias.capacity
 
-      # reallocation of resources...
-      let new_capacity = old_capacity * 2
-      let temp = alloc0(new_capacity * sizeof(type_t))
-      copyMem(temp, temp_payload, old_capacity*sizeof(type_t)) # realloc.
-      dealloc(temp_payload) # free resources.
+#       # reallocation of resources...
+#       let new_capacity = old_capacity * 2
+#       let temp = alloc0(new_capacity * sizeof(type_t))
+#       copyMem(temp, temp_payload, old_capacity*sizeof(type_t)) # realloc.
+#       dealloc(temp_payload) # free resources.
 
-      let temp_new = alloc0(new_capacity * sizeof(Natural))
-      copyMem(temp_new, c_t.alias.row_indices, old_capacity*sizeof(Natural))
-      dealloc(c_t.alias.row_indices) # free resources.. , TODO: (be sure.. idon't remember full flow now!), earlier i think `temp_new` was being deallocated by mistake!
+#       let temp_new = alloc0(new_capacity * sizeof(Natural))
+#       copyMem(temp_new, c_t.alias.row_indices, old_capacity*sizeof(Natural))
+#       dealloc(c_t.alias.row_indices) # free resources.. , TODO: (be sure.. idon't remember full flow now!), earlier i think `temp_new` was being deallocated by mistake!
       
-      # update
-      c_t.alias.row_indices = cast[ptr UncheckedArray[Natural]](temp_new) # TODO: be sure, it was not there before!!
-      c_t.alias.payload = temp
-      c_t.alias.capacity = new_capacity
+#       # update
+#       c_t.alias.row_indices = cast[ptr UncheckedArray[Natural]](temp_new) # TODO: be sure, it was not there before!!
+#       c_t.alias.payload = temp
+#       c_t.alias.capacity = new_capacity
 
-  # add alias for provided row_idx..
-  # we update both the new data, and corresponding row for which this data is being aliased to..
-  let counter = c_t.alias.counter
-  let arr = cast[ptr UncheckedArray[type_t]](c_t.alias.payload)
+#   # add alias for provided row_idx..
+#   # we update both the new data, and corresponding row for which this data is being aliased to..
+#   let counter = c_t.alias.counter
+#   let arr = cast[ptr UncheckedArray[type_t]](c_t.alias.payload)
 
-  arr[counter] = data_t
+#   arr[counter] = data_t
 
 
-  c_t.alias.row_indices[counter] = row_idx_t  # add which 
-  inc c_t.alias.counter
-  c_t.aliased = true
+#   c_t.alias.row_indices[counter] = row_idx_t  # add which 
+#   inc c_t.alias.counter
+#   c_t.aliased = true
     
 proc add_int32(c:var Column, row_idx:Natural, data:int32, aliasing:bool = false)=
 
@@ -372,18 +373,12 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
 #############################################################
 template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, boundary_t, top_k_t:Natural, type_t:typedesc):Natural=
   
-  let alias_table = checkAlias[type_t](c_t)
   var count = 0
   let arr = cast[ptr UncheckedArray[type_t]](c_t.payload)
   for row_idx in 0..<boundary_t:
-    if alias_table.hasKey(row_idx):
-      if query_t == alias_table[row_idx]:
-        result_t[count] = row_idx
-        count += 1
-    else:
-      if arr[row_idx] == query_t:
-        result_t[count] = row_idx
-        count += 1
+    if arr[row_idx] == query_t:
+      result_t[count] = row_idx
+      count += 1
     
     if count == top_k:
       break 
@@ -404,7 +399,6 @@ uniqueOnly_t:bool = false):Natural =
 
   doAssert c_t.kind == colString or c_t.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
 
-  let alias_table = checkAlias[string](c_t)
   var count = 0
   let arr = cast[ptr UncheckedArray[string]](c_t.payload)
 
@@ -413,62 +407,39 @@ uniqueOnly_t:bool = false):Natural =
   var unique_count = 0 # search up to that count..
 
   for row_idx in 0..<boundary_t:
+    let current_item = arr[row_idx]
+    if exact_string_t == true:
 
-    # we search either in alias data or original data . i.e always latest version data..
-    if alias_table.hasKey(row_idx):
-      if exact_string_t == true:
-        
-        # call split...only if have an idea that array of strings was supplied to it during some addition/modification.
-        if c_t.kind == colArrayString:
-          for stored in alias_table[row_idx].split(splitter_t):
-            if stored == query_t:
-              result_t[count] = row_idx
-              count += 1
-              break
-        else:
-          if alias_table[row_idx] == query_t:
-              result_t[count] = row_idx
-              count += 1
-
-      else:
-        if alias_table[row_idx].contains(query_t): # we just match substring, doesn't care other values stored like <xxx>|<yyy> for <xxx>
-          # echo "matching " & $query_t & "  in " & alias_table[row_idx]
+      # using this ..we know that no splitter in any of strings.! 
+      if c_t.kind != colArrayString:
+        if current_item == query_t:
           result_t[count] = row_idx
           count += 1
-    else:
-      let current_item = arr[row_idx]
-      if exact_string_t == true:
-
-        # using this ..we know that no splitter in any of strings.! 
-        if c_t.kind != colArrayString:
-          if current_item == query_t:
-            result_t[count] = row_idx
-            count += 1
-        else:
-          for stored in current_item.split(splitter_t):
-            if stored == query_t:
-              result_t[count] = row_idx
-              count += 1
-              break
       else:
-        if current_item.contains(query_t):
-          # echo "matching " & $query_t & "  in " & arr[row_idx]
-
-          if uniqueOnly_t == true:
-            var is_unique = true
-            for j_temp in 0..<count:
-              if arr[result_t[j_temp]] == current_item:  # it match case too here atleast!
-                is_unique = false
-                break
-            
-            if is_unique:
-              result_t[count] = row_idx
-              inc count
-          
-          else:
+        for stored in current_item.split(splitter_t):
+          if stored == query_t:
             result_t[count] = row_idx
             count += 1
-      
+            break
+    else:
+      if current_item.contains(query_t):
+        # echo "matching " & $query_t & "  in " & arr[row_idx]
+
+        if uniqueOnly_t == true:
+          var is_unique = true
+          for j_temp in 0..<count:
+            if arr[result_t[j_temp]] == current_item:  # it match case too here atleast!
+              is_unique = false
+              break
+          
+          if is_unique:
+            result_t[count] = row_idx
+            inc count
+        
+        else:
+          result_t[count] = row_idx
+          count += 1
+    
     if count == top_k:
       break 
   
@@ -664,7 +635,7 @@ proc modify_row_internal(
   m:var MetaIndex,
   row:JsonNode,    # row-data!
   row_idx:Natural, # NOTE: it could even be a row not yet written. (only default values....)
-  do_attributes_checks:bool = true
+  all_attribute_checks:bool = true
   )=
 
   # it is also being used to write to row, not yet written, so `name/identifier` could be better.
@@ -672,7 +643,7 @@ proc modify_row_internal(
 
   # Append a row, Must have data corresponding to each key/field!
   doAssert row.kind == JObject, "Expected to be key-value pairs for a row!"
-  if all_attributes_check:
+  if all_attribute_checks:
     doAssert len(row) == len(m.columns) , "First, same number of keys, since appending a first row!"
   doAssert row_idx < m.dbCapacity
 
@@ -700,14 +671,14 @@ proc modify_row_internal(
       doAssert 2 == 3, "JnuLL not allowed as data type for now"
   # NOTE: no need to tally, as we get a key-error, for unmatched keys and we check that no-unexpected key is there either!
 
-proc append_row(
+proc append_row*(
   m:var MetaIndex,
   row:JsonNode
 )=
   m.modify_row_internal(
     row,
     row_idx = m.dbRowPointer,
-    all_attributes_check = true
+    all_attribute_checks = true
   )
   inc m.dbRowPointer
 
@@ -720,11 +691,14 @@ proc modify_row*(
   m.modify_row_internal(
     row_idx = row_idx,
     row = row,
-    all_attributes_check = false  # not necessary, we may be modifying some of the attributes!
+    all_attribute_checks = false  # not necessary, we may be modifying some of the attributes!
   )
 
-
-proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode, force:bool = false)=
+proc modify_row*(m:var MetaIndex, 
+  row_idx:Natural, 
+  meta_data:JsonNode, 
+  force:bool = false
+  )=
   # force:bool is here to actually overwrite the original data to model situations where data is being generated by backend process but may be at a later stage.
   # in our case face-clustering is done later on but doesn't come from user side... so we want to use clusters as original data in this case!
   # otherwise we create a new version of some field, rather than overwriting by default!
@@ -732,12 +706,8 @@ proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode, force:boo
   # a subset of fields to be modified with new data for given row.
   doAssert meta_data.kind == JObject
   for key, column_data in meta_data:
-    # echo "trying to modify: ", key
     var c = m[key]
-    var aliasing_t = true
-    if force == true:
-      aliasing_t = false  # just simply setting it to false to overwrite 
-    populateColumnImpl(c, row_idx, column_data, m.stringConcatenator, aliasing_t = aliasing_t)
+    populateColumnImpl(c, row_idx, column_data, m.stringConcatenator)
 
 proc set_immutable()=
   # i am leaning towards aliasing rather than overwriting !
@@ -881,7 +851,7 @@ type
     column_labels:seq[string]
     column_types:seq[ColType]
 
-proc save_test*(
+proc save*(
   m:MetaIndex,
   save_dir:string    # Directory to save .json info to.
   ):Natural =
@@ -921,7 +891,7 @@ proc save_test*(
 
 
 
-proc load_test(
+proc load*(
   name:string,
   load_dir:string
 ):MetaIndex = 
@@ -1055,8 +1025,8 @@ when isMainModule:
 
   # adding some data/rows.
   # m.add_row(column_data = j3)
-  m.append_row_new(row = j3)
-  m.append_row_new(row = j2)
+  m.append_row(row = j3)
+  m.append_row(row = j2)
 
   # m.add_row(column_data = %* {"name":"nain", "age":21})
   # m.add_row(column_data = %* {"name":["tyson" , "samy"], "age":40})
