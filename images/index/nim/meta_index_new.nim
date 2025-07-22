@@ -87,30 +87,30 @@ type
     colArrayString # for now it is just string with some `boundary` to split the individual elements, when needed.
     # colNull # donot want it not for now..?
 
-# trying to support aliasing
-# we create a new version for a value in column, when user wants to modify it.
-# note we can support only one extra version..
-type
-  ColumnAlias = object
-    capacity:Natural
-    counter:Natural
-    row_indices:ptr UncheckedArray[Natural] # in case to help us ... which of the rows in a column have been aliased !
-    payload:pointer                  # column using this would know the payload type. # then based on matched.. we can collect the alias
+# # trying to support aliasing
+# # we create a new version for a value in column, when user wants to modify it.
+# # note we can support only one extra version..
+# type
+#   ColumnAlias = object
+#     capacity:Natural
+#     counter:Natural
+#     row_indices:ptr UncheckedArray[Natural] # in case to help us ... which of the rows in a column have been aliased !
+#     payload:pointer                  # column using this would know the payload type. # then based on matched.. we can collect the alias
 
-proc `=copy`(a:var ColumnAlias, b:ColumnAlias) {.error.}
-proc `=sink`(a:var ColumnAlias, b:ColumnAlias) {.error.}
+# proc `=copy`(a:var ColumnAlias, b:ColumnAlias) {.error.}
+# proc `=sink`(a:var ColumnAlias, b:ColumnAlias) {.error.}
 
-proc reset(obj:var ColumnAlias)=
+# proc reset(obj:var ColumnAlias)=
 
-  if not isNil(obj.row_indices):
-    dealloc(obj.row_indices)
-  if not isNil(obj.payload):
-    dealloc(obj.payload)
+#   if not isNil(obj.row_indices):
+#     dealloc(obj.row_indices)
+#   if not isNil(obj.payload):
+#     dealloc(obj.payload)
   
-  obj.row_indices = nil
-  obj.payload = nil
-  obj.counter = 0
-  obj.capacity = 0
+#   obj.row_indices = nil
+#   obj.payload = nil
+#   obj.counter = 0
+#   obj.capacity = 0
 
 # good enough, start from here.. i guess
 # i think serialization should be easy .. if we decide to put a column on disk, and later read that column.
@@ -616,22 +616,6 @@ proc `[]`(m:MetaIndex, key:string): Column =
   assert result.label == key, "Expected " & $key & " but got: " & $result.label
   return result
 
-proc rowWriteStart(m:var MetaIndex)=
-  # TODO: later may be acquire lock here..
-  doAssert m.rowWriteInProgress == false, "expected to be false!"
-  m.fieldsCache = @[]    # empty the field cache.
-  m.rowWriteInProgress = true
-
-proc rowWriteEnd(m:var MetaIndex)=
-  # TODO: later may be release lock in here..
-  doAssert m.rowWriteInProgress == true, "expected to be true!"
-
-  # sanity check to make sure all the fields are written for this row!
-  for c in m.columns:
-    doAssert c.label in m.fieldsCache
-
-  m.dbRowPointer += 1      
-  m.rowWriteInProgress = false
 
 template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, concatenator_t:string, aliasing_t:bool = false)=
   # populate a  column, given data as JsonNode.
@@ -676,21 +660,11 @@ template populateColumnImpl(c_t:var Column, row_idx_t:Natural, data_t:JsonNode, 
   else:
     doAssert 1 == 0, "Unexpected data of type: "  & $data_t.kind 
 
-
-proc add(m:var MetaIndex, column_label:string, data:JsonNode)=
-  # appends a new value/element to the column, In case we want to complete the current row, by appending one column at a time.
-  
-  doAssert m.rowWriteInProgress == true, "expected to be true, call rowWriteStart first!"
-  let curr_row_idx = m.dbRowPointer
-  var column = m[column_label]
-  populateColumnImpl(column, curr_row_idx, data, m.stringConcatenator)
-  m.fieldsCache.add(column.label)  # indicates that a  particular field has been appended. so that at the end we can tally!
-
-proc modify_row_new_unsafe(
+proc modify_row_internal(
   m:var MetaIndex,
   row:JsonNode,    # row-data!
   row_idx:Natural, # NOTE: it could even be a row not yet written. (only default values....)
-  do_checks:bool = true
+  do_attributes_checks:bool = true
   )=
 
   # it is also being used to write to row, not yet written, so `name/identifier` could be better.
@@ -698,9 +672,9 @@ proc modify_row_new_unsafe(
 
   # Append a row, Must have data corresponding to each key/field!
   doAssert row.kind == JObject, "Expected to be key-value pairs for a row!"
-  if do_checks:
+  if all_attributes_check:
     doAssert len(row) == len(m.columns) , "First, same number of keys, since appending a first row!"
-    doAssert row_idx < m.dbRowPointer
+  doAssert row_idx < m.dbCapacity
 
   # get the corresponding data for each of the column.
   for col_label, col_idx in m.fields:
@@ -726,44 +700,29 @@ proc modify_row_new_unsafe(
       doAssert 2 == 3, "JnuLL not allowed as data type for now"
   # NOTE: no need to tally, as we get a key-error, for unmatched keys and we check that no-unexpected key is there either!
 
-proc append_row_new(
+proc append_row(
   m:var MetaIndex,
   row:JsonNode
 )=
-  doAssert len(row) == len(m.columns) , "First, same number of keys, since appending a first row!"
-  m.modify_row_new_unsafe(
+  m.modify_row_internal(
     row,
     row_idx = m.dbRowPointer,
-    do_checks = false
+    all_attributes_check = true
   )
   inc m.dbRowPointer
 
+proc modify_row*(
+  m:var MetaIndex,
+  row_idx:Natural,
+  row:JsonNode
+)=
+  doAssert row_idx < m.dbRowPointer
+  m.modify_row_internal(
+    row_idx = row_idx,
+    row = row,
+    all_attributes_check = false  # not necessary, we may be modifying some of the attributes!
+  )
 
-proc add_row*(m:var MetaIndex, column_data:JsonNode)=
-  # TODO: support the JArray for fields, in case we want to store multiple strings for a field.
-  # one to many modelling, (for string data atleast).
-  # we can use | as the separator, to concatenate multiple strings together..
-  # and later split to maintain the notion of muliple strings packed together!
-  # idk what is the best solution but trying to make it work.
-  
-  # to append  a fresh row in single go..i think there is only one way to do with if columns are heterogenous.
-  # resort to a serialized form, either custom or something like protobuf or Json.
-  # Json is easier to read and also machine parseable. (have implementations in every language!)
-
-  # indicate rowWrite in progress..
-  m.rowWriteStart()
-  let curr_row_idx = m.dbRowPointer
-
-  # fill the matching column fields with the JsonData. (making sure no extra or missing keys)
-  doAssert column_data.fields.len == m.fields.len , "Making sure no extra keys!"
-  for key, id in m.fields:
-    var c = m[key]  # get the corresponding column.
-    let value = column_data[key]   # it makes sure all expected keys are available, i.e not missing keys
-    populateColumnImpl(c, curr_row_idx, value, m.stringConcatenator)
-    m.fieldsCache.add(c.label)  # at the end, tallied to make sure all the fields have been updated for this row.
-
-  # following is also supposed to do sanity checks.
-  m.rowWriteEnd()
 
 proc modify_row*(m:var MetaIndex, row_idx:Natural, meta_data:JsonNode, force:bool = false)=
   # force:bool is here to actually overwrite the original data to model situations where data is being generated by backend process but may be at a later stage.
@@ -822,7 +781,7 @@ proc `$`*(m:MetaIndex, count:Natural = 10):string=
 #   result = c.query_bool(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
 #   return result
 
-proc query*(
+proc query_column*(
   m:MetaIndex, 
   attribute:string,  # For now we are querying a single column at a time!
   query:JsonNode,
@@ -1030,182 +989,11 @@ proc load_test(
       for i in 0..<result.dbRowPointer:
         c[i] = col_data[i]
 
-    # doAssert len(c_data) == m.dbRowPointer, "No of rows in each column must be same as that of Base object expected!"
-    # for i in 0..<result.dbRowPointer:
-    #   c[i] = c_data[i]
-
-
-
-
-
-# proc save*(m:MetaIndex, path:string)=
-
-#   # this contains all columns.. json data.
-#   let json_schema = JsonNode(kind:JObject)
-#   for c in m.columns:
-#     # json_schema[c.label] = c.toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator,  latest_version = false)
-
-#     let (col_kind, raw_json) = c.toJson(row_end = m.dbRowPointer, splitter = m.stringConcatenator,  latest_version = false)
-#     json_schema[c.label] = raw_json.fromJson(JsonNode)
-#     echo $col_kind
-
-  ##########################################################
-  # saving aliasing data tooo
-  # alias object would be the last element for already stored data if column is aliased
-  # while loading we make use of fact that m.dbRowpointer is less than len of array if aliased.
-  #######################################
-
-  # let splitter = m.stringConcatenator
-  # for c in m.columns:
-  #   if c.aliased == true:
-      
-  #     let alias_node = JsonNode(kind:JObject)  # with row_indices and row data as key
-  #     let row_indices_node = JsonNode(kind:JArray)
-  #     let row_data_node = JsonNode(kind:JArray)
-
-  #     let row_indices = cast[ptr UncheckedArray[Natural]](c.alias.row_indices)
-  #     for i in 0..<c.alias.counter:
-  #       row_indices_node.add(JsonNode(kind:Jint, num:BiggestInt(row_indices[i])))
-        
-  #       # either string or array of string as element in row_data node
-  #       if c.kind == colString or c.kind == colArrayString:
-  #         let payload_data = cast[ptr UncheckedArray[string]](c.alias.payload)
-  #         let value = payload_data[i]
-  #         if value.contains(splitter): # generally parent can supply this.. for easy access to all value actually user indexeD!
-  #           # # it means... it was an array when stored.
-  #           # var temp_node = JsonNode(kind:JArray)        
-  #           # for v_s in value.split(splitter):
-  #           #   if len(v_s) > 0:
-  #           #     temp_node.add(JsonNode(kind:Jstring, str:v_s))
-  #           # row_data_node.add(temp_node)
-            
-  #           discard
-  #         else:
-  #           row_data_node.add(JsonNode(kind:JString, str:value))
-
-  #       elif c.kind == colFloat32:
-  #         let payload_data = cast[ptr UncheckedArray[float32]](c.alias.payload)
-  #         let value = payload_data[i]
-  #         row_data_node.add(JsonNode(kind:JFloat, fnum:float(value)))
-
-  #       elif c.kind == colBool:
-  #         let payload_data = cast[ptr UncheckedArray[bool]](c.alias.payload)
-  #         let value = payload_data[i]
-  #         row_data_node.add(JsonNode(kind:JBool, bval:bool(value)))
-
-  #       elif c.kind == colInt32:
-  #         let payload_data = cast[ptr UncheckedArray[int32]](c.alias.payload)
-  #         let value = payload_data[i]
-  #         row_data_node.add(JsonNode(kind:JInt, num:BiggestInt(value)))
-
-  #       else:
-  #         doAssert 1 == 0, "not expected " & $c.kind
-  #     doAssert len(row_data_node) == len(row_indices_node)
-
-  #     alias_node["row_indices"] = row_indices_node
-  #     alias_node["row_data"] = row_data_node
-  #     json_schema[c.label].add(alias_node)
-
-  # # we populate all remaining fields too.. to enough to load later from persistent storage..
-  # json_schema["dbRowPointer"] = JsonNode(kind:JInt, num:BiggestInt(m.dbRowPointer)) 
-  # json_schema["dbName"] = JsonNode(kind:JString, str:m.dbName)
-  # json_schema["dbCapacity"] = JsonNode(kind:JInt, num:BiggestInt(m.dbCapacity))
-
-  # let write_data = $json_schema
-  # var f = open(path, fmWrite)   # string are just bytes and written as such in Nim. encoding may make sense at read-time but json module handles that! 
-  # f.write(write_data) 
-  # f.close()
-
-# proc load*(path:string):MetaIndex=
-#   # based on the path, we will load/generate a fresh MetaIndex.
-#   # how to load...
-
-#   let f = open(path, fmRead)
-#   let raw_data = f.readAll()
-#   f.close()
-#   var json_schema = parseJson(raw_data)
-#   assert json_schema.kind == JObject
-  
-#   let
-#     capacity = getInt(json_schema["dbCapacity"]).Natural
-#     name = getStr(json_schema["dbName"])
-#     rowPointer = getInt(json_schema["dbRowPointer"]).Natural  
-
-#   # delete/pop redundant keys..
-#   json_schema.fields.del("dbCapacity")
-#   json_schema.fields.del("dbName")
-#   json_schema.fields.del("dbRowPointer")
-
-#   # TODO: assuming one to one dependence with from json kind to colkind..
-#   # we predict the colKind.. later can be more verbose/rigid.
-#   var column_labels:seq[string]
-#   var column_types:seq[ColType]
-#   for k, column_json in json_schema:
-#     column_labels.add(k)
-
-#     # here get the ColType given each label
-#     #let col_type = getcoltype(k)
-
-
-
-#     doAssert column_json.kind == JArray, "each column is supposed to be an array of type str/int/float/bool"
-#     # assuming one to one mapping. (i think can have a hook, for easy to and fro conversion b/w json and column kind, later.. after some reading!)
-#     if column_json[0].kind == Jstring:  # for now using first value to determin type, later can store the kind also !
-#       column_types.add(colString)
-#     elif column_json[0].kind == JInt:
-#       column_types.add(colInt32)
-#     elif column_json[0].kind == JFloat:
-#       column_types.add(colFloat32)
-#     elif column_json[0].kind == JBool:
-#       column_types.add(colBool)
-#     elif column_json[0].kind == JArray:
-#       # for now only array of strings is allowed!
-#       column_types.add(colArrayString)
-#     else:
-#       doAssert 1 == 0, "unexpected type: "  & $column_json.kind & " for " & $k
-  
-#   result = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = column_types)
-  
-#   # populate row by row
-#   for row_idx in 0..<rowPointer:
-#     # populate column by column.
-#     result.rowWriteStart()
-#     for label in column_labels:
-#       result.add(label, json_schema[label][rowIdx])  
-#     result.rowWriteEnd()
-
-#   # also populate alias data..
-#   # ok, we can model it as modifying data. ( which appends data to alias payload, for which we created aliasing)
-#   for label in column_labels:
-#     # figure out if aliased! lets assume yes.
-#     let is_aliased = (len(json_schema[label]) > rowPointer)
-#     if is_aliased:
-#       assert len(json_schema[label]) == rowPointer + 1  # last entry is alias object is aliased. 
-      
-#       let alias_obj = json_schema[label][rowPointer] # last value would be alias object.
-#       let row_indices = alias_obj["row_indices"] # array of JsonNodes of type JInt
-#       let row_data = alias_obj["row_data"] # array of JsonNodes  of column type or array of strings, when coltype is string
-
-#       for count in 0..<len(row_indices):
-#         let row_ix = getInt(row_indices[count])
-#         let row_data = row_data[count]
-        
-#         let row_meta_data = JsonNode(kind:JObject)
-#         row_meta_data[label] = row_data
-#         result.modify_row(row_idx = row_ix, meta_data = row_meta_data)
-  
-#   doAssert result.dbRowPointer == rowPointer , "expected: " & $result.dbRowPointer & " got: " & $rowPointer
-#   return result
-
-
 ###########################
 ##### helper routines #######
 #######################################
 proc reset*(m:var MetaIndex)=
-  # just deallocate the column alias's data, and reset the dbRowPointer.
-  # that should be enough.., in case a new instance is created `destroy` for column object can take care of releasing resources!
-  for c in m.columns:
-    reset(c.alias)
+  # just setting db.RowPointer to zero should be enough!
   m.dbRowPointer = 0
 
 # proc get_all*(m:MetaIndex, label:string, flatten:bool = false):JsonNode=
@@ -1280,7 +1068,7 @@ when isMainModule:
     save_dir = "."
   )
 
-  var row_indices = m.query(
+  var row_indices = m.query_column(
     attribute = "name",
     query = parseJson("kia".toJson()),
     exact_string = false
