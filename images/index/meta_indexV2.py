@@ -8,6 +8,7 @@ from threading import RLock
 from typing import Optional, Union, Iterable, List, Dict, Any, Generator
 import sys
 import json
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "./nim"))
 import meta_index_new_python as mBackend
@@ -40,7 +41,10 @@ def generate_resource_hash(resource_path:str, chunk_size:int = 400) -> Optional[
     
     return resource_hash
 # --------------------------------------------------------------------
-from .metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes, flatten_the_metadata
+try:
+    from .metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes, flatten_the_metadata
+except:
+    from metadata import ImageMetaAttributes, MainAttributes, UserAttributes, ImageExifAttributes, MLAttributes, flatten_the_metadata
 
 # making sure relativiness of resources is respected.
 META_DATA_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./meta_indices")
@@ -64,14 +68,18 @@ class MetaIndex(object):
             os.mkdir(self.index_directory)
 
         # meta index full path.
-        self.meta_index_path = os.path.join(self.index_directory, "meta_data.json")
+        self.meta_index_path = os.path.join(self.index_directory, "{}_meta_data.json".format(self.name))
 
         # initialize the nim backend.
         if os.path.exists(self.meta_index_path):
-            mBackend.load(self.meta_index_path)
+            mBackend.load(
+                name = self.name,
+                load_dir = self.index_directory
+                )
             self.column_labels = json.loads(mBackend.get_column_labels())
             self.column_types = json.loads(mBackend.get_column_types())
             self.backend_is_initialized = True
+            print("[MetaIndexV2] Loaded from: {}".format(self.meta_index_path))
         else:
             # lazy when first time update/put is called. we can have the column_labels and column_types available then..
             pass
@@ -90,13 +98,15 @@ class MetaIndex(object):
             # for now there is not data-present, not on disk and not from application. so false!
             return False
         else:
-            # query = json.dumps({"resource_hash":resource_hash})
-            query = '{"resource_hash": "' + resource_hash + '"}' # generate expected json faster.
-            
             # may load json a bit faster, parse bytes directly, as we just have to check if how many rows returned!
-            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
-            assert len(attr_2_rowIndices["resource_hash"]) == 0 or len(attr_2_rowIndices["resource_hash"]) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
-            return len(attr_2_rowIndices["resource_hash"]) == 1
+            row_indices = json.loads(
+                mBackend.query_column(
+                    attribute = "resource_hash",
+                    query = json.dumps(resource_hash),
+                )) # first get the desired row_index that we need to update.
+
+            assert len(row_indices) == 0 or len(row_indices) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
+            return len(row_indices) == 1
 
     def suggest(self, attribute:str, query:str):
         """for now we just search substrings in the string, which a column of colString does by default!
@@ -112,8 +122,12 @@ class MetaIndex(object):
             attr_2_type = self.get_attribute_2_type() # TODO: create a mapping as field rather than function call!
             if attribute in attr_2_type and attr_2_type[attribute] == "string":
                 # prepare query
-                query_json = json.dumps({attribute:query})
-                row_indices = json.loads(mBackend.query(query_json, exact_string = False, top_k = 20, unique_only = True))[attribute] # get the rows, for which column/attribute has query as substring in it.
+                row_indices = json.loads(mBackend.query_column(
+                    attribute = attribute,
+                    query = json.dumps(query), 
+                    exact_string = False, 
+                    top_k = 20, 
+                    unique_only = True))[attribute] # get the rows, for which column/attribute has query as substring in it.
 
                 # collect rows, TODO: should be able to just ask for a single attribute too..but still ok, since we select row_indices for desired attribute.
                 rows = json.loads(mBackend.collect_rows(row_indices))
@@ -136,68 +150,75 @@ class MetaIndex(object):
             return result
 
     # @profile
-    def query(self, resource_hashes:Optional[Union[str, Iterable[str]]] = None, attribute:Optional[str] = None, attribute_value:Optional[str] = None,  latest_version:bool = True) -> Dict[str, Dict]:
-        """ Queries the meta index based on either resource_hashes or given a fuzzy attribute/value pair.
+    def query(self, 
+              attribute:str,      # attribute to query. 
+              query:Union[Any, Iterable[Any]], # based on the column type, multiple queries can be supplied for an attribute
+              page_size:int = 200     # upto even 1000 leads to no notice-able latency!
+              ) -> Dict[str, Dict]:
         
-        latest_version: bool, can be set to false to collect original version, 
-        NOTE: we still match with the latest version to get matching indices, but can choose to collect original version of data!
-        # useful when match againt user provided data, but may need original version to query some auxiliary data like face clusters (which have no info about user updates)
-        
-        NOTE: current meta-index treat resource_hash as just another field.. so i func signature can be simplified.. TODO
         """
-        # we want to return the rows/meta-data associated with resource_hashes or from a specific column/attribute matching.
-        # for example user may search for "place"[attribute]  for value "norway", 
-        # then first collect the rows matching this pair.
+        Queries a single attribute, (multiple queries/values for that attribute is supported.)
+        TODO: proper pagination, by allowing to specify a page_id, TOBE returned that pagination info!
+        """
 
-        # flow:  querying for now is allowed for one attribute/value pair.. (on python side we can do a for loop for resource_hashes!)
-        # we find first the relevant row_indices for an attribute/value pair. since resource_hash/resource_hash is just another column.
-        # in case of resource_hash, we collect row_index for each such resource_hash.
-        # once we row_indices, we can collect corresponding rows.
         if self.backend_is_initialized == False:
+            print("[ERROR]: Backend must have been initialized!")
             return {}
 
-        if resource_hashes is None:
-            # create the query
-            query = {attribute:attribute_value}
-            
-            json_query = json.dumps(query)
-            result_json  = mBackend.query(json_query)
-            # get the meta-data/rows
-            attr_2_rowIndices = json.loads(result_json)
-            del result_json
+        # TODO: do-away this weird, resource_hashes and other condition!
 
-            assert len(attr_2_rowIndices) == 1 , "expected only a single key: {}".format(attribute)
-            row_indices = attr_2_rowIndices[attribute]
-            
-            result = {}
-            meta_array = json.loads(mBackend.collect_rows(attr_2_rowIndices[attribute], latest_version = latest_version))
-            for meta in meta_array:
-                result[meta["resource_hash"]] = meta
-            del meta_array
-            return result
+        query_list = query
+        if isinstance(query_list, str):
+            assert isinstance(query, str)
+            query_list = [query]
+        del query
+        assert isinstance(attribute,str) and isinstance(query_list, list)
+
+        # Multiple querties for a single attribute can be passed for convenience.
+        # NOTE: still backend does it 1 by 1, TODO: allow batching in backend!
+
+        # collect (unique) row_indices.
+        base_time = time.time_ns()
+        final_row_indices = []
+        temp_set = set()
+        for query in query_list:
+            # TODO: can share the python memory to write row_indices directly to it but later!
+            row_indices_json = mBackend.query_column(
+                attribute = attribute,
+                query = json.dumps(query) # backend consumes in json, to handle multiple column types!
+            )
+            for row_idx in json.loads(row_indices_json):
+                if not (row_idx in temp_set):
+                    final_row_indices.append(row_idx)
+                    temp_set.add(row_idx)
         
-        else:
-            if isinstance(resource_hashes, str):
-                resource_hashes = [resource_hashes]
 
-            row_indices = []
-            for resource_hash in resource_hashes:
-                # collect all possible row indices.
-                attribute = "resource_hash"
-                query = {attribute:resource_hash}
-                result_json = mBackend.query(json.dumps(query))
-                attr_2_rowIndices = json.loads(result_json)
-                del result_json
-                row_indices = row_indices + attr_2_rowIndices[attribute]
-            
+        #NOTE: For following loop, most of latency come from Json decoding, even page_size with 1000 is manageable!
+        # First we do it column by column, for each column collect all the specified elements.
+        temp = {}
+        tic = time.time_ns()
+        for attribute in self.column_labels:
+            temp[attribute] = json.loads(
+                mBackend.collect_rows(
+                    attribute,
+                    indices = final_row_indices[:page_size]
+                )
+            )
+        print("[NIM + Python] collect rows: {}".format((time.time_ns() - tic) / 1e6))
 
-            result = {}  # hash to metaData as have been doing in initial version!
-            # get the meta-data/rows
-            meta_array = json.loads(mBackend.collect_rows(row_indices, latest_version = latest_version))
-            for meta in meta_array:
-                result[meta["resource_hash"]] = meta
+        # NOTE: without pagination, the following loop could lead to 0.5 M iterations with 10 columns and 50K row_indices, So!
+        # then we re-create Rows from previous data, to easily consume later on!
+        final_meta_data = []
+        for ix in final_row_indices[:page_size]:
+            row_temp = {}
+            for attribute in self.column_labels:
+                row_temp[attribute] = temp[attribute][ix]
+            final_meta_data.append(row_temp)
+            del row_temp
+        del temp
+        print("[QUERY]: {}".format((time.time_ns() - base_time) / 1e6))
 
-            return result
+        return final_meta_data
 
     # TODO: name it append/put instead of update!
     def update(self,
@@ -229,7 +250,7 @@ class MetaIndex(object):
                     elif isinstance(v, Iterable):
                         for elem in v:
                             assert isinstance(elem, str), "only an iterable of strings is allowed currently"
-                        self.column_types.append("string")
+                        self.column_types.append("arrayString")
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
 
@@ -249,7 +270,9 @@ class MetaIndex(object):
             
             # TODO: set resource_hash column to be immutable (kind of primary key..)
             json_meta = json.dumps(flatten_dict) # serialize !
-            mBackend.put(json_meta)
+            mBackend.append(
+                json_meta
+                )
             
             del json_meta
     
@@ -283,10 +306,12 @@ class MetaIndex(object):
 
             # update it.
             query = json.dumps({"resource_hash":resource_hash})  
-            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
-            assert len(attr_2_rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
-            row_indices = attr_2_rowIndices["resource_hash"]
-            mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
+            rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
+            assert len(rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
+            mBackend.modify(
+                rowIndices[0], 
+                json.dumps(meta_data)
+                )
 
             # -----------------------------------------
             # By default, if there is a matching `attribute` with ML for `user` also, fill the ML information.
@@ -298,7 +323,7 @@ class MetaIndex(object):
                     user_meta[k.replace("ML","")] = meta_data[k]
 
             if len(user_meta) > 0:
-                mBackend.modify(row_indices[0], json.dumps(user_meta), force = force)
+                mBackend.modify(rowIndices[0], json.dumps(user_meta), force = force)
             del user_meta
             #----------------------------------------------
 
@@ -318,9 +343,12 @@ class MetaIndex(object):
 
             assert self.is_indexed(resource_hash)
             
-            # update it.
-            query = json.dumps({"resource_hash":resource_hash})  
-            attr_2_rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
+            # update it..
+            attr_2_rowIndices = json.loads(
+                mBackend.query_column(
+                    attribute = "resource_hash",
+                    query = json.dumps(resource_hash),
+                    )) # first get the desired row_index that we need to update.
             assert len(attr_2_rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
             row_indices = attr_2_rowIndices["resource_hash"]
             mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
@@ -333,7 +361,9 @@ class MetaIndex(object):
                 print("[WARNING]: Not enough data to save in MetaIndex!")
                 return 
             # if no resource on python side just calling save on backend is enough i guess!
-            mBackend.save(self.meta_index_path)
+            mBackend.save(
+                save_dir = self.index_directory
+                )
     
     def reset(self):
         with self.lock:
@@ -386,6 +416,55 @@ class MetaIndex(object):
         return result
 
 if __name__ == "__main__":
-    pass
+    # need to start benchmarking it!
+    # for something like 100k photos..
+    # json decoding is not cheap in python.
+    # also use `jsony` in NIm.. to speed up and benchmark that too
+    # 
 
+    # first create data enough  how..
+    # can just use dummy meta-data extraction!
+    # for example query should be fast, right?
+    # since we would just be getting indices, right?
+    # those indices are limited
+    pass 
+
+
+    from metadata import extract_image_metaData, generate_dummy_string
+    sample_index = MetaIndex(
+        name = "test",
+        index_directory = "."
+    )
+    GENERATE_FRESH = False
     
+    if GENERATE_FRESH:
+        sample_index.reset()
+        n_iterations = 50_000
+        
+        for i in range(n_iterations):    
+            if (i % 10_000) == 0:
+                print(i)
+                    
+            sample_meta_data = extract_image_metaData(
+                resource_path = "D://dummy.xyz",
+                dummy_data = True
+            )
+            sample_meta_data["resource_hash"] = generate_dummy_string(size = 32)
+            sample_meta_data["main_attributes"]["resource_directory"] = "D:/dummy"
+
+            # update..
+            sample_index.update(
+                sample_meta_data
+            )
+        
+        sample_index.save()
+        print("Saved..")  
+
+    results = sample_index.query(
+        attribute = "resource_directory",
+        query = "D:/dummy"
+    )
+    print(len(results))
+    print(results[:1])
+
+     
