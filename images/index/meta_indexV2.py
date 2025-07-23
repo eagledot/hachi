@@ -5,13 +5,16 @@ import os
 import copy
 import hashlib
 from threading import RLock
-from typing import Optional, Union, Iterable, List, Dict, Any, Generator
+from typing import NamedTuple, Optional, Union, Iterable, List, Dict, Any, Generator
+from typing import Callable
 import sys
 import json
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "./nim"))
 import meta_index_new_python as mBackend
+
+from pagination import PaginationCache
 
 CASE_INSENSITIVE = True  # DO IT on `request`, when updating/receiving user-data , otherwise generating info also keep it in lower.
 def generate_resource_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]:
@@ -70,9 +73,10 @@ class MetaIndex(object):
         # meta index full path.
         self.meta_index_path = os.path.join(self.index_directory, "{}_meta_data.json".format(self.name))
 
+        self.rows_count = 0
         # initialize the nim backend.
         if os.path.exists(self.meta_index_path):
-            mBackend.load(
+            self.rows_count = mBackend.load(
                 name = self.name,
                 load_dir = self.index_directory
                 )
@@ -85,6 +89,7 @@ class MetaIndex(object):
             pass
 
         # resources:
+        self.pagination_cache = PaginationCache()
         self.lock = RLock()
 
     def is_indexed(self,
@@ -149,50 +154,52 @@ class MetaIndex(object):
                 print("[WARNING]: attribute {} should have been a valid attribute and should be of type string for now!".format(attribute))
             return result
 
-    # @profile
-    def query(self, 
-              attribute:str,      # attribute to query. 
-              query:Union[Any, Iterable[Any]], # based on the column type, multiple queries can be supplied for an attribute
-              page_size:int = 200     # upto even 1000 leads to no notice-able latency!
-              ) -> Dict[str, Dict]:
+    # class QueryInfo(NamedTuple):
+    #     query_completed:bool    # if false, client is excepted to call `query` routine until set to true.
+    #     n_pages:int     # we should be able to estimate it on first fresh `query`
+    #     query_token:str # unique token for a query.. will be kept until all meta-data has been served exactly once!
+    #     page_size:int  # reflectance, maximum no of items per-page!
+
+    # # each call to `query` until done for a client, should be able to generate complete meta-data for a single page alteast!
+    # # call query.. for streaming..
+    # # enough meta for a single page.
+    # # if call to a page_id is done.. before meta-data is available then what!
+    
+    def collect(self,
+            query_token:str,
+            page_id:int
+            ) -> Any:
         
+        # generic routine to actually collect the Transformed data, given page_id and a query token.
+        (data, callback) = self.pagination_cache.get(query_token, page_id)
+        return callback(data)
+    
+    def collect_attribute_unique(
+            self,
+            data:tuple[str, Iterable[int]],
+            return_json:bool = False
+    )-> Iterable[Any]:
+        # given the attribute, and specific row_indices collect unique values for that attribute!        
+        (attribute, row_indices) = data
+        result_json = mBackend.collect_rows(
+            attribute,
+            row_indices   # nimpy handles  the marshalling to seq[natural] !
+        )
+        if return_json:
+            return result_json
+        else:
+            json.loads(return_json)
+          
+    def collect_meta_rows(
+            self,
+            row_indices:Iterable[int]   # collect these rows from meta-data backend!
+    ):
         """
-        Queries a single attribute, (multiple queries/values for that attribute is supported.)
-        TODO: proper pagination, by allowing to specify a page_id, TOBE returned that pagination info!
+        Another Callback, routine to be set during `query` conditions.
+        Supposed to be provided with `row_indices` to collect full meta-data for each of those rows
         """
-
-        if self.backend_is_initialized == False:
-            print("[ERROR]: Backend must have been initialized!")
-            return {}
-
-        # TODO: do-away this weird, resource_hashes and other condition!
-
-        query_list = query
-        if isinstance(query_list, str):
-            assert isinstance(query, str)
-            query_list = [query]
-        del query
-        assert isinstance(attribute,str) and isinstance(query_list, list)
-
-        # Multiple querties for a single attribute can be passed for convenience.
-        # NOTE: still backend does it 1 by 1, TODO: allow batching in backend!
-
-        # collect (unique) row_indices.
-        base_time = time.time_ns()
-        final_row_indices = []
-        temp_set = set()
-        for query in query_list:
-            # TODO: can share the python memory to write row_indices directly to it but later!
-            row_indices_json = mBackend.query_column(
-                attribute = attribute,
-                query = json.dumps(query) # backend consumes in json, to handle multiple column types!
-            )
-            for row_idx in json.loads(row_indices_json):
-                if not (row_idx in temp_set):
-                    final_row_indices.append(row_idx)
-                    temp_set.add(row_idx)
+        assert isinstance(row_indices, Iterable)
         
-
         #NOTE: For following loop, most of latency come from Json decoding, even page_size with 1000 is manageable!
         # First we do it column by column, for each column collect all the specified elements.
         temp = {}
@@ -201,7 +208,7 @@ class MetaIndex(object):
             temp[attribute] = json.loads(
                 mBackend.collect_rows(
                     attribute,
-                    indices = final_row_indices[:page_size]
+                    indices = row_indices
                 )
             )
         print("[NIM + Python] collect rows: {}".format((time.time_ns() - tic) / 1e6))
@@ -209,7 +216,7 @@ class MetaIndex(object):
         # NOTE: without pagination, the following loop could lead to 0.5 M iterations with 10 columns and 50K row_indices, So!
         # then we re-create Rows from previous data, to easily consume later on!
         final_meta_data = []
-        for ix in final_row_indices[:page_size]:
+        for ix in row_indices:
             row_temp = {}
             for attribute in self.column_labels:
                 row_temp[attribute] = temp[attribute][ix]
@@ -218,8 +225,77 @@ class MetaIndex(object):
         del temp
         print("[QUERY]: {}".format((time.time_ns() - base_time) / 1e6))
 
-        return final_meta_data
+    def query(self, 
+              attribute:str,      # attribute to query. 
+              query:Union[Any, Iterable[Any]], # based on the column type, multiple queries can be supplied for an attribute
+              page_size:int = 200     # upto even 1000 leads to no notice-able latency!
+              ) -> Dict[str, Dict]:
+        
+        """
+        Query: must be fast enough to generate pagination data in <50 ms for say 1 Million Photos!
+        Otherwise refactor it to move latency/cost to T (Transformation) function . (to be happened during `collect`)
+        """
 
+        if self.backend_is_initialized == False:
+            print("[ERROR]: Backend must have been initialized!")
+            return {}
+
+        
+        # Multiple quertes for a single attribute can be passed for convenience.
+        # NOTE: still backend does it 1 by 1, TODO: allow batching in backend!
+        
+        query_token = "xxxxxxxxxx"
+
+        if query ==  "*":
+            # collect all (unique) values for an attribute!
+            final_row_indices = [i for i in range(self.rows_count)]
+            callback = self.collect_attribute_unique
+        else:
+            query_list = query
+            if isinstance(query_list, str):
+                assert isinstance(query, str)
+                query_list = [query]
+            del query
+            assert isinstance(attribute,str) and isinstance(query_list, list)
+
+            # collect (unique) row_indices.
+            final_row_indices = []
+            temp_set = set()
+            for query in query_list:
+                # TODO: can share the python memory to write row_indices directly to it but later!
+                row_indices_json = mBackend.query_column(
+                    attribute = attribute,
+                    query = json.dumps(query) # backend consumes in json, to handle multiple column types!
+                )
+                for row_idx in json.loads(row_indices_json):
+                    if not (row_idx in temp_set):
+                        final_row_indices.append(row_idx)
+                        temp_set.add(row_idx)
+            del temp_set
+
+            callback = self.collect_meta_rows
+
+        # -------------------------------------
+        # Generate Pagination info..
+        # ------------------------------------
+        n_pages = len(final_row_indices) // page_size + 1
+        page_data = []
+        for i in range(n_pages):
+            page_data.append(final_row_indices[i*n_pages: (i+1)*n_pages])
+        
+        # add a new entry to the pagination cache for this query!
+        self.pagination_cache.add(
+            token = query_token,
+            pages_meta = page_data,
+            callback =  callback
+        )
+        del page_data
+        # --------------------------------------------
+        
+        return n_pages
+        # return final_row_indices
+        # return queryInfo  # so that now client have pagination enough to make further requests! 
+        
     # TODO: name it append/put instead of update!
     def update(self,
                meta_data:ImageMetaAttributes
@@ -275,6 +351,7 @@ class MetaIndex(object):
                 )
             
             del json_meta
+            self.rows_count += 1
     
     def modify_meta_ml(self, 
                         resource_hash:str,
@@ -380,11 +457,20 @@ class MetaIndex(object):
             mBackend.reset()
 
     def get_unique(self, attribute:str) -> Iterable[Any]:
+        # TODO: use  query = *
+        # i.e call the backend with `query + collect combo` for all API requests!
+        # 
         if self.backend_is_initialized == False:
             return set()
 
-        data_all =  json.loads(mBackend.get_all_elements(attribute))
-        return set(data_all)
+        return len(
+            self.query(
+                attribute = attribute,
+                query = "*"
+            )
+        )
+        # data_all =  json.loads(mBackend.get_all_elements(attribute))
+        # return set(data_all)
 
     def get_attribute_2_type(self):
         return {self.column_labels[i]:self.column_types[i] for i in range(len(self.column_labels))}
@@ -435,11 +521,11 @@ if __name__ == "__main__":
         name = "test",
         index_directory = "."
     )
-    GENERATE_FRESH = False
+    GENERATE_FRESH = True
     
     if GENERATE_FRESH:
         sample_index.reset()
-        n_iterations = 50_000
+        n_iterations = 300
         
         for i in range(n_iterations):    
             if (i % 10_000) == 0:
@@ -460,11 +546,12 @@ if __name__ == "__main__":
         sample_index.save()
         print("Saved..")  
 
-    results = sample_index.query(
+    n_pages = sample_index.query(
         attribute = "resource_directory",
         query = "D:/dummy"
     )
-    print(len(results))
-    print(results[:1])
+    print(n_pages)
+    # print(len(results))
+    # print(results[:1])
 
      
