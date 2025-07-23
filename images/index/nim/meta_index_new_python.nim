@@ -42,12 +42,13 @@ proc init(name:string, column_labels:varargs[string], column_types:varargs[strin
 proc load(
   name:string,      # prefix, to load data for a specific meta-index, in case more than 1.
   load_dir:string   
-  ){.exportpy.} =
+  ):int{.exportpy.} =
   # load directly from the json stored on the disk!
   # can be used in-place of the init... if already saved.. write if else on the python side ... as needed!
   m = ensureMove meta_index_new.load(
     name = name,
     load_dir = load_dir)
+  return m.dbRowPointer
 
 proc save(
   save_dir:string    # path to directory where meta-index info would be saved.
@@ -86,13 +87,12 @@ proc collect_rows(
   attribute:string,    # column label/name
   indices:seq[Natural] # generally collected from  `query` routine.
   ):string {.exportpy.}=
+  # Returns by default the Json-encoded, array of elements from `attribute` at indicated `indices`!
   let (col_kind, col_data_json) = m.collect_rows(
     attribute,
     indices = indices
   )
-  # NOTE: may be can send `col_kind` too, but python should know about corresponding data-type for its column already!
   return col_data_json
-
 
 # modify
 proc modify(
@@ -139,7 +139,6 @@ proc get_column_types():string {.exportpy.}=
         py_types.add(JsonNode(kind:JString, str:key))
         break
   echo $py_types
-
   return $py_types
 
 # proc get_all_elements(attribute:string):string {.exportpy.}=
