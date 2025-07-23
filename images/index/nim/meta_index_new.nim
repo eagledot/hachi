@@ -226,31 +226,37 @@ proc toJson(
     for i in 0..<boundary:
       indices[i] = i
   
-  if c.kind == colString  or c.kind == colArrayString:
+  case c.kind
+  of colArrayString:
+    var result_container = newSeq[seq[string]](boundary)
+    for i,idx in indices:
+      # TODO: i think `split` could be made faster if we just do it ourselves, but give me a break !!
+      result_container[i] = cast[ptr UncheckedArray[string]](c.payload)[idx].split(StringBoundary)
+    result.data_json = result_container.toJson()
+
+  of colString: 
     var result_container = newSeq[string](len(indices))
     for i,idx in indices:
       result_container[i] = cast[ptr UncheckedArray[string]](c.payload)[idx]   
     result.data_json = result_container.toJson()
       
-  elif c.kind == colInt32:
+  of colInt32:
     var result_container = newSeq[int32](len(indices))
     for i,idx in indices:
       result_container[i] = cast[ptr UncheckedArray[int32]](c.payload)[idx]
     result.data_json = result_container.toJson()
   
-  elif c.kind == colBool:
+  of colBool:
     var result_container = newSeq[bool](len(indices))
     for i,idx in indices:
       result_container[i] = cast[ptr UncheckedArray[bool]](c.payload)[idx]   
     result.data_json = result_container.toJson()
   
-  elif c.kind == colFloat32:
+  of colFloat32:
     var result_container = newSeq[float32](len(indices))
     for i,idx in indices:
       result_container[i] = cast[ptr UncheckedArray[float32]](c.payload)[idx]
     result.data_json = result_container.toJson()
-  else:
-    doAssert 1 == 0, "not expected" & $c.kind
   return result
 
 template aliasImpl(c_t:var Column, row_idx_t:Natural, data_t:typed, type_t:typedesc)=
@@ -509,7 +515,9 @@ type
     columns*:seq[Column] = @[]      # sequence of columns, easier to add a new column if schema changes !
     
     # syncing/locking
-    dbRowPointer:Natural = 0           # points to the row index which would be appended/added next. 
+    dbRowPointer*:Natural = 0           # points to the row index which would be appended/added next. 
+    
+    # TODO: remove ?
     fieldsCache:seq[string]           # keeps temporary account of which fields/columns have been updated..so that we know all fields for a fresh row are there.
     rowWriteInProgress:bool = false   # indicates if a row writing in progress, in case we add data column by column, and not add whole row at once  
     # locks:seq[something]            # a lock for each of the column to provide concurrent reading/writing if independent columns are request by different clients!
@@ -932,12 +940,12 @@ proc load*(
     
     case c_kind
     of colArrayString:
-      var col_data = fromJson(c_data_json, seq[string])
+      var col_data = fromJson(c_data_json, seq[seq[string]])
       assert len(col_data) == result.dbRowPointer
       
       # NOTE: since colArrayString was saved as `string`, we first create a sequence of `array of string`
       for i in 0..<result.dbRowPointer:
-        c[i] = col_data[i].split(StringBoundary)
+        c[i] = col_data[i]
     of colString:
       # NOTE: for now array of string, is still same as string, except boundary would be indicate using a separator!
       var col_data = fromJson(c_data_json, seq[string])
@@ -1034,7 +1042,7 @@ when isMainModule:
   echo m   # good enough for a preview !
 
   # m.save("./test_meta_save.json")
-  echo m.save_test(
+  echo m.save(
     save_dir = "."
   )
 
@@ -1045,16 +1053,15 @@ when isMainModule:
   )
 
   echo m.collect_rows(
-    attribute = "age",
+    attribute = "name",
     indices = row_indices
   )
 
-
-  # var new_m =  load_test(
-  #   name = "test",
-  #   load_dir = "."
-  # )
-  # echo new_m
+  var new_m =  load(
+    name = "test",
+    load_dir = "."
+  )
+  echo new_m
 
   # var m2 = load("./test_meta_save.json")
   # echo m2
