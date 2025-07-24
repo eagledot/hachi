@@ -35,46 +35,6 @@ import os
 
 import jsony
 
-######################################################
-# compatible to nim string.(for most of use cases.) terminated by zero/null, sequence of bytes.. len gives us the number of bytes, not UNICODE points or any encoding for that matter.
-#####################################################
-# may be i can use original (Nim) String here.. but don't want to mix the gc and ptr memory, as may have to reason every time !
-# also pointer/raw-memory is easierl to pass among threads without worrying about GC effects! 
-# type
-#   MyString = object
-#     payload:ptr UncheckedArray[char]
-#     len:Natural
-
-
-# proc `=copy`(a: var MyString, b:MyString) {.error.}
-# # proc `=sink`(a: var MyString; b: MyString) {.error.}    # sink also include `destroy/wasMoved` for a, so if not inferred correctly could loose resources'. Instead do it manually.(field by field when needed)
-
-# proc `=destroy`(a:MyString)=
-#   # NOTE: if sink is not set to error, provide a destroy routine must.. as sink would call it..(for manual memory it is must)
-#   # echo "string is being destroyed!"
-#   if not isNil(a.payload):
-#     dealloc(a.payload)
-  
-
-# proc toMystring(s:string):MyString=
-#   # Note that string is just  a sequence of bytes in Nim(unless we associate a specific encoding with it)
-#   # this makes it easy while leveraging the raw-bytes. Note: len field give us the number of bytes , not UNICODE points/bytes.
-#   result.payload = cast[ptr UncheckedArray[char]](alloc0(s.len + 1)) # since Nim strings are null/0 terminated.
-#   for i in 0..<s.len:
-#     result.payload[i] = s[i]
-#   result.payload[s.len] = '\0'   # shouldn't need this we are zeroing memory using alloc0 !
-#   result.len = s.len
-#   return result
-
-# proc fromMyString(s:MyString):string=
-#   doAssert not isNil(s.payload)
-#   result = $(cast[cstring](s.payload))
-#   return result
-
-# proc `[]`(s:MyString, index:int):char =
-#   assert index >= 0 and index <= s.len
-#   return s.payload[index]
-
 #########################################
 # Columns for our database/table
 ########################################
@@ -87,33 +47,6 @@ type
     colArrayString # for now it is just string with some `boundary` to split the individual elements, when needed.
     # colNull # donot want it not for now..?
 
-# # trying to support aliasing
-# # we create a new version for a value in column, when user wants to modify it.
-# # note we can support only one extra version..
-# type
-#   ColumnAlias = object
-#     capacity:Natural
-#     counter:Natural
-#     row_indices:ptr UncheckedArray[Natural] # in case to help us ... which of the rows in a column have been aliased !
-#     payload:pointer                  # column using this would know the payload type. # then based on matched.. we can collect the alias
-
-# proc `=copy`(a:var ColumnAlias, b:ColumnAlias) {.error.}
-# proc `=sink`(a:var ColumnAlias, b:ColumnAlias) {.error.}
-
-# proc reset(obj:var ColumnAlias)=
-
-#   if not isNil(obj.row_indices):
-#     dealloc(obj.row_indices)
-#   if not isNil(obj.payload):
-#     dealloc(obj.payload)
-  
-#   obj.row_indices = nil
-#   obj.payload = nil
-#   obj.counter = 0
-#   obj.capacity = 0
-
-# good enough, start from here.. i guess
-# i think serialization should be easy .. if we decide to put a column on disk, and later read that column.
 type
   ColumnObj = object
     # lock : i think it is easier to add a dedicated lock for each column, in future to coordinate read/write to and from a specific column.
@@ -126,11 +59,6 @@ type
     payload:pointer = nil  # packed array of int32/string/float32. (condition on the type field, we can know which) and using size to know the number of values/elements. 
     immutable:bool = false  # can be set selectively for equivalent of a primarykey or foreign key !
     label*:string
-
-    # alias
-    # aliased:bool = false   # this we can use to condition on if we need to search alias version too..
-    # alias:ColumnAlias
-
 
 proc `=copy`(a:var ColumnObj, b:ColumnObj) {.error.}
 proc `=sink`(a:var ColumnObj, b:ColumnObj) {.error.}
@@ -193,29 +121,11 @@ type
     kind:ColType
     data_json:string        # all data in json-encoded string
 
-proc toJson(
+proc collect_elements(
     c:Column, 
     boundary:Natural,  # parent provides this!
     gather_indices: Option[seq[Natural]] = none(seq[Natural])  # to gather only specific indices!
     ):ColJson =   # directly return as json encoded string..
-
-  # JArray
-  # assuming that it would be easier to print a JsonNode.
-
-  # ignore split, splitter only to be used to strings.. making it a bit easier to return expected array of strings...
-  # otherwise have to do it more place too..
-
-  # so if not split, in the first place.. then what..
-  # just just "a|b|c|d" stuff like that..
-  # user can do the splitting where it sees fit..  right..
-  # this means we allow user to pass an array of strings, 
-  # but may return a single string, when asked.. user can do so for specific stirng..
-  # we DO support search for `query` as if an array of strings..
-  # but during returning bulk data.. it may be better to let use do splitting..
-  # as much rarer ... i guess. than to put load for each query.. for something..
-  # in case of python.. it may take a longer time right..
-  # we will take a look at that..
-  # 
 
   result.kind = c.kind  # we can use this to further make decisions, to split, while consuming in a process or transformation!
   var indices:seq[Natural]
@@ -228,7 +138,7 @@ proc toJson(
   
   case c.kind
   of colArrayString:
-    var result_container = newSeq[seq[string]](boundary)
+    var result_container = newSeq[seq[string]](len(indices))
     for i,idx in indices:
       # TODO: i think `split` could be made faster if we just do it ourselves, but give me a break !!
       result_container[i] = cast[ptr UncheckedArray[string]](c.payload)[idx].split(StringBoundary)
@@ -259,103 +169,34 @@ proc toJson(
     result.data_json = result_container.toJson()
   return result
 
-template aliasImpl(c_t:var Column, row_idx_t:Natural, data_t:typed, type_t:typedesc)=
-  discard
-#   # i think it can model any number of versions/revisions.. since we are always appending.
-#   # we can then scan and find the row indices if repeated more than it represents different versions..
-#   let temp_payload = c_t.alias.payload
-#   if isNil(temp_payload):
-#     # initializing alias..
-#     let capacity = 1000
-#     c_t.alias.payload = alloc0(capacity * sizeof(type_t))
-#     c_t.alias.row_indices = cast[ptr UncheckedArray[Natural]](alloc0(capacity * sizeof(Natural)))
-#     c_t.alias.counter = 0
-#     c_t.alias.capacity = capacity
-#   else:
-#     assert c_t.aliased == true, "expected this to be true..."
-#     if c_t.alias.counter >= c_t.alias.capacity:
-#       let old_capacity = c_t.alias.capacity
-
-#       # reallocation of resources...
-#       let new_capacity = old_capacity * 2
-#       let temp = alloc0(new_capacity * sizeof(type_t))
-#       copyMem(temp, temp_payload, old_capacity*sizeof(type_t)) # realloc.
-#       dealloc(temp_payload) # free resources.
-
-#       let temp_new = alloc0(new_capacity * sizeof(Natural))
-#       copyMem(temp_new, c_t.alias.row_indices, old_capacity*sizeof(Natural))
-#       dealloc(c_t.alias.row_indices) # free resources.. , TODO: (be sure.. idon't remember full flow now!), earlier i think `temp_new` was being deallocated by mistake!
-      
-#       # update
-#       c_t.alias.row_indices = cast[ptr UncheckedArray[Natural]](temp_new) # TODO: be sure, it was not there before!!
-#       c_t.alias.payload = temp
-#       c_t.alias.capacity = new_capacity
-
-#   # add alias for provided row_idx..
-#   # we update both the new data, and corresponding row for which this data is being aliased to..
-#   let counter = c_t.alias.counter
-#   let arr = cast[ptr UncheckedArray[type_t]](c_t.alias.payload)
-
-#   arr[counter] = data_t
-
-
-#   c_t.alias.row_indices[counter] = row_idx_t  # add which 
-#   inc c_t.alias.counter
-#   c_t.aliased = true
-    
 proc add_int32(c:var Column, row_idx:Natural, data:int32, aliasing:bool = false)=
-
-  if aliasing == true:
-    aliasImpl(c, row_idx, data, int32)
-    c.immutable = true
-  else:
-    assert c.kind == colInt32
-    assert not isNil(c.payload)
-    var arr = cast[ptr UncheckedArray[int32]](c.payload)
-    arr[row_idx] = data
+  assert c.kind == colInt32
+  assert not isNil(c.payload)
+  var arr = cast[ptr UncheckedArray[int32]](c.payload)
+  arr[row_idx] = data
 
 proc add_string(c:var Column, row_idx:Natural, data:string, aliasing:bool = false)=
   # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
-  
-  if aliasing == true:
-    # echo "modifying string..."
-    aliasImpl(c, row_idx, data, string)
-  else:
-    assert not isNil(c.payload)
-    assert c.kind == colString or c.kind == colArrayString
-
-    var arr = cast[ptr UncheckedArray[string]](c.payload)
-    arr[row_idx] = data
+  assert not isNil(c.payload)
+  assert c.kind == colString or c.kind == colArrayString
+  var arr = cast[ptr UncheckedArray[string]](c.payload)
+  arr[row_idx] = data
 
 proc add_float32(c:var Column, row_idx:Natural, data:float32, aliasing:bool = false)=
-  # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
-  # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
-  
-  # how to do aliasing..
-  # allocate some memory 
-  # add row_idx
-  # add new value..
-  if aliasing:
-    # overwriting/modifying is being considered as aliasing..
-    aliasImpl(c, row_idx, data, float32)
-  else:
-    assert not isNil(c.payload)
-    assert c.kind == colFloat32
-    var arr = cast[ptr UncheckedArray[float32]](c.payload)
-    arr[row_idx] = data
+  assert not isNil(c.payload)
+  assert c.kind == colFloat32
+  var arr = cast[ptr UncheckedArray[float32]](c.payload)
+  arr[row_idx] = data
 
 proc add_bool(c:var Column, row_idx:Natural, data:bool, aliasing:bool = false)=
   # NOTE: row_idx is supposed to be a valid as MetaIndex is supposed to verify the index accesses!
   # TODO: still can store max_offset like field in column to prevent invalid access at userspace level!
-  
-  if aliasing:
-    aliasImpl(c, row_idx, data, bool)
-  else:
-    assert not isNil(c.payload)
-    assert c.kind == colBool, "got type: " & $c.kind
-    var arr = cast[ptr UncheckedArray[bool]](c.payload)
-    arr[row_idx] = data
+
+  assert not isNil(c.payload)
+  assert c.kind == colBool, "got type: " & $c.kind
+  var arr = cast[ptr UncheckedArray[bool]](c.payload)
+  arr[row_idx] = data
 
 ###############################################################################
 ##  modifiy data API #####
@@ -377,82 +218,83 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
 ######################################################################################
 # querying API (These must be as fast as possibly, currently OK, all optimizations should be focussed on faster queries)
 #############################################################
-template queryImpl(result_t: var seq[Natural], c_t:Column, query_t:typed, boundary_t, top_k_t:Natural, type_t:typedesc):Natural=
+template queryImpl(
+  result_t: var seq[Natural], # NOTE: must be enough to hold `top_k_t`!
+  c_t:Column, 
+  query_t:typed, 
+  boundary_t, top_k_t:Natural,
+  exact_match_t:bool,    # NOTE: if false, we match to all elements in this column, like a wildcard match!! 
+  type_t:typedesc):Natural=
   
   var count = 0
   let arr = cast[ptr UncheckedArray[type_t]](c_t.payload)
   for row_idx in 0..<boundary_t:
-    if arr[row_idx] == query_t:
-      result_t[count] = row_idx
-      count += 1
-    
-    if count == top_k:
-      break 
-  
+    let curr_element = arr[row_idx]
+    if exact_match == false or curr_element == query_t:
+      
+      # check if curr_element has not been repeated!
+      var is_unique = true
+      for j in 0..<count:
+        if arr[result_t[j]] == curr_element:
+          is_unique = false
+          break
+
+      if is_unique:
+        result_t[count] = row_idx
+        inc count
+        
+        if count == top_k:
+          break
+
   count # return this..
 
-template queryStringImpl(result_t: var seq[Natural], c_t:Column, query_t:string, boundary_t, top_k_t:Natural, exact_string_t:bool, 
-splitter_t:string,
-uniqueOnly_t:bool = false):Natural = 
+template queryStringImpl(
+  result_t: var seq[Natural], 
+  c_t:Column, 
+  query_t:string, 
+  boundary_t, 
+  top_k_t:Natural,
+  ):Natural = 
 
-  # NOTE: i understand lots of if and else branching leading to harm the branch-predictor, but i have to search both new versions and original too..
-  # NOTE: after checking if string or arrayString, split function bottleneck effects only few columns . (pure string columns are much faster to search for)
-  # note: have to be careful using statements like `let a = <another string>` can lead to copy even if read only use, compiler cannot figure out always!
-  # TODO: keep only exact matching in this ... for substring matching use a separate implementation .. to reduce branching in for loop!
+  # NOTE:
+  # By default, we will consider even a `substring` match as a valid match!, 
+  # (If this is not fast-enough, it will be made fast-enough, it only makes sense to match substrings by default for real-world cases, until fuzzy search is added!)
+  # By default, only unique matching data/rows indices are returned!
 
-  # Inputs:
-  # uniqueOnly_t: being checked, only when exact string is passed as false!
+  # Returns:
+  # number of `matched rows`, so as to slice `result_seq_t`
 
   doAssert c_t.kind == colString or c_t.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
 
   var count = 0
   let arr = cast[ptr UncheckedArray[string]](c_t.payload)
-
-  # unique 
-  # if only unique only then.
   var unique_count = 0 # search up to that count..
-
   for row_idx in 0..<boundary_t:
-    let current_item = arr[row_idx]
-    if exact_string_t == true:
-
-      # using this ..we know that no splitter in any of strings.! 
-      if c_t.kind != colArrayString:
-        if current_item == query_t:
-          result_t[count] = row_idx
-          count += 1
-      else:
-        for stored in current_item.split(splitter_t):
-          if stored == query_t:
-            result_t[count] = row_idx
-            count += 1
-            break
-    else:
-      if current_item.contains(query_t):
-        # echo "matching " & $query_t & "  in " & arr[row_idx]
-
-        if uniqueOnly_t == true:
-          var is_unique = true
-          for j_temp in 0..<count:
-            if arr[result_t[j_temp]] == current_item:  # it match case too here atleast!
-              is_unique = false
-              break
-          
-          if is_unique:
-            result_t[count] = row_idx
-            inc count
-        
-        else:
-          result_t[count] = row_idx
-          count += 1
+    var current_item = arr[row_idx] # in either case, it will be a string.
+    # since we by default consider `substrings` a match, we can just call `contains`.
     
-    if count == top_k:
-      break 
-  
+    if query_t == "*" or current_item.contains(query_t):
+      var is_unique = true
+      for j in 0..<count:
+        if arr[result_t[j]] == current_item: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
+          is_unique = false
+          break
+        
+      if is_unique:
+        result_t[count] = row_idx
+        inc count
+      
+        if count == top_k:
+          break
+   
   count    # return this..
 
-proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100, exact_string:bool = false, splitter:string = "|",
-  unique_only:bool = false):seq[Natural]=
+proc query_string(
+  c:Column, 
+  query:string,   # wildcard is allowed as * to gather all (unique)!
+  boundary:Natural, 
+  top_k:Natural,  # at-max this number of matches!
+  ):seq[Natural]=
   # returns the matching row indices in the 
   # boundary: is provided by MetaIndex, telling it how many elements are currently in this/all columns.
 
@@ -461,32 +303,63 @@ proc query_string(c:Column, query:string, boundary:Natural, top_k:Natural = 100,
   
   let top_k = min(boundary, top_k)
   var top_k_seq = newSeq[Natural](top_k)
-  let count_filled:Natural  = queryStringImpl(top_k_seq, c, query, boundary, top_k, exact_string, splitter, unique_only)
+  let count_filled:Natural = queryStringImpl(
+    top_k_seq, 
+    c, 
+    query, 
+    boundary, 
+    top_k)
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy! 
   return result
 
-proc query_int32(c:Column, query:int32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+proc query_int32(
+  c:Column, 
+  query:int32, 
+  boundary:Natural, 
+  top_k:Natural,
+  exact_match:bool # if False, we ignore the `query` and collect all unique values!
+  ):seq[Natural]=
   assert c.kind == colInt32
   
   let top_k = min(boundary, top_k)
   var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
-  let count_filled = queryImpl(top_k_seq, c, query, boundary, top_k, int32)
+  let count_filled = queryImpl(top_k_seq, 
+    c, 
+    query, 
+    boundary, 
+    top_k,
+    exact_match, 
+    int32)
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
-proc query_float32(c:Column, query:float32, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+proc query_float32(c:Column, query:float32, boundary:Natural, top_k:Natural, exact_match:bool = true):seq[Natural]=
   assert c.kind == colFloat32
   
   let top_k = min(boundary, top_k)
   var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
-  let count_filled = queryImpl(top_k_seq, c, query, boundary, top_k, float32)
+  let count_filled = queryImpl(
+    top_k_seq, 
+    c, 
+    query, 
+    boundary, 
+    top_k, 
+    exact_match,
+    float32)
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
-proc query_bool(c:Column, query:bool, boundary:Natural, top_k:Natural = 100):seq[Natural]=
+proc query_bool(c:Column, query:bool, boundary:Natural, top_k:Natural, exact_match:bool = true):seq[Natural]=
   assert c.kind == colBool
   
   let top_k = min(boundary, top_k)
   var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
-  let count_filled = queryImpl(top_k_seq, c, query, boundary, top_k, bool)
+  let count_filled = queryImpl(
+    top_k_seq, 
+    c, 
+    query, 
+    boundary, 
+    top_k, 
+    exact_match,
+    bool)
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
 ################################################################################################################
@@ -702,21 +575,6 @@ proc modify_row*(
     all_attribute_checks = false  # not necessary, we may be modifying some of the attributes!
   )
 
-proc modify_row*(m:var MetaIndex, 
-  row_idx:Natural, 
-  meta_data:JsonNode, 
-  force:bool = false
-  )=
-  # force:bool is here to actually overwrite the original data to model situations where data is being generated by backend process but may be at a later stage.
-  # in our case face-clustering is done later on but doesn't come from user side... so we want to use clusters as original data in this case!
-  # otherwise we create a new version of some field, rather than overwriting by default!
-
-  # a subset of fields to be modified with new data for given row.
-  doAssert meta_data.kind == JObject
-  for key, column_data in meta_data:
-    var c = m[key]
-    populateColumnImpl(c, row_idx, column_data, m.stringConcatenator)
-
 proc set_immutable()=
   # i am leaning towards aliasing rather than overwriting !
   # can set a  particular column to be immutable, but not vice-versa!
@@ -726,7 +584,7 @@ proc toJson(m:MetaIndex, count:Natural = 10):JsonNode =
   result = JsonNode(kind:JObject)
   let limit = min(m.dbRowPointer, count)
   for c in m.columns: 
-    let (c_kind, raw_json) = c.toJson(boundary = limit)
+    let (c_kind, raw_json) = c.collect_elements(boundary = limit)
     result[c.label] = raw_json.fromJson(JsonNode)
   return result
 
@@ -736,56 +594,50 @@ proc `$`*(m:MetaIndex, count:Natural = 10):string=
 ###################################
 ## Querying #######################
 ######################################
-# proc query_string(m:MetaIndex, attribute:string, query:string, top_k:Natural = 100):seq[Natural]=
-#   # return all the matching indices in a column referred to by the attribute/label.
-#   let c = m[attribute]  # get the column.
-#   result = c.query_string(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
-#   return result
-
-# proc query_int32(m:MetaIndex, attribute:string, query:int32, top_k:Natural = 100):seq[Natural]=
-#   let c = m[attribute]
-#   result = c.query_int32(query= query, boundary = m.dbRowPointer, top_k = top_k)
-#   return result
-
-# proc query_float32(m:MetaIndex, attribute:string, query:float32, top_k:Natural = 100):seq[Natural]=
-#   # return all the matching indices in a column referred to by the attribute/label.
-#   let c = m[attribute]  # get the column.
-#   result = c.query_float32(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
-#   return result
-
-# proc query_bool(m:MetaIndex, attribute:string, query:bool, top_k:Natural = 100):seq[Natural]=
-#   # return all the matching indices in a column referred to by the attribute/label.
-#   let c = m[attribute]  # get the column.
-#   result = c.query_bool(query = query, boundary = m.dbRowPointer, top_k = top_k) # query the column for matching candidates.
-#   return result
-
 proc query_column*(
   m:MetaIndex, 
   attribute:string,  # For now we are querying a single column at a time!
-  query:JsonNode,
-
-  exact_string:bool = false, 
-  top_k:Natural = 100,    # Doesn't make sense for exact match! TODO: remove it 
-  unique_only:bool = false
+  query:JsonNode,    # wildcard * is allowed, to match all rows for a column, in case to collect all the elements from a column!
+  top_k:Natural = 10_000      # at-max this this number of matched rows!
   ):seq[Natural]=
   # attribute_value: key/label value pairs, value is value is match for corresponding column.
   
-  let boundary = m.dbRowPointer
-  var top_k = boundary
+  # NOTE:
+  # Considers `substring` matches a considered a match, see comment in `querystringImpl`.
+  # Only unique indices are returned!
 
+  let boundary = m.dbRowPointer
   let c = m[attribute]
   case c.kind
   of colString:
-    result = c.query_string(query = getStr(query), boundary = boundary, top_k = top_k, exact_string = exact_string, splitter = m.stringConcatenator, unique_only = unique_only)
+    result = c.query_string(query = getStr(query), boundary = boundary, top_k = top_k)
   of colArrayString:
     doAssert query.kind == JString
-    result = c.query_string(query = getStr(query), boundary = boundary, top_k = top_k, exact_string = exact_string, splitter = m.stringConcatenator, unique_only = unique_only)
+    result = c.query_string(query = getStr(query), boundary = boundary, top_k = top_k)
   of colInt32:
-    result = c.query_int32(query = getInt(query).int32, boundary = boundary, top_k = top_k)
+    var exact_match:bool = true
+    var query_int32:int32
+    if query.kind == JString:
+      doAssert getStr(query) == "*", "Wildcard must be * "
+      exact_match = false
+      query_int32 = 0   # Doesn't matter, as all would be matched!
+    else:
+      query_int32 = getInt(query).int32
+    result = c.query_int32(query = getInt(query).int32, boundary = boundary, top_k = top_k, exact_match = exact_match)
   of colBool:
-    result = c.query_bool(query = getBool(query), boundary = boundary, top_k = top_k)
+    var exact_match:bool = true
+    result = c.query_bool(query = getBool(query), boundary = boundary, top_k = top_k, exact_match = exact_match)
   of colFloat32:
-    result = c.query_float32(query = getFloat(query).float32, boundary = boundary, top_k = top_k)
+    var exact_match:bool = true
+    var query_float32:float32
+    if query.kind == JString:
+      doAssert getStr(query) == "*", "Wildcard must be * "
+      exact_match = false
+      query_float32 = 0.0  # doens't matter if exact_match is set to false!
+    else:
+      query_float32 = getFloat(query).float32
+    
+    result = c.query_float32(query = query_float32, boundary = boundary, top_k = top_k, exact_match = exact_match)
   return result
 
 # we would want to 
@@ -804,7 +656,7 @@ proc collect_rows*(
   # Collect specific elements/rows from a column!
   # this way let the python, call directly this.. and later recreate a ROW from elements of all columns!
   let c = m[attribute]
-  result = c.toJson(
+  result = c.collect_elements(
     boundary = m.dbRowPointer,
     gather_indices = some(indices)
   )
@@ -873,7 +725,7 @@ proc save*(
     column_types[i] = c.kind
     
     # save each column meta-data separately!
-    let info:ColJson = c.toJson(boundary = m.dbRowPointer)
+    let info:ColJson = c.collect_elements(boundary = m.dbRowPointer)
     
     # TODO: also alias data...
     let path = os.joinPath(save_dir, m.dbName & "_" & c.label & ".json")
@@ -1048,20 +900,22 @@ when isMainModule:
 
   var row_indices = m.query_column(
     attribute = "name",
-    query = parseJson("kia".toJson()),
-    exact_string = false
+    query = parseJson("ss".toJson()),
+    # query = parseJson("*".toJson())
   )
+  echo row_indices
 
-  echo m.collect_rows(
+  let(c_kind, c_json) = m.collect_rows(
     attribute = "name",
     indices = row_indices
   )
+  echo c_json.fromJson(seq[seq[string]])
 
-  var new_m =  load(
-    name = "test",
-    load_dir = "."
-  )
-  echo new_m
+  # var new_m =  load(
+  #   name = "test",
+  #   load_dir = "."
+  # )
+  # echo new_m
 
   # var m2 = load("./test_meta_save.json")
   # echo m2
