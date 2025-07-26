@@ -67,19 +67,15 @@ proc append(
 proc query_column(
   attribute:string, # column Name
   query:string,     # json encoded string!
-  exact_string:bool = true, 
-  unique_only:bool = false
+  unique_only:bool = true
   ):string {.exportpy.} = 
   # query is supposed to be jsonEncoded string, with column names as keys.
-  # exact_string: i.e match exact string or substring is enough.
-
   # Return Indices for the rows matched! (we json encode it, can make it faster by writing directly to python memory, but later people!!!)
   
   var indices = m.query_column(
     attribute = attribute,
-    query = query.fromJson(JsonNode), 
-    exact_string = exact_string, 
-    unique_only = unique_only
+    query = query.fromJson(JsonNode),
+    unique_only = unique_only 
     )
   return indices.toJson() 
 
@@ -108,7 +104,7 @@ proc modify(
   let meta_data = meta_data.fromJson(JsonNode)
   m.modify_row(
     row_idx = row_idx, 
-    meta_data = meta_data
+    row = meta_data
     )
 
 ##############
@@ -128,12 +124,7 @@ proc get_column_labels():string {.exportpy.}=
 proc get_column_types():string {.exportpy.}=
   var py_types = JsonNode(kind:JArray)
   for c in m.columns:
-
-    # TODO: its a patch..should be an api/routine to get base kind!
     var temp = c.kind
-    if temp == colArrayString:
-      temp = colString
-    
     for key, value in pytype_2_coltype:
       if value == temp:
         py_types.add(JsonNode(kind:JString, str:key))
