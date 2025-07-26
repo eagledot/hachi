@@ -11,11 +11,16 @@ import sys
 import json
 import time
 
+query_token_counter = 0      # NOTE: TODO: make it random enough if exposing .. (any logged-in must not be able to guess!)
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "./nim"))
 import meta_index_new_python as mBackend
 
-from pagination import PaginationCache, PaginationInfo
-
+try:
+    from .pagination import PaginationCache, PaginationInfo
+except:
+    from pagination import PaginationCache, PaginationInfo
+    
 CASE_INSENSITIVE = True  # DO IT on `request`, when updating/receiving user-data , otherwise generating info also keep it in lower.
 def generate_resource_hash(resource_path:str, chunk_size:int = 400) -> Optional[str]:
     
@@ -64,6 +69,7 @@ class MetaIndex(object):
         # resources to be freed on reseting..
         self.column_labels = []
         self.column_types = []
+        self.column_stats = []  # unique elements for each column count!
         
         # initialize the index directory .
         self.index_directory = os.path.abspath(index_directory)
@@ -82,7 +88,9 @@ class MetaIndex(object):
                 )
             self.column_labels = json.loads(mBackend.get_column_labels())
             self.column_types = json.loads(mBackend.get_column_types())
+            self.column_stats = [0 for _ in range(len(self.column_labels))]
             self.backend_is_initialized = True
+            self.stats_need_update = True    # by default, each call to `update/append` should set it to true!
             print("[MetaIndexV2] Loaded from: {}".format(self.meta_index_path))
         else:
             # lazy when first time update/put is called. we can have the column_labels and column_types available then..
@@ -124,36 +132,18 @@ class MetaIndex(object):
             return result
 
         with self.lock:
-            attr_2_type = self.get_attribute_2_type() # TODO: create a mapping as field rather than function call!
-            if attribute in attr_2_type and attr_2_type[attribute] == "string":
-                # prepare query
-                row_indices = json.loads(mBackend.query_column(
-                    attribute = attribute,
-                    query = json.dumps(query), 
-                    exact_string = False, 
-                    top_k = 20 
-                    ))[attribute] # get the rows, for which column/attribute has query as substring in it.
-
-                # collect rows, TODO: should be able to just ask for a single attribute too..but still ok, since we select row_indices for desired attribute.
-                rows = json.loads(mBackend.collect_rows(row_indices))
-                temp_result = set()
-                for r in rows:
-                    temp_value = r[attribute]
-
-                    # flatten and de-duplicate
-                    if not isinstance(temp_value, list):
-                        temp_result.add(temp_value)
-                    else:
-                        for x in temp_value:
-                            if query in x:   # current logic return the full original array stored along with the query matched, so we want the relevant element/elements only.
-                                # for example ["cluster_xx", "<queryxx>"], we want queryxx only!
-                                temp_result.add(x)
-                
-                return list(temp_result)                        
-            else:
-                print("[WARNING]: attribute {} should have been a valid attribute and should be of type string for now!".format(attribute))
+            # NOTE: should work with all attributes now!
+            # pagination sequence: (query and collect)
+            n_suggestions = 20
+            (query_token, n_pages) = self.query(attribute = attribute, query = query, page_size = n_suggestions)
+            meta_data_array = self.collect(query_token, page_id = 0) # first n suggestions should be enough for now!
+            assert n_pages >= 1, "always it should be right!"
+            assert len(meta_data_array) <= n_suggestions
+            for i in range(len(meta_data_array)):
+                result.append(meta_data_array[i][attribute])
+            del meta_data_array
             return result
-
+            
     # class QueryInfo(NamedTuple):
     #     query_completed:bool    # if false, client is excepted to call `query` routine until set to true.
     #     n_pages:int     # we should be able to estimate it on first fresh `query`
@@ -174,10 +164,13 @@ class MetaIndex(object):
         (callback, data) = self.pagination_cache.get(query_token, page_id)
         return callback(data)
     
-    def collect_attribute_unique(
+    def __collect_attribute_unique(
             self,
             data:tuple[str, Iterable[int], bool],
     )-> Iterable[Any]:
+        """
+        NOTE: Internal, supposed to be called by `collect`!
+        """
         # given the attribute, and specific row_indices collect unique values for that attribute!        
         (attribute, row_indices, return_json) = data
 
@@ -190,11 +183,12 @@ class MetaIndex(object):
         else:
             return json.loads(result_json)
           
-    def collect_meta_rows(
+    def __collect_meta_rows(
             self,
             row_indices:Iterable[int],   # collect these rows from meta-data backend!
     ):
         """
+        NOTE: Internal, supposed to be called by `collect`!
         Given row_indices, we collect corresponding elements `column` by `column` and then re-create the Row(s) on python side.
         """
         assert isinstance(row_indices, Iterable)
@@ -234,34 +228,39 @@ class MetaIndex(object):
     def get_attribute_all(
             self,
             attribute:str,
-            page_size:int,
+            page_size:int = 200,
             return_json:bool = False):
         
-        final_row_indices = self.query_generic(
-            attribute = attribute,
-            query = "*" # wild-card to return all (unique) rows!
-        )
+        with self.lock:
+            global query_token_counter
 
-        query_token = "xxxxxxx"
-        # -------------------------------------
-        # Generate Pagination info..
-        # ------------------------------------
-        n_pages = len(final_row_indices) // page_size + 1
-        page_meta = []
-        for i in range(n_pages):
-            page_meta.append((attribute, final_row_indices[i*page_size: (i+1)*page_size], return_json))
+            # We collect all the (unique)`row indices` for this attribute.
+            # Useful to get all the possible values for an attribute, like how many `people`, `folders` etc! 
+            final_row_indices = self.__query_generic(
+                attribute = attribute,
+                query = "*" # wild-card to return all (unique) rows!
+            )
 
-        info:PaginationInfo = {}
-        info["token"] = query_token
-        info["callback"] = self.collect_attribute_unique
-        info["page_meta"] = page_meta
-        del page_meta
+            query_token = "xxxxxxx_{}".format(query_token_counter)
+            # -------------------------------------
+            # Generate Pagination info..
+            # ------------------------------------
+            n_pages = len(final_row_indices) // page_size + 1
+            page_meta = []
+            for i in range(n_pages):
+                page_meta.append((attribute, final_row_indices[i*page_size: (i+1)*page_size], return_json))
 
-        # add a new entry to the pagination cache for this query!
-        self.pagination_cache.add(
-            info
-        )
-        # -------------------------------
+            info:PaginationInfo = {}
+            info["token"] = query_token
+            info["callback"] = self.__collect_attribute_unique
+            info["page_meta"] = page_meta
+            del page_meta
+
+            # add a new entry to the pagination cache for this query!
+            self.pagination_cache.add(
+                info
+            )
+            # -------------------------------
 
         return (query_token, n_pages)
 
@@ -269,39 +268,46 @@ class MetaIndex(object):
             self,
             attribute:str,
             query:Any,
-            page_size:int):
+            unique_only:bool = True,
+            page_size:int = 200):
         
-        # NOTE: supports (Pagination) sequence. (call it and then call `collect`)
-        
-        # Get all the (unique) values/elements for a attribute!
-        final_row_indices = self.query_generic(
-            attribute = attribute,
-            query = query
-        )
+        with self.lock:
+            # NOTE: supports (Pagination) sequence. (call it and then call `collect`)
+            global query_token_counter
 
-        query_token = "xxxxxxx"
-        # -------------------------------------
-        # Generate Pagination info..
-        # ------------------------------------
-        info:PaginationInfo = {}
-        n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
-        page_meta = []
-        for i in range(n_pages):
-            page_meta.append(final_row_indices[i*page_size: (i+1)*page_size])
-        info["token"] = query_token
-        info["callback"] = self.collect_meta_rows
-        info["page_meta"] = page_meta
-        del page_meta
+            # Get all the (unique) values/elements for a attribute!
+            final_row_indices = self.__query_generic(
+                attribute = attribute,
+                query = query,
+                unique_only=unique_only
+            )
+            print(final_row_indices)
 
-        # add a new entry to the pagination cache for this query!
-        self.pagination_cache.add(info)
-        # --------------------------------------------
+            query_token = "xxxxxxx_{}".format(query_token_counter)
+            query_token_counter += 1
+            # -------------------------------------
+            # Generate Pagination info..
+            # ------------------------------------
+            info:PaginationInfo = {}
+            n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+            page_meta = []
+            for i in range(n_pages):
+                page_meta.append(final_row_indices[i*page_size: (i+1)*page_size])
+            info["token"] = query_token
+            info["callback"] = self.__collect_meta_rows
+            info["page_meta"] = page_meta
+            del page_meta
 
-        return (query_token, n_pages)
+            # add a new entry to the pagination cache for this query!
+            self.pagination_cache.add(info)
+            # --------------------------------------------
 
-    def query_generic(self, 
+            return (query_token, n_pages)
+
+    def __query_generic(self, 
               attribute:str,      # attribute to query. 
               query:Union[Any, Iterable[Any]], # based on the column type, multiple queries can be supplied for an attribute
+              unique_only:bool = True
               ) -> Iterable[int]:
         
         """
@@ -331,12 +337,50 @@ class MetaIndex(object):
             # But with `unique` returns by default, this should be around a couple of thousand, matching indices only for a query!
             row_indices_json = mBackend.query_column(
                 attribute = attribute,
-                query = json.dumps(query) # backend consumes in json, to handle multiple column types!
+                query = json.dumps(query), # backend consumes in json, to handle multiple column types!
+                unique_only = unique_only
             )
             for row_idx in json.loads(row_indices_json):
                 final_row_indices.append(row_idx)
         return final_row_indices 
-        
+    
+    def __get_index(self, attribute) ->int:
+        idx = None
+        for i,x in enumerate(self.column_labels):
+            if attribute == x:
+                idx = i
+                break
+        assert not (idx is None)
+        return idx
+    
+    def __count_unique(self, attribute:str) ->int:
+            if self.stats_need_update == False:
+                return self.column_stats[self.__get_index(attribute)]
+
+            row_indices = self.__query_generic(
+                attribute = attribute,
+                query = "*"
+            )
+            print("stats: {} {}".format(len(row_indices), attribute))
+
+            result  = None
+            if self.get_attribute_type(attribute) == "arrayString":
+                # then de-duplicate too, as we only got the `uniqueness about array representation not individual elements!`
+                temp = set()
+                result_json = mBackend.collect_rows(
+                    attribute,
+                    row_indices   # nimpy handles  the marshalling to seq[natural] !
+                )
+                for arr in json.loads(result_json):
+                    for x in arr:
+                        temp.add(x)
+                result = len(temp)
+            else:
+                result =  len(row_indices)
+
+            self.column_stats[self.__get_index(attribute)] = result
+            return result
+
     # TODO: name it append/put instead of update!
     def update(self,
                meta_data:ImageMetaAttributes
@@ -344,6 +388,7 @@ class MetaIndex(object):
 
         # print("[TODO]: rename `update` to `append`")
         with self.lock:
+            self.stats_need_update = True
             assert len(meta_data["resource_hash"]) > 10 # (assuming atleast 10 chars), proper hash was supposed to be generated!
             flatten_dict = flatten_the_metadata(meta_data)
             
@@ -398,13 +443,14 @@ class MetaIndex(object):
     def modify_meta_ml(self, 
                         resource_hash:str,
                         meta_data:MLAttributes,
-                        force:bool = False):
+                        ):
         
         """
         Modify existing ML attributes for a resource, like when clusters have been finalized!
         NOTE: it is called internally only , and should never be called based on some client/user event.
         For now only being called to modify/update cluster-ids for a resource !
-        
+        For now it also updates, correspoding `user` counterparts too, we do it during indexing so as initially ML info matches with User ones. later user can modify/update that if wrong! 
+
         For user-specific events `modify_meta_user` should be called! 
         
         I think could also be useful, in case user later wants to test with Multiple ML models.. 
@@ -423,15 +469,18 @@ class MetaIndex(object):
                 assert k in temp_keys
             del temp_keys
 
-            # update it.
-            query = json.dumps({"resource_hash":resource_hash})  
-            rowIndices = json.loads(mBackend.query(query)) # first get the desired row_index that we need to update.
-            assert len(rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
-            mBackend.modify(
-                rowIndices[0], 
-                json.dumps(meta_data)
-                )
+            # get indices to update!
+            row_indices = self.__query_generic(
+                attribute = "resource_hash",
+                query = resource_hash
+            )
+            assert len(row_indices) == 1, "expected only 1 row as resource_hash acts like a primary key!"
 
+            mBackend.modify(
+                row_idx = row_indices[0], 
+                meta_data = json.dumps(meta_data), 
+            )
+            
             # -----------------------------------------
             # By default, if there is a matching `attribute` with ML for `user` also, fill the ML information.
             # Later, user can amend/update that info, UserAttributes are supposed to be writable by users/external-events!
@@ -442,14 +491,17 @@ class MetaIndex(object):
                     user_meta[k.replace("ML","")] = meta_data[k]
 
             if len(user_meta) > 0:
-                mBackend.modify(rowIndices[0], json.dumps(user_meta), force = force)
+                mBackend.modify(
+                    row_idx = row_indices[0], 
+                    meta_data = json.dumps(user_meta), 
+                    )
             del user_meta
             #----------------------------------------------
 
     def modify_meta_user(self, 
                         resource_hash:str,
-                        meta_data:UserAttributes, # or a subset!
-                        force:bool = False):
+                        meta_data:UserAttributes
+                        ):
         
         """
         modify existing User attributes for a resource, like when clusters have been finalized!
@@ -462,17 +514,27 @@ class MetaIndex(object):
 
             assert self.is_indexed(resource_hash)
             
-            # update it..
-            attr_2_rowIndices = json.loads(
-                mBackend.query_column(
-                    attribute = "resource_hash",
-                    query = json.dumps(resource_hash),
-                    )) # first get the desired row_index that we need to update.
-            assert len(attr_2_rowIndices["resource_hash"]) == 1, "expected only 1 row as resource_hash acts like a primary key!"
-            row_indices = attr_2_rowIndices["resource_hash"]
-            mBackend.modify(row_indices[0], json.dumps(meta_data), force = force)
+            # get indices to modify!
+            row_indices = self.__query_generic(
+                attribute = "resource_hash",
+                query = resource_hash
+            )
+            assert len(row_indices) == 1, "expected only 1 row as resource_hash acts like a primary key!"
+            mBackend.modify(
+                row_index = row_indices[0], 
+                meta_datat = 
+                json.dumps(meta_data)
+                )
 
-
+    def remove_pagination_token(
+            self,
+            query_token:str,
+    ):
+        # generally if can prove some query_token during pagination sequence, generated can no longer is used.
+        # or forcefully need to be removed to limit pagination cache, we `pop` it from pagination cache!
+        with self.lock:
+            self.pagination_cache.remove(query_token)
+    
     def save(self):
         with self.lock:
             if self.backend_is_initialized == False:
@@ -498,8 +560,15 @@ class MetaIndex(object):
             self.backend_is_initialized = False  # so when next time update is called... we will initialize it.
             mBackend.reset()
 
-    def get_attribute_2_type(self):
-        return {self.column_labels[i]:self.column_types[i] for i in range(len(self.column_labels))}
+    def get_attribute_type(self, attribute) -> str:
+        # Return `type` for an attributes!
+        attr_type = None
+        for i,label in enumerate(self.column_labels):
+            if label == attribute:
+                attr_type = self.column_types[i]
+                break
+        assert not (attr_type is None)
+        return attr_type                
 
     def get_stats(self):
         """
@@ -519,28 +588,15 @@ class MetaIndex(object):
                 result["image"]["unique_place_count"] = 0
                 result["image"]["unique_resource_directories_count"] = 0
             else:
-                result["image"]["count"] = len(self.query_generic(attribute = "resource_hash", query = "*"))
-                result["image"]["unique_people_count"] = len(self.query_generic("personML", query = "*"))
-                result["image"]["unique_place_count"] = len(self.query_generic("place", query = "*"))
-                result["image"]["unique_resource_directories_count"] = len(self.query_generic("resource_directory", query = "*"))
+                result["image"]["count"] = self.__count_unique(attribute = "resource_hash")
+                result["image"]["unique_people_count"] = self.__count_unique("personML")
+                result["image"]["unique_place_count"] = self.__count_unique("place")
+                result["image"]["unique_resource_directories_count"] = self.__count_unique("resource_directory")
 
+        self.stats_need_update = False
         return result
 
 if __name__ == "__main__":
-    # need to start benchmarking it!
-    # for something like 100k photos..
-    # json decoding is not cheap in python.
-    # also use `jsony` in NIm.. to speed up and benchmark that too
-    # 
-
-    # first create data enough  how..
-    # can just use dummy meta-data extraction!
-    # for example query should be fast, right?
-    # since we would just be getting indices, right?
-    # those indices are limited
-    pass 
-
-
     from metadata import extract_image_metaData, generate_dummy_string
     sample_index = MetaIndex(
         name = "test",
@@ -550,7 +606,7 @@ if __name__ == "__main__":
     
     if GENERATE_FRESH:
         sample_index.reset()
-        n_iterations = 50_000
+        n_iterations = 1000
         
         tic = time.time()
         for i in range(n_iterations):    
@@ -586,36 +642,42 @@ if __name__ == "__main__":
         sample_index.save()
         print("Saved..")  
 
-    sample_hash = "fwoeocgtwsttazxjlxjdwwxwxdwttweo"
     
+    sample_hash = "dvoicbhpisrvidupsnovuycjblupaszd"
+    print(sample_index.get_stats())
     (query_token, n_pages) = sample_index.query(
         attribute = "resource_hash",
         query = sample_hash,
         page_size = 200
     )
-    
-    tic  = time.time_ns()
-    for i in range(2000):
-        (query_token, n_pages) = sample_index.query(
-            attribute = "resource_hash",
-            query = sample_hash,
-            page_size = 200
-        )
-        # meta_data = sample_index.collect(
-        #     query_token,
-        #     page_id = 0
-        # )
-        # for x in meta_data:
-        #     print(x["resource_hash"])
-    print("Query: {} ms".format((time.time_ns() - tic) / (1e6 * 2000)))
-    print("xxxxxxxxxxx")
 
-    # results = sample_index.collect(
-    #     query_token = "xxxxxxxxxx",
-    #     page_id = 1
-    # )
-    # print(len(results))
-    # print(len(results))
-    # print(results[:1])
+    meta_data = sample_index.collect(
+        query_token = query_token,
+        page_id = 0
+    )
+    print(meta_data[0]["personML"])
+
+    new_ml:MLAttributes = {}
+    new_ml["personML"] = ["sanePerson", "xperson"]
+    new_ml["tagsML"] = ["newTag"]
+    new_ml["descriptionML"] = "I created this !"
+
+    print(meta_data[0]["person"])
+    sample_index.modify_meta_ml(
+        resource_hash=sample_hash,
+        meta_data = new_ml
+    )
+
+    meta_data = sample_index.collect(
+        query_token = query_token,
+        page_id = 0
+    )
+    print(meta_data[0]["person"])
+    print(meta_data[0]["personML"])
+    print(meta_data[0]["descriptionML"])
+
+
+
+
 
      
