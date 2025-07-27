@@ -135,7 +135,7 @@ class MetaIndex(object):
             # NOTE: should work with all attributes now!
             # pagination sequence: (query and collect)
             n_suggestions = 20
-            (query_token, n_pages) = self.query(attribute = attribute, query = query, page_size = n_suggestions)
+            (query_token, n_pages) = self.query(attribute = attribute, query = [query], page_size = n_suggestions)
             meta_data_array = self.collect(query_token, page_id = 0) # first n suggestions should be enough for now!
             assert n_pages >= 1, "always it should be right!"
             assert len(meta_data_array) <= n_suggestions
@@ -209,7 +209,7 @@ class MetaIndex(object):
             )
             assert len(temp[attribute]) == len(row_indices), "Must match, right! if we are valid row_indices!"
         
-        print("[NIM + Python] collect rows: {}".format((time.time_ns() - tic) / 1e6))
+        # print("[NIM + Python] collect rows: {}".format((time.time_ns() - tic) / 1e6))
 
         # NOTE: without pagination, the following loop could lead to 0.5 M iterations with 10 columns and 50K row_indices, So!
         # then we re-create Rows from previous data, to easily consume later on!
@@ -221,7 +221,7 @@ class MetaIndex(object):
             final_meta_data.append(row_temp)
             del row_temp
         del temp
-        print("[QUERY]: {}".format((time.time_ns() - base_time) / 1e6))
+        # print("[QUERY]: {}".format((time.time_ns() - base_time) / 1e6))
 
         return final_meta_data
 
@@ -238,7 +238,7 @@ class MetaIndex(object):
             # Useful to get all the possible values for an attribute, like how many `people`, `folders` etc! 
             final_row_indices = self.__query_generic(
                 attribute = attribute,
-                query = "*" # wild-card to return all (unique) rows!
+                query = ["*"] # wild-card to return all (unique) rows!
             )
 
             query_token = "xxxxxxx_{}".format(query_token_counter)
@@ -267,7 +267,7 @@ class MetaIndex(object):
     def query(
             self,
             attribute:str,
-            query:Any,
+            query:list[Any],
             unique_only:bool = True,
             page_size:int = 200):
         
@@ -281,7 +281,7 @@ class MetaIndex(object):
                 query = query,
                 unique_only=unique_only
             )
-            print(final_row_indices)
+            print("Final row indices: {}".format(len(final_row_indices)))
 
             query_token = "xxxxxxx_{}".format(query_token_counter)
             query_token_counter += 1
@@ -306,7 +306,7 @@ class MetaIndex(object):
 
     def __query_generic(self, 
               attribute:str,      # attribute to query. 
-              query:Union[Any, Iterable[Any]], # based on the column type, multiple queries can be supplied for an attribute
+              query:list[Any], # based on the column type, multiple queries can be supplied for an attribute
               unique_only:bool = True
               ) -> Iterable[int]:
         
@@ -319,29 +319,17 @@ class MetaIndex(object):
             print("[ERROR]: Backend must have been initialized!")
             return {}
 
-        
-        # Multiple quertes for a single attribute can be passed for convenience.
-        # NOTE: still backend does it 1 by 1, TODO: allow batching in backend!
-        
         # -----------------------------------------------
-        query_list = query
-        if isinstance(query_list, str):
-            assert isinstance(query, str)
-            query_list = [query]
-        del query
-        assert isinstance(attribute,str) and isinstance(query_list, list)
+        assert isinstance(attribute,str) and isinstance(query, list)
 
-        final_row_indices = []
-        for query in query_list:
-            # TODO: can share the python memory to write row_indices directly to it but later!
-            # But with `unique` returns by default, this should be around a couple of thousand, matching indices only for a query!
-            row_indices_json = mBackend.query_column(
-                attribute = attribute,
-                query = json.dumps(query), # backend consumes in json, to handle multiple column types!
-                unique_only = unique_only
-            )
-            for row_idx in json.loads(row_indices_json):
-                final_row_indices.append(row_idx)
+        # TODO: can share the python memory to write row_indices directly to it but later!
+        # But with `unique` returns by default, this should be around a couple of thousand, matching indices only for a query!
+        row_indices_json = mBackend.query_column(
+            attribute = attribute,
+            query = json.dumps(query), # backend consumes in json, to handle multiple column types!
+            unique_only = unique_only
+        )
+        final_row_indices = json.loads(row_indices_json)
         return final_row_indices 
     
     def __get_index(self, attribute) ->int:
@@ -359,9 +347,8 @@ class MetaIndex(object):
 
             row_indices = self.__query_generic(
                 attribute = attribute,
-                query = "*"
+                query = ["*"]
             )
-            print("stats: {} {}".format(len(row_indices), attribute))
 
             result  = None
             if self.get_attribute_type(attribute) == "arrayString":
@@ -472,7 +459,7 @@ class MetaIndex(object):
             # get indices to update!
             row_indices = self.__query_generic(
                 attribute = "resource_hash",
-                query = resource_hash
+                query = [resource_hash]
             )
             assert len(row_indices) == 1, "expected only 1 row as resource_hash acts like a primary key!"
 
@@ -517,7 +504,7 @@ class MetaIndex(object):
             # get indices to modify!
             row_indices = self.__query_generic(
                 attribute = "resource_hash",
-                query = resource_hash
+                query = [resource_hash]
             )
             assert len(row_indices) == 1, "expected only 1 row as resource_hash acts like a primary key!"
             mBackend.modify(
@@ -606,7 +593,7 @@ if __name__ == "__main__":
     
     if GENERATE_FRESH:
         sample_index.reset()
-        n_iterations = 1000
+        n_iterations = 100
         
         tic = time.time()
         for i in range(n_iterations):    
@@ -644,37 +631,41 @@ if __name__ == "__main__":
 
     
     sample_hash = "dvoicbhpisrvidupsnovuycjblupaszd"
+    sample_hash_2 = "esujgxynepxtjcmfyllhjjfspminfbgi"
     print(sample_index.get_stats())
     (query_token, n_pages) = sample_index.query(
         attribute = "resource_hash",
-        query = sample_hash,
+        query = [sample_hash, sample_hash_2],
         page_size = 200
     )
 
-    meta_data = sample_index.collect(
-        query_token = query_token,
-        page_id = 0
-    )
-    print(meta_data[0]["personML"])
 
-    new_ml:MLAttributes = {}
-    new_ml["personML"] = ["sanePerson", "xperson"]
-    new_ml["tagsML"] = ["newTag"]
-    new_ml["descriptionML"] = "I created this !"
+    # meta_data = sample_index.collect(
+    #     query_token = query_token,
+    #     page_id = 0
+    # )
 
-    print(meta_data[0]["person"])
-    sample_index.modify_meta_ml(
-        resource_hash=sample_hash,
-        meta_data = new_ml
-    )
 
-    meta_data = sample_index.collect(
-        query_token = query_token,
-        page_id = 0
-    )
-    print(meta_data[0]["person"])
-    print(meta_data[0]["personML"])
-    print(meta_data[0]["descriptionML"])
+    # Modification test!
+    # print(meta_data[0]["personML"])
+    # new_ml:MLAttributes = {}
+    # new_ml["personML"] = ["sanePerson", "xperson"]
+    # new_ml["tagsML"] = ["newTag"]
+    # new_ml["descriptionML"] = "I created this !"
+
+    # print(meta_data[0]["person"])
+    # sample_index.modify_meta_ml(
+    #     resource_hash=sample_hash,
+    #     meta_data = new_ml
+    # )
+
+    # meta_data = sample_index.collect(
+    #     query_token = query_token,
+    #     page_id = 0
+    # )
+    # print(meta_data[0]["person"])
+    # print(meta_data[0]["personML"])
+    # print(meta_data[0]["descriptionML"])
 
 
 
