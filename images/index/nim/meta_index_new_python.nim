@@ -72,9 +72,11 @@ proc query_column(
   # query is supposed to be jsonEncoded string, with column names as keys.
   # Return Indices for the rows matched! (we json encode it, can make it faster by writing directly to python memory, but later people!!!)
   
+  let query = query.fromJson(JsonNode)
+  doAssert query.kind == JArray, "Expected an array, if a single element, wrap it into an iterable/list first!"
   var indices = m.query_column(
     attribute = attribute,
-    query = query.fromJson(JsonNode),
+    query = query,
     unique_only = unique_only 
     )
   return indices.toJson() 
