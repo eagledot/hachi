@@ -69,7 +69,6 @@ class FolderPhotosApp {
     const filterContainer = document.getElementById('photo-filter-container');
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.remove('lg:block');
       filterContainer.classList.add('hidden');
       
       filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter');
@@ -113,9 +112,8 @@ class FolderPhotosApp {
       backBtn.addEventListener('click', () => {
         window.location.href = '/folders.html';
       });
-    }    // Mobile filter toggle
-    this.setupMobileFilterToggle();
-
+    }
+    
     // Setup UI service event listeners
     this.uiService.setupEventListeners({
       onPhotoClick: (photo: HachiImageData) => this.handlePhotoClick(photo),
@@ -156,9 +154,7 @@ class FolderPhotosApp {
         if (filterContainer) {
           if (this.photos.length > 0) {
             filterContainer.classList.remove('hidden');
-            filterContainer.classList.add('lg:block');
           } else {
-            filterContainer.classList.remove('lg:block');
             filterContainer.classList.add('hidden');
           }
         }        this.updatePhotoCount();
@@ -252,7 +248,7 @@ class FolderPhotosApp {
     const photosSection = document.querySelector('section');
     
     // Use the filter container if visible, otherwise use the photos section
-    const targetElement = filterContainer?.classList.contains('lg:block') ? filterContainer : photosSection;
+    const targetElement = filterContainer && !filterContainer.classList.contains('hidden') ? filterContainer : photosSection;
     
     if (targetElement) {
       // Use requestAnimationFrame to ensure DOM updates are complete
@@ -421,22 +417,6 @@ class FolderPhotosApp {
       }
     } catch (error) {
       console.warn('Failed to update folder cache:', error);
-    }
-  }
-  private setupMobileFilterToggle(): void {
-    const mobileToggle = document.getElementById('mobile-filter-toggle');
-    const filterContainer = document.getElementById('photo-filter-container');
-    
-    if (mobileToggle && filterContainer) {
-      mobileToggle.addEventListener('click', () => {
-        filterContainer.classList.toggle('hidden');
-        
-        // Update toggle button icon
-        const chevron = mobileToggle.querySelector('svg:last-child');
-        if (chevron) {
-          chevron.classList.toggle('rotate-180');
-        }
-      });
     }
   }
 }

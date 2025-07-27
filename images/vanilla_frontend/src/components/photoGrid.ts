@@ -1,6 +1,8 @@
 // Reusable Photo Grid Component
 // This component provides a standardized grid layout for displaying photos across all pages
 
+import { html } from "../utils";
+
 export class PhotoGridComponent {
   /**
    * Get the HTML template for the photo grid container
@@ -19,14 +21,20 @@ export class PhotoGridComponent {
       errorId = 'error-display',
       noResultsId = 'no-results-message',
       gridId = 'photo-grid'
-    } = options;    return `
+    } = options;
+    return html`
       <!-- Photo Grid Container (reusable component) -->
       <div id="${containerId}">
         <!-- Loading indicator -->
-        <div id="${loadingId}" class="hidden justify-center items-center py-8">
-          <div class="flex items-center space-x-2">
-            <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            <span class="text-gray-600 text-sm">Loading photos...</span>
+        <div id="${loadingId}" class="hidden justify-center items-center py-4">
+          <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden relative">
+            <div class="absolute inset-0 bg-gradient-to-r from-blue-400 to-blue-600 rounded-full" style="animation: slideRight 1.5s linear infinite;"></div>
+            <style>
+              @keyframes slideRight {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+            </style>
           </div>
         </div>
 
@@ -57,7 +65,7 @@ export class PhotoGridComponent {
         </div>
 
         <!-- Photo grid -->
-        <div id="${gridId}" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div id="${gridId}" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4">
           <!-- Photos will be dynamically inserted here -->
         </div>
       </div>

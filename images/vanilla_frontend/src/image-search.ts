@@ -29,15 +29,15 @@ class ImageSearchApp {
       gridId: 'photo-grid'
     });    // Initialize photo filter component
     this.photoFilter = new PhotoFilterComponent({
-      onFilterChange: (filteredPhotos) => this.handleFilteredPhotosUpdate(filteredPhotos)
+      onFilterChange: (filteredPhotos) => this.handleFilteredPhotosUpdate(filteredPhotos),
+      hideSearchInput: true // Hide search input in image-search page
     });    // Initialize filter UI immediately but keep it hidden
     const filterContainer = document.getElementById('photo-filter-container');
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.remove('lg:block');
       filterContainer.classList.add('hidden');
       
-      filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter');
+      filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter', true);
       this.photoFilter.initialize('photo-filter');
     }
 
@@ -52,9 +52,7 @@ class ImageSearchApp {
     
     // Initialize fuzzy search UI
     this.fuzzySearchUI = new FuzzySearchUI(fuzzyContainer, {
-      onSearchExecuted: (query, _filters) => this.handleSearch(query),
-      onFilterAdded: (attribute, value) => this.handleFilterAdded(attribute, value),
-      onFilterRemoved: (attribute, value) => this.handleFilterRemoved(attribute, value)
+      onSearchExecuted: (query) => this.handleSearch(query)
     });    // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
     this.uiService = new UIService('photo-grid-container');
 
@@ -70,52 +68,8 @@ class ImageSearchApp {
     this.init();
   }  private init(): void {
     console.log('ImageSearch app initialized');
-    
-    // Process URL parameters to initialize search state
-    this.processUrlParameters();
-  }
-  /**
-   * Process URL search parameters to initialize default search attributes
-   */
-  private processUrlParameters(): void {
-    const urlParams = new URLSearchParams(window.location.search);
-    
-    // Check for various search parameters and add them as filters
-    const supportedAttributes = ['query', 'person', 'resource_directory', 'camera_make', 'camera_model', 'location'];
-    let hasFilters = false;
-    
-    supportedAttributes.forEach(attribute => {
-      const value = urlParams.get(attribute);
-      if (value) {
-        console.log(`Found URL parameter: ${attribute}=${value}`);
-        let processedValue = decodeURIComponent(value);
-        
-        // Fix path separators for resource_directory on Windows
-        if (attribute === 'resource_directory') {
-          processedValue = processedValue.replace(/\//g, '\\');
-        }
-        
-        this.fuzzySearchUI.addFilterExternal(attribute, processedValue);
-        hasFilters = true;
-      }
-    });
-    
-    // If we have filters from URL, execute search automatically
-    if (hasFilters) {
-      console.log('Executing search based on URL parameters');
-      this.fuzzySearchUI.executeSearchExternal();
-    }
   }
 
-  private handleFilterAdded(attribute: string, value: string): void {
-    console.log('Filter added:', attribute, value);
-    // Optional: Track filter changes for analytics or recent searches
-  }
-
-  private handleFilterRemoved(attribute: string, value: string): void {
-    console.log('Filter removed:', attribute, value);
-    // Optional: Track filter changes for analytics
-  }
   
   private setupEventListeners(): void {
     console.log('Setting up event listeners for ImageSearchApp');
@@ -127,27 +81,8 @@ class ImageSearchApp {
       onModalPrevious: () => this.handleModalPrevious()
     });    // Listen for global search events (if any external components trigger searches)
     this.setupGlobalSearchListener();
-    
-    // Setup mobile filter toggle
-    this.setupMobileFilterToggle();
   }
-  
-  private setupMobileFilterToggle(): void {
-    const mobileToggle = document.getElementById('mobile-filter-toggle');
-    const filterContainer = document.getElementById('photo-filter-container');
-    
-    if (mobileToggle && filterContainer) {
-      mobileToggle.addEventListener('click', () => {
-        filterContainer.classList.toggle('hidden');
-        
-        // Update toggle button icon
-        const chevron = mobileToggle.querySelector('svg:last-child');
-        if (chevron) {
-          chevron.classList.toggle('rotate-180');
-        }
-      });
-    }
-  }
+
   private setupGlobalSearchListener(): void {
     console.log('Setting up global search listener');
     // Listen for custom search events from other components
@@ -192,9 +127,7 @@ class ImageSearchApp {
     if (filterContainer) {
       if (photos.length > 0) {
         filterContainer.classList.remove('hidden');
-        filterContainer.classList.add('lg:block');
       } else {
-        filterContainer.classList.remove('lg:block');
         filterContainer.classList.add('hidden');
       }
     }
@@ -293,7 +226,7 @@ class ImageSearchApp {
     const resultsSection = document.getElementById('results-section');
     
     // Use the filter container if visible, otherwise use the results section
-    const targetElement = filterContainer?.classList.contains('lg:block') ? filterContainer : resultsSection;
+    const targetElement = filterContainer && !filterContainer.classList.contains('hidden') ? filterContainer : resultsSection;
     
     if (targetElement) {
       // Use requestAnimationFrame to ensure DOM updates are complete
@@ -350,6 +283,13 @@ class ImageSearchApp {
   private handleLoadingChange(isLoading: boolean): void {
     console.log('Loading state changed:', isLoading);
     this.uiService.updateLoading(isLoading);
+    
+    // Disable/enable fuzzy search inputs based on loading state
+    if (isLoading) {
+      this.fuzzySearchUI.disableInputs();
+    } else {
+      this.fuzzySearchUI.enableInputs();
+    }
   }
 
   private handleErrorChange(error: string | null): void {
@@ -359,6 +299,11 @@ class ImageSearchApp {
 
   private handleSearchDoneChange(isSearchDone: boolean): void {
     console.log('Search done state changed:', isSearchDone);
+    
+    // Ensure inputs are enabled when search is done
+    if (isSearchDone) {
+      this.fuzzySearchUI.enableInputs();
+    }
     
     // Update no results display if needed
     const state = this.searchService.getState();

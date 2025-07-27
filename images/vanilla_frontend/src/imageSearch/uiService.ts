@@ -26,7 +26,7 @@ export class UIService {
   private currentPhotoClick: ((photo: HachiImageData) => void) | null = null;
   
   // Performance optimizations
-  private static readonly FALLBACK_IMAGE_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+  private static readonly FALLBACK_IMAGE_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvcnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
   private static readonly VIEW_ICON_SVG = `<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
   
   // Event listener cleanup tracking
@@ -39,7 +39,9 @@ export class UIService {
     }
     this.container = container;
     this.initializeElements();
-  }private initializeElements(): void {
+    this.injectResponsivePhotoStyles();
+  }
+  private initializeElements(): void {
     // Elements within the container - search elements no longer needed as handled by FuzzySearchUI
     this.loadingIndicator = this.container.querySelector('#loading-indicator') as HTMLElement;
     this.errorDisplay = this.container.querySelector('#error-display') as HTMLElement;
@@ -282,8 +284,7 @@ export class UIService {
    */
   private createEmptyPhotoElement(): HTMLElement {
     const div = document.createElement('div');
-    div.className = 'group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer';
-    div.style.height = '180px';
+    div.className = 'group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height';
 
     const img = document.createElement('img');
     img.className = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200';
@@ -643,5 +644,43 @@ export class UIService {
       console.error('Error navigating to person page:', error);
       alert(`Failed to navigate to person page: ${personId}`);
     }
+  }
+
+  /**
+   * Injects CSS styles for responsive photo grid heights
+   */
+  private injectResponsivePhotoStyles(): void {
+    // Check if styles already exist
+    if (document.getElementById('responsive-photo-styles')) {
+      return;
+    }
+
+    const style = document.createElement('style');
+    style.id = 'responsive-photo-styles';
+    style.textContent = `
+      .mobile-photo-height {
+        height: 140px !important;
+      }
+      
+      @media (min-width: 640px) {
+        .mobile-photo-height {
+          height: 160px !important;
+        }
+      }
+      
+      @media (min-width: 768px) {
+        .mobile-photo-height {
+          height: 180px !important;
+        }
+      }
+      
+      @media (min-width: 1024px) {
+        .mobile-photo-height {
+          height: 200px !important;
+        }
+      }
+    `;
+    
+    document.head.appendChild(style);
   }
 }

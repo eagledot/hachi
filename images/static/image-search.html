@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Search - Hachi</title>    <style>
+    <title>Image Search - Hachi</title>
+    <style>
         /* Modal and grid styles will be injected by components */
+<<<<<<< HEAD
     </style>
   <script type="module" crossorigin src="/assets/imageSearch-Cp3eHszG.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/config-B2d5JqX_.js">
@@ -96,4 +98,83 @@
     </main>    <!-- Modal will be injected here by ImageModalComponent -->
 
 </body>
+=======
+    </style>
+  <script type="module" crossorigin src="/assets/imageSearch-VsYE1OCZ.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-CpFP1BEU.js">
+  <link rel="modulepreload" crossorigin href="/assets/utils-B3qE-N8V.js">
+  <link rel="modulepreload" crossorigin href="/assets/photoFilter-D8ALLYKP.js">
+  <link rel="stylesheet" crossorigin href="/assets/config-CXITBh5P.css">
+  <link rel="stylesheet" crossorigin href="/assets/style-J0C0nh5Z.css">
+</head>
+<body>
+    <!-- Navbar will be inserted here by Layout -->
+    
+    <main>
+        <div id="image-search-container" class="container mx-auto px-4 max-w-7xl">
+           
+            <!-- Search Section -->
+            <section class="mb-8">
+                <div class="max-w-4xl mx-auto">
+                    <div class="">
+                        <!-- Fuzzy Search Container - Will be populated by FuzzySearchUI -->
+                        <div id="fuzzy-search-container"></div>
+                    </div>
+                </div>
+            </section>            <!-- Results Section with Filter Bar Above Photo Grid -->
+            <section id="results-section" class="mb-8">
+                <!-- Filter Bar Above Photo Grid -->
+                <div id="photo-filter-container" class="hidden mb-6">
+                    <!-- Photo filters will be injected here -->
+                </div>
+                
+                <!-- Photo Grid -->
+                <div id="photo-grid-container">
+                    <!-- Photo grid components will be injected here -->
+                </div>                        
+                
+                <!-- Pagination Controls -->
+                <div id="pagination-container" class="hidden mt-6 mb-4">
+                    <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
+                        <!-- Pagination Info -->
+                        <div class="text-xs text-gray-600">
+                            <span id="pagination-info">Showing 1-100 of 25000 photos</span>
+                        </div>
+                        
+                        <!-- Pagination Controls -->
+                        <div class="flex items-center space-x-3">
+                            <button 
+                                id="prev-page-btn"
+                                class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                                disabled
+                            >
+                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                                Previous
+                            </button>                                    
+                            
+                            <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
+                                Page 1 of 250
+                            </span>
+                            
+                            <button 
+                                id="next-page-btn"
+                                class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                            >
+                                Next
+                                <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>    <!-- Modal will be injected here by ImageModalComponent -->
+
+
+</body>
+>>>>>>> 3f3db97899c4da2cf72ee9808edf842dd5176202
 </html>

@@ -35,6 +35,7 @@ export interface FilterCallbacks {
   onFilterChange: (filteredPhotos: HachiImageData[]) => void;
   onFilterOptionsUpdate?: (options: FilterOptions) => void;
   onSemanticSearch?: (searchResults: HachiImageData[]) => void;
+  hideSearchInput?: boolean; // Option to hide search input
 }
 
 export class PhotoFilterComponent {
@@ -51,13 +52,15 @@ export class PhotoFilterComponent {
     tags: [],
   };
   private callbacks: FilterCallbacks;
-  private container: HTMLElement | null = null;  private eventListeners: Map<HTMLElement, (() => void)[]> = new Map(); // Track event listeners
+  private container: HTMLElement | null = null;
+  private eventListeners: Map<HTMLElement, (() => void)[]> = new Map(); // Track event listeners
   private peopleCache: Map<string, HTMLElement> = new Map(); // Cache people DOM elements
   private imageObserver: IntersectionObserver | null = null; // Lazy loading observer
-  private readonly INITIAL_PEOPLE_LIMIT = 20; // Show only first 20 people initially
+  private readonly INITIAL_PEOPLE_LIMIT = 50; // Show only first 50 people initially
 
   // Semantic search related properties
-  private fuzzySearchService: FuzzySearchService;  private isSemanticSearchMode: boolean = false;
+  private fuzzySearchService: FuzzySearchService;
+  private isSemanticSearchMode: boolean = false;
   private currentSearchTerm: string = "";
   private isInitialLoad: boolean = true; // Track if this is initial load
   private isInitializing: boolean = false; // Track if we're in initialization phase
@@ -79,7 +82,8 @@ export class PhotoFilterComponent {
     this.setupImageObserver();
     this.render();
     this.setupEventListeners();
-  }  /**
+  }
+  /**
    * Update the photos and regenerate filter options
    */
   updatePhotos(photos: HachiImageData[]): void {
@@ -89,7 +93,7 @@ export class PhotoFilterComponent {
     this.applyFilters(true); // Pass true to indicate this is initial load
     this.updateFilterUI();
     this.isInitialLoad = false; // Mark that initial load is complete
-    
+
     // Use setTimeout to allow any pending calls to complete before clearing initializing flag
     setTimeout(() => {
       this.isInitializing = false;
@@ -104,14 +108,14 @@ export class PhotoFilterComponent {
   }
   /**
    * Reset all filters
-   */  resetFilters(): void {
+   */ resetFilters(): void {
     // Preserve resource directory and person context when resetting
     const resourceDirectory = this.filterCriteria.resourceDirectory;
     const personContext = this.filterCriteria.personContext;
     this.filterCriteria = { resourceDirectory, personContext };
     this.applyFilters();
     this.updateFilterUI();
-    
+
     // Scroll to top when filters are reset
     this.scrollToTop();
   }
@@ -182,310 +186,394 @@ export class PhotoFilterComponent {
   /**
    * Generate the HTML template for the filter component
    */
-  static getTemplate(containerId: string = "photo-filter"): string {    return html`
-      <!-- Photo Filter Component - Compact Sidebar Style -->
-      <div
-        id="${containerId}"
-        class="bg-white border border-gray-200 rounded-lg shadow-sm sticky top-4 max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col"
-      >
-        <!-- Compact Header -->
-        <div
-          class="flex items-center justify-between p-3 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100"
-        >          <h3 class="text-base font-semibold text-gray-900 flex items-center">
-            <svg
-              class="w-4 h-4 mr-2 text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"
-              ></path>
-            </svg>
-            Filters
-          </h3>          <button
-            id="reset-filters"
-            class="text-xs text-blue-600 hover:text-blue-800 transition-colors font-medium flex items-center space-x-1"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-            </svg>
-            <span>Reset</span>
-          </button>
-        </div>        <!-- Compact Scrollable Content -->
-        <div class="flex-1 overflow-y-auto">
-          <div class="p-3 space-y-4">
-            <!-- Compact Search Text Filter -->
-            <div class="filter-group">
-              <label class="block text-xs font-medium text-gray-700 mb-2"
-                >Search</label
-              >
-              <input
-                type="text"
-                id="filter-search-text"
-                placeholder="Search photos... (Press Enter)"
-                class="w-full px-2.5 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              />
-            </div>            <!-- Compact Filter Sections -->
-            <div class="space-y-3">              <!-- Compact People Filter -->
-              <div class="filter-section">
-                <button
-                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
-                  data-filter="people"
-                >
-                  <span class="flex items-center space-x-2">
-                    <span
-                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
-                      >👥 People</span
+  static getTemplate(
+    containerId: string = "photo-filter",
+    hideSearchInput: boolean = false
+  ): string {
+    return html`
+      ${PhotoFilterComponent.getStyles()}
+      <!-- Photo Filter Component - Horizontal Filter Bar -->
+      <div id="${containerId}" class="photo-filter-container sticky z-20">
+        ${hideSearchInput
+          ? ""
+          : html`
+              <!-- Filter Header -->
+              <div class="w-full py-1">
+                <div class="flex w-full items-center space-x-3">
+                  <!-- Search Input -->
+                  <div class="relative w-full">
+                    <input
+                      type="search"
+                      id="filter-search-text"
+                      placeholder="Search photos with AI..."
+                      class="w-full px-4 py-2.5 pl-10 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm hover:shadow-md transition-shadow placeholder-gray-400"
+                    />
+                    <svg
+                      class="absolute left-3 top-3 w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
                     >
-                    <span
-                      id="people-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                      >0</span
-                    >
-                  </span>
-                  <svg
-                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </button>
-                <div
-                  id="people-filter-content"
-                  class="filter-content hidden mt-1.5 ml-3"
-                >
-                  <div
-                    class="max-h-40 overflow-y-auto border-l-2 border-gray-100 pl-2"
-                  >
-                    <!-- People thumbnails grid will be inserted here -->
-                  </div>
-                </div>
-              </div>              <!-- Compact Years Filter -->
-              <div class="filter-section">
-                <button
-                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
-                  data-filter="years"
-                >
-                  <span class="flex items-center space-x-2">
-                    <span
-                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
-                      >📅 Years</span
-                    >
-                    <span
-                      id="years-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                      >0</span
-                    >
-                  </span>
-                  <svg
-                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </button>
-                <div
-                  id="years-filter-content"
-                  class="filter-content hidden mt-1.5 ml-3"
-                >
-                  <div
-                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
-                  >
-                    <!-- Years checkboxes will be inserted here -->
-                  </div>
-                </div>
-              </div>              <!-- Compact Camera Make Filter -->
-              <div class="filter-section">
-                <button
-                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
-                  data-filter="cameraMakes"
-                >
-                  <span class="flex items-center space-x-2">
-                    <span
-                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
-                      >📷 Camera</span
-                    >
-                    <span
-                      id="cameraMakes-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                      >0</span
-                    >
-                  </span>
-                  <svg
-                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </button>
-                <div
-                  id="cameraMakes-filter-content"
-                  class="filter-content hidden mt-1.5 ml-3"
-                >
-                  <div
-                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
-                  >
-                    <!-- Camera makes checkboxes will be inserted here -->
-                  </div>
-                </div>
-              </div>              <!-- Compact Camera Model Filter -->
-              <div class="filter-section">
-                <button
-                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
-                  data-filter="cameraModels"
-                >
-                  <span class="flex items-center space-x-2">
-                    <span
-                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
-                      >📸 Model</span
-                    >
-                    <span
-                      id="cameraModels-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                      >0</span
-                    >
-                  </span>
-                  <svg
-                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </button>
-                <div
-                  id="cameraModels-filter-content"
-                  class="filter-content hidden mt-1.5 ml-3"
-                >
-                  <div
-                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
-                  >
-                    <!-- Camera models checkboxes will be inserted here -->
-                  </div>
-                </div>
-              </div>              <!-- Compact Places Filter -->
-              <div class="filter-section">
-                <button
-                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
-                  data-filter="places"
-                >
-                  <span class="flex items-center space-x-2">
-                    <span
-                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
-                      >📍 Places</span
-                    >
-                    <span
-                      id="places-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                      >0</span
-                    >
-                  </span>
-                  <svg
-                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </button>
-                <div
-                  id="places-filter-content"
-                  class="filter-content hidden mt-1.5 ml-3"
-                >
-                  <div
-                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
-                  >
-                    <!-- Places checkboxes will be inserted here -->
-                  </div>
-                </div>
-              </div>              <!-- Compact Tags Filter -->
-              <div class="filter-section">
-                <button
-                  class="filter-toggle w-full flex items-center justify-between py-1.5 text-left group"
-                  data-filter="tags"
-                >
-                  <span class="flex items-center space-x-2">
-                    <span
-                      class="text-xs font-medium text-gray-700 group-hover:text-gray-900"
-                      >🏷️ Tags</span
-                    >
-                    <span
-                      id="tags-count"
-                      class="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full min-w-[18px] text-center"
-                      >0</span
-                    >
-                  </span>
-                  <svg
-                    class="filter-chevron w-3.5 h-3.5 text-gray-400 transform transition-transform group-hover:text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    ></path>
-                  </svg>
-                </button>
-                <div
-                  id="tags-filter-content"
-                  class="filter-content hidden mt-1.5 ml-3"
-                >
-                  <div
-                    class="max-h-28 overflow-y-auto space-y-0.5 border-l-2 border-gray-100 pl-2"
-                  >
-                    <!-- Tags checkboxes will be inserted here -->
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      ></path>
+                    </svg>
                   </div>
                 </div>
               </div>
+            `}
+
+        <!-- Horizontal Filter Tabs -->
+        <div class="relative">
+          <div
+            class="flex items-center py-3 space-x-2 overflow-x-auto scrollbar-hide"
+          >
+            <!-- People Tab -->
+            <div class="flex-shrink-0">
+              <button
+                class="filter-tab flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                data-filter="people"
+                id="people-tab"
+              >
+                <span>👥 People</span>
+                <span
+                  id="people-count"
+                  class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs min-w-[20px] text-center"
+                  >0</span
+                >
+                <svg
+                  class="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Years Tab -->
+            <div class="flex-shrink-0">
+              <button
+                class="filter-tab flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                data-filter="years"
+                id="years-tab"
+              >
+                <span>📅 Years</span>
+                <span
+                  id="years-count"
+                  class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs min-w-[20px] text-center"
+                  >0</span
+                >
+                <svg
+                  class="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Tags Tab -->
+            <div class="flex-shrink-0">
+              <button
+                class="filter-tab flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                data-filter="tags"
+                id="tags-tab"
+              >
+                <span>🏷️ Tags</span>
+                <span
+                  id="tags-count"
+                  class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs min-w-[20px] text-center"
+                  >0</span
+                >
+                <svg
+                  class="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Camera Makes Tab -->
+            <div class="flex-shrink-0">
+              <button
+                class="filter-tab flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                data-filter="cameraMakes"
+                id="cameraMakes-tab"
+              >
+                <span>📷 Camera</span>
+                <span
+                  id="cameraMakes-count"
+                  class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs min-w-[20px] text-center"
+                  >0</span
+                >
+                <svg
+                  class="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Camera Models Tab -->
+            <div class="flex-shrink-0">
+              <button
+                class="filter-tab flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                data-filter="cameraModels"
+                id="cameraModels-tab"
+              >
+                <span>📸 Model</span>
+                <span
+                  id="cameraModels-count"
+                  class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs min-w-[20px] text-center"
+                  >0</span
+                >
+                <svg
+                  class="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Places Tab -->
+            <div class="flex-shrink-0">
+              <button
+                class="filter-tab flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                data-filter="places"
+                id="places-tab"
+              >
+                <span>📍 Places</span>
+                <span
+                  id="places-count"
+                  class="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs min-w-[20px] text-center"
+                  >0</span
+                >
+                <svg
+                  class="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  ></path>
+                </svg>
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- Active Filters Footer -->
-        <div id="active-filters" class="border-t border-gray-200 bg-gray-50">
-          <!-- Active filter badges will be displayed here -->
+        <!-- Dropdown containers positioned outside main container -->
+        <div
+          id="people-dropdown"
+          class="filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden"
+          style="min-width: 320px; max-width: 400px;"
+        >
+          <div class="p-3">
+            <div class="max-h-64 overflow-y-auto">
+              <!-- People content will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="years-dropdown"
+          class="filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden"
+          style="min-width: 200px; max-width: 300px;"
+        >
+          <div class="p-3">
+            <div class="max-h-48 overflow-y-auto space-y-1">
+              <!-- Years content will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="tags-dropdown"
+          class="filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden"
+          style="min-width: 200px; max-width: 300px;"
+        >
+          <div class="p-3">
+            <div class="max-h-48 overflow-y-auto space-y-1">
+              <!-- Tags content will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="cameraMakes-dropdown"
+          class="filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden"
+          style="min-width: 200px; max-width: 300px;"
+        >
+          <div class="p-3">
+            <div class="max-h-48 overflow-y-auto space-y-1">
+              <!-- Camera makes content will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="cameraModels-dropdown"
+          class="filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden"
+          style="min-width: 200px; max-width: 300px;"
+        >
+          <div class="p-3">
+            <div class="max-h-48 overflow-y-auto space-y-1">
+              <!-- Camera models content will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="places-dropdown"
+          class="filter-dropdown fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 hidden"
+          style="min-width: 200px; max-width: 300px;"
+        >
+          <div class="p-3">
+            <div class="max-h-48 overflow-y-auto space-y-1">
+              <!-- Places content will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Active Filters - Simplified -->
+        <div id="active-filters" class="pb-2 hidden">
+          <div class="flex items-center justify-between">
+            <div class="flex flex-wrap gap-1.5 flex-1">
+              <!-- Active filter badges will be displayed here -->
+            </div>
+            <button
+              class="clear-all-filters text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors ml-3 flex-shrink-0"
+            >
+              Clear All
+            </button>
+          </div>
         </div>
       </div>
+    `;
+  }
+
+  /**
+   * Get CSS styles for the horizontal filter bar
+   */
+  static getStyles(): string {
+    return `
+      <style>
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        
+        /* Filter dropdown improvements */
+        .filter-dropdown {
+          backdrop-filter: blur(8px);
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Filter bar positioning */
+        .photo-filter-container {
+          position: relative;
+          z-index: 20;
+        }
+          /* Responsive improvements */
+          @media (max-width: 768px) {
+            .filter-tab {
+              min-width: max-content;
+              font-size: 0.875rem;
+              padding: 0.5rem 0.75rem;
+            }
+            
+            .filter-tab span:first-child {
+              white-space: nowrap;
+            }
+            
+            .filter-dropdown {
+              position: fixed !important;
+              left: 1rem !important;
+              right: 1rem !important;
+              width: auto !important;
+              max-width: none !important;
+              min-width: auto !important;
+            }
+            
+            /* Adjust search input on mobile */
+            #filter-search-text {
+              font-size: 0.875rem;
+              padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+            }
+            
+            #filter-search-text + svg {
+              width: 1rem;
+              height: 1rem;
+              left: 0.5rem;
+              top: 0.75rem;
+            }
+            
+            /* Hide the "Press Enter" hint on mobile */
+            #filter-search-text + svg + div {
+              display: none !important;
+            }
+          }
+          
+          @media (max-width: 640px) {
+            .photo-filter-container {
+              margin-bottom: 1rem;
+            }
+            
+            .filter-tab {
+              padding: 0.375rem 0.625rem;
+              font-size: 0.8125rem;
+            }
+          }
+      </style>
     `;
   }
 
@@ -495,9 +583,10 @@ export class PhotoFilterComponent {
   private render(): void {
     if (!this.container) return;
 
-    this.container.innerHTML = PhotoFilterComponent.getTemplate().replace(
-      /id="photo-filter"/,
-      `id="${this.container.id}"`
+    const hideSearchInput = this.callbacks.hideSearchInput || false;
+    this.container.innerHTML = PhotoFilterComponent.getTemplate(
+      this.container.id,
+      hideSearchInput
     );
   }
 
@@ -505,7 +594,9 @@ export class PhotoFilterComponent {
    * Setup event listeners for filter interactions
    */
   private setupEventListeners(): void {
-    if (!this.container) return; // Search text filter - now with semantic search on Enter key
+    if (!this.container) return;
+
+    // Search text filter - now with semantic search on Enter key
     const searchInput = this.container.querySelector(
       "#filter-search-text"
     ) as HTMLInputElement;
@@ -555,16 +646,210 @@ export class PhotoFilterComponent {
       });
     }
 
-    // Toggle filter sections
-    const toggleBtns = this.container.querySelectorAll(".filter-toggle");
-    toggleBtns.forEach((btn) => {
-      this.addEventListenerTracked(btn as HTMLElement, "click", (e) => {
+    // Filter tab buttons - new horizontal dropdown interaction
+    const filterTabs = this.container.querySelectorAll(".filter-tab");
+    filterTabs.forEach((tab) => {
+      this.addEventListenerTracked(tab as HTMLElement, "click", (e) => {
+        e.preventDefault();
         const button = e.currentTarget as HTMLElement;
         const filterType = button.dataset.filter;
         if (filterType) {
-          this.toggleFilterSection(filterType);
+          this.toggleFilterDropdown(filterType);
         }
       });
+    });
+
+    // Close dropdowns when clicking outside
+    const handleDocumentClick = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (
+        !target.closest(".filter-tab") &&
+        !target.closest(".filter-dropdown")
+      ) {
+        this.closeAllDropdowns();
+      }
+    };
+    document.addEventListener("click", handleDocumentClick);
+
+    // Handle keyboard navigation
+    const handleDocumentKeydown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        this.closeAllDropdowns();
+      }
+    };
+    document.addEventListener("keydown", handleDocumentKeydown);
+
+    // Handle window resize to reposition dropdowns
+    const handleWindowResize = () => {
+      // Close all dropdowns on resize to avoid positioning issues
+      this.closeAllDropdowns();
+    };
+    window.addEventListener("resize", handleWindowResize);
+
+    // Store cleanup functions for these document listeners
+    if (!this.eventListeners.has(document as any)) {
+      this.eventListeners.set(document as any, []);
+    }
+    this.eventListeners.get(document as any)!.push(() => {
+      document.removeEventListener("click", handleDocumentClick);
+      document.removeEventListener("keydown", handleDocumentKeydown);
+      window.removeEventListener("resize", handleWindowResize);
+    });
+  }
+
+  /**
+   * Toggle filter dropdown visibility
+   */
+  private toggleFilterDropdown(filterType: string): void {
+    const dropdown = document.querySelector(
+      `#${filterType}-dropdown`
+    ) as HTMLElement;
+    const tab = this.container?.querySelector(
+      `#${filterType}-tab`
+    ) as HTMLElement;
+
+    if (!dropdown || !tab) return;
+
+    // Close all other dropdowns first
+    this.closeAllDropdowns(filterType);
+
+    // Toggle current dropdown
+    const isHidden = dropdown.classList.contains("hidden");
+    if (isHidden) {
+      // Position dropdown below the tab
+      this.positionDropdown(dropdown, tab);
+      dropdown.classList.remove("hidden");
+      tab.classList.add("bg-blue-50", "border-blue-300", "text-blue-700");
+    } else {
+      dropdown.classList.add("hidden");
+      tab.classList.remove("bg-blue-50", "border-blue-300", "text-blue-700");
+    }
+  }
+
+  /**
+   * Position dropdown below the corresponding tab
+   */
+  private positionDropdown(dropdown: HTMLElement, tab: HTMLElement): void {
+    const tabRect = tab.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const dropdownWidth = dropdown.offsetWidth || 300; // fallback width
+
+    // Mobile positioning
+    if (viewportWidth <= 768) {
+      dropdown.style.position = "fixed";
+      dropdown.style.top = `${tabRect.bottom + 4}px`;
+      dropdown.style.left = "1rem";
+      dropdown.style.right = "1rem";
+      dropdown.style.width = "auto";
+      dropdown.style.minWidth = "auto";
+      dropdown.style.maxWidth = "none";
+      return;
+    }
+
+    // Desktop positioning - position below the tab
+    dropdown.style.position = "fixed";
+    dropdown.style.top = `${tabRect.bottom + 4}px`;
+
+    // Horizontal positioning - center under tab, but keep in viewport
+    let left = tabRect.left + tabRect.width / 2 - dropdownWidth / 2;
+
+    // Ensure dropdown doesn't go off screen
+    if (left < 16) {
+      left = 16; // 1rem padding from left edge
+    } else if (left + dropdownWidth > viewportWidth - 16) {
+      left = viewportWidth - dropdownWidth - 16; // 1rem padding from right edge
+    }
+
+    dropdown.style.left = `${left}px`;
+    dropdown.style.right = "auto";
+    dropdown.style.width = "";
+  }
+
+  /**
+   * Close all filter dropdowns
+   */
+  private closeAllDropdowns(excludeFilter?: string): void {
+    const dropdowns = document.querySelectorAll(
+      ".filter-dropdown"
+    ) as NodeListOf<HTMLElement>;
+    const tabs = this.container?.querySelectorAll(
+      ".filter-tab"
+    ) as NodeListOf<HTMLElement>;
+
+    dropdowns.forEach((dropdown) => {
+      const filterType = dropdown.id.replace("-dropdown", "");
+      if (excludeFilter && filterType === excludeFilter) return;
+
+      dropdown.classList.add("hidden");
+    });
+
+    tabs.forEach((tab) => {
+      const filterType = tab.id.replace("-tab", "");
+      if (excludeFilter && filterType === excludeFilter) return;
+
+      tab.classList.remove("bg-blue-50", "border-blue-300", "text-blue-700");
+    });
+  }
+
+  /**
+   * Update tab label to show active filters
+   */
+  private updateTabLabel(filterType: string): void {
+    const tab = this.container?.querySelector(
+      `#${filterType}-tab`
+    ) as HTMLElement;
+    if (!tab) return;
+
+    const currentCriteria = this.filterCriteria[
+      filterType as keyof FilterCriteria
+    ] as string[] | number[];
+    const labelSpan = tab.querySelector("span:first-child") as HTMLElement;
+
+    if (!labelSpan) return;
+
+    const baseLabels: Record<string, string> = {
+      people: "👥 People",
+      years: "📅 Years",
+      tags: "🏷️ Tags",
+      cameraMakes: "📷 Camera",
+      cameraModels: "📸 Model",
+      places: "📍 Places",
+    };
+
+    const baseLabel = baseLabels[filterType];
+    if (currentCriteria && currentCriteria.length > 0) {
+      if (currentCriteria.length === 1) {
+        const value = currentCriteria[0];
+        const displayValue =
+          typeof value === "string"
+            ? value.length > 15
+              ? value.substring(0, 15) + "..."
+              : value
+            : value.toString();
+        labelSpan.textContent = `${baseLabel}: ${displayValue}`;
+      } else {
+        labelSpan.textContent = `${baseLabel}: ${currentCriteria.length} selected`;
+      }
+      tab.classList.add("bg-blue-50", "border-blue-400", "text-blue-700");
+    } else {
+      labelSpan.textContent = baseLabel;
+      tab.classList.remove("bg-blue-50", "border-blue-400", "text-blue-700");
+    }
+  }
+
+  /**
+   * Initialize all tab labels on component load
+   */
+  private initializeTabLabels(): void {
+    [
+      "people",
+      "years",
+      "tags",
+      "cameraMakes",
+      "cameraModels",
+      "places",
+    ].forEach((filterType) => {
+      this.updateTabLabel(filterType);
     });
   }
 
@@ -703,13 +988,14 @@ export class PhotoFilterComponent {
     this.updateFilterSection("places", this.filterOptions.places);
     this.updateFilterSection("tags", this.filterOptions.tags);
     this.updateActiveFilters();
+    this.initializeTabLabels();
   }
   /**
    * Update a specific filter section
-   */  private updateFilterSection(filterType: string, options: string[]): void {
-    const content = this.container?.querySelector(
-      `#${filterType}-filter-content .max-h-40, #${filterType}-filter-content .max-h-28`
-    );
+   */
+  private updateFilterSection(filterType: string, options: string[]): void {
+    const dropdown = document.querySelector(`#${filterType}-dropdown`);
+    const content = dropdown?.querySelector(".max-h-64, .max-h-48");
     const count = this.container?.querySelector(`#${filterType}-count`);
 
     if (!content || !count) return;
@@ -727,6 +1013,9 @@ export class PhotoFilterComponent {
     } else {
       this.updateStandardFilter(content, filterType, options, currentCriteria);
     }
+
+    // Update tab label to show active filters
+    this.updateTabLabel(filterType);
   }
   /**
    * Efficiently update people filter with thumbnail grid
@@ -755,7 +1044,7 @@ export class PhotoFilterComponent {
     let gridContainer = content.querySelector(".people-grid") as HTMLElement;
     if (!gridContainer) {
       gridContainer = document.createElement("div");
-      gridContainer.className = "people-grid grid grid-cols-4 gap-1 py-2";
+      gridContainer.className = "people-grid flex flex-wrap gap-2 py-2";
       content.innerHTML = "";
       content.appendChild(gridContainer);
     }
@@ -788,7 +1077,7 @@ export class PhotoFilterComponent {
       ...selectedPeople,
       ...unselectedPeople.slice(
         0,
-        Math.max(32 - selectedPeople.length, 16) // Show more people initially
+        Math.max(this.INITIAL_PEOPLE_LIMIT - selectedPeople.length, 16) // Use configurable initial limit
       ),
     ];
 
@@ -841,24 +1130,33 @@ export class PhotoFilterComponent {
     const existingButton = container.querySelector(".show-more-people");
     if (existingButton) {
       existingButton.remove();
-    }    const remainingCount = allPeople.length - currentlyShown.length;
+    }
+    const remainingCount = allPeople.length - currentlyShown.length;
     const buttonElement = document.createElement("div");
-    buttonElement.className = "show-more-people col-span-4 mt-1";
+    buttonElement.className = "show-more-people w-full mt-2";
     buttonElement.innerHTML = `
-      <button class="w-full py-1 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 transition-colors">
+      <button class="w-full py-2 px-3 text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded border border-blue-200 transition-colors">
         +${remainingCount} more
       </button>
     `;
 
     const button = buttonElement.querySelector("button") as HTMLElement;
-    this.addEventListenerTracked(button, "click", () => {
-      // Show all remaining people
+    this.addEventListenerTracked(button, "click", (e) => {
+      // Prevent event bubbling to avoid closing the dropdown
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Show next batch of people (pagination)
       const remainingPeople = allPeople.filter(
         (p) => !currentlyShown.includes(p)
       );
+
+      // Show next 50 people (or all remaining if less than 50)
+      const batchSize = 50;
+      const nextBatch = remainingPeople.slice(0, batchSize);
       const fragment = document.createDocumentFragment();
 
-      remainingPeople.forEach((personId) => {
+      nextBatch.forEach((personId) => {
         let personElement = this.peopleCache.get(personId);
         if (!personElement) {
           personElement = this.createPersonElement(personId);
@@ -873,7 +1171,17 @@ export class PhotoFilterComponent {
 
       // Insert before the button
       container.insertBefore(fragment, buttonElement);
-      buttonElement.remove();
+
+      // Update currentlyShown array
+      currentlyShown.push(...nextBatch);
+
+      // Update button or remove if no more people
+      const newRemainingCount = allPeople.length - currentlyShown.length;
+      if (newRemainingCount > 0) {
+        button.textContent = `+${newRemainingCount} more`;
+      } else {
+        buttonElement.remove();
+      }
     });
 
     container.appendChild(buttonElement);
@@ -899,10 +1207,10 @@ export class PhotoFilterComponent {
               : `src="${avatarUrl}"`
           }
           alt="${displayName}"
-          class="person-avatar w-10 h-10 rounded-full object-cover border-2 transition-all duration-200 bg-gray-100"
+          class="person-avatar w-14 h-14 rounded-full object-cover border-2 transition-all duration-200 bg-gray-100"
           loading="lazy"
         />
-        <div class="person-fallback w-10 h-10 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-xs text-gray-500 font-medium">
+        <div class="person-fallback w-14 h-14 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-sm text-gray-500 font-medium">
           ${personId.substring(0, 2).toUpperCase()}
         </div>
       </div>
@@ -944,17 +1252,17 @@ export class PhotoFilterComponent {
 
     if (isSelected) {
       avatar.className =
-        "person-avatar w-10 h-10 rounded-full object-cover border-2 transition-all duration-200 border-blue-500 ring-2 ring-blue-200";
+        "person-avatar w-14 h-14 rounded-full object-cover border-2 transition-all duration-200 border-blue-500 ring-2 ring-blue-200";
       if (fallback) {
-        fallback.className = 
-          "person-fallback w-10 h-10 rounded-full bg-gray-200 border-2 border-blue-500 ring-2 ring-blue-200 hidden items-center justify-center text-xs text-gray-500 font-medium";
+        fallback.className =
+          "person-fallback w-14 h-14 rounded-full bg-gray-200 border-2 border-blue-500 ring-2 ring-blue-200 hidden items-center justify-center text-sm text-gray-500 font-medium";
       }
     } else {
       avatar.className =
-        "person-avatar w-10 h-10 rounded-full object-cover border-2 transition-all duration-200 border-gray-300 group-hover:border-blue-400";
+        "person-avatar w-14 h-14 rounded-full object-cover border-2 transition-all duration-200 border-gray-300 group-hover:border-blue-400";
       if (fallback) {
-        fallback.className = 
-          "person-fallback w-10 h-10 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-xs text-gray-500 font-medium";
+        fallback.className =
+          "person-fallback w-14 h-14 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-sm text-gray-500 font-medium";
       }
     }
   }
@@ -975,14 +1283,15 @@ export class PhotoFilterComponent {
         ? options
             .map((option) => {
               const isChecked = currentCriteria.includes(option);
-              const display = filterType === "years" ? option : option;              return `
-        <label class="flex items-center space-x-1.5 py-0.5 hover:bg-gray-50 rounded cursor-pointer text-xs">
+              const display = filterType === "years" ? option : option;
+              return `
+        <label class="flex items-center space-x-2 py-1.5 px-2 hover:bg-gray-50 rounded cursor-pointer text-sm">
           <input 
             type="checkbox" 
             value="${option}" 
             data-filter-type="${filterType}"
             ${isChecked ? "checked" : ""}
-            class="filter-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+            class="filter-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
           />
           <span class="text-gray-700 truncate flex-1">${display}</span>
         </label>
@@ -990,7 +1299,7 @@ export class PhotoFilterComponent {
             })
             .join("")
         : `
-      <div class="py-2 text-xs text-gray-500 text-center italic">
+      <div class="py-4 text-sm text-gray-500 text-center italic">
         No ${filterType} found
       </div>
     `;
@@ -1000,6 +1309,8 @@ export class PhotoFilterComponent {
     checkboxes.forEach((checkbox) => {
       this.addEventListenerTracked(checkbox as HTMLElement, "change", (e) => {
         this.handleFilterChange(e as Event);
+        // Close dropdown after selection for better UX
+        setTimeout(() => this.closeAllDropdowns(), 100);
       });
     });
   }
@@ -1039,11 +1350,16 @@ export class PhotoFilterComponent {
 
     this.applyFilters();
     this.updateActiveFilters();
+    this.updateTabLabel("people");
+
+    // Close dropdown after selection for better UX
+    setTimeout(() => this.closeAllDropdowns(), 100);
   }
 
   /**
    * Handle filter checkbox changes
-   */ private handleFilterChange(e: Event): void {
+   */
+  private handleFilterChange(e: Event): void {
     const checkbox = e.target as HTMLInputElement;
     const filterType = checkbox.dataset.filterType as keyof FilterCriteria;
     const value = checkbox.value;
@@ -1104,31 +1420,10 @@ export class PhotoFilterComponent {
 
     this.applyFilters();
     this.updateActiveFilters();
+    this.updateTabLabel(filterType);
   }
 
   /**
-   * Toggle filter section visibility
-   */
-  private toggleFilterSection(filterType: string): void {
-    const content = this.container?.querySelector(
-      `#${filterType}-filter-content`
-    );
-    const chevron = this.container?.querySelector(
-      `[data-filter="${filterType}"] .filter-chevron`
-    );
-
-    if (!content || !chevron) return;
-
-    const isHidden = content.classList.contains("hidden");
-
-    if (isHidden) {
-      content.classList.remove("hidden");
-      chevron.classList.add("rotate-180");
-    } else {
-      content.classList.add("hidden");
-      chevron.classList.remove("rotate-180");
-    }
-  }  /**
    * Apply current filters to photos
    */
   private applyFilters(isInitialLoad: boolean = false): void {
@@ -1138,7 +1433,7 @@ export class PhotoFilterComponent {
 
     this.callbacks.onFilterChange(this.filteredPhotos);
     this.updateActiveFilters();
-    
+
     // Only scroll to top if this is not the initial load
     if (!isInitialLoad && !this.isInitialLoad) {
       this.scrollToTop();
@@ -1168,7 +1463,7 @@ export class PhotoFilterComponent {
         const match =
           photoPath.includes(normalizedDir) ||
           normalizedDir.includes(photoPath);
-        
+
         return match;
       });
 
@@ -1299,7 +1594,7 @@ export class PhotoFilterComponent {
       this.container?.querySelector("#active-filters");
     if (!activeFiltersContainer) return;
 
-    const badges: string[] = [];    // Compact search text badge
+    const badges: string[] = []; // Compact search text badge
     if (this.filterCriteria.searchText) {
       badges.push(`
         <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200 transition-colors">
@@ -1314,7 +1609,7 @@ export class PhotoFilterComponent {
           </button>
         </span>
       `);
-    }// Other filter badges
+    } // Other filter badges
     Object.entries(this.filterCriteria).forEach(([filterType, values]) => {
       // Skip search text and resource directory (context parameter), and empty arrays
       if (
@@ -1349,43 +1644,56 @@ export class PhotoFilterComponent {
       };
 
       values.forEach((value) => {
-        const displayValue =
-          filterType === "people"
-            ? value.length > 20
-              ? value.substring(0, 20) + "..."
-              : value
-            : value;        badges.push(`
-          <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
-            colors[filterType] ||
-            "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200"
-          }">
-            <span class="mr-1">${displayNames[filterType]}</span>
-            ${displayValue}
-            <button class="ml-1.5 p-0.5 rounded-full hover:bg-white hover:bg-opacity-50 transition-colors active-filter-remove" data-type="${filterType}" data-value="${value}">
-              <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
-            </button>
-          </span>
-        `);
+        if (filterType === "people") {
+          // Special handling for people - show face thumbnail instead of text
+          const avatarUrl = SearchApiService.getPersonImageUrl(value);
+          const displayName = value.length > 15 ? value.substring(0, 15) + "..." : value;
+          badges.push(`
+            <span class="inline-flex items-center px-1.5 py-1 rounded-md text-xs font-medium border transition-colors ${colors[filterType]}">
+              <img 
+                src="${avatarUrl}" 
+                alt="${displayName}"
+                class="w-5 h-5 rounded-full object-cover border border-purple-300 mr-1.5"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+              />
+              <div class="w-5 h-5 rounded-full bg-purple-200 border border-purple-300 items-center justify-center text-xs text-purple-600 font-medium mr-1.5" style="display:none;">
+                ${value.substring(0, 2).toUpperCase()}
+              </div>
+              <span class="truncate max-w-[80px]" title="${value}">${displayName}</span>
+              <button class="ml-1.5 p-0.5 rounded-full hover:bg-white hover:bg-opacity-50 transition-colors active-filter-remove" data-type="${filterType}" data-value="${value}">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </span>
+          `);
+        } else {
+          // Standard handling for other filter types
+          const displayValue = value.length > 20 ? value.substring(0, 20) + "..." : value;
+          badges.push(`
+            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
+              colors[filterType] ||
+              "bg-gray-100 text-gray-800 border-gray-200 hover:bg-gray-200"
+            }">
+              <span class="mr-1">${displayNames[filterType]}</span>
+              ${displayValue}
+              <button class="ml-1.5 p-0.5 rounded-full hover:bg-white hover:bg-opacity-50 transition-colors active-filter-remove" data-type="${filterType}" data-value="${value}">
+                <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </span>
+          `);
+        }
       });
-    });    if (badges.length > 0) {
+    });
+    if (badges.length > 0) {
       activeFiltersContainer.innerHTML = `
-        <div class="p-3 border-t border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-          <div class="flex items-center justify-between mb-2">
-            <div class="flex items-center space-x-1.5">
-              <svg class="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
-              </svg>
-              <span class="text-xs font-semibold text-gray-700">Active Filters (${
-                badges.length
-              })</span>
-            </div>
-            <button class="clear-all-filters text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors">
-              Clear All
-            </button>
-          </div>
-          <div class="flex flex-wrap gap-1.5">${badges.join("")}</div>
+        <div class="flex items-center justify-between">
+          <div class="flex flex-wrap gap-1.5 flex-1">${badges.join("")}</div>
+          <button class="clear-all-filters text-xs text-blue-600 hover:text-blue-800 font-medium hover:underline transition-colors ml-3 flex-shrink-0">
+            Clear All
+          </button>
         </div>
       `;
       activeFiltersContainer.classList.remove("hidden");
@@ -1452,6 +1760,20 @@ export class PhotoFilterComponent {
             filterArray.splice(index, 1);
           }
         }
+      } else if (filterType === "people") {
+        // Special handling for people - update visual state
+        const filterArray = this.filterCriteria[filterType] as string[];
+        const index = filterArray.indexOf(filterValue);
+        if (index > -1) {
+          filterArray.splice(index, 1);
+          // Update visual state for this specific person
+          const personElement = this.container?.querySelector(
+            `[data-person-id="${filterValue}"]`
+          ) as HTMLElement;
+          if (personElement) {
+            this.updatePersonElementState(personElement, false);
+          }
+        }
       } else {
         // Standard string handling for other filter types
         const filterArray = this.filterCriteria[
@@ -1462,10 +1784,15 @@ export class PhotoFilterComponent {
           filterArray.splice(index, 1);
         }
       }
-    }    // Update UI and apply filters
+    } // Update UI and apply filters
     this.updateActiveFilters();
     this.applyFilters();
-    
+
+    // Update tab label for the affected filter type
+    if (filterType !== "searchText") {
+      this.updateTabLabel(filterType);
+    }
+
     // Scroll to top when a filter is cleared
     this.scrollToTop();
   }
@@ -1506,21 +1833,34 @@ export class PhotoFilterComponent {
       checkbox.checked = false;
     });
 
-    // Clear people thumbnail selections
-    const selectedThumbnails = this.container?.querySelectorAll(
-      ".person-thumbnail.selected"
+    // Clear people thumbnail selections - update visual state
+    const personElements = this.container?.querySelectorAll(
+      ".person-filter-item"
     ) as NodeListOf<HTMLElement>;
-    selectedThumbnails.forEach((thumbnail) => {
-      thumbnail.classList.remove("selected");
-      const checkmark = thumbnail.querySelector(".checkmark");
-      if (checkmark) {
-        checkmark.classList.add("hidden");
-      }
-    });    // Update UI state and active filters, then apply filters
+    personElements.forEach((element) => {
+      this.updatePersonElementState(element, false);
+    });
+
+    // Update all tab labels
+    [
+      "people",
+      "years",
+      "tags",
+      "cameraMakes",
+      "cameraModels",
+      "places",
+    ].forEach((filterType) => {
+      this.updateTabLabel(filterType);
+    });
+
+    // Close all dropdowns
+    this.closeAllDropdowns();
+
+    // Update UI state and active filters, then apply filters
     this.updateFilterUI();
     this.updateActiveFilters();
     this.applyFilters();
-    
+
     // Scroll to top when all filters are cleared
     this.scrollToTop();
   }
@@ -1560,7 +1900,8 @@ export class PhotoFilterComponent {
     if (isSearchDone) {
       console.log("Semantic search completed");
     }
-  }  /**
+  }
+  /**
    * Apply current filters to semantic search results
    */
   private applyFiltersToSemanticResults(): void {
@@ -1590,10 +1931,11 @@ export class PhotoFilterComponent {
     if (this.callbacks.onSemanticSearch) {
       this.callbacks.onSemanticSearch(filtered);
     }
-    
+
     // Scroll to top when semantic search results are filtered
     this.scrollToTop();
-  }  /**
+  }
+  /**
    * Scroll to the very top of the page instantly for performance
    */
   private scrollToTop(): void {
@@ -1601,7 +1943,7 @@ export class PhotoFilterComponent {
     if (this.isInitializing) {
       return;
     }
-    
+
     // Always scroll to the very top of the page instantly
     window.scrollTo(0, 0);
   }
@@ -1626,7 +1968,6 @@ export class PhotoFilterComponent {
       this.filterCriteria.resourceDirectory &&
       this.filterCriteria.resourceDirectory.length > 0
     ) {
-
       searchFilters.resource_directory = this.filterCriteria.resourceDirectory;
     }
 
@@ -1648,8 +1989,8 @@ export class PhotoFilterComponent {
       // Call SearchApiService directly to avoid interfering with main image search UI
       const rawData = await SearchApiService.searchImages(queryString, {
         isInitialSearch: true,
-      });      // Transform raw data to HachiImageData format using utility function
-      const photos = transformRawDataChunk(rawData);      // Sort photos by score in descending order (highest scores first)
+      }); // Transform raw data to HachiImageData format using utility function
+      const photos = transformRawDataChunk(rawData); // Sort photos by score in descending order (highest scores first)
       photos.sort((a, b) => {
         const scoreA = parseFloat(String(a.score || 0));
         const scoreB = parseFloat(String(b.score || 0));

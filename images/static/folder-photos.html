@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Folder Photos - Hachi</title>
+    <title>Folder Photos - Hachi</title>
+
     <style>
         /* Modal and grid styles will be injected by components */
     </style>
@@ -69,34 +70,17 @@
                 <div class="text-gray-400 text-4xl mb-3">📷</div>
                 <h3 class="text-md font-medium text-gray-900 mb-1">No photos found</h3>  
                 <p class="text-gray-500 text-sm">This folder doesn't contain any photos</p>
-            </div>            <!-- Photos section header -->
+            </div>            <!-- Photos section -->
             <section class="mb-4">
+                <!-- Filter Bar Above Photo Grid -->
+                <div id="photo-filter-container" class="hidden mb-6">
+                    <!-- Photo filters will be injected here -->
+                </div>
                 
-                <div class="flex flex-col lg:flex-row gap-4">
-                    <!-- Mobile Filter Toggle Button -->
-                    <div class="lg:hidden">
-                        <button id="mobile-filter-toggle" class="w-full flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-lg shadow-sm">
-                            <span class="flex items-center space-x-2">
-                                <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
-                                </svg>
-                                <span class="font-medium text-gray-900 text-sm">Filters</span>
-                            </span>
-                            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <!-- Left Sidebar - Filters -->
-                    <aside id="photo-filter-container" class="hidden lg:block w-full lg:w-80 lg:flex-shrink-0">
-                        <!-- Photo filters will be injected here -->
-                    </aside>
-                      <!-- Main Content Area - Photo Grid -->
-                    <main class="flex-1 min-w-0">
-                        <div id="photo-grid-container">
-                            <!-- Photo grid components will be injected here -->
-                        </div>                        
+                <!-- Photo Grid -->
+                <div id="photo-grid-container">
+                    <!-- Photo grid components will be injected here -->
+                </div>                        
                         <!-- Pagination Controls -->
                         <div id="pagination-container" class="hidden mt-6 mb-4">
                             <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
@@ -141,6 +125,7 @@
     </main>
 
     <!-- Modal will be injected here by ImageModalComponent -->
-
+
+
 </body>
 </html>
