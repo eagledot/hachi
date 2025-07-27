@@ -218,42 +218,51 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
 ######################################################################################
 # querying API (These must be as fast as possibly, currently OK, all optimizations should be focussed on faster queries)
 #############################################################
-template queryImpl(
-  result_t: var seq[Natural], # NOTE: must be enough to hold `top_k_t`!
+template queryImpl[T](
+  result_t: var seq[int32], # NOTE: must be enough to hold `top_k_t`!
   c_t:Column, 
-  query_t:typed, 
+  query_arr_t:openArray[T], 
   boundary_t, top_k_t:Natural,
   exact_match_t:bool,    # NOTE: if false, we match to all elements in this column, like a wildcard match!! 
-  type_t:typedesc):Natural=
+  unique_only_t:bool
+  ):Natural=
   
+  if len(query_arr_t) > 1:
+    doAssert unique_only == true, "Since OR-ing is expected to make sense with unique collection only for now!"
+
   var count = 0
-  let arr = cast[ptr UncheckedArray[type_t]](c_t.payload)
+  let arr = cast[ptr UncheckedArray[T]](c_t.payload)
   for row_idx in 0..<boundary_t:
     let curr_element = arr[row_idx]
-    if exact_match == false or curr_element == query_t:
-      
-      # check if curr_element has not been repeated!
-      var is_unique = true
-      for j in 0..<count:
-        if arr[result_t[j]] == curr_element:
-          is_unique = false
-          break
 
-      if is_unique:
-        result_t[count] = row_idx
-        inc count
+    for query_t in query:
+      if exact_match == false or curr_element == query_t:
         
-        if count == top_k:
-          break
+        var is_unique = true
+
+        if unique_only_t:
+          # check if curr_element has not been repeated!
+          for j in 0..<count:
+            if arr[result_t[j]] == curr_element:
+              is_unique = false
+              break
+
+        if is_unique:
+          result_t[count] = row_idx.int32
+          inc count
+          
+          if count == top_k:
+            break
 
   count # return this..
 
 template queryStringImpl(
-  result_t: var seq[Natural], 
+  result_t: var seq[int32], 
   c_t:Column, 
-  query_t:string, 
+  query_arr_t:openArray[string],  # acts like OR!
   boundary_t, 
   top_k_t:Natural,
+  unique_only_t:bool
   ):Natural = 
 
   # NOTE:
@@ -264,6 +273,9 @@ template queryStringImpl(
   # Returns:
   # number of `matched rows`, so as to slice `result_seq_t`
 
+  if len(query_arr_t) > 1:
+    doAssert unique_only == true, "Since OR-ing is expected to make sense with unique collection only for now!"
+
   doAssert c_t.kind == colString or c_t.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
 
   var count = 0
@@ -273,93 +285,118 @@ template queryStringImpl(
     var current_item = arr[row_idx] # in either case, it will be a string.
     # since we by default consider `substrings` a match, we can just call `contains`.
     
-    if query_t == "*" or current_item.contains(query_t):
-      var is_unique = true
-      for j in 0..<count:
-        if arr[result_t[j]] == current_item: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
-          is_unique = false
-          break
+    for query_t in query_arr_t:
+      if query_t == "*" or current_item.contains(query_t):
+        var is_unique = true
         
-      if is_unique:
-        result_t[count] = row_idx
-        inc count
-      
-        if count == top_k:
-          break
-   
+        if unique_only_t:
+          for j in 0..<count:
+            if arr[result_t[j]] == current_item: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
+              is_unique = false
+              break
+          
+        if is_unique:
+          result_t[count] = row_idx.int32
+          inc count
+        
+          if count == top_k:
+            break
+  
+  # NOTE: we are only interested in (unique)`row indices`, if data is an array/arrayString, we wil check that given `query` is in that row or not, collection is different and may depend on the frontend needs!! 
   count    # return this..
 
 proc query_string(
   c:Column, 
-  query:string,   # wildcard is allowed as * to gather all (unique)!
+  query:openArray[string], # wildcard is allowed as * to gather all (unique)!
   boundary:Natural, 
   top_k:Natural,  # at-max this number of matches!
-  ):seq[Natural]=
+  unique_only:bool
+  ):seq[int32]=
   # returns the matching row indices in the 
   # boundary: is provided by MetaIndex, telling it how many elements are currently in this/all columns.
 
   # This matches substring(query) in strings, if match is found, we collect the corresponding index.
   # later actually merges this somehow with fuzzySearch, for now just roll with it!
   
-  let top_k = min(boundary, top_k)
-  var top_k_seq = newSeq[Natural](top_k)
+  var top_k = boundary # enough
+
+  doAssert high(int32) > boundary
+  var top_k_seq = newSeq[int32](top_k)
   let count_filled:Natural = queryStringImpl(
     top_k_seq, 
     c, 
     query, 
     boundary, 
-    top_k)
+    top_k,
+    unique_only)
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy! 
   return result
 
 proc query_int32(
   c:Column, 
-  query:int32, 
+  query:openArray[int32],
   boundary:Natural, 
   top_k:Natural,
-  exact_match:bool # if False, we ignore the `query` and collect all unique values!
-  ):seq[Natural]=
+  exact_match:bool, # if False, we ignore the `query` and collect all unique values!
+  unique_only:bool
+  ):seq[int32]=
   assert c.kind == colInt32
   
-  let top_k = min(boundary, top_k)
-  var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
-  let count_filled = queryImpl(top_k_seq, 
+  var top_k = boundary
+  doAssert high(int32) > boundary
+  var top_k_seq = newSeq[int32](top_k) # allocate at once... 
+  let count_filled = queryImpl[int32](top_k_seq, 
     c, 
     query, 
     boundary, 
     top_k,
-    exact_match, 
-    int32)
+    exact_match,
+    unique_only
+    )
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
-proc query_float32(c:Column, query:float32, boundary:Natural, top_k:Natural, exact_match:bool = true):seq[Natural]=
+proc query_float32(
+  c:Column, 
+  query:openArray[float32], 
+  boundary:Natural, 
+  top_k:Natural, 
+  exact_match:bool,
+  unique_only:bool):seq[int32]=
   assert c.kind == colFloat32
   
-  let top_k = min(boundary, top_k)
-  var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
-  let count_filled = queryImpl(
+  var top_k = boundary             # since OR-ing, cannot be greater than boundary the number of matching indices, when unique!
+  var top_k_seq = newSeq[int32](top_k) # allocate at once... 
+  let count_filled = queryImpl[float32](
     top_k_seq, 
     c, 
     query, 
     boundary, 
     top_k, 
     exact_match,
-    float32)
+    unique_only)
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
-proc query_bool(c:Column, query:bool, boundary:Natural, top_k:Natural, exact_match:bool = true):seq[Natural]=
+proc query_bool(
+  c:Column, 
+  query:openArray[bool], 
+  boundary:Natural, 
+  top_k:Natural,
+  exact_match:bool,
+  unique_only:bool):seq[int32]=
   assert c.kind == colBool
   
-  let top_k = min(boundary, top_k)
-  var top_k_seq = newSeq[Natural](top_k) # allocate at once... 
-  let count_filled = queryImpl(
+  var top_k = boundary
+
+  var top_k_seq = newSeq[int32](top_k) # allocate at once... 
+  let count_filled = queryImpl[bool](
     top_k_seq, 
     c, 
     query, 
     boundary, 
     top_k, 
     exact_match,
-    bool)
+    unique_only
+    )
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy!
 
 ################################################################################################################
@@ -530,10 +567,18 @@ proc modify_row_internal(
 
   # get the corresponding data for each of the column.
   for col_label, col_idx in m.fields:
+    if all_attribute_checks:
+      doAssert col_label in row
+        
+    if not (col_label in row):
+      continue
+    
     var c = m[col_label]
     let col_data_json = row[col_label] # must have the key! 
     case col_data_json.kind
     of JArray:
+      # TODO: make it faster, i.e if an directly get "a|x|fda|" form, then can directly put into the column  
+      # otherwise go through `getsSTR` -> `ARRAY` -> string!
       var temp_arr:seq[string]
       for x in col_data_json:
         temp_arr.add(getStr(x))
@@ -598,8 +643,9 @@ proc query_column*(
   m:MetaIndex, 
   attribute:string,  # For now we are querying a single column at a time!
   query:JsonNode,    # wildcard * is allowed, to match all rows for a column, in case to collect all the elements from a column!
-  top_k:Natural = 10_000      # at-max this this number of matched rows!
-  ):seq[Natural]=
+  top_k:Natural = 1000, # TODO: remove this.. since querying has to be done for whole data-base, doesn't matter to leave anything out without any prior/more information!
+  unique_only:bool = true
+  ):seq[int32]=
   # attribute_value: key/label value pairs, value is value is match for corresponding column.
   
   # NOTE:
@@ -607,37 +653,46 @@ proc query_column*(
   # Only unique indices are returned!
 
   let boundary = m.dbRowPointer
+  var top_k = boundary     
   let c = m[attribute]
+
+  doAssert query.kind == JArray # query is supposed to be array of individual elements to be OR queried
+  var exact_match = true
+  for x in query:
+    if x.kind == JString and getStr(x) == "*":   # Since OR-ing, any wildcard, mean all the `indices` anyway!
+      exact_match = false   # wildcard!
+      break
+  
+  let raw_json = query.toJson()
   case c.kind
   of colString:
-    result = c.query_string(query = getStr(query), boundary = boundary, top_k = top_k)
+    result = c.query_string(query = fromJson(raw_json, seq[string]), boundary = boundary, top_k = top_k, unique_only = unique_only)
   of colArrayString:
-    doAssert query.kind == JString
-    result = c.query_string(query = getStr(query), boundary = boundary, top_k = top_k)
+    # doAssert query.kind == JString
+    result = c.query_string(query = fromJson(raw_json, seq[string]), boundary = boundary, top_k = top_k, unique_only = unique_only)
   of colInt32:
-    var exact_match:bool = true
-    var query_int32:int32
-    if query.kind == JString:
-      doAssert getStr(query) == "*", "Wildcard must be * "
-      exact_match = false
-      query_int32 = 0   # Doesn't matter, as all would be matched!
+    var query_int32:seq[int32]
+    if not exact_match: 
+      query_int32 = @[0'i32] #doens't matter if exact_match is set to false! 
     else:
-      query_int32 = getInt(query).int32
-    result = c.query_int32(query = getInt(query).int32, boundary = boundary, top_k = top_k, exact_match = exact_match)
-  of colBool:
-    var exact_match:bool = true
-    result = c.query_bool(query = getBool(query), boundary = boundary, top_k = top_k, exact_match = exact_match)
-  of colFloat32:
-    var exact_match:bool = true
-    var query_float32:float32
-    if query.kind == JString:
-      doAssert getStr(query) == "*", "Wildcard must be * "
-      exact_match = false
-      query_float32 = 0.0  # doens't matter if exact_match is set to false!
-    else:
-      query_float32 = getFloat(query).float32
+      query_int32 = fromJson(raw_json, seq[int32])
     
-    result = c.query_float32(query = query_float32, boundary = boundary, top_k = top_k, exact_match = exact_match)
+    result = c.query_int32(query = query_int32, boundary = boundary, top_k = top_k, exact_match = exact_match, unique_only = unique_only)
+  of colBool:
+    result = c.query_bool(query = fromJson(raw_json, seq[bool]), boundary = boundary, top_k = top_k, exact_match = exact_match, unique_only = unique_only)
+  of colFloat32:
+    var query_float32:seq[float32]
+    if not exact_match: 
+      query_float32 = @[0.0'f32] #doens't matter if exact_match is set to false! 
+    else:
+      query_float32 = fromJson(raw_json, seq[float32])
+    
+    result = c.query_float32(
+      query = query_float32, 
+      boundary = boundary, 
+      top_k = top_k, 
+      exact_match = exact_match, 
+      unique_only = unique_only)
   return result
 
 # we would want to 
