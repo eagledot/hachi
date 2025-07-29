@@ -16,79 +16,98 @@
 
 import std/json
 import std/tables
+
 import nimpy
+import jsony
+
 import meta_index_new
 
 # init
 let
-  pytype_2_coltype = newTable({"string":colString, "int32":colInt32, "float32":colFloat32, "bool":colBool})
+  pytype_2_coltype = newTable({
+    "arrayString":colArrayString,
+    "string":colString, 
+    "int32":colInt32, 
+    "float32":colFloat32, 
+    "bool":colBool})
 
 var m:MetaIndex  # update this..
 proc init(name:string, column_labels:varargs[string], column_types:varargs[string], capacity:Natural = 1_000){.exportpy.}=
   # initialize the metaIndex.
-  var nim_column_types:seq[colType]
+  var nim_column_types:seq[ColType]
   for py_type in column_types:
     nim_column_types.add(pytype_2_coltype[py_type])
-  
   m = ensureMove init(name = name, capacity = capacity, column_labels = column_labels, column_types = nim_column_types)
 
-proc load(path:string){.exportpy.} =
+proc load(
+  name:string,      # prefix, to load data for a specific meta-index, in case more than 1.
+  load_dir:string   
+  ):int{.exportpy.} =
   # load directly from the json stored on the disk!
   # can be used in-place of the init... if already saved.. write if else on the python side ... as needed!
-  m = ensureMove meta_index_new.load(path)
+  m = ensureMove meta_index_new.load(
+    name = name,
+    load_dir = load_dir)
+  return m.dbRowPointer
 
-proc save(path:string){.exportpy.}=
-  # write the json encoding of the database to the disk.
-  m.save(path)
+proc save(
+  save_dir:string    # path to directory where meta-index info would be saved.
+  ):int {.exportpy.}=
+  return m.save(save_dir)
 
-# update
-proc put(data:string){.exportpy.}=
-  # can put/append a dict as a row into the database at once.
-  # NOTE: expects all the keys to be there.. provide a default value if needed , cannot be null/none.
-  # data : JsonEncoded string/bytes.
-
-  let json_obj = parseJson(data)
-  m.add_row(json_obj) # can sink the json_obj i think.. or compiler does this automatically...
-
-# query.
-proc query(query:string, exact_string:bool = true, top_k:Natural = 0, unique_only:bool = false):string {.exportpy.} = 
-  # query is supposed to be jsonEncoded string, with column names as keys.
-  # top_k as 0 means all possible matches. (during suggestion we can set it to 100 or something.)
-  # exact_string: i.e match exact string or substring is enough, (default is true)
-  # returns:
-    # we return an array of row_indices, matched for given query. (in Json encoded form.) on python json.loads() should be enough !
+# append
+proc append(
+  data:string
+  ){.exportpy.}=
+  # data : a JsonEncoded Dict , mapping from column name to its value.
+  let json_obj = jsony.fromJson(data, JsonNode)
+  m.append_row(json_obj)
   
-  # we return a serialized object (json string), whose each key is a column name and values are row indices.
-  # based on the indices... python can do some OR And like operations if needed.
-  # later then use those indices to collect the rows easily..
+# query.
+proc query_column(
+  attribute:string, # column Name
+  query:string,     # json encoded string!
+  unique_only:bool = true
+  ):string {.exportpy.} = 
+  # query is supposed to be jsonEncoded string, with column names as keys.
+  # Return Indices for the rows matched! (we json encode it, can make it faster by writing directly to python memory, but later people!!!)
+  
+  let query = query.fromJson(JsonNode)
+  doAssert query.kind == JArray, "Expected an array, if a single element, wrap it into an iterable/list first!"
+  var indices = m.query_column(
+    attribute = attribute,
+    query = query,
+    unique_only = unique_only 
+    )
+  return indices.toJson() 
 
-  var some_result = JsonNode(kind:JObject)
-  let query_params = parseJson(query)
-  for key, value in query_params:
-    var indices = m.query(attribute_value = %* {key:value}, exact_string = exact_string, top_k = top_k, unique_only = unique_only)
-    
-    # var indices = @[Natural(2),4,51,123,11]
-    # update the corresponding key with collected row indices.
-    var temp = JsonNode(kind:JArray)
-    for ix in indices:
-      temp.elems.add(JsonNode(kind:Jint, num:BiggestInt(ix)))
-    some_result[key] = temp # Note: using ensureMove was causing leak,  i think don't play well with references!
-  result = $(some_result)
-
-proc collect_rows(indices:varargs[Natural], latest_version:bool = true):string {.exportpy.}=
-  # TODO: see if we can do this from python using a list of ints!!  
-  result = $m.collect_rows(indices = indices, latest_version = latest_version)
+proc collect_rows(
+  attribute:string,    # column label/name
+  indices:seq[Natural] # generally collected from  `query` routine.
+  ):string {.exportpy.}=
+  # Returns by default the Json-encoded, array of elements from `attribute` at indicated `indices`!
+  let (col_kind, col_data_json) = m.collect_rows(
+    attribute,
+    indices = indices
+  )
+  return col_data_json
 
 # modify
-# what would modification look like?
-# idea is to be able to modify/overwrite a (mutable) column in case we collect fresh data.
-proc modify(row_idx:Natural, meta_data:string, force:bool = false){.exportpy.}=
+proc modify(
+  row_idx:Natural, 
+  meta_data:string, 
+  ){.exportpy.}=
+  # Modify/overwrite some of the attribute, with new values!
+
   ## Inputs:
     # row_idx, a valid row index, it on user to collect that/them by calling query routine.
     # meta_data: new key/value pairs . where key is the column label and value would be new data to be updated.
   
-  let meta_data = parseJson(meta_data)
-  m.modify_row(row_idx = row_idx, meta_data = meta_data, force = force)
+  let meta_data = meta_data.fromJson(JsonNode)
+  m.modify_row(
+    row_idx = row_idx, 
+    row = meta_data
+    )
 
 ##############
 # meta-information about database itself.
@@ -107,29 +126,23 @@ proc get_column_labels():string {.exportpy.}=
 proc get_column_types():string {.exportpy.}=
   var py_types = JsonNode(kind:JArray)
   for c in m.columns:
-
-    # TODO: its a patch..should be an api/routine to get base kind!
     var temp = c.kind
-    if temp == colArrayString:
-      temp = colString
-    
     for key, value in pytype_2_coltype:
       if value == temp:
         py_types.add(JsonNode(kind:JString, str:key))
         break
   echo $py_types
-
   return $py_types
 
-proc get_all_elements(attribute:string):string {.exportpy.}=
-  # an (flattened) array of all values for a given attribute!
-  # may contains duplicates... just flatten...
-  return $m.get_all(attribute, flatten = true)
+# proc get_all_elements(attribute:string):string {.exportpy.}=
+#   # an (flattened) array of all values for a given attribute!
+#   # may contains duplicates... just flatten...
+#   return $m.get_all(attribute, flatten = true)
 
-proc check(attribute_value:string):bool {.exportpy.}=
-  # checks if attribut value pair exits...
-  # would be faster in future.. if attribute is a primary-key/id
-  return m.check(parseJson(attribute_value))
+# proc check(attribute_value:string):bool {.exportpy.}=
+#   # checks if attribut value pair exits...
+#   # would be faster in future.. if attribute is a primary-key/id
+#   return m.check(parseJson(attribute_value))
 
 
 

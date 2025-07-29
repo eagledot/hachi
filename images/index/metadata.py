@@ -151,8 +151,19 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
 ##--------------------------
 ## Exif data extraction 
 # -------------------------------
-from . import get_image_size  # just reading enough headers to get the `image dimensions`.
-from geocoding.reverse_geocode import GeocodeIndex
+try:
+    from . import get_image_size  # just reading enough headers to get the `image dimensions`.
+except:
+    import get_image_size  # just reading enough headers to get the `image dimensions`.
+
+try:
+    from geocoding.reverse_geocode import GeocodeIndex
+except:
+    # for running as single script!
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+    from geocoding.reverse_geocode import GeocodeIndex
+
 
 geoCodeIndex = GeocodeIndex()    
 
@@ -165,8 +176,16 @@ EXIF_PACKAGE_MAPPING = {
         }
 # --------------------------------------------------------------------------
 # NOTE: attributes, grouping is symbolic, must not have a duplicate key among all such attributes!
-
-def populate_default_dict(class_typeddict):
+import random
+import string
+def generate_dummy_string(size:int = 32) -> str:
+    result = ""
+    for i in range(size):
+        ix = random.randint(a = 0, b = len(string.ascii_uppercase)-1)
+        result = result + string.ascii_uppercase[ix]
+    return result.lower() 
+        
+def populate_default_dict(class_typeddict, dummy_data:bool = False):
     """
     Following logic corresponds to constraints in the Nim backend.
     We want to provide valid/default initialized values to backend always even if some attribute is not available for a resource!
@@ -174,17 +193,34 @@ def populate_default_dict(class_typeddict):
     result = {}
     for k,v in class_typeddict.__annotations__.items():
         if v is int:
-            result[k] = 0
+            if dummy_data == True:
+                result[k] = random.randint(a = 0, b = 1000)
+            else:
+                result[k] = 0
         elif v is float:
-            result[k] = 0.0
+            if dummy_data == True:
+                result[k] = random.random()
+            else:
+                result[k] = 0.0
         elif v is bool:
             result[k] = False
         elif v is str:
-            result[k] = ""
+            if dummy_data == True:
+                result[k] = generate_dummy_string(size = 32)
+            else:
+                result[k] = ""
         elif v is os.PathLike:
-            result[k] = ""
+            if dummy_data == True:
+                result[k] = "D://" + generate_dummy_string(size = 16) + ".xyz"
+            else:
+                result[k] = ""
         elif "list" in str(v):
-            result[k] = []  #only string of list is supported for now!
+            if dummy_data == True:
+                result[k] = []
+                for _ in range(random.randint(a = 0, b = 4)):
+                    result[k].append(generate_dummy_string(size = 32))
+            else:
+                result[k] = []  #only string of list is supported for now!
         else:
             assert False, "Not supported type in backend: {}".format(v)
     return result
@@ -276,7 +312,7 @@ def normalize_path(resource_path:os.PathLike) -> os.PathLike:
     else:
         return result
 
-def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes:
+def extract_image_metaData(resource_path:os.PathLike, dummy_data:bool = False) -> ImageMetaAttributes:
         """
         Extract necessary meta-data for a (local) image file.
         It would be on `callee` to decide when to call this, like if some image is already indexed, avoid calling this.
@@ -286,34 +322,31 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes:
         # NOTE: fromkeys will share the `value` for all keys, so provide None, or primtive value, not an object like list!!
         result_meta:ImageMetaAttributes = {}.fromkeys(ImageMetaAttributes.__annotations__.keys(), None)
 
-        assert os.path.isfile(resource_path), "{} ".format(resource_path)
-        try:
-            (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
-        except:
-            print("Invalid data possibly for {}".format(resource_path))
-            return None
+        if dummy_data == False:
+            assert os.path.isfile(resource_path), "{} ".format(resource_path)
+            try:
+                (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
+            except:
+                print("Invalid data possibly for {}".format(resource_path))
+                return None
 
         # This gets updated, in the main indexing code! depending on location of data being indexed!        
-        l:ResourceLocation = populate_default_dict(ResourceLocation)
+        l:ResourceLocation = populate_default_dict(ResourceLocation, dummy_data = dummy_data)
 
-        main_attributes:MainAttributes = populate_default_dict(MainAttributes)
-        main_attributes["resource_path"] = normalize_path(resource_path)
-        main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
-        main_attributes["resource_directory"] = normalize_path(os.path.dirname(resource_path))
-        main_attributes["filename"] = os.path.basename(resource_path)
+        main_attributes:MainAttributes = populate_default_dict(MainAttributes, dummy_data = dummy_data)
+        if dummy_data == False:
+            main_attributes["resource_path"] = normalize_path(resource_path)
+            main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
+            main_attributes["resource_directory"] = normalize_path(os.path.dirname(resource_path))
+            main_attributes["filename"] = os.path.basename(resource_path)
 
-        user_attributes:UserAttributes = populate_default_dict(UserAttributes)
-        # user_attributes["is_favourite"] = False
-        # user_attributes["tags"] = []
-        # user_attributes["person"] = []
+        user_attributes:UserAttributes = populate_default_dict(UserAttributes, dummy_data = dummy_data)
         
-        ml_attributes:MLAttributes = populate_default_dict(MLAttributes)
-        # ml_attributes["descriptionML"] = ""
-        # ml_attributes["personML"] = []
-        # ml_attributes["tagsML"] = []
+        ml_attributes:MLAttributes = populate_default_dict(MLAttributes, dummy_data = dummy_data)
 
-        exif_attributes:ImageExifAttributes = populate_default_dict(ImageExifAttributes)
-        populate_image_exif_data(exif_attributes, resource_path=resource_path)
+        exif_attributes:ImageExifAttributes = populate_default_dict(ImageExifAttributes, dummy_data = dummy_data)
+        if dummy_data  == False:
+            populate_image_exif_data(exif_attributes, resource_path=resource_path)
 
         result_meta["location"] = l
         result_meta["exif_attributes"] = exif_attributes
@@ -327,8 +360,8 @@ def extract_image_metaData(resource_path:os.PathLike) -> ImageMetaAttributes:
 def flatten_the_metadata(meta_data:ImageMetaAttributes) -> dict:
     # -----------------------------------------------------------------------
     # flatten the dictionary to be directly consumed when updating meta-data!
-    flatten_dict = {} # TODO: extend the base class to not have duplicates, make sure data being entered confirms to type !
-    temp_set = set()
+    flatten_dict = {}
+    temp_set = set() # Duplicate/same key from same or different type of Attributes, are not allowed!
 
     # Only at-max a single level of dict nesting is expected!
     for parent_key, parent_v in meta_data.items():
