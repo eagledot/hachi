@@ -115,7 +115,7 @@ class MetaIndex(object):
             row_indices = json.loads(
                 mBackend.query_column(
                     attribute = "resource_hash",
-                    query = json.dumps(resource_hash),
+                    query = json.dumps([resource_hash]),
                 )) # first get the desired row_index that we need to update.
 
             assert len(row_indices) == 0 or len(row_indices) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
@@ -183,7 +183,7 @@ class MetaIndex(object):
         else:
             return json.loads(result_json)
           
-    def __collect_meta_rows(
+    def collect_meta_rows(
             self,
             row_indices:Iterable[int],   # collect these rows from meta-data backend!
     ):
@@ -236,7 +236,7 @@ class MetaIndex(object):
 
             # We collect all the (unique)`row indices` for this attribute.
             # Useful to get all the possible values for an attribute, like how many `people`, `folders` etc! 
-            final_row_indices = self.__query_generic(
+            final_row_indices = self.query_generic(
                 attribute = attribute,
                 query = ["*"] # wild-card to return all (unique) rows!
             )
@@ -276,7 +276,7 @@ class MetaIndex(object):
             global query_token_counter
 
             # Get all the (unique) values/elements for a attribute!
-            final_row_indices = self.__query_generic(
+            final_row_indices = self.query_generic(
                 attribute = attribute,
                 query = query,
                 unique_only=unique_only
@@ -294,7 +294,7 @@ class MetaIndex(object):
             for i in range(n_pages):
                 page_meta.append(final_row_indices[i*page_size: (i+1)*page_size])
             info["token"] = query_token
-            info["callback"] = self.__collect_meta_rows
+            info["callback"] = self.collect_meta_rows
             info["page_meta"] = page_meta
             del page_meta
 
@@ -304,7 +304,7 @@ class MetaIndex(object):
 
             return (query_token, n_pages)
 
-    def __query_generic(self, 
+    def query_generic(self, 
               attribute:str,      # attribute to query. 
               query:list[Any], # based on the column type, multiple queries can be supplied for an attribute
               unique_only:bool = True
@@ -345,7 +345,7 @@ class MetaIndex(object):
             if self.stats_need_update == False:
                 return self.column_stats[self.__get_index(attribute)]
 
-            row_indices = self.__query_generic(
+            row_indices = self.query_generic(
                 attribute = attribute,
                 query = ["*"]
             )
@@ -375,7 +375,6 @@ class MetaIndex(object):
 
         # print("[TODO]: rename `update` to `append`")
         with self.lock:
-            self.stats_need_update = True
             assert len(meta_data["resource_hash"]) > 10 # (assuming atleast 10 chars), proper hash was supposed to be generated!
             flatten_dict = flatten_the_metadata(meta_data)
             
@@ -383,6 +382,8 @@ class MetaIndex(object):
                 # lazy initialization on first time update, this helps decoupling MetaIndex from application flow!
                 assert self.column_types == []
                 assert self.column_labels == []
+                assert self.column_stats == []
+
                 for k,v in flatten_dict.items():
                     assert isinstance(k, str)
                     self.column_labels.append(k)
@@ -403,6 +404,11 @@ class MetaIndex(object):
                     else:
                         assert 1 == 0, "not expected type: {}".format(type(v))
 
+                # set/update the column_stats too.. 
+                for i in range(len(self.column_labels)):
+                    self.column_stats.append(0)
+                self.stats_need_update = True
+                
                 mBackend.init(
                     name = self.name,
                     column_labels = self.column_labels,
@@ -457,7 +463,7 @@ class MetaIndex(object):
             del temp_keys
 
             # get indices to update!
-            row_indices = self.__query_generic(
+            row_indices = self.query_generic(
                 attribute = "resource_hash",
                 query = [resource_hash]
             )
@@ -502,7 +508,7 @@ class MetaIndex(object):
             assert self.is_indexed(resource_hash)
             
             # get indices to modify!
-            row_indices = self.__query_generic(
+            row_indices = self.query_generic(
                 attribute = "resource_hash",
                 query = [resource_hash]
             )
@@ -544,6 +550,7 @@ class MetaIndex(object):
             # enough i guess and powerful, in process update the schema... so good for software updates!
             self.column_labels = []
             self.column_types = []
+            self.column_stats = []
             self.backend_is_initialized = False  # so when next time update is called... we will initialize it.
             mBackend.reset()
 
