@@ -4,6 +4,8 @@
 import sys
 import os
 import time
+import gzip
+
 
 PYTHON_MODULES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_modules")
 IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".")
@@ -15,7 +17,11 @@ sys.path.insert(0, IMAGE_APP_PATH)
 # sys.path.insert(0, IMAGE_APP_ML_PATH)
 sys.path.insert(0, PYTHON_MODULES_PATH)
 
-# imports
+# imports, after setting python_modules_path, (so that self-contained)
+import psutil
+p = psutil.Process()
+print("[PID]: {}".format(p))
+
 from typing import Optional, Union, TypedDict, NamedTuple, Tuple, List, Iterable, Dict, Any
 from threading import RLock
 import threading
@@ -31,9 +37,9 @@ import numpy as np
 # --------------------------------
 # configuration:
 IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index","preview_image")
-IMAGE_INDEX_SHARD_SIZE = 1200  # should be around 10_000, for dataset with around 50k or more images !
+IMAGE_INDEX_SHARD_SIZE = 10_000    # Good default!
 TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
-IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "preview_image")
+IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./static", "preview_image") # letting frontend proxy like caddy, serve the previews instead...
 if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PREVIEW_DATA_PATH)
 
@@ -52,11 +58,22 @@ def get_drives() -> List[str]:
 
     return drives
 # --------------------------------
+# TODO: is there a better way to load `relative paths from a script when called from other location!`
+try:
+    from .index.image_index import ImageIndex
+    from .index.face_clustering import FaceIndex
+    from .index.meta_indexV2 import MetaIndex
+    from .index.global_data_cache import GlobalDataCache
+    from .index.indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
+    from .index.pagination import PaginationCache, PaginationInfo
+except:
+    from index.image_index import ImageIndex
+    from index.face_clustering import FaceIndex
+    from index.meta_indexV2 import MetaIndex
+    from index.global_data_cache import GlobalDataCache
+    from index.indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
+    from index.pagination import PaginationCache, PaginationInfo
 
-from index.image_index import ImageIndex
-from index.face_clustering import FaceIndex
-from index.meta_indexV2 import MetaIndex
-from index.global_data_cache import GlobalDataCache
 
 # a (session-only)cache, to keep track of `original cluster` mapping to `user aliased tags`, so as to speed up getting previews for a `person`.
 Cluster_alias = {}
@@ -129,7 +146,6 @@ def recreate_local_path(
         *uri
     )
 
-from index.indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
 index_obj:None | IndexingLocal = None
 
 ############
@@ -251,8 +267,30 @@ def getSuggestion() -> Dict[str, List[str]]:
 ##########################################
 
 experiment_cache = {} # some data to store over a single query, (like text-embeddings). Later hold image-embeddings when able to do re-ranking also!
-@app.route("/query", methods = ["POST"])
-def query():
+pagination_cache = PaginationCache()
+@app.route("/collectQueryMeta/<token>/<page_id>")
+def collect_query_meta(token:str, page_id:int):
+    # TODO: This is read-only,so should be ok, right, about 
+    # being called from different threads.. until we actually want to remove a token from the pagination cache or something!
+    
+    page_id = int(page_id)
+    callback, (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
+
+    temp = {}
+    temp["data_hash"] = resource_hashes
+    temp["score"] = scores
+    temp["meta_data"] = callback(row_indices)
+    del scores, resource_hashes
+    return flask.jsonify(temp)
+
+from queue import Queue
+
+# don't thread creation has a cost in python.. we can instead run main logic in dedicated thread into.
+# and instead pass in the argument, then how to return back some resuts..
+# another queue is the answer it seems!
+query_queue = Queue()  # a queue to put other queues into it, 
+
+def query_thread():
     """
     Main routine to return query results.
     Multiple attributes are allowed in the query to make it possible to match-and-mix queries.
@@ -261,60 +299,266 @@ def query():
     Otherwise only non-deterministic streaming "semantic search" is done. 
     """
     # TODO: append the hashes to dataCache to start loading in the background!
+    # mem_start = p.memory_info()[0] # residential (non-swapped physical memory)
+    # print("mem start: {}".format(mem_start))
+
+    page_size = 200
+    flag = False
+    top_k = TOP_K_SHARD
+    
+    while True:
+        (temp_q, query_start ,query) = query_queue.get()
+        print("Got query: {}".format(query))
+
+        # NOTE: client_id must be sent back to the client, DONOT forget!
+        # used by the imageIndex to send streaming results to the correct client!
+        if query_start == "true":
+            client_id = uuid.uuid4().hex           # must be unique for each query request.
+        else:
+            client_id = flask.request.form["client_id"]
+
+        # except "query" all are meta-attributes ..for now!
+        image_attributes = parse_query(query)
+        meta_attributes_list = [x for x in image_attributes if x != "query"]
+        rerank_approach = len(meta_attributes_list) > 0
+
+        # data to be sent back to client.  #TOOD: proper define interface/contract . So (poor man grpc like approach!)
+        query_completed = True  # by default.
+        temp = {}                                   
+        temp["meta_data"] = []
+        temp["data_hash"] = []       # TODO: may rename it `resource_hash` on client side!
+        temp["score"] = []
+        misc_time = 0
+        if not rerank_approach:
+            
+            current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+
+            ##--------------------------------------------
+            # pagination sequence query + collect. (query part must be as fast as possible!)
+            # -------------------------------------------
+            # text_embedding = np.random.uniform(size = (1, 512)).astype(np.float32)
+            text_embedding = generate_text_embedding(current_query)
+            flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+            
+            # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
+            top_k = int(3 * len(image_hash2scores) / 100)
+            start = time.time_ns()
+            top_keys = []
+            for i,k in enumerate(image_hash2scores):
+                top_keys.append(k)
+                del k
+                if i == top_k:
+                    break
+            
+            # query/scan the whole meta-index. to getting matching/relevant row-indices, given top-keys!
+            # TODO: pass exact = true.
+            final_row_indices = metaIndex.query_generic(
+                attribute = "resource_hash",
+                query = top_keys
+            )
+            print("no of matched rows: {}".format(len(final_row_indices)))
+            assert len(final_row_indices) == len(top_keys), "Are top keys not de-duplicated, or we didn't return all the matching meta0da"
+
+            # -------------------------------------
+            # Generate Pagination info..
+            # ------------------------------------
+            info:PaginationInfo = {}
+            n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+            page_meta = []
+            for i in range(n_pages):
+                # generate relevant meta-data for each page! TODO: check this logic!
+                page_meta.append(
+                    (
+                        final_row_indices[i*page_size: (i+1)*page_size],
+                        top_keys[i*page_size: (i+1)*page_size],
+                        [float(max(image_hash2scores[k])) for k in top_keys[i*page_size: (i+1)*page_size]]  # why i am not sending `float` values in json??
+                    )
+                )
+
+            query_token = "xxfsfasdasdgasdgasd"
+            info["token"] = query_token
+            info["callback"] = metaIndex.collect_meta_rows
+            info["page_meta"] = page_meta
+            del page_meta
+            pagination_cache.add(info)
+            del info
+
+            # print(query_token, n_pages)
+            temp_q.put((query_token, n_pages)) # read by the calling thread!
+            del temp_q
+
+print("Starting thread for handling query terms!")
+threading.Thread(target = query_thread, args = ()).start()
+print("yeah done!!")
+
+@app.route("/query", methods = ["POST"])
+def query(page_size:int = 200):
+    """
+    Main routine to return query results.
+    Multiple attributes are allowed in the query to make it possible to match-and-mix queries.
+    This version of query is simpler than older one.f/
+    In case a deterministic/meta attribute is provided, "Semantic query" acts as a re-ranker only.
+    Otherwise only non-deterministic streaming "semantic search" is done. 
+    """
+    # TODO: append the hashes to dataCache to start loading in the background!
+    # mem_start = p.memory_info()[0] # residential (non-swapped physical memory)
+    # print("mem start: {}".format(mem_start))
 
     flag = False
     top_k = TOP_K_SHARD
     query_start = flask.request.form["query_start"].strip().lower()
     query = flask.request.form["query"]
 
-    # NOTE: client_id must be sent back to the client, DONOT forget!
-    # used by the imageIndex to send streaming results to the correct client!
-    if query_start == "true":
-        client_id = uuid.uuid4().hex           # must be unique for each query request.
-    else:
-        client_id = flask.request.form["client_id"]
+    temp_q = Queue(maxsize = 1)
+    query_queue.put((temp_q, query_start, query))
+    (query_token, n_pages) = temp_q.get()
+    del temp_q
+    return flask.jsonify({
+        "query_token":query_token, 
+        "n_pages":n_pages
+    })
 
-    # except "query" all are meta-attributes ..for now!
-    image_attributes = parse_query(query)
-    meta_attributes_list = [x for x in image_attributes if x != "query"]
-    rerank_approach = len(meta_attributes_list) > 0
+    # # NOTE: client_id must be sent back to the client, DONOT forget!
+    # # used by the imageIndex to send streaming results to the correct client!
+    # if query_start == "true":
+    #     client_id = uuid.uuid4().hex           # must be unique for each query request.
+    # else:
+    #     client_id = flask.request.form["client_id"]
 
-    # data to be sent back to client.  #TOOD: proper define interface/contract . So (poor man grpc like approach!)
-    query_completed = True  # by default.
-    temp = {}                                   
-    temp["meta_data"] = []
-    temp["data_hash"] = []       # TODO: may rename it `resource_hash` on client side!
-    temp["score"] = []
-    if not rerank_approach:
+    # # except "query" all are meta-attributes ..for now!
+    # image_attributes = parse_query(query)
+    # meta_attributes_list = [x for x in image_attributes if x != "query"]
+    # rerank_approach = len(meta_attributes_list) > 0
+
+    # # data to be sent back to client.  #TOOD: proper define interface/contract . So (poor man grpc like approach!)
+    # query_completed = True  # by default.
+    # temp = {}                                   
+    # temp["meta_data"] = []
+    # temp["data_hash"] = []       # TODO: may rename it `resource_hash` on client side!
+    # temp["score"] = []
+    # misc_time = 0
+    # if not rerank_approach:
+
+    #     ##----------------------------------------
+    #     # pagination sequence query + collect. (query part must be as fast as possible!)
+    #     # --------------------------------------
+    #     text_embedding = np.random.uniform(size = (1, 512)).astype(np.float32)
+    #     flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+        
+    #     # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
+    #     top_k = int(3 * len(image_hash2scores) / 100)
+    #     start = time.time_ns()
+    #     top_keys = []
+    #     for i,k in enumerate(image_hash2scores):
+    #         top_keys.append(k)
+    #         del k
+    #         if i == top_k:
+    #             break
+        
+    #     # query/scan the whole meta-index. to getting matching/relevant row-indices, given top-keys!
+    #     # TODO: pass exact = true.
+    #     final_row_indices = metaIndex.query_generic(
+    #         attribute = "resource_hash",
+    #         query = top_keys
+    #     )
+    #     print("no of matched rows: {}".format(len(final_row_indices)))
+    #     assert len(final_row_indices) == len(top_keys), "Are top keys not de-duplicated, or we didn't return all the matching meta0da"
+
+    #     # -------------------------------------
+    #     # Generate Pagination info..
+    #     # ------------------------------------
+    #     info:PaginationInfo = {}
+    #     n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+    #     page_meta = []
+    #     for i in range(n_pages):
+    #         # generate relevant meta-data for each page! TODO: check this logic!
+    #         page_meta.append(
+    #             (
+    #                 final_row_indices[i*page_size: (i+1)*page_size],
+    #                 top_keys[i*page_size: (i+1)*page_size],
+    #                 [float(max(image_hash2scores[k])) for k in top_keys[i*page_size: (i+1)*page_size]]  # why i am not sending `float` values in json??
+    #              )
+    #         )
+
+    #     query_token = "xxfsfasdasdgasdgasd"
+    #     info["token"] = query_token
+    #     info["callback"] = metaIndex.collect_meta_rows
+    #     info["page_meta"] = page_meta
+    #     del page_meta
+    #     pagination_cache.add(info)
+    #     del info
+
+    #     print(query_token, n_pages)
+
+        # result = {
+        #     "query_token":query_token,
+        #     "n_pages":n_pages,
+        # }
+        # return flask.jsonify(result)
+
+        # ------------------------------------------------
+
         # This means semantic query. (without any meta-attributes.)
-        current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+        # current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
         
-        if client_id not in experiment_cache:
-            text_embedding = generate_text_embedding(current_query)
-            experiment_cache[client_id] = {"text-embeddings": text_embedding}
-        else:
-            text_embedding = experiment_cache[client_id]["text-embeddings"]
+        # start = time.time_ns()
+        # # text_embedding = generate_text_embedding(current_query)
+        # text_embedding = np.random.uniform(size = (1, 512)).astype(np.float32)
+        # misc_time += (time.time_ns() - start)
+
+        # # TODO: query all shards at once for now.. until can fit into the `pagination sequence`!
+        # s1 = time.time_ns() 
+        # flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+        # s2 = time.time_ns()
+        # temp["image_index_latency"] = int((s2 - s1) / 1e6)
+        # top_k = min(int(3 * len(image_hash2scores) / 100), TOP_K_SHARD)
         
-        flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+        # # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
+        # start = time.time_ns()
+        # top_keys = []
+        # for i,k in enumerate(image_hash2scores):
+        #     top_keys.append(k)
+        #     del k
+        #     if i == top_k:
+        #         break
+        # misc_time += (time.time_ns() - start)
         
-        # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
-        top_keys = []
-        for i,k in enumerate(image_hash2scores):
-            top_keys.append(k)
-            del k
-            if i == top_k:
-                break
-                
-        temp_something = metaIndex.query(resource_hashes = top_keys) # hash to metaData
+        # # TODO: just return pagination info and Let CLient actually collect!
+        # query_time = 0
+        # collect_time = 0
+
+        # start = time.time_ns()
+        # (query_token, n_pages)= metaIndex.query(
+        #     attribute = "resource_hash",
+        #     query = top_keys,
+        #     page_size = len(top_keys)   # FOR NOW.. until client starts calling `collect` on a dedicated route!
+        # )
+        # query_time += (time.time_ns() - start)
         
-        del top_keys
-        for k,v in temp_something.items():
-            temp["meta_data"].append(v)
-            temp["data_hash"].append(k)
-            score = max(image_hash2scores[k])
-            temp["score"].append(str(score))
+        # start = time.time_ns()
+        # meta_data = metaIndex.collect(
+        #     query_token,
+        #     page_id = 0
+        # )
+        # collect_time += (time.time_ns() - start)
+        # assert len(meta_data) == len(top_keys), "Are top keys not de-duplicated, or we didn't return all the matching meta0da"
         
-        query_completed = (not flag)
+        # start = time.time_ns()
+        # temp["data_hash"] = top_keys
+        # temp["meta_data"] = meta_data
+        # for k in top_keys:
+        #     score = max(image_hash2scores[k])  # NOTE: i forgot why scores are a list? why?   
+        #     temp["score"].append(str(score))  # why i am not sending `float` values in json??
+        
+        # metaIndex.remove_pagination_token(query_token)
+        # del meta_data
+        # misc_time += (time.time_ns() - start)
+        
+        # temp["latency_query"] = int(query_time / 1e6)
+        # temp["collect_query"] = int(collect_time / 1e6)
+        # temp["misc_query"]    = int(misc_time / 1e6)
+
+        # query_completed = (not flag)
 
         # NOTE: start background loading of resources,(for now not being used)
         # NOTE: since we create a preview anyway..(and python is not pure multi-threaded), so even without start loading in background it works fast enough!
@@ -322,100 +566,111 @@ def query():
         # note: better to move towards a system-language cache i think!
         # dataCache.append(data_hash = temp["data_hash"], absolute_path = temp_absolute_paths)
 
-    else:
-        and_keys = set()
-        key_score = dict()        
-        # process/collect the keys/resource-hashes for all the meta-attributes.
-        for i,attribute in enumerate(meta_attributes_list):        
-            or_keys = set()  # OR operation like collection
-            for value in image_attributes[attribute]:
+    # else:
+    #     and_keys = set()
+    #     key_score = dict()        
+    #     # process/collect the keys/resource-hashes for all the meta-attributes.
+    #     for i,attribute in enumerate(meta_attributes_list):        
+    #         or_keys = set()  # OR operation like collection
+    #         for value in image_attributes[attribute]:
 
-                # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
-                hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)                
+    #             # collect all possible hashes. (that could satisfy the user supplied meta-attributes)
+    #             hashes_2_metaData = metaIndex.query(attribute = attribute, attribute_value = value)                
                 
-                for hash in hashes_2_metaData:
-                    or_keys.add(hash)
+    #             for hash in hashes_2_metaData:
+    #                 or_keys.add(hash)
 
-                    # collect scores too.. for all possible keys/hashes
-                    if not (hash in key_score):
-                        key_score[hash] = 1
-                    else:
-                        key_score[hash] += 1
+    #                 # collect scores too.. for all possible keys/hashes
+    #                 if not (hash in key_score):
+    #                     key_score[hash] = 1
+    #                 else:
+    #                     key_score[hash] += 1
 
-            # AND operation. (among independent attributes)!
-            if i == 0:        
-                and_keys = or_keys
-                if len(and_keys) == 0:
-                    break  # shouldn't any more.. since one CRITERIA fully failed.. so more intersection would also be empty!
-            else:
-                and_keys = and_keys & or_keys
-            del or_keys
+    #         # AND operation. (among independent attributes)!
+    #         if i == 0:        
+    #             and_keys = or_keys
+    #             if len(and_keys) == 0:
+    #                 break  # shouldn't any more.. since one CRITERIA fully failed.. so more intersection would also be empty!
+    #         else:
+    #             and_keys = and_keys & or_keys
+    #         del or_keys
 
-        # TODO: isn't and keys is a subset of or keys, we already have meta-data, do away with this another query call !
-        temp_something = metaIndex.query(resource_hashes = and_keys)
-        for k,v in temp_something.items():
-            temp["meta_data"].append(v)
-            temp["data_hash"].append(k)
-            temp["score"].append(key_score[k])
+    #     # TODO: isn't and keys is a subset of or keys, we already have meta-data, do away with this another query call !
+    #     temp_something = metaIndex.query(resource_hashes = and_keys)
+    #     for k,v in temp_something.items():
+    #         temp["meta_data"].append(v)
+    #         temp["data_hash"].append(k)
+    #         temp["score"].append(key_score[k])
         
-        if "query" in image_attributes:
-            # here we just re-rank based on the semantic query thats it.
-            current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
-            text_embedding = generate_text_embedding(current_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
-            flag, image_hash2scores = imageIndex.query(
-                    text_embedding,
-                    key = and_keys,
-                    client_key = client_id)
-            assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
+    #     if "query" in image_attributes:
+    #         # here we just re-rank based on the semantic query thats it.
+    #         current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+    #         text_embedding = generate_text_embedding(current_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
+    #         flag, image_hash2scores = imageIndex.query(
+    #                 text_embedding,
+    #                 key = and_keys,
+    #                 client_key = client_id)
+    #         assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
 
-            # update the scores.
-            assert len(image_hash2scores) == len(temp["data_hash"]), "it should be as image index must have same number of unique resource hashes as in meta-index"
-            for i in range(len(temp["data_hash"])):
-                temp_hash = temp["data_hash"][i]
-                # TODO: ensure that an array instead of a single score is  being returned because of earlier face-embeddings.
-                # where for a data-hash multiple scores could be returned..
-                temp["score"][i] = str(temp["score"][i] * max(image_hash2scores[temp_hash]))
-                del temp_hash
+    #         # update the scores.
+    #         assert len(image_hash2scores) == len(temp["data_hash"]), "it should be as image index must have same number of unique resource hashes as in meta-index"
+    #         for i in range(len(temp["data_hash"])):
+    #             temp_hash = temp["data_hash"][i]
+    #             # TODO: ensure that an array instead of a single score is  being returned because of earlier face-embeddings.
+    #             # where for a data-hash multiple scores could be returned..
+    #             temp["score"][i] = str(temp["score"][i] * max(image_hash2scores[temp_hash]))
+    #             del temp_hash
 
-    assert len(temp["meta_data"]) == len(temp["data_hash"]) == len(temp["score"])
-    temp["query_completed"] = query_completed
-    temp["client_id"] = client_id
+    # assert len(temp["meta_data"]) == len(temp["data_hash"]) == len(temp["score"])
+    # temp["query_completed"] = query_completed
+    # temp["client_id"] = client_id
+    
+    # # print("Len of experiment cache: {}".format(len(experiment_cache)))
+    # # mem_end = p.memory_info()[0] # residential (non-swapped physical memory)
+    # # print("mem start: {}".format(mem_end))
 
-    if query_completed == True and client_id in experiment_cache:
-        _ = experiment_cache.pop(client_id)
-    return flask.jsonify(temp)
+    # start = time.time_ns()
+    # result = flask.jsonify(temp)
+    # misc_time += (time.time_ns() - start)
+
+    # return result
 
 ##############
 
 @app.route("/getRawData/<resource_hash>", methods = ["GET"])
 def getRawData(resource_hash:str) -> any:
-    
-    hash_2_metaData = metaIndex.query(resource_hashes = resource_hash)
-    temp_meta = hash_2_metaData[resource_hash]
+    # TODO: deprecate it, use caddy/or fast static serve to serve these!
     resource_type = "image"
 
     #leverage preview data if possiblde by default:
     preview_path = os.path.join(IMAGE_PREVIEW_DATA_PATH, "{}.webp".format(resource_hash)) 
-    if os.path.exists(preview_path):
-        resource_extension = ".webp"
-        absolute_path = preview_path
-    else:
-        print("[WARNING xxxxxxxxxxxx]: no preview_path for {} {}".format(absolute_path, resource_hash))
-        resource_extension = temp_meta["resource_extension"]
-        absolute_path = temp_meta["absolute_path"]
+    assert os.path.exists(preview_path)
+    resource_extension = ".webp"
+    absolute_path = preview_path
   
     raw_data = dataCache.get(resource_hash, absolute_path)
+    # raw_compressed_data = gzip.compress(raw_data)
     del absolute_path
     return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
 @app.route("/getRawDataFull/<resource_hash>", methods = ["GET"])
 def getRawDataFull(resource_hash:str) -> flask.Response:
-    hash_2_metaData = metaIndex.query(resource_hashes = resource_hash)
-    temp_meta = hash_2_metaData[resource_hash]
+    # hash_2_metaData = metaIndex.query(resource_hashes = resource_hash)
+    # temp_meta = hash_2_metaData[resource_hash]
+
+    # pagination sequence!
+    (query_token, n_pages) = metaIndex.query(attribute = "resource_hash", query = [resource_hash])
+    assert n_pages == 1, "Since resource hash is unique.. and if page_size > 1"
+    meta_array = metaIndex.collect(query_token, page_id = 0)
+    assert len(meta_array) == 1 
+    meta_data = meta_array[0]   
+    metaIndex.remove_pagination_token(query_token)
+    del meta_array
+
+    absolute_path = os.path.join(meta_data["resource_directory"], meta_data["filename"])
+    print("absolute: {}".format(absolute_path))
     resource_type = "image" # TODO: get it from meta-data?
-    resource_extension = temp_meta["resource_extension"]
-    resource_directory = temp_meta["resource_directory"]
-    absolute_path = temp_meta["resource_path"]
+    resource_extension = meta_data["resource_extension"]
 
     raw_data = None
     # TODO: handle remote data!
@@ -448,7 +703,8 @@ def tagPerson():
     if new_person_id in metaIndex.get_unique(attribute = "personML"):
         return flask.jsonify({"success":False, "reason":"{} already present, choose a different tag".format(new_person_id)})
     
-    hash_2_metaData = metaIndex.query(attribute = "person", attribute_value = old_person_id)
+    # TODO: update it?
+    hash_2_metaData = metaIndex.query(attribute = "person", attribute_value = [old_person_id])
     for hash, meta_data in hash_2_metaData.items():
         old_array = meta_data["person"]  # an array of strings is expected!
         count = 0
@@ -501,30 +757,88 @@ def editMetaData():
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
     # get the unique/all possible values for an attribute!
-    # TODO: if `resource directory`, send as form of `identifier` and an array of uris, so as to get `case-sensitive-path` back!
-
-    if attribute == "resource_directory":
-        new_result = []
-        for x in metaIndex.get_unique(attribute):
-            new_result.append(x.replace("\\","/"))  # its a mess handling on js side for me atleast!
-        return flask.jsonify(new_result)
     
-    result = metaIndex.get_unique(attribute)
-    return flask.jsonify(list(result))
+    # TODO: if can directly get in json..otherwise decoding it and then encoding it.. Don't do this!
+    # pagination sequence (query and collect)!
+    return_json = False
+    (query_token, n_pages) = metaIndex.get_attribute_all(
+        attribute = attribute,
+        page_size = 2000,       # TODO: just set it to 200, for testing now.
+        return_json = return_json     # May be we can just directly get json from `collect` and send it to client, wo
+    )
+    # collect
+    attribute_values = metaIndex.collect(
+        query_token,
+        page_id = 0   # TODO: client should call it later on demand!
+    )
+    if metaIndex.get_attribute_type(attribute) == "arrayString":
+        if return_json:
+            attribute_values = json.loads(attribute_values) # have to load to `flatten`
+            return_json = False # no longer valid!
+        
+        # de-duplication has to be done.. since `string representation of array/persons`  is different/unique, we are interested in unique items/elements.
+        temp_set = set()
+        for i,x in enumerate(attribute_values):
+            for x in attribute_values[i]:
+                if len(x) > 0:
+                    temp_set.add(x)
+        result = list(temp_set)
+        del temp_set
+
+    else:
+        result = attribute_values
+    del attribute_values
+    # signal to delete this query_token!
+    metaIndex.remove_pagination_token(query_token)
+
+    # return json directly, if can get directly get the json form!
+    if return_json:
+        return flask.Response(result, mimetype="application/json")
+    else:
+        return flask.jsonify(result)
 
 @app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
 def getMeta(attribute:str, value:Any):
+    # TODO: update (nim) backend to accept if exact_match is requsted or not!
+    # NOTE: We will be moving to `pagination sequence`. But for now.. we call them at there.. just to test front-end.
+    # TODO: instead return pagination info, and let client call `collect`!
     
     # NOTE: we use a single `forward` slash while saving `meta-data` for paths. Should work well on `linux`, TODO: test it.
     if attribute == "resource_directory":
         value = value.replace("|", "/")
         assert os.path.exists(os.path.normpath(value))
 
-    result = metaIndex.query(attribute = attribute, attribute_value = value) # exact make sure we match full string rather than substring.
+    # query and collect sequence!
+    (query_token, n_pages) = metaIndex.query(
+        attribute = attribute,
+        query = [value],
+        unique_only = False,   # we need any row matching this value for this attribute here!
+        page_size = 2000       # TODO: just for testing now.. 
+    )
+    # collect (for now single page only.. 2000 would be enough for testing)
+    meta_data_array = metaIndex.collect(
+        query_token,
+        page_id = 0
+    )
+    metaIndex.remove_pagination_token(query_token) # since we are done, remove this entry!
+
+    # since we match with substrings too in the backend by default!
+    # TODO: shouldn't be that costly.. right... we will benchmark it anyway!
+    new_meta_data_array = []
+    attr_type = metaIndex.get_attribute_type(attribute)
+    for i in range(len(meta_data_array)):
+        if attr_type == "arrayString":
+            if value in meta_data_array[i][attribute]:
+                new_meta_data_array.append(meta_data_array[i])
+        else:
+            if meta_data_array[i][attribute] == value:
+                new_meta_data_array.append(meta_data_array[i])
+    del meta_data_array
+
     temp = {}
-    temp["data_hash"]= list(result.keys())
-    temp["meta_data"] = [result[k] for k in temp["data_hash"]]
-    temp["score"] = [1 for _ in range(len(result))]
+    temp["data_hash"]= [x["resource_hash"] for x in new_meta_data_array]
+    temp["meta_data"] = new_meta_data_array
+    temp["score"] = [1 for _ in range(len(new_meta_data_array))]
     return temp
 
 @app.route("/getMetaStats", methods = ["GET"])
@@ -542,16 +856,17 @@ def get_original_cluster_id(cluster_id):
        return cluster_id
 
     assert metaIndex.backend_is_initialized == True
-    from index.meta_indexV2 import mBackend    
 
-    attr_2_rowIndices = json.loads(
-        mBackend.query(
-        json.dumps({"person":cluster_id})
-        ))
-    # We need only 1 row, to get the corresponding Original Meta-data!
-    row_idx = attr_2_rowIndices["person"][0]
+    # query and collect sequence . (since this shouldn't be costly!)
+    (query_token, n_pages) = metaIndex.query(
+        attribute = "person",
+        query = [cluster_id],
+    )
+    assert n_pages > 0
+    meta_array = metaIndex.collect(query_token, page_id = 0)[0] # any row would work, since we are looking for a cluster_id, which mapped to the `person cluster id` asked for!
+    metaIndex.remove_pagination_token(query_token) # yes, we are done with query_token, better to remove this entry from cache too!
+
     idx = None
-    meta_array = json.loads(mBackend.collect_rows([row_idx], latest_version = True))[0]
     person_user_arr = meta_array["person"]
     person_ml_arr = meta_array["personML"]
     assert len(person_ml_arr) == len(person_user_arr), "Expected to be same, only content may differ"

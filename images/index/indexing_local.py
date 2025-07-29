@@ -14,6 +14,9 @@ from .meta_indexV2 import MetaIndex
 from .image_index import ImageIndex
 from .face_clustering import FaceIndex
 from .metadata import extract_image_metaData, collect_resources
+from .utils import ChannelConversion, ColorFormat, encode_image, resize
+
+import utils_nim 
 
 import cv2
 import numpy as np
@@ -61,8 +64,28 @@ def generate_text_embedding(query:str):
 # -------------------------------------------------------------------------------
 
 import hashlib
-def generate_data_hash(resource_path:str, chunk_size:int = 400) -> str | None:
-    data_hash = None
+def generate_resource_hash(resource_data:bytes, chunk_size:int = 400) -> Optional[str]:
+    resource_hash = None
+    resource_size = len(resource_data)
+    if resource_size < chunk_size:
+        print("[WARNING]: not enough data to generate hash.. ")
+        return None
+    m = hashlib.sha256()
+    start_bytes = resource_data[:chunk_size]
+    end_bytes = resource_data[-1 * int(0.1*resource_size) : ]
+
+    try:
+        m.update(start_bytes)
+        m.update(end_bytes)
+        m.update(str(resource_size).encode("ascii"))
+        resource_hash =  m.hexdigest()
+    except Exception:
+        print("[WARNING]: {}".format(traceback.format_exc()))
+    del m
+    return resource_hash
+
+def generate_resource_hash_file(resource_path:str, chunk_size:int = 400) ->Optional[str]:
+    resource_hash = None
     if os.path.exists(resource_path):
         f = open(resource_path, "rb")
         file_size = os.stat(resource_path).st_size
@@ -80,12 +103,14 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> str | None:
             m.update(end_bytes)
 
             m.update(str(file_size).encode("utf8"))
-            data_hash =  m.hexdigest()
-        except:
+            resource_hash =  m.hexdigest()
+        except Exception:
+            print("[WARNING]: {}".format(traceback.format_exc()))
             pass
         del(m)
     
-    return data_hash
+    return resource_hash
+# --------------------------------------------------------------------
 
 # ---------------------
 # Databases
@@ -100,6 +125,51 @@ def generate_data_hash(resource_path:str, chunk_size:int = 400) -> str | None:
 # print("Created Face Index")
 
 # -------------------------------------------------------------
+
+def generate_image_preview_new(
+    data_hash:str,
+    image:np.ndarray,                            # we assume RGB or RGBA data , [H,W,C] format!
+    output_folder:os.PathLike,
+    tile_size:int = 8   # not more than 16 for now.. we use it also to decide new resize size
+    ):
+
+    # NOTE: we expecting data to either in RGB format or RGBA format, TODO: use is_bgr or something like that!
+    (height, width, channels) = image.shape
+    if channels == 4:
+        channel_conversion_info = ChannelConversion.RGBA2BGRA  # RGBA2BGRA
+    else:  # or 3
+        channel_conversion_info = ChannelConversion.RGB2BGRA
+
+    # Resize
+    ratio = height / width
+    preview_max_width = 640
+    # new_width = min(width, preview_max_width)
+    new_width = preview_max_width   # to be divisible by tile_size mostly!
+    new_height = int(ratio * new_width)
+    new_height = new_height + (tile_size - (new_height % tile_size))  # For now tiling tail logic has not been written, so we make it divisible in the first place!
+    # new_height = 480 
+
+    resized_image = resize(
+        image,
+        new_height = new_height,
+        new_width = new_width,
+        channel_conversion_info = channel_conversion_info,
+        tile_size = tile_size
+    )
+
+    # get encoded .webp data!
+    encoded_image = encode_image(
+        resized_image,
+        color_format = ColorFormat.BGRA,
+        quality = 90,
+        lossless = False,
+        meth = 2,         # faster, but with 4-5 % extra size.., thats ok with us! 
+    )
+
+    # finally write to disk!
+    with open(os.path.join(output_folder, "{}.webp".format(data_hash)), "wb", buffering= 1024 * 1024) as f:
+        f.write(encoded_image)
+    
 
 def generate_image_preview(
     data_hash:str, 
@@ -179,6 +249,7 @@ class ProfileInfoNaive(object):
         return result
     
 from queue import Queue
+NEW_THREAD_PREVIEW  = True
 class QueueData(NamedTuple):
     resource_hash:str
     image:np.ndarray
@@ -193,7 +264,7 @@ class IndexingLocal(object):
                  face_index:FaceIndex,  # face_index, embeddings and stuff
                  semantic_index:ImageIndex, # semantic information!
 
-                 batch_size:int = 20,
+                 batch_size:int = 32,
                  include_subdirectories:bool = True,
                  generate_preview_data:bool  = True ,
                  complete_rescan:bool = False
@@ -228,6 +299,10 @@ class IndexingLocal(object):
         self.preview_queue = Queue[QueueData](maxsize = 50)  # shouldn't be case of being blocked, due to not being read.. we monitor the progress anyway!
         self.preview_done = Queue[bool](maxsize = 1)
 
+        self.max_image_dimension = 16384
+        # NOTE: for now we are bit extra-careful, since this buffer is being written to and read in different threads.. so we are making `copy` before passing to other thread!
+        self.imread_buffer = np.empty((self.max_image_dimension * self.max_image_dimension * 4), dtype = np.uint8)
+        
     def cancel(self) -> ReturnInfo:
         """Cancel an ongoing indexing,
         If not ongoing, assertion error.
@@ -250,10 +325,15 @@ class IndexingLocal(object):
         NOTe that it not parallel `batching` per se, that is possible but not without huge efforts, currently not enough time!
         """
         
+        counter = 0
         for resource_path in resources_batch:
             self.profile_info.add("misc")
-            resource_hash = generate_data_hash(
-                resource_path
+
+            with open(resource_path, "rb") as f:
+                image_encoded_data = f.read()
+            
+            resource_hash = generate_resource_hash(
+                image_encoded_data
             )
             self.profile_info.add("hash-generation")
             if resource_hash is None:
@@ -261,16 +341,38 @@ class IndexingLocal(object):
                 continue
             
             if self.meta_index.is_indexed(resource_hash):
-                return
+                print("[Already indexed]: {}".format(resource_path))
+                continue
 
             # read raw-data only once.. and share it for image-clip,face and previews
             self.profile_info.add("misc") # dummy
-            frame = cv2.imread(resource_path)
+
+            # Our imread from stb_image!
+            # (flag, (h,w,c)) = utils_nim.imread(resource_path, self.imread_buffer, leave_alpha = True) # RGB , no alpha
+            (flag, (h,w,c)) = utils_nim.imread_from_memory(
+                image_encoded_data, 
+                self.imread_buffer,  # NOTE: must be used sequentially.. not parallel read from it.. we create a copy!
+                leave_alpha = True) # RGB , no alpha
+            
             self.profile_info.add("imread")
-            if frame is None:
+            if flag == False:
                 print("[WARNING]: Invalid data for {}".format(resource_path))
                 continue
-            is_bgr = True
+            if c == 1:
+                print("[WARNING]: Gray Scale TO BE HANDLED, just update the imread code..!!")
+                continue
+            frame = self.imread_buffer[:h*w*c].reshape((h,w,c))
+            # Since frame itself refers to a pre-allocated memory/buffer, so DON'T SHARE IT WITH ANOTHER THREAD WITH GIL RELEASED without some sync mechanism or create an isolated copy!
+            frame = frame.copy()  # creating a copy before passing it another thread.. so write by `imread` wouldn't affect !
+            is_bgr = False  # RGB. # TODO: revisit face indexing, i think with RGB, as input, we are generating better clusters!
+
+            # opencv imread!
+            # frame = cv2.imread(resource_path)
+            # self.profile_info.add("imread")
+            # if frame is None:
+            #     print("[WARNING]: Invalid data for {}".format(resource_path))
+            #     continue
+            # is_bgr = True
 
             # generate image embeddings
             self.profile_info.add("misc")
@@ -286,6 +388,7 @@ class IndexingLocal(object):
             )
             self.profile_info.add("extract-metadata")
             if meta_data is None:
+                print("skipping..... because of meta-data ....")
                 continue  # TO investigate, get_image_size, sometimes, not able to parse?
             # --------------------------------------------
             # Do manual updates, as necessary here.
@@ -318,44 +421,59 @@ class IndexingLocal(object):
                 frame = frame,
                 absolute_path = resource_path,
                 resource_hash = resource_hash,
-                is_bgr = True)
+                is_bgr = is_bgr)
             self.profile_info.add("face-index-update")
 
-            temp_data = QueueData(
-                resource_hash = resource_hash,
-                image = frame,
-                is_batch_done = False,
-                is_thread_done= False
-            )
-            self.preview_queue.put(temp_data)
-            del temp_data
+            if NEW_THREAD_PREVIEW:
+                temp_data = QueueData(
+                    resource_hash = resource_hash,
+                    image = frame,
+                    is_batch_done = False,
+                    is_thread_done= False
+                )
+                self.preview_queue.put(temp_data)
+                del temp_data
+            else:
+                # generate_image_preview(resource_hash, 
+                #                     image = frame, 
+                #                     output_folder = self.image_preview_data_path)                
+                generate_image_preview_new(
+                    data_hash = resource_hash,
+                    image = frame,
+                    output_folder = self.image_preview_data_path
+                )
+                self.profile_info.add("image-preview-generate")
+            counter += 1
 
-            # generate_image_preview(resource_hash, 
-            #                     image = frame, 
-            #                     output_folder = self.image_preview_data_path)                
-            # self.profile_info.add("image-preview-generate")           
+        return counter           
         
         # --------------------------------------------------------
         # since batch done, we wait for preview generation to be completed!
-        temp_data = QueueData(
-            resource_hash = None,
-            image = None,
-            is_batch_done = True,
-            is_thread_done= False
-            )
-        self.preview_queue.put(temp_data)
-        del temp_data
-        while True:
-            if self.preview_done.get() == True: # we get the signal that previews for this batch are completed!
-                break
-            else:
-                time.sleep(0.02) # 20 ms wait!
+        
+        # Ok, even if batch is Done.. let's not wait.. to see if preview generation is done or what..
+        # instead, just go to the next batch..
+        
+        # if NEW_THREAD_PREVIEW:
+        #     temp_data = QueueData(
+        #         resource_hash = None,
+        #         image = None,
+        #         is_batch_done = True,
+        #         is_thread_done= False
+        #         )
+        #     self.preview_queue.put(temp_data)
+        #     del temp_data
+        #     while True:
+        #         if self.preview_done.get() == True: # we get the signal that previews for this batch are completed!
+        #             break
+        #         else:
+        #             time.sleep(0.02) # 20 ms wait!
         # -------------------------------------------
         
     def indexing_thread(
             self,
             ):
         
+        test_count = 0
         self.profile_info.reset()
         try:
             if self.complete_rescan == True:
@@ -413,6 +531,7 @@ class IndexingLocal(object):
                 eta = None # unknown!
                 while True:
                     contents_batch =  contents[count: count + self.batch_size]  # extract a batch
+                    test_count += (len(contents_batch))
                     # contents_batch = [os.path.join(current_directory, x) for x in contents_batch]
 
                     if (len(contents_batch) == 0):    # should mean this directory has been 
@@ -436,9 +555,11 @@ class IndexingLocal(object):
                         self.indexing_info["total"] = len(contents)
                         
                     tic = time.time()         # start timing for this batch.
-                    self.__index_batch(
+                    observed_counter = self.__index_batch(
                         resources_batch = contents_batch,
                         )
+                    if observed_counter != len(contents_batch):
+                        print("Differnce for: {}".format(len(contents_batch) - observed_counter))
                                     
                     count += len(contents_batch)
 
@@ -449,8 +570,6 @@ class IndexingLocal(object):
                     eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
                     eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
                     eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
-                    print(eta)
-
 
             # Since info is available on finalizing..we now update this info in meta-index!
             with self.lock:
@@ -471,8 +590,8 @@ class IndexingLocal(object):
             
             for resource_hash, cluster_ids in cluster_meta_info.items():
                 self.meta_index.modify_meta_ml(resource_hash, 
-                                                {"personML": list(cluster_ids)}, 
-                                                force = True)
+                                                {"personML": list(cluster_ids)}
+                                                )
             
         except Exception:
             error_trace = traceback.format_exc() # uses sys.exception() as the exception
@@ -498,26 +617,30 @@ class IndexingLocal(object):
                         self.indexing_info["details"] = traceback.format_exc
             
             # -------------
-            # signal, that indexing thread is done.. so exit from preview thread.. we wouldn't want zombie thread!
-            print("terminating preview generation thread..")
-            temp_data = QueueData(
-                resource_hash = None,
-                image = None,
-                is_batch_done = True, # don't matter true/false!, thread flag would be read first!
-                is_thread_done= True
-            )
-            # send signal
-            self.preview_queue.put(
-                temp_data
-            )
-            while True:
-                if self.preview_done.get() == True: # it can only be true!
-                    break
-                else:
-                    time.sleep(0.02)
-            # -------------------------------
-                    
+            if NEW_THREAD_PREVIEW:
+                # signal, that indexing thread is done.. so exit from preview thread.. we wouldn't want zombie thread!
+                print("terminating preview generation thread..")
+                self.profile_info.add("misc")
+                temp_data = QueueData(
+                    resource_hash = None,
+                    image = None,
+                    is_batch_done = True, # don't matter true/false!, thread flag would be read first!
+                    is_thread_done= True
+                )
+                # send signal, to exit the thread, whenever remaining resource-hashes are done!
+                self.preview_queue.put(
+                    temp_data
+                )
+                while True:
+                    if self.preview_done.get() == True: # it can only be true!
+                        break
+                    else:
+                        time.sleep(0.01)
+                # -------------------------------
+            self.profile_info.add("prev-generate-wait")
+
             print("All done..")
+            print("Processed estimated: {}".format(test_count))
             self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
             self.indexing_status = IndexingStatus.INACTIVE #(global, so lock) this can/will be read by callee.. to get `indexing status`!
             print(self.profile_info)
@@ -529,12 +652,20 @@ class IndexingLocal(object):
         while True:
             (resource_hash, frame, is_batch_done, is_indexing_thread_done) = self.preview_queue.get()
             if is_indexing_thread_done == True:
-                break
-            elif is_batch_done == True:
+                # When parent indexing thread is done.. we will exit out of this thread too!
                 assert resource_hash is None
-                self.preview_done.put(True)  # indicate previews are finished..
+                break
+            # elif is_batch_done == True:
+            #     assert resource_hash is None
+            #     self.preview_done.put(True)  # indicate previews are finished..
             else:
-                generate_image_preview(
+                # generate_image_preview(
+                #     data_hash = resource_hash,
+                #     image = frame,
+                #     output_folder = self.image_preview_data_path
+                # )
+                assert not (resource_hash is None)
+                generate_image_preview_new(
                     data_hash = resource_hash,
                     image = frame,
                     output_folder = self.image_preview_data_path
@@ -552,7 +683,8 @@ class IndexingLocal(object):
             threading.Thread(target = self.indexing_thread).start()            
             self.indexing_status = IndexingStatus.ACTIVE
 
-            threading.Thread(target = self.preview_generation_thread).start()
+            if NEW_THREAD_PREVIEW:
+                threading.Thread(target = self.preview_generation_thread).start()
             
         result:ReturnInfo = {}
         result["error"] = False
