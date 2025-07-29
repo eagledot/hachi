@@ -11,7 +11,9 @@ export const API_ENDPOINTS = {
   
   // Image endpoints
   GET_IMAGE: `${API_BASE_URL}/getRawDataFull`,
-  GET_PREVIEW_IMAGE: `${API_BASE_URL}/getRawData`,
+  // GET_PREVIEW_IMAGE: `${API_BASE_URL}/getRawData`,
+  GET_PREVIEW_IMAGE: `/preview_image`,
+
   GET_PERSON_IMAGE: `${API_BASE_URL}/getPreviewPerson`,
 } as const;
 
@@ -28,7 +30,10 @@ export const API_URL_BUILDERS = {
    * Builds the preview image URL for a given hash
    */
   getPreviewImageUrl: (hash: string): string => {
-    return `${API_ENDPOINTS.GET_PREVIEW_IMAGE}/${encodeURIComponent(hash)}`;
+    // return `${API_ENDPOINTS.GET_PREVIEW_IMAGE}/${encodeURIComponent(hash)}`;
+    
+    // Being returned by `front-end` proxy to reduce pressure on `upstream application server`.
+    return "/preview_image/" + hash + ".webp";
   },
 
   /**
