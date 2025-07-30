@@ -44,7 +44,8 @@ export function transformRawDataChunk(rawData: ImageSearchResponse): HachiImageD
 
   const fetchedPhotos: HachiImageData[] = rawData.data_hash.map((hash, index) => ({
     id: hash,
-    score: parseFloat(rawData.score[index] as any),
+    // score: parseFloat(rawData.score[index] as any),
+    score: rawData.score[index],
     metadata: rawData.meta_data[index],
   }));
   return fetchedPhotos;
