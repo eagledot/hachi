@@ -11,6 +11,10 @@ export interface SearchState {
   currentPhotoIndex: number | null;
   pollingSearchTerm: string;
   clientId: string | null;
+  // pagination info return from `query` or `meta-data query` like APIs
+  query_token: string | null;
+  n_pages: number | null;
+  n_matches_found: number | null;
 }
 
 export interface SearchRequestOptions {
@@ -19,7 +23,7 @@ export interface SearchRequestOptions {
 }
 
 export interface SearchEvents {
-  onPhotosUpdate: (photos: HachiImageData[]) => void;
+  onPhotosUpdate: (photos: HachiImageData[], query_token:string, n_pages:number, n_matches_found:number) => void;
   onLoadingChange: (isLoading: boolean) => void;
   onErrorChange: (error: string | null) => void;
   onSearchDoneChange: (isSearchDone: boolean) => void;
