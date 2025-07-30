@@ -264,7 +264,7 @@ class IndexingLocal(object):
                  face_index:FaceIndex,  # face_index, embeddings and stuff
                  semantic_index:ImageIndex, # semantic information!
 
-                 batch_size:int = 32,
+                 batch_size:int = 20,
                  include_subdirectories:bool = True,
                  generate_preview_data:bool  = True ,
                  complete_rescan:bool = False
