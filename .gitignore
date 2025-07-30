@@ -34,3 +34,4 @@ venv/
 *.jpg
 *.png
 *.jpeg
+preview_image/*
