@@ -29,3 +29,8 @@ venv/
 *.ts.md
 *.json
 *.exe
+
+*.webp
+*.jpg
+*.png
+*.jpeg
