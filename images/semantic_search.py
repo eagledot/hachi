@@ -284,6 +284,7 @@ def collect_query_meta(token:str, page_id:int):
     return flask.jsonify(temp)
 
 from queue import Queue
+query_token_counter = 1  # NOTE TODO: make it random enough to not be guessed even by authenticated (only authorized) but later, if exposing as a Cloud service!
 
 # don't thread creation has a cost in python.. we can instead run main logic in dedicated thread into.
 # and instead pass in the argument, then how to return back some resuts..
@@ -302,13 +303,13 @@ def query_thread():
     # mem_start = p.memory_info()[0] # residential (non-swapped physical memory)
     # print("mem start: {}".format(mem_start))
 
-    page_size = 200
+    global query_token_counter
+
     flag = False
     top_k = TOP_K_SHARD
     
     while True:
-        (temp_q, query_start ,query) = query_queue.get()
-        print("Got query: {}".format(query))
+        (temp_q, query_start ,query, page_size) = query_queue.get()
 
         # NOTE: client_id must be sent back to the client, DONOT forget!
         # used by the imageIndex to send streaming results to the correct client!
@@ -352,6 +353,7 @@ def query_thread():
             
             # query/scan the whole meta-index. to getting matching/relevant row-indices, given top-keys!
             # TODO: pass exact = true.
+            # NOTE: For now, Q routine, must be able to estimate the number of total possible/max matches. (given a query).
             final_row_indices = metaIndex.query_generic(
                 attribute = "resource_hash",
                 query = top_keys
@@ -375,21 +377,22 @@ def query_thread():
                     )
                 )
 
-            query_token = "xxfsfasdasdgasdgasd"
+            # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
+            query_token = "notRandomEnoughToken_{}".format(query_token_counter)
+            # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
+            query_token_counter += 1
+
             info["token"] = query_token
             info["callback"] = metaIndex.collect_meta_rows
             info["page_meta"] = page_meta
             del page_meta
             pagination_cache.add(info)
             del info
-
-            # print(query_token, n_pages)
-            temp_q.put((query_token, n_pages)) # read by the calling thread!
+            temp_q.put((query_token, n_pages, len(final_row_indices))) # read by the calling thread!
             del temp_q
 
-print("Starting thread for handling query terms!")
+print("[DEBUG]: Starting thread for handling query terms!")
 threading.Thread(target = query_thread, args = ()).start()
-print("yeah done!!")
 
 @app.route("/query", methods = ["POST"])
 def query(page_size:int = 200):
@@ -408,14 +411,16 @@ def query(page_size:int = 200):
     top_k = TOP_K_SHARD
     query_start = flask.request.form["query_start"].strip().lower()
     query = flask.request.form["query"]
+    page_size = int(flask.request.form["page_size"])
 
     temp_q = Queue(maxsize = 1)
-    query_queue.put((temp_q, query_start, query))
-    (query_token, n_pages) = temp_q.get()
+    query_queue.put((temp_q, query_start, query, page_size))
+    (query_token, n_pages, n_matches) = temp_q.get()
     del temp_q
     return flask.jsonify({
         "query_token":query_token, 
-        "n_pages":n_pages
+        "n_pages":n_pages,
+        "n_matches":n_matches   # Total matches. (it must be estimate-able by Q (query) routine!)
     })
 
     # # NOTE: client_id must be sent back to the client, DONOT forget!
@@ -668,7 +673,6 @@ def getRawDataFull(resource_hash:str) -> flask.Response:
     del meta_array
 
     absolute_path = os.path.join(meta_data["resource_directory"], meta_data["filename"])
-    print("absolute: {}".format(absolute_path))
     resource_type = "image" # TODO: get it from meta-data?
     resource_extension = meta_data["resource_extension"]
 
