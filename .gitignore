@@ -27,3 +27,5 @@ venv/
 
 .github/
 *.ts.md
+*.json
+*.exe
