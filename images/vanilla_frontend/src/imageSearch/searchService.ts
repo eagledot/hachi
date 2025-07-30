@@ -40,6 +40,10 @@ export class SearchService {
     currentPhotoIndex: null,
     pollingSearchTerm: "",
     clientId: null,
+    query_token: null,
+    n_pages: null,
+    n_matches_found:null
+
   };
 
   private events: SearchEvents;
@@ -60,14 +64,22 @@ export class SearchService {
    */
   private updateState(updates: Partial<SearchState>): void {
     
-    console.log("here i am with updates: ", updates)
-    
+    /* @ Anubhav
+     TODO: may be update the if-else block, now `query` is called only once!
+     i.e search is Done just after first call to query.. streaming if done on backend, would be part of `collect` concept in pagination pipeline!
+    */
+
     const oldState = { ...this.state };
     this.state = { ...this.state, ...updates }; // Trigger events for changed properties
     if (updates.photos !== undefined && updates.photos !== oldState.photos) {
-      console.log("we got the photos... do somethign.. now!")
-      this.events.onPhotosUpdate(this.state.photos);
-    }
+      // If new data/photos, `onPhotosUpdate` call back is called, where pagination and actual rendering happens!
+      if (this.state.query_token !== null && this.state.n_pages !== null && this.state.n_matches_found !== null){
+        this.events.onPhotosUpdate(this.state.photos, this.state.query_token, this.state.n_pages, this.state.n_matches_found);
+      }
+      // else{
+      //   throw(Error("Query token or n_pages cannot be null..."));
+      // }
+  }
     if (
       updates.isLoading !== undefined &&
       updates.isLoading !== oldState.isLoading
@@ -114,7 +126,7 @@ export class SearchService {
     let query_data = new FormData()
     query_data.append("query_start", String(true));
     query_data.append("query", searchTerm);
-    query_data.append("page_size", String(200));
+    query_data.append("page_size", String(20));
 
     const response = await fetch(query_url, {
       method: 'POST',
@@ -134,14 +146,15 @@ export class SearchService {
     const query_result = await response.json(); // Parse the JSON response
     const query_token = query_result["query_token"]
     const n_pages = query_result["n_pages"]
-    // const n_matches_found = result["n_matches_found"] // TODO:
+    const n_matches_found = query_result["n_matches"] // Total matches, irrespective of page_size or pagination!
     // const latency = result["latency"] // TODO
     
     //TODO: define the proper type for Query response,
     // basically pagination info, like how many pages, how many results were in total, latency and stuff!
 
     /*
-      Collect first/zeroth page to actually display some results/photos!
+      Collect first/zeroth page to actually populate the HachiImages Data!
+      So that call to `onPhotosUpdate` render the zeroth page by default. for further pages, we will `update` the displayedPhotos on a click of button Pagination UI!
       We will need a combination of `query_token` and `page_id` to collect the results for a particular page!  
     */
     const collect_url = "/api/collectQueryMeta/" + query_token + "/" + String(0);
@@ -156,7 +169,8 @@ export class SearchService {
     }
 
     let rawData = await response_collect.json();
-    console.log("Got matches: ", (rawData.data_hash).length);
+
+    // It makes sense to set isLoading here to false, as first collect is Done!
     this.updateState({
       isLoading:false
     });
@@ -169,13 +183,22 @@ export class SearchService {
     */
     
     const newPhotosChunk = transformRawDataChunk(rawData);
+
+    // TODO: udpate/rectify mergePhotos, to sync i think properly!
     const updatedPhotos = mergePhotos(this.state.photos, newPhotosChunk);
 
     if (newPhotosChunk.length) {
+      // Here  Q/query is done, we have the pagination info.
+      // And we also would have updates the Photos with first/zeroth page photos data!
       this.updateState({
         photos: updatedPhotos,
+        isLoading:false,  // already set, should it set it again here now!
+        
         isSearchDone: true,
-        isLoading:false  // already set, should it set it again here now!
+        // when searh is Done, we would recieve the followin info!
+        query_token:query_token,
+        n_pages:n_pages,
+        n_matches_found:n_matches_found
       });
     }
 
