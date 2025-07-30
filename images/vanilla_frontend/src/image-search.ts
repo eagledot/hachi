@@ -1,9 +1,10 @@
 // Main ImageSearch application entry point
-import { SearchService, UIService, CONFIG } from './imageSearch';
-import type { HachiImageData } from './imageSearch';
+import { SearchService, UIService, CONFIG, transformRawDataChunk } from './imageSearch';
+import type { HachiImageData, ImageSearchResponse } from './imageSearch';
 import { FuzzySearchService } from './imageSearch/fuzzySearchService';
 import { FuzzySearchUI } from './imageSearch/fuzzySearchUI';
 import { ImageModalComponent, PhotoGridComponent, PhotoFilterComponent } from './components';
+
 
 class ImageSearchApp {
   private searchService: SearchService;
@@ -16,10 +17,15 @@ class ImageSearchApp {
   private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
   private currentModal: HachiImageData | null = null;
   
+  //Pagination Info placeholders, initialized after querying is Done. 
+  private queryToken: string = "";
+  private nMatchesFound: number = 0; // This would comes from search-service, total number of matches found! 
+
   // Pagination properties
-  private readonly PAGE_SIZE = 100; // Display 100 photos per page for good performance
-  private currentPage = 1;
-  private totalPages = 0;constructor() {
+  private readonly PAGE_SIZE = 20;  // set the page-size . NOTE: keep it less than 200 for performance reasons!
+  private currentPage = 0;  // NOTE: actual page_id for backend starts from zero, but we render zeroth/first page during `query` already!
+  private totalPages = 0;
+  constructor() {
     // Initialize reusable components first
     ImageModalComponent.initialize();
     PhotoGridComponent.initialize('photo-grid-container', {
@@ -58,7 +64,7 @@ class ImageSearchApp {
 
     // Initialize search service with event callbacks
     this.searchService = new SearchService({
-      onPhotosUpdate: (photos) => this.handlePhotosUpdate(photos),
+      onPhotosUpdate: (photos, query_token, n_pages, n_matches_found) => this.handlePhotosUpdate(photos, query_token, n_pages, n_matches_found),
       onLoadingChange: (isLoading) => this.handleLoadingChange(isLoading),
       onErrorChange: (error) => this.handleErrorChange(error),
       onSearchDoneChange: (isSearchDone) => this.handleSearchDoneChange(isSearchDone)
@@ -114,11 +120,33 @@ class ImageSearchApp {
       console.error('Search failed:', error);
       this.uiService.updateError(error instanceof Error ? error.message : CONFIG.ERROR_MESSAGES.UNKNOWN_ERROR);
     }
-  }  private handlePhotosUpdate(photos: HachiImageData[]): void {
-    console.log('Photos updated:', photos.length);
+  }  private handlePhotosUpdate(
+      // TODO: use a new type to represent the pagination data we received from server!
+      photos: HachiImageData[],
+      // pagination info. Declare proper type!
+      query_token:string,
+      n_pages:number,
+      n_matches_found:number  
+      ): void {
+    /* @Anubhav
+    This call back is being called by `searchService` on new updates of Photos data! (HachiPhotos type!)
+    This does
+    1. Filtering (To read the code)
+    2. Pagination initialization (To modify it to call `collectQueryMeta` on new page request)
+    3. Render 
+    */
+    
+    console.log("query token: ", query_token);
     this.allPhotos = photos;
     this.filteredPhotos = [...photos]; // Initialize filtered photos with all photos
     
+    //update pagination Info.
+    this.currentPage = 0    // start with zero!
+    this.queryToken = query_token
+    this.totalPages = n_pages
+    this.nMatchesFound = n_matches_found
+
+
     // Update filter component with new photos
     this.photoFilter.updatePhotos(photos);
     
@@ -132,13 +160,16 @@ class ImageSearchApp {
       }
     }
     
-    // Initialize pagination
-    this.updatePagination();
-    this.renderDisplayedPhotos();
-    
+    /* @Anubhav
+    Why we are setting up listeners again, and again, is there not a cleaner way
+    Like set up once.. then difficult to pass state or something?
+    */
     // Setup pagination event listeners after pagination UI is rendered
-    this.setupPaginationEventListeners();
-    
+    this.setupPaginationEventListenersNew();
+
+    // Set up page-specific fields/data and render pagination UI and then photos!
+    this.updatePaginationNewAndRender(0); // set up zeroth/first page
+        
     // Show/hide no results message
     const state = this.searchService.getState();
     if (photos.length === 0 && state.isSearchDone && !state.isLoading && !state.error) {
@@ -149,40 +180,83 @@ class ImageSearchApp {
   }
 
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
+    // TODO:
     console.log('Filtered photos updated:', filteredPhotos.length);
-    this.filteredPhotos = filteredPhotos;
+    // this.filteredPhotos = filteredPhotos;
     
-    // Reset to page 1 when filters change
-    this.currentPage = 1;
+    // // Reset to page 0 when filters change, WHY ???
+    // // If we do it page by page, then makes sense or doing it globally!
+    // // in case of pagination i think it is easier to handle page by page basis.
+    // // Let user adjust the page size instead to say 400 or something, to make it possible to filter on larger items!
+    // this.currentPage = 0;
     
-    this.updatePagination(); // Update pagination first
-    this.renderDisplayedPhotos();
+    // // this.updatePagination(); // Update pagination first
+    // this.renderDisplayedPhotos();
     
-    // Re-setup pagination event listeners to ensure they work correctly
-    this.setupPaginationEventListeners();
+    // // Re-setup pagination event listeners to ensure they work correctly
+    // // this.setupPaginationEventListeners();
     
-    // Update search service state to use filtered photos
-    this.currentModal = null; // Reset modal state when filters change
+    // // Update search service state to use filtered photos
+    // this.currentModal = null; // Reset modal state when filters change
   }
 
-  private updatePagination(): void {
-    this.totalPages = Math.ceil(this.filteredPhotos.length / this.PAGE_SIZE);
-    
-    // Calculate displayed photos for current page
-    const startIndex = (this.currentPage - 1) * this.PAGE_SIZE;
-    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
-    this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
-    
-    this.updatePaginationUI();
-  }
+  private updatePaginationNewAndRender(
+    page_id:number
+    ): void {
 
-  private updatePaginationUI(): void {
+    /*
+      Updates the displayedPhotos field in reference to the page_id.
+      Then updates the Pagination UI based on the `currentPage` and totalPages.
+      Then renders the Displayed/collected photos!
+    */
+
+    const startIndex = (page_id) * this.PAGE_SIZE;
+    const endIndex = Math.min((page_id + 1) * this.PAGE_SIZE, this.nMatchesFound);
+    
+    if (page_id !== this.currentPage){
+      fetch("/api/collectQueryMeta/" + this.queryToken + "/" + String(page_id))
+      .then((response) => {
+        if (response.ok){
+          response.json()
+          .then((rawData) => {
+            if (rawData){
+              console.log("Yeah ok!!!");
+              let temp = rawData as ImageSearchResponse;
+              // TODO: transform can be done away i think, as no need to map or anything, we send back float values!!
+              const newPhotosChunk = transformRawDataChunk(temp);
+
+              // TODO: udpate/rectify mergePhotos, to sync i think properly!
+              // const updatedPhotos = mergePhotos(this.state.photos, newPhotosChunk);
+
+              this.displayedPhotos = newPhotosChunk;
+              this.updatePaginationUINew();
+              this.renderDisplayedPhotos();
+            }
+          })
+        }
+        else{
+          throw(Error); // TODO: throw a proper error you noob!
+        }
+      })
+    }
+    else{
+      this.displayedPhotos = this.allPhotos.slice(startIndex, endIndex);
+      console.log((this.displayedPhotos).length)
+      this.updatePaginationUINew();
+      this.renderDisplayedPhotos();
+    }
+    this.currentPage = page_id;
+    }
+    
+  private updatePaginationUINew(): void {
     // Update pagination info
     const paginationInfo = document.getElementById('pagination-info');
     if (paginationInfo) {
-      const startIndex = (this.currentPage - 1) * this.PAGE_SIZE + 1;
-      const endIndex = Math.min(this.currentPage * this.PAGE_SIZE, this.filteredPhotos.length);
-      paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${this.filteredPhotos.length} photos`;
+      const startIndex = (this.currentPage) * this.PAGE_SIZE;
+      const endIndex = Math.min((this.currentPage + 1)* this.PAGE_SIZE, this.nMatchesFound);
+      // TODO: may be integrate Filtered photos details here but filter should be page by page!
+      paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${this.nMatchesFound} photos`;
+
     }
 
     // Update pagination buttons
@@ -191,13 +265,13 @@ class ImageSearchApp {
     const pageInfo = document.getElementById('page-info');
 
     if (prevBtn) {
-      prevBtn.disabled = this.currentPage <= 1;
+      prevBtn.disabled = this.currentPage <= 0;
     }
     if (nextBtn) {
-      nextBtn.disabled = this.currentPage >= this.totalPages;
+      nextBtn.disabled = this.currentPage >= (this.totalPages - 1);
     }
     if (pageInfo) {
-      pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
+      pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages - 1}`;
     }
 
     // Show/hide pagination controls based on whether pagination is needed
@@ -209,16 +283,7 @@ class ImageSearchApp {
         paginationContainer.classList.add('hidden');
       }
     }
-  }  private goToPage(page: number): void {
-    if (page < 1 || page > this.totalPages) return;
-    
-    this.currentPage = page;
-    this.updatePagination();
-    this.renderDisplayedPhotos();
-    
-    // Scroll to the top of the page instantly for performance
-    window.scrollTo(0, 0);
-  }
+  }  
 
   private scrollToFilterLevel(): void {
     // Find the filter container or results section to scroll to
@@ -242,21 +307,23 @@ class ImageSearchApp {
     }
   }
 
-  private setupPaginationEventListeners(): void {
+  private setupPaginationEventListenersNew(): void {
+    /* @Anubhav 
+    Why this need to be called again and again
+    */    
     const prevBtn = document.getElementById('prev-page-btn') as HTMLButtonElement;
     const nextBtn = document.getElementById('next-page-btn') as HTMLButtonElement;
-
+    
     if (prevBtn) {
       // Remove any existing listeners first
       const newPrevBtn = prevBtn.cloneNode(true) as HTMLButtonElement;
       prevBtn.parentNode?.replaceChild(newPrevBtn, prevBtn);
       
+
       newPrevBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        e.stopPropagation();
-        if (!newPrevBtn.disabled) {
-          this.goToPage(this.currentPage - 1);
-        }
+        console.log("prev button clicked! displaying: ", this.currentPage);
+        this.updatePaginationNewAndRender(this.currentPage - 1);
       });
     }
 
@@ -268,13 +335,12 @@ class ImageSearchApp {
       newNextBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!newNextBtn.disabled) {
-          this.goToPage(this.currentPage + 1);
-        }
+        console.log("prev button clicked! displaying: ", this.currentPage);
+        this.updatePaginationNewAndRender(this.currentPage + 1);
       });
     }
-  }
-
+    }
+  
   private renderDisplayedPhotos(): void {
     // Use UIService to update photos with ONLY the displayed photos (pagination)
     this.uiService.updatePhotos(this.displayedPhotos, (photo) => this.handlePhotoClick(photo));
