@@ -262,7 +262,8 @@ template queryStringImpl(
   query_arr_t:openArray[string],  # acts like OR!
   boundary_t, 
   top_k_t:Natural,
-  unique_only_t:bool
+  unique_only_t:bool,
+  exact_string_match_t:bool  # In case to match exact string, substring match is not checked!
   ):Natural = 
 
   # NOTE:
@@ -274,7 +275,7 @@ template queryStringImpl(
   # number of `matched rows`, so as to slice `result_seq_t`
 
   if len(query_arr_t) > 1:
-    doAssert unique_only == true, "Since OR-ing is expected to make sense with unique collection only for now!"
+    doAssert unique_only_t == true, "Since OR-ing is expected to make sense with unique collection only for now!"
 
   doAssert c_t.kind == colString or c_t.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
 
@@ -283,24 +284,42 @@ template queryStringImpl(
   var unique_count = 0 # search up to that count..
   for row_idx in 0..<boundary_t:
     var current_item = arr[row_idx] # in either case, it will be a string.
-    # since we by default consider `substrings` a match, we can just call `contains`.
-    
+
     for query_t in query_arr_t:
-      if query_t == "*" or current_item.contains(query_t):
-        var is_unique = true
-        
-        if unique_only_t:
-          for j in 0..<count:
-            if arr[result_t[j]] == current_item: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
-              is_unique = false
+      # Check if current_item is valid candidate given query_t first, conditioned on the arguments provided!    
+      var is_valid_candidate = false
+      if query_t == "*":
+        is_valid_candidate = true
+      elif (exact_string_match_t) == true:
+        if c_t.kind == colArrayString:
+          for x in current_item.split(StringBoundary):
+            if x == query_t:
+              is_valid_candidate = true
               break
-          
-        if is_unique:
-          result_t[count] = row_idx.int32
-          inc count
-        
-          if count == top_k:
+        else:
+          is_valid_candidate = (current_item == query_t)
+      else:
+        if (current_item.contains(query_t)):
+          is_valid_candidate = true
+      
+      if is_valid_candidate == false:
+        continue
+
+      # Check the unique property!
+      var is_unique = true
+      
+      if unique_only_t:
+        for j in 0..<count:
+          if arr[result_t[j]] == current_item: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
+            is_unique = false
             break
+        
+      if is_unique:
+        result_t[count] = row_idx.int32
+        inc count
+      
+        if count == top_k:
+          break
   
   # NOTE: we are only interested in (unique)`row indices`, if data is an array/arrayString, we wil check that given `query` is in that row or not, collection is different and may depend on the frontend needs!! 
   count    # return this..
@@ -310,7 +329,8 @@ proc query_string(
   query:openArray[string], # wildcard is allowed as * to gather all (unique)!
   boundary:Natural, 
   top_k:Natural,  # at-max this number of matches!
-  unique_only:bool
+  unique_only:bool,
+  exact_string_match:bool
   ):seq[int32]=
   # returns the matching row indices in the 
   # boundary: is provided by MetaIndex, telling it how many elements are currently in this/all columns.
@@ -328,7 +348,8 @@ proc query_string(
     query, 
     boundary, 
     top_k,
-    unique_only)
+    unique_only,
+    exact_string_match)
   result = top_k_seq[0..<count_filled] # TODO: prevent this copy! 
   return result
 
@@ -644,7 +665,8 @@ proc query_column*(
   attribute:string,  # For now we are querying a single column at a time!
   query:JsonNode,    # wildcard * is allowed, to match all rows for a column, in case to collect all the elements from a column!
   top_k:Natural = 1000, # TODO: remove this.. since querying has to be done for whole data-base, doesn't matter to leave anything out without any prior/more information!
-  unique_only:bool = true
+  unique_only:bool = true,
+  exact_string_match:bool = false  # only for string. (as by default we treat substrings match also as true which is a bit costly than exact match!)
   ):seq[int32]=
   # attribute_value: key/label value pairs, value is value is match for corresponding column.
   
@@ -666,10 +688,10 @@ proc query_column*(
   let raw_json = query.toJson()
   case c.kind
   of colString:
-    result = c.query_string(query = fromJson(raw_json, seq[string]), boundary = boundary, top_k = top_k, unique_only = unique_only)
+    result = c.query_string(query = fromJson(raw_json, seq[string]), boundary = boundary, top_k = top_k, unique_only = unique_only, exact_string_match = exact_string_match)
   of colArrayString:
     # doAssert query.kind == JString
-    result = c.query_string(query = fromJson(raw_json, seq[string]), boundary = boundary, top_k = top_k, unique_only = unique_only)
+    result = c.query_string(query = fromJson(raw_json, seq[string]), boundary = boundary, top_k = top_k, unique_only = unique_only, exact_string_match = exact_string_match)
   of colInt32:
     var query_int32:seq[int32]
     if not exact_match: 
