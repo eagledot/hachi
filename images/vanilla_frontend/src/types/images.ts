@@ -38,8 +38,9 @@ export interface ImagesData {
   done?: boolean; // Indicates if the data loading is complete
 }
 
-// Represents the raw response structure from the backend for a search query
-export interface ImageSearchResponse extends ImagesData {
-  client_id?: string;
-  query_completed: boolean; // Indicates if the search/polling is complete
+// Represents the response structure from the backend for a search query
+export interface ImageSearchResponse {
+  n_matches: number;
+  n_pages: number;
+  query_token: string;
 }

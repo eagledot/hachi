@@ -1,6 +1,7 @@
 // UI service for managing DOM updates and interactions
 import type { HachiImageData } from './types';
 import { SearchApiService } from './apiService';
+import { endpoints } from '../config';
 
 export class UIService {
   private container: HTMLElement;
@@ -19,7 +20,7 @@ export class UIService {
   private modalFacesBtn!: HTMLButtonElement;
   private modalFilename!: HTMLElement;
   private currentFullImageLoader: HTMLImageElement | null = null; // Track current image loader
-  private showScores = false; // Flag to control score display in photo grid
+  private showScores = true; // Flag to control score display in photo grid
     // Efficient photo grid management - optimized for pagination
   private photoElementPool: HTMLElement[] = []; // Fixed pool of reusable DOM elements
   private maxPoolSize = 100; // Match typical pagination size
@@ -73,6 +74,7 @@ export class UIService {
     this.cleanupEventListeners();
 
     // Search functionality is now handled by FuzzySearchUI
+    this.currentPhotoClick = callbacks.onPhotoClick;
 
     // Modal functionality
     if (this.modalCloseBtn) {
@@ -102,6 +104,7 @@ export class UIService {
       this.modalLikeBtn.addEventListener('click', likeHandler);
       this.eventCleanupFunctions.push(() => this.modalLikeBtn?.removeEventListener('click', likeHandler));
     }
+
     if (this.modalFacesBtn) {
       const facesHandler = this.handleShowFaces.bind(this);
       this.modalFacesBtn.addEventListener('click', facesHandler);
@@ -192,10 +195,12 @@ export class UIService {
     } else {
       this.errorDisplay.classList.add('hidden');
     }
-  }  /**
+  }
+  
+  /**
    * Updates the photo grid efficiently using pagination-optimized approach
    */
-  updatePhotos(photos: HachiImageData[], onPhotoClick: (photo: HachiImageData) => void): void {
+  updatePhotos(photos: HachiImageData[]): void {
     if (!this.photoGrid || !this.noResultsMessage) return;
 
     // Handle empty state
@@ -207,12 +212,10 @@ export class UIService {
 
     this.noResultsMessage.classList.add('hidden');
 
-    // Store the click handler for reuse
-    this.currentPhotoClick = onPhotoClick;
-
     // Use pagination-optimized update
     this.updatePhotoGridForPagination(photos);
   }
+
   /**
    * Clears the photo grid and resets tracking data
    */
@@ -284,7 +287,7 @@ export class UIService {
    */
   private createEmptyPhotoElement(): HTMLElement {
     const div = document.createElement('div');
-    div.className = 'group relative bg-gray-100 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height';
+    div.className = 'group relative bg-gray-100 overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height';
 
     const img = document.createElement('img');
     img.className = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200';
@@ -317,7 +320,7 @@ export class UIService {
     if (!img) return;
 
     // Update image source and metadata
-    img.src = SearchApiService.getPreviewImageUrl(photo.id);
+    img.src = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
     img.alt = photo.metadata?.filename || '';
     element.setAttribute('data-photo-id', photo.id);
 
@@ -361,7 +364,6 @@ export class UIService {
       return;
     }
 
-    // Implement progressive image loading similar to React version
     this.loadImageProgressively(photo);
     this.modalImage.alt = photo.metadata?.filename || 'Image';
     
@@ -370,6 +372,7 @@ export class UIService {
     this.updateModalFilename(photo);
     
     this.modal.classList.remove('hidden');
+    console.log(this.modal)
     document.body.style.overflow = 'hidden';
   }
 
@@ -388,7 +391,7 @@ export class UIService {
 
     // Set image dimensions from metadata to prevent layout jumps
     if (photo.metadata?.width && photo.metadata?.height) {
-      this.modalImage.setAttribute('width', photo.metadata.width.toString());
+      this.modalImage.setAttribute('width', photo.metadata.height.toString());
       this.modalImage.setAttribute('height', photo.metadata.height.toString());
     } else {
       // Remove attributes if no metadata available
@@ -401,8 +404,8 @@ export class UIService {
     this.modalImage.style.height = '';
 
     // Start with preview image (thumbnail)
-    const thumbnailUrl = SearchApiService.getPreviewImageUrl(photo.id);
-    const fullImageUrl = SearchApiService.getImageUrl(photo.id);
+    const thumbnailUrl = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
+    const fullImageUrl = `${endpoints.GET_IMAGE}/${photo.id}`;
 
     this.modalImage.src = thumbnailUrl;
     
@@ -542,7 +545,7 @@ export class UIService {
         personWrapper.className = 'flex flex-col items-center';
         
         const img = document.createElement('img');
-        img.src = SearchApiService.getPersonImageUrl(personId);
+        img.src = `${endpoints.GET_PERSON_IMAGE}/${personId}`;
         img.alt = personId;
         img.className = 'w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors';
         img.title = `Click to view ${personId}'s photos`;

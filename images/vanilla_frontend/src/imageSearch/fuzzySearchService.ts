@@ -1,5 +1,6 @@
 // Fuzzy Search Service 
 
+import { endpoints } from '../config';
 import { API_ENDPOINTS } from './constants';
 
 export interface SearchFilter {
@@ -77,7 +78,7 @@ export class FuzzySearchService {
       formData.append("attribute", attribute);
       formData.append("query", query);
       
-      const response = await fetch(`${API_ENDPOINTS.GET_SUGGESTION}`, {
+      const response = await fetch(`${endpoints.GET_SUGGESTIONS}`, {
         method: "POST",
         body: formData
       });
@@ -115,7 +116,7 @@ export class FuzzySearchService {
       formData.append("attribute", attribute);
       formData.append("query", query);
       
-      const response = await fetch(`${API_ENDPOINTS.GET_SUGGESTION}`, {
+      const response = await fetch(`${endpoints.GET_SUGGESTIONS}`, {
         method: "POST",
         body: formData,
         signal: this.currentSuggestionController.signal

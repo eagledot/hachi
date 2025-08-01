@@ -1,6 +1,6 @@
 import "./style.css";
 import { Layout } from "./components/layout";
-import Config from "./config";
+import Config, { endpoints } from "./config";
 import { html } from "./utils";
 
 const API_URL = Config.apiUrl;
@@ -132,7 +132,7 @@ class PeopleApp {
 
     try {
       console.log("Fetching people...");
-      const response = await fetch(`${API_URL}/getGroup/person`);
+      const response = await fetch(endpoints.GET_PEOPLE);
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
 
@@ -222,7 +222,7 @@ class PeopleApp {
         // If ID starts with "cluster", it's auto-detected, otherwise it's a custom name
         const isAutoDetected = person.id.toLowerCase().startsWith('cluster');
         const displayName = isAutoDetected ? "Unnamed Person" : person.id;
-        const avatarUrl = `${API_URL}/getPreviewPerson/${person.id}`;
+        const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${person.id}`;
         
         // Person has custom name if ID doesn't start with "cluster"
         const hasCustomName = !isAutoDetected;

@@ -3,7 +3,7 @@ import { Layout } from './components/layout';
 import { UIService } from './imageSearch/uiService';
 import type { HachiImageData } from './imageSearch/types';
 import { ImageModalComponent, PhotoGridComponent, PhotoFilterComponent } from './components';
-import Config from './config';
+import Config, { endpoints } from './config';
 
 // API base URL
 const API_URL = Config.apiUrl;
@@ -148,7 +148,7 @@ class PersonPhotosApp {
     
     try {
       // Load person photos
-      const response = await fetch(`${API_URL}/getMeta/person/${this.personId}`);
+      const response = await fetch(`${endpoints.GET_PERSON_PHOTOS}/${this.personId}`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       
       this.personPhotosData = await response.json();
@@ -169,7 +169,7 @@ class PersonPhotosApp {
     // Update person avatar
     const avatar = document.getElementById('person-avatar') as HTMLImageElement;
     if (avatar) {
-      avatar.src = `${API_URL}/getPreviewPerson/${this.personId}`;
+      avatar.src = `${endpoints.GET_PERSON_IMAGE}/${this.personId}`;
       avatar.alt = this.personId;
       avatar.onerror = () => { avatar.src = './assets/sample_place_bg.jpg'; };
     }
@@ -392,9 +392,7 @@ class PersonPhotosApp {
 
   private renderDisplayedPhotos(): void {
     // Use UIService to update photos with ONLY the displayed photos (pagination)
-    this.uiService.updatePhotos(this.displayedPhotos, (photo: HachiImageData) => {
-      this.handlePhotoClick(photo);
-    });
+    this.uiService.updatePhotos(this.displayedPhotos);
   }
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log('Filtered photos updated:', filteredPhotos.length);

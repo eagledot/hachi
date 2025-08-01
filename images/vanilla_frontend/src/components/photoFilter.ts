@@ -9,6 +9,7 @@ import {
   type SearchFilter,
 } from "../imageSearch/fuzzySearchService";
 import { debounce, transformRawDataChunk } from "../imageSearch/utils";
+import { endpoints } from "../config";
 
 export interface FilterCriteria {
   people?: string[];
@@ -19,7 +20,7 @@ export interface FilterCriteria {
   tags?: string[];
   searchText?: string;
   resourceDirectory?: string[];
-  personContext?: string; // Add person context for person pages
+  personContext?: string;
 }
 
 export interface FilterOptions {
@@ -87,13 +88,18 @@ export class PhotoFilterComponent {
    * Update the photos and regenerate filter options
    */
   updatePhotos(photos: HachiImageData[]): void {
-    this.isInitializing = true; // Mark that we're starting initialization
+    // Mark that we're starting initialization
+    this.isInitializing = true;
+    // Create a copy of the photos array and assign it to this.photos
     this.photos = [...photos];
+    // Generate new filter options based on the updated photos
     this.generateFilterOptions();
-    this.applyFilters(true); // Pass true to indicate this is initial load
+    // Apply existing filters to the photos (passing true for initial load)
+    this.applyFilters(true);
+    // Update the UI to reflect the current filter settings
     this.updateFilterUI();
-    this.isInitialLoad = false; // Mark that initial load is complete
-
+    // Mark that initial load is complete
+    this.isInitialLoad = false;
     // Use setTimeout to allow any pending calls to complete before clearing initializing flag
     setTimeout(() => {
       this.isInitializing = false;
@@ -106,61 +112,69 @@ export class PhotoFilterComponent {
   getFilteredPhotos(): HachiImageData[] {
     return [...this.filteredPhotos];
   }
+
   /**
    * Reset all filters
-   */ resetFilters(): void {
+   */
+  resetFilters(): void {
     // Preserve resource directory and person context when resetting
     const resourceDirectory = this.filterCriteria.resourceDirectory;
     const personContext = this.filterCriteria.personContext;
     this.filterCriteria = { resourceDirectory, personContext };
     this.applyFilters();
     this.updateFilterUI();
-
-    // Scroll to top when filters are reset
-    this.scrollToTop();
   }
 
   /**
    * Clean up event listeners and caches
-   */ destroy(): void {
+   */
+
+  destroy(): void {
     // Remove all tracked event listeners
     this.eventListeners.forEach((listeners) => {
-      listeners.forEach((removeListener) => removeListener());
+      listeners.forEach((removeListener) => removeListener()); // Call each removeListener function to clean up
     });
-    this.eventListeners.clear(); // Clear caches
-    this.peopleCache.clear();
+    this.eventListeners.clear(); // Clear the event listeners array, removing all references
 
-    // Disconnect image observer
+    // Disconnect image observer if it exists
     if (this.imageObserver) {
-      this.imageObserver.disconnect();
-      this.imageObserver = null;
+      this.imageObserver.disconnect(); // Stop observing images and disconnect the connection
+      this.imageObserver = null; // Set imageObserver to null to ensure it won't be reused
     }
 
-    // Cleanup fuzzy search service
-    this.fuzzySearchService.cleanup();
+    // Cleanup fuzzy search service resources
+    this.fuzzySearchService.cleanup(); // Ensure all resources are properly released for the fuzzy search service
   }
 
   /**
    * Setup intersection observer for lazy loading images
    */
   private setupImageObserver(): void {
+    // Check if the browser supports Intersection Observer API
     if ("IntersectionObserver" in window) {
+      // Create a new instance of Intersection Observer with a callback function
       this.imageObserver = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
+            // If the element is intersecting within the viewport
             if (entry.isIntersecting) {
               const img = entry.target as HTMLImageElement;
+              // Check if the image has a data-src attribute
               if (img.dataset.src) {
+                // Set the src of the image to the value of data-src
                 img.src = img.dataset.src;
+                // Remove the data-src attribute from the image
                 img.removeAttribute("data-src");
+                // Stop observing the image once it is loaded
                 this.imageObserver?.unobserve(img);
               }
             }
           });
         },
         {
-          rootMargin: "50px 0px",
-          threshold: 0.1,
+          // Options for Intersection Observer configuration
+          rootMargin: "50px 0px", // Adjust how far from the viewport an element needs to be before being considered 'visible'
+          threshold: 0.1, // The percentage of an element that must be visible to trigger the callback function
         }
       );
     }
@@ -174,15 +188,22 @@ export class PhotoFilterComponent {
     type: K,
     listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any
   ): void {
+    // Add the provided event listener to the specified element
     element.addEventListener(type, listener);
 
+    // Create a function that removes the event listener from the element
     const removeListener = () => element.removeEventListener(type, listener);
 
+    // Check if this element is already in the eventListeners map
     if (!this.eventListeners.has(element)) {
+      // If not, initialize an array for this element's listeners
       this.eventListeners.set(element, []);
     }
+
+    // Add the removeListener function to the list of listeners for this element
     this.eventListeners.get(element)!.push(removeListener);
   }
+
   /**
    * Generate the HTML template for the filter component
    */
@@ -581,9 +602,14 @@ export class PhotoFilterComponent {
    * Render the filter component
    */
   private render(): void {
+    // Check if the container element exists
     if (!this.container) return;
 
+    // Determine whether to hide the search input based on the callbacks or default value
     const hideSearchInput = this.callbacks.hideSearchInput || false;
+
+    // Use the PhotoFilterComponent.getTemplate method to generate the HTML template
+    // This method takes the container's ID and a boolean indicating whether to hide the search input
     this.container.innerHTML = PhotoFilterComponent.getTemplate(
       this.container.id,
       hideSearchInput
@@ -613,7 +639,7 @@ export class PhotoFilterComponent {
 
             if (searchTerm) {
               // Use semantic search for non-empty queries
-              console.log("1. Calling performSemanticSearch with:", searchTerm);
+              // TODO: Change this search implementation
               this.performSemanticSearch(searchTerm);
             } else {
               // Clear semantic search and return to normal filtering
@@ -698,7 +724,7 @@ export class PhotoFilterComponent {
   }
 
   /**
-   * Toggle filter dropdown visibility
+   * Toggle filter dropdown visibility based on the specified type.
    */
   private toggleFilterDropdown(filterType: string): void {
     const dropdown = document.querySelector(
@@ -708,21 +734,30 @@ export class PhotoFilterComponent {
       `#${filterType}-tab`
     ) as HTMLElement;
 
+    // Check if the dropdown or tab elements exist
     if (!dropdown || !tab) return;
 
-    // Close all other dropdowns first
+    // Close all other dropdowns of the same type first
     this.closeAllDropdowns(filterType);
 
-    // Toggle current dropdown
+    // Toggle visibility of the current dropdown
     const isHidden = dropdown.classList.contains("hidden");
     if (isHidden) {
-      // Position dropdown below the tab
+      // Position the dropdown below the tab element
       this.positionDropdown(dropdown, tab);
-      dropdown.classList.remove("hidden");
-      tab.classList.add("bg-blue-50", "border-blue-300", "text-blue-700");
+      dropdown.classList.remove("hidden"); // Show the dropdown
+      tab.classList.add(
+        "bg-blue-50", // Light blue background for focus
+        "border-blue-300", // Blue border
+        "text-blue-700" // Dark blue text
+      );
     } else {
-      dropdown.classList.add("hidden");
-      tab.classList.remove("bg-blue-50", "border-blue-300", "text-blue-700");
+      dropdown.classList.add("hidden"); // Hide the dropdown
+      tab.classList.remove(
+        "bg-blue-50", // Remove light blue background
+        "border-blue-300", // Remove blue border
+        "text-blue-700" // Remove dark blue text
+      );
     }
   }
 
@@ -869,7 +904,9 @@ export class PhotoFilterComponent {
     // Extract unique values from photo metadata
     this.photos.forEach((photo) => {
       const metadata = photo.metadata;
-      if (!metadata) return; // People
+      if (!metadata) return;
+
+      // People
       if (metadata.person && Array.isArray(metadata.person)) {
         metadata.person.forEach((person) => {
           if (
@@ -881,7 +918,9 @@ export class PhotoFilterComponent {
             options.people.push(person);
           }
         });
-      } // Years from taken_at with fallback to modified_at
+      }
+
+      // Years from taken_at with fallback to modified_at
       const extractYear = (dateString: string): number | null => {
         if (!dateString) return null;
 
@@ -1028,7 +1067,10 @@ export class PhotoFilterComponent {
     // Filter out system values
     const validPeople = options.filter(
       (personId) =>
-        personId !== "no_person_detected" && personId !== "no_categorical_info"
+        personId !== "no_person_detected" &&
+        personId !== "no_categorical_info" &&
+        personId !== "" &&
+        personId
     );
 
     if (validPeople.length === 0) {
@@ -1039,6 +1081,8 @@ export class PhotoFilterComponent {
       `;
       return;
     }
+
+    console.log("VALID PEOPLE", validPeople);
 
     // Create or update grid container
     let gridContainer = content.querySelector(".people-grid") as HTMLElement;
@@ -1186,13 +1230,15 @@ export class PhotoFilterComponent {
 
     container.appendChild(buttonElement);
   }
+
+
   /**
    * Create a person thumbnail element
    */
   private createPersonElement(personId: string): HTMLElement {
     const displayName =
       personId.charAt(0).toUpperCase() + personId.slice(1).toLowerCase();
-    const avatarUrl = SearchApiService.getPersonImageUrl(personId);
+    const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${personId}`;
 
     const element = document.createElement("div");
     element.className = "person-filter-item group cursor-pointer";
@@ -1506,7 +1552,9 @@ export class PhotoFilterComponent {
         metadata.person!.includes(person)
       );
       if (!hasMatch) return false;
-    } // Year filter
+    }
+
+    // Year filter
     if (criteria.years && criteria.years.length > 0) {
       // Use the same robust year extraction function as in generateFilterOptions
       const extractYear = (dateString: string): number | null => {
@@ -1646,10 +1694,13 @@ export class PhotoFilterComponent {
       values.forEach((value) => {
         if (filterType === "people") {
           // Special handling for people - show face thumbnail instead of text
-          const avatarUrl = SearchApiService.getPersonImageUrl(value);
-          const displayName = value.length > 15 ? value.substring(0, 15) + "..." : value;
+          const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${value}`;
+          const displayName =
+            value.length > 15 ? value.substring(0, 15) + "..." : value;
           badges.push(`
-            <span class="inline-flex items-center px-1.5 py-1 rounded-md text-xs font-medium border transition-colors ${colors[filterType]}">
+            <span class="inline-flex items-center px-1.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+              colors[filterType]
+            }">
               <img 
                 src="${avatarUrl}" 
                 alt="${displayName}"
@@ -1669,7 +1720,8 @@ export class PhotoFilterComponent {
           `);
         } else {
           // Standard handling for other filter types
-          const displayValue = value.length > 20 ? value.substring(0, 20) + "..." : value;
+          const displayValue =
+            value.length > 20 ? value.substring(0, 20) + "..." : value;
           badges.push(`
             <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
               colors[filterType] ||
