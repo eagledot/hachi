@@ -1,5 +1,9 @@
 // FuzzySearchUI
-import { FuzzySearchService, type SearchFilter, type SearchSuggestion } from "./fuzzySearchService";
+import {
+  FuzzySearchService,
+  type SearchFilter,
+  type SearchSuggestion,
+} from "./fuzzySearchService";
 
 import { html } from "../utils";
 
@@ -23,6 +27,7 @@ export class FuzzySearchUI {
   private showDropdown = false;
   private selectedIndex = -1;
   private hasSearched = false;
+  private debounceTimeout: number | null = null;
 
   /**
    * Initializes a new instance of the fuzzy search UI component.
@@ -65,7 +70,7 @@ export class FuzzySearchUI {
 
   private createUI(): void {
     this.container.innerHTML = html`
-            <div class="w-full max-w-5xl mx-auto p-2 sm:p-4 fuzzy-search-container">
+      <div class="w-full max-w-5xl mx-auto p-2 sm:p-4 fuzzy-search-container">
         <div class="w-full relative">
           <!-- Active Filters Display -->
           <div
@@ -113,8 +118,6 @@ export class FuzzySearchUI {
                     placeholder="Search by people, folders, or keywords..."
                     class="flex-1 h-full px-0 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal"
                   />
-
-                  
                 </div>
 
                 <!-- Modern Smart Dropdown -->
@@ -205,7 +208,7 @@ export class FuzzySearchUI {
         </div>
       </div>
     `;
-    
+
     this.filtersContainer = this.container.querySelector(
       "#filters-container"
     ) as HTMLElement;
@@ -270,28 +273,29 @@ export class FuzzySearchUI {
     const target = e.target as HTMLInputElement;
     const value = target.value;
     console.log("Input changed to:", value);
-
-    // TODO: Implement debounce or throttle if needed
-
     this.selectedIndex = -1; // Reset keyboard navigation
 
-    if (value.trim()) {
-      // Generate suggestions for all attributes simultaneously
-      this.suggestions =
-        await this.fuzzySearchService.generateAllAttributeSuggestions(value);
-      if (this.suggestions.length > 0) {
-        this.showDropdown = true;
-        this.renderDropdown();
+    // Debounce the function call
+    if (this.debounceTimeout) clearTimeout(this.debounceTimeout);
+
+    this.debounceTimeout = setTimeout(async () => {
+      if (value.trim().length > 0) {
+        // Generate suggestions for all attributes simultaneously
+        this.suggestions =
+          await this.fuzzySearchService.generateAllAttributeSuggestions(value);
+        if (this.suggestions.length > 0) {
+          this.showDropdown = true;
+          this.renderDropdown();
+        } else {
+          this.hideDropdown();
+        }
       } else {
+        // Clear suggestions if input is empty
+        this.suggestions = [];
         this.hideDropdown();
       }
-    } else {
-      // Clear suggestions if input is empty
-      this.suggestions = [];
-      this.hideDropdown();
-    }
+    }, 300); // Adjust as per need
   }
-
 
   private handleKeyDown(e: KeyboardEvent): void {
     if (this.showDropdown && this.suggestions.length > 0) {
@@ -386,8 +390,6 @@ export class FuzzySearchUI {
     }
   }
 
-
-
   private async handleSuggestionClick(
     suggestion: SearchSuggestion
   ): Promise<void> {
@@ -401,7 +403,6 @@ export class FuzzySearchUI {
     // Execute search immediately
     this.executeSearch();
   }
-
 
   private async handleSearchClick(): Promise<void> {
     // Add current input to filters if not empty
@@ -427,7 +428,7 @@ export class FuzzySearchUI {
       this.renderFilters();
     }
   }
-  
+
   private removeFilter(attribute: string, value: string): void {
     if (this.selectedFilters[attribute]) {
       this.selectedFilters[attribute] = this.selectedFilters[attribute].filter(
@@ -506,7 +507,6 @@ export class FuzzySearchUI {
       });
     });
   }
-
 
   private renderDropdown(): void {
     if (!this.showDropdown) {
@@ -619,7 +619,6 @@ export class FuzzySearchUI {
     this.dropdown.classList.remove("hidden");
   }
 
-
   private updateDropdownSelection(): void {
     const options = this.dropdown.querySelectorAll(
       ".suggestion-option"
@@ -645,7 +644,6 @@ export class FuzzySearchUI {
   public cleanup(): void {
     this.fuzzySearchService.cleanup();
   }
-
 
   public clearAllFilters(): void {
     this.selectedFilters = {};

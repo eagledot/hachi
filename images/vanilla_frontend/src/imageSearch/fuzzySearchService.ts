@@ -154,7 +154,7 @@ export class FuzzySearchService {
 
     // Filter out 'query' attribute - we don't want suggestions for query
     const availableAttributes = this.getAvailableAttributes().filter(attr => attr !== 'query');
-    
+    // TODO: Implement some kind of debouncing to put les stress on the server
     const suggestionPromises = availableAttributes.map(async (attribute) => {
       try {
         // Use getSuggestionBatch to avoid request cancellation issues
