@@ -136,7 +136,7 @@ global_lock = threading.RLock()
 
 def recreate_local_path(
         identifier:str,  # like C:, D:,  Local drives/partitions!
-        uri:list[str]   # like [abc, movies,] , without any delimiters like // or \
+        uri:list[str]    # like [abc, movies,] , without any delimiters like // or \
     ) -> os.PathLike:
     
     if os.sys.platform == "win32":
@@ -266,29 +266,49 @@ def getSuggestion() -> Dict[str, List[str]]:
 
 ##########################################
 
-experiment_cache = {} # some data to store over a single query, (like text-embeddings). Later hold image-embeddings when able to do re-ranking also!
-pagination_cache = PaginationCache()
+# --------------------------
+pagination_cache = PaginationCache() # for each (new) query, certain pagination info is cache, to be used for collect/filter conditioned on that query.
+# ---------------------------
+
+
+# --------------------
+# Collect 
+# ----------------------
 @app.route("/collectQueryMeta/<token>/<page_id>")
-def collect_query_meta(token:str, page_id:int):
-    # TODO: This is read-only,so should be ok, right, about 
-    # being called from different threads.. until we actually want to remove a token from the pagination cache or something!
-    
+def collect_query_meta(token:str, page_id:int):    
     page_id = int(page_id)
     callback, (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
 
-    temp = {}
+    temp:MetaInfo = {}
     temp["data_hash"] = resource_hashes
     temp["score"] = scores    
     temp["meta_data"] = callback(row_indices)
     del scores, resource_hashes
     return flask.jsonify(temp)
 
+# ------------------
+# Querying
+# -------------------
 from queue import Queue
-query_token_counter = 1  # NOTE TODO: make it random enough to not be guessed even by authenticated (only authorized) but later, if exposing as a Cloud service!
+class QueryInfo(TypedDict):
+    """
+    Return type for a Q aka query function call in pagination pipeline!
+    """
+    query_token:str   # required for `collect/filter` routes, must be random enough to not be guessed, even for authenticated users (when exposed to cloud)
+    n_pages:int  # n pages possible as the result of a query.
+    n_matches_found:int   # this represents max possible matches, for a Q , so a clien create pagination interface just after querying, without calling collect/filter.
 
-# don't thread creation has a cost in python.. we can instead run main logic in dedicated thread into.
-# and instead pass in the argument, then how to return back some resuts..
-# another queue is the answer it seems!
+class MetaInfo(TypedDict):
+    """
+    Return type for the `collect` or `filter` calls, after `querying` aka Q call in pagination pipeline.
+    This is result type for transformation aka T function call!
+    """
+    data_hash:list[str]
+    meta_data:list[dict] # each element would contain all meta-attributes.
+    score:list[float] # corresponding score for each data/resource hash, (Generally) in orderded!
+
+# Inits.
+query_token_counter = 1  # NOTE TODO: make it random enough to not be guessed even by authenticated (only authorized) but later, if exposing as a Cloud service!
 query_queue = Queue()  # a queue to put other queues into it, 
 
 def query_thread():
@@ -309,7 +329,7 @@ def query_thread():
     top_k = TOP_K_SHARD
     
     while True:
-        (temp_q, query_start ,query, page_size) = query_queue.get()
+        (temp_q, query_start,query, page_size) = query_queue.get()
 
         # NOTE: client_id must be sent back to the client, DONOT forget!
         # used by the imageIndex to send streaming results to the correct client!
@@ -322,14 +342,6 @@ def query_thread():
         image_attributes = parse_query(query)
         meta_attributes_list = [x for x in image_attributes if x != "query"]
         rerank_approach = len(meta_attributes_list) > 0
-
-        # data to be sent back to client.  #TOOD: proper define interface/contract . So (poor man grpc like approach!)
-        query_completed = True  # by default.
-        temp = {}                                   
-        temp["meta_data"] = []
-        temp["data_hash"] = []       # TODO: may rename it `resource_hash` on client side!
-        temp["score"] = []
-        misc_time = 0
 
         benchmarking = {}
         if not rerank_approach:
@@ -402,7 +414,12 @@ def query_thread():
             del page_meta
             pagination_cache.add(info)
             del info
-            temp_q.put((query_token, n_pages, len(final_row_indices))) # read by the calling thread!
+
+            q_info:QueryInfo = {}
+            q_info["n_matches_found"] = len(final_row_indices)
+            q_info["n_pages"] = n_pages
+            q_info["query_token"] = query_token
+            temp_q.put(q_info) # read by the calling thread!
             del temp_q
 
 print("[DEBUG]: Starting thread for handling query terms!")
@@ -429,13 +446,9 @@ def query(page_size:int = 200):
 
     temp_q = Queue(maxsize = 1)
     query_queue.put((temp_q, query_start, query, page_size))
-    (query_token, n_pages, n_matches) = temp_q.get()
+    q_info:QueryInfo = temp_q.get()
     del temp_q
-    return flask.jsonify({
-        "query_token":query_token, 
-        "n_pages":n_pages,
-        "n_matches":n_matches   # Total matches. (it must be estimate-able by Q (query) routine!)
-    })
+    return flask.jsonify(q_info)
 
     # # NOTE: client_id must be sent back to the client, DONOT forget!
     # # used by the imageIndex to send streaming results to the correct client!
@@ -842,7 +855,7 @@ def getMeta(attribute:str, value:Any):
         attribute = attribute,
         query = [value],
         unique_only = False,   # we need any row matching this value for this attribute here!
-        exact_string_match = False,
+        exact_string_match = True,
         page_size = 2000       # TODO: just for testing now.. 
     )
     # collect (for now single page only.. 2000 would be enough for testing)
