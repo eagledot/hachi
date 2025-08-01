@@ -1,6 +1,6 @@
 import './style.css';
 import { Layout } from './components/layout';
-import Config from './config';
+import Config, { endpoints } from './config';
 
 // Initialize the layout for the main page
 new Layout({
@@ -10,7 +10,7 @@ new Layout({
 });
 
 // API endpoint for statistics
-const GET_META_STATS_URL = `${Config.apiUrl}/getMetaStats`;
+const GET_META_STATS_URL = endpoints.GET_META_STATS;
 
 // Interface for indexing statistics
 export interface IndexingStats {

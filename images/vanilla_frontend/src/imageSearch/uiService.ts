@@ -1,7 +1,7 @@
 // UI service for managing DOM updates and interactions
-import type { HachiImageData } from './types';
-import { SearchApiService } from './apiService';
-import { endpoints } from '../config';
+import type { HachiImageData } from "./types";
+import { SearchApiService } from "./apiService";
+import { endpoints } from "../config";
 
 export class UIService {
   private container: HTMLElement;
@@ -11,7 +11,8 @@ export class UIService {
   private photoGrid!: HTMLElement;
   private noResultsMessage!: HTMLElement;
   private modal!: HTMLElement;
-  private modalImage!: HTMLImageElement;private modalMetadata!: HTMLElement;
+  private modalImage!: HTMLImageElement;
+  private modalMetadata!: HTMLElement;
   private modalPrevBtn!: HTMLButtonElement;
   private modalNextBtn!: HTMLButtonElement;
   private modalCloseBtn!: HTMLButtonElement;
@@ -21,15 +22,16 @@ export class UIService {
   private modalFilename!: HTMLElement;
   private currentFullImageLoader: HTMLImageElement | null = null; // Track current image loader
   private showScores = false; // Flag to control score display in photo grid
-    // Efficient photo grid management - optimized for pagination
+  // Efficient photo grid management - optimized for pagination
   private photoElementPool: HTMLElement[] = []; // Fixed pool of reusable DOM elements
   private maxPoolSize = 100; // Match typical pagination size
   private currentPhotoClick: ((photo: HachiImageData) => void) | null = null;
-  
+
   // Performance optimizations
-  private static readonly FALLBACK_IMAGE_SVG = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvcnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
+  private static readonly FALLBACK_IMAGE_SVG =
+    "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvcnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzZiNzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=";
   private static readonly VIEW_ICON_SVG = `<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
-  
+
   // Event listener cleanup tracking
   private eventCleanupFunctions: (() => void)[] = [];
   private globalKeydownHandler?: (e: KeyboardEvent) => void;
@@ -44,24 +46,50 @@ export class UIService {
   }
   private initializeElements(): void {
     // Elements within the container - search elements no longer needed as handled by FuzzySearchUI
-    this.loadingIndicator = this.container.querySelector('#loading-indicator') as HTMLElement;
-    this.errorDisplay = this.container.querySelector('#error-display') as HTMLElement;
-    this.photoGrid = this.container.querySelector('#photo-grid') as HTMLElement;
-    this.noResultsMessage = this.container.querySelector('#no-results-message') as HTMLElement;
-      // Modal elements - search in document since modal might be outside container
-    this.modal = document.querySelector('#image-modal') as HTMLElement;
-    this.modalImage = document.querySelector('#modal-image') as HTMLImageElement;
-    this.modalMetadata = document.querySelector('#modal-metadata') as HTMLElement;
-    this.modalPrevBtn = document.querySelector('#modal-prev-btn') as HTMLButtonElement;
-    this.modalNextBtn = document.querySelector('#modal-next-btn') as HTMLButtonElement;
-    this.modalCloseBtn = document.querySelector('#modal-close-btn') as HTMLButtonElement;
-    this.modalFullscreenBtn = document.querySelector('#modal-fullscreen-btn') as HTMLButtonElement;
-    this.modalLikeBtn = document.querySelector('#modal-like-btn') as HTMLButtonElement;
-    this.modalFacesBtn = document.querySelector('#modal-faces-btn') as HTMLButtonElement;
-    this.modalFilename = document.querySelector('#modal-filename') as HTMLElement;    if (!this.photoGrid) {
-      throw new Error('Required UI elements not found');
+    this.loadingIndicator = this.container.querySelector(
+      "#loading-indicator"
+    ) as HTMLElement;
+    this.errorDisplay = this.container.querySelector(
+      "#error-display"
+    ) as HTMLElement;
+    this.photoGrid = this.container.querySelector("#photo-grid") as HTMLElement;
+    this.noResultsMessage = this.container.querySelector(
+      "#no-results-message"
+    ) as HTMLElement;
+    // Modal elements - search in document since modal might be outside container
+    this.modal = document.querySelector("#image-modal") as HTMLElement;
+    this.modalImage = document.querySelector(
+      "#modal-image"
+    ) as HTMLImageElement;
+    this.modalMetadata = document.querySelector(
+      "#modal-metadata"
+    ) as HTMLElement;
+    this.modalPrevBtn = document.querySelector(
+      "#modal-prev-btn"
+    ) as HTMLButtonElement;
+    this.modalNextBtn = document.querySelector(
+      "#modal-next-btn"
+    ) as HTMLButtonElement;
+    this.modalCloseBtn = document.querySelector(
+      "#modal-close-btn"
+    ) as HTMLButtonElement;
+    this.modalFullscreenBtn = document.querySelector(
+      "#modal-fullscreen-btn"
+    ) as HTMLButtonElement;
+    this.modalLikeBtn = document.querySelector(
+      "#modal-like-btn"
+    ) as HTMLButtonElement;
+    this.modalFacesBtn = document.querySelector(
+      "#modal-faces-btn"
+    ) as HTMLButtonElement;
+    this.modalFilename = document.querySelector(
+      "#modal-filename"
+    ) as HTMLElement;
+    if (!this.photoGrid) {
+      throw new Error("Required UI elements not found");
     }
-  }  /**
+  }
+  /**
    * Sets up event listeners
    */
   setupEventListeners(callbacks: {
@@ -79,36 +107,48 @@ export class UIService {
     // Modal functionality
     if (this.modalCloseBtn) {
       const closeHandler = () => callbacks.onModalClose();
-      this.modalCloseBtn.addEventListener('click', closeHandler);
-      this.eventCleanupFunctions.push(() => this.modalCloseBtn?.removeEventListener('click', closeHandler));
+      this.modalCloseBtn.addEventListener("click", closeHandler);
+      this.eventCleanupFunctions.push(() =>
+        this.modalCloseBtn?.removeEventListener("click", closeHandler)
+      );
     }
     if (this.modalNextBtn) {
       const nextHandler = () => callbacks.onModalNext();
-      this.modalNextBtn.addEventListener('click', nextHandler);
-      this.eventCleanupFunctions.push(() => this.modalNextBtn?.removeEventListener('click', nextHandler));
+      this.modalNextBtn.addEventListener("click", nextHandler);
+      this.eventCleanupFunctions.push(() =>
+        this.modalNextBtn?.removeEventListener("click", nextHandler)
+      );
     }
     if (this.modalPrevBtn) {
       const prevHandler = () => callbacks.onModalPrevious();
-      this.modalPrevBtn.addEventListener('click', prevHandler);
-      this.eventCleanupFunctions.push(() => this.modalPrevBtn?.removeEventListener('click', prevHandler));
+      this.modalPrevBtn.addEventListener("click", prevHandler);
+      this.eventCleanupFunctions.push(() =>
+        this.modalPrevBtn?.removeEventListener("click", prevHandler)
+      );
     }
 
     // Additional modal controls
     if (this.modalFullscreenBtn) {
       const fullscreenHandler = this.handleToggleFullScreen.bind(this);
-      this.modalFullscreenBtn.addEventListener('click', fullscreenHandler);
-      this.eventCleanupFunctions.push(() => this.modalFullscreenBtn?.removeEventListener('click', fullscreenHandler));
+      this.modalFullscreenBtn.addEventListener("click", fullscreenHandler);
+      this.eventCleanupFunctions.push(() =>
+        this.modalFullscreenBtn?.removeEventListener("click", fullscreenHandler)
+      );
     }
     if (this.modalLikeBtn) {
       const likeHandler = this.handleLike.bind(this);
-      this.modalLikeBtn.addEventListener('click', likeHandler);
-      this.eventCleanupFunctions.push(() => this.modalLikeBtn?.removeEventListener('click', likeHandler));
+      this.modalLikeBtn.addEventListener("click", likeHandler);
+      this.eventCleanupFunctions.push(() =>
+        this.modalLikeBtn?.removeEventListener("click", likeHandler)
+      );
     }
 
     if (this.modalFacesBtn) {
       const facesHandler = this.handleShowFaces.bind(this);
-      this.modalFacesBtn.addEventListener('click', facesHandler);
-      this.eventCleanupFunctions.push(() => this.modalFacesBtn?.removeEventListener('click', facesHandler));
+      this.modalFacesBtn.addEventListener("click", facesHandler);
+      this.eventCleanupFunctions.push(() =>
+        this.modalFacesBtn?.removeEventListener("click", facesHandler)
+      );
     }
 
     // Close modal on backdrop click
@@ -118,27 +158,29 @@ export class UIService {
           callbacks.onModalClose();
         }
       };
-      this.modal.addEventListener('click', backdropHandler);
-      this.eventCleanupFunctions.push(() => this.modal?.removeEventListener('click', backdropHandler));
+      this.modal.addEventListener("click", backdropHandler);
+      this.eventCleanupFunctions.push(() =>
+        this.modal?.removeEventListener("click", backdropHandler)
+      );
     }
 
     // Keyboard navigation for modal - use bound function for cleanup
     this.globalKeydownHandler = (e: KeyboardEvent) => {
-      if (!this.modal || this.modal.classList.contains('hidden')) return;
-      
+      if (!this.modal || this.modal.classList.contains("hidden")) return;
+
       switch (e.key) {
-        case 'Escape':
+        case "Escape":
           callbacks.onModalClose();
           break;
-        case 'ArrowLeft':
+        case "ArrowLeft":
           callbacks.onModalPrevious();
           break;
-        case 'ArrowRight':
+        case "ArrowRight":
           callbacks.onModalNext();
           break;
       }
     };
-    document.addEventListener('keydown', this.globalKeydownHandler);
+    document.addEventListener("keydown", this.globalKeydownHandler);
   }
 
   /**
@@ -146,12 +188,12 @@ export class UIService {
    */
   cleanupEventListeners(): void {
     // Clean up all registered event listeners
-    this.eventCleanupFunctions.forEach(cleanup => cleanup());
+    this.eventCleanupFunctions.forEach((cleanup) => cleanup());
     this.eventCleanupFunctions = [];
 
     // Clean up global keydown listener
     if (this.globalKeydownHandler) {
-      document.removeEventListener('keydown', this.globalKeydownHandler);
+      document.removeEventListener("keydown", this.globalKeydownHandler);
       this.globalKeydownHandler = undefined;
     }
   }
@@ -162,7 +204,7 @@ export class UIService {
     this.cleanupEventListeners();
     this.photoElementPool = [];
     this.currentPhotoClick = null;
-    
+
     // Cancel any pending image loading
     if (this.currentFullImageLoader) {
       this.currentFullImageLoader.onload = null;
@@ -177,9 +219,9 @@ export class UIService {
     if (!this.loadingIndicator) return;
 
     if (isLoading) {
-      this.loadingIndicator.classList.remove('hidden');
+      this.loadingIndicator.classList.remove("hidden");
     } else {
-      this.loadingIndicator.classList.add('hidden');
+      this.loadingIndicator.classList.add("hidden");
     }
   }
 
@@ -191,12 +233,12 @@ export class UIService {
 
     if (error) {
       this.errorDisplay.textContent = `Error: ${error}`;
-      this.errorDisplay.classList.remove('hidden');
+      this.errorDisplay.classList.remove("hidden");
     } else {
-      this.errorDisplay.classList.add('hidden');
+      this.errorDisplay.classList.add("hidden");
     }
   }
-  
+
   /**
    * Updates the photo grid efficiently using pagination-optimized approach
    */
@@ -206,11 +248,11 @@ export class UIService {
     // Handle empty state
     if (photos.length === 0) {
       this.clearPhotoGrid();
-      this.noResultsMessage.classList.remove('hidden');
+      this.noResultsMessage.classList.remove("hidden");
       return;
     }
 
-    this.noResultsMessage.classList.add('hidden');
+    this.noResultsMessage.classList.add("hidden");
 
     // Use pagination-optimized update
     this.updatePhotoGridForPagination(photos);
@@ -222,8 +264,8 @@ export class UIService {
   private clearPhotoGrid(): void {
     // Don't clear innerHTML as it breaks the element pool
     // Instead, just hide all elements from the pool
-    this.photoElementPool.forEach(element => {
-      element.style.display = 'none';
+    this.photoElementPool.forEach((element) => {
+      element.style.display = "none";
     });
   }
 
@@ -238,12 +280,12 @@ export class UIService {
     photos.forEach((photo, index) => {
       const element = this.photoElementPool[index];
       this.updateElementWithPhotoData(element, photo);
-      element.style.display = 'block';
+      element.style.display = "block";
     });
 
     // Hide unused elements
     for (let i = photos.length; i < this.photoElementPool.length; i++) {
-      this.photoElementPool[i].style.display = 'none';
+      this.photoElementPool[i].style.display = "none";
     }
 
     // Ensure all visible elements are in the DOM
@@ -254,8 +296,9 @@ export class UIService {
    * Ensures we have enough DOM elements in the pool
    */
   private ensureElementPool(requiredSize: number): void {
-    const neededElements = Math.min(requiredSize, this.maxPoolSize) - this.photoElementPool.length;
-    
+    const neededElements =
+      Math.min(requiredSize, this.maxPoolSize) - this.photoElementPool.length;
+
     for (let i = 0; i < neededElements; i++) {
       const element = this.createEmptyPhotoElement();
       this.photoElementPool.push(element);
@@ -286,60 +329,68 @@ export class UIService {
    * Creates an empty photo element template for reuse
    */
   private createEmptyPhotoElement(): HTMLElement {
-    const div = document.createElement('div');
-    div.className = 'group relative bg-gray-100 overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height';
+    const div = document.createElement("div");
+    div.className =
+      "group relative bg-gray-100 overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height";
 
-    const img = document.createElement('img');
-    img.className = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-200';
-    img.loading = 'lazy';
+    const img = document.createElement("img");
+    img.className =
+      "w-full h-full object-cover group-hover:scale-105 transition-transform duration-200";
+    img.loading = "lazy";
 
     // Error handling
     img.onerror = () => {
       img.src = UIService.FALLBACK_IMAGE_SVG;
-      img.alt = 'Image not found';
+      img.alt = "Image not found";
     };
 
     // Hover overlay
-    const hoverOverlay = document.createElement('div');
-    hoverOverlay.className = 'absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100';
-    
-    const viewIcon = document.createElement('div');
-    viewIcon.className = 'text-white bg-black/50 rounded-full p-2';
+    const hoverOverlay = document.createElement("div");
+    hoverOverlay.className =
+      "absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100";
+
+    const viewIcon = document.createElement("div");
+    viewIcon.className = "text-white bg-black/50 rounded-full p-2";
     viewIcon.innerHTML = UIService.VIEW_ICON_SVG;
-    
+
     hoverOverlay.appendChild(viewIcon);
     div.appendChild(img);
     div.appendChild(hoverOverlay);
 
     return div;
-  }  /**
+  }
+  /**
    * Updates an existing DOM element with new photo data
    */
-  private updateElementWithPhotoData(element: HTMLElement, photo: HachiImageData): void {
-    const img = element.querySelector('img') as HTMLImageElement;
+  private updateElementWithPhotoData(
+    element: HTMLElement,
+    photo: HachiImageData
+  ): void {
+    const img = element.querySelector("img") as HTMLImageElement;
     if (!img) return;
 
     // Update image source and metadata
     img.src = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
-    img.alt = photo.metadata?.filename || '';
-    element.setAttribute('data-photo-id', photo.id);
+    img.alt = photo.metadata?.filename || "";
+    element.setAttribute("data-photo-id", photo.id);
 
     // Update score badge
-    const existingScoreBadge = element.querySelector('.score-badge');
+    const existingScoreBadge = element.querySelector(".score-badge");
     if (existingScoreBadge) {
       existingScoreBadge.remove();
     }
 
     if (this.showScores && photo.score !== undefined && photo.score !== null) {
-      const scoreBadge = document.createElement('div');
-      scoreBadge.className = 'score-badge absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded shadow z-10';
+      const scoreBadge = document.createElement("div");
+      scoreBadge.className =
+        "score-badge absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded shadow z-10";
       scoreBadge.textContent = Number(photo.score).toFixed(3);
       element.appendChild(scoreBadge);
     }
 
     // Remove all existing click listeners efficiently
     element.onclick = null;
-    
+
     // Add new click handler directly
     if (this.currentPhotoClick) {
       element.onclick = (e) => {
@@ -353,27 +404,31 @@ export class UIService {
   /**
    * Shows the image modal
    */
-  showModal(photo: HachiImageData, canGoPrevious: boolean, canGoNext: boolean): void {
+  showModal(
+    photo: HachiImageData,
+    canGoPrevious: boolean,
+    canGoNext: boolean
+  ): void {
     if (!this.modal) {
-      console.error('Modal element not found');
+      console.error("Modal element not found");
       return;
     }
-    
+
     if (!this.modalImage) {
-      console.error('Modal image element not found');
+      console.error("Modal image element not found");
       return;
     }
 
     this.loadImageProgressively(photo);
-    this.modalImage.alt = photo.metadata?.filename || 'Image';
-    
+    this.modalImage.alt = photo.metadata?.filename || "Image";
+
     this.updateModalMetadata(photo);
     this.updateModalNavigation(canGoPrevious, canGoNext);
     this.updateModalFilename(photo);
-    
-    this.modal.classList.remove('hidden');
-    console.log(this.modal)
-    document.body.style.overflow = 'hidden';
+
+    this.modal.classList.remove("hidden");
+    console.log(this.modal);
+    document.body.style.overflow = "hidden";
   }
 
   /**
@@ -391,29 +446,29 @@ export class UIService {
 
     // Set image dimensions from metadata to prevent layout jumps
     if (photo.metadata?.width && photo.metadata?.height) {
-      this.modalImage.setAttribute('width', photo.metadata.height.toString());
-      this.modalImage.setAttribute('height', photo.metadata.height.toString());
+      this.modalImage.setAttribute("width", photo.metadata.height.toString());
+      this.modalImage.setAttribute("height", photo.metadata.height.toString());
     } else {
       // Remove attributes if no metadata available
-      this.modalImage.removeAttribute('width');
-      this.modalImage.removeAttribute('height');
+      this.modalImage.removeAttribute("width");
+      this.modalImage.removeAttribute("height");
     }
 
     // Reset any manual styles that might interfere
-    this.modalImage.style.width = '';
-    this.modalImage.style.height = '';
+    this.modalImage.style.width = "";
+    this.modalImage.style.height = "";
 
     // Start with preview image (thumbnail)
     const thumbnailUrl = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
     const fullImageUrl = `${endpoints.GET_IMAGE}/${photo.id}`;
 
     this.modalImage.src = thumbnailUrl;
-    
+
     // Start loading the full resolution image in background
     this.currentFullImageLoader = new Image();
     const fullImageLoader = this.currentFullImageLoader;
     fullImageLoader.src = fullImageUrl;
-    
+
     fullImageLoader.onload = () => {
       // Switch to full resolution while maintaining the same dimensions
       if (this.currentFullImageLoader === fullImageLoader && this.modalImage) {
@@ -424,9 +479,9 @@ export class UIService {
         this.currentFullImageLoader = null;
       }
     };
-    
+
     fullImageLoader.onerror = () => {
-      console.error('Failed to load full resolution image:', fullImageUrl);
+      console.error("Failed to load full resolution image:", fullImageUrl);
       if (this.currentFullImageLoader === fullImageLoader) {
         this.currentFullImageLoader = null;
       }
@@ -438,7 +493,7 @@ export class UIService {
    */
   hideModal(): void {
     if (!this.modal) {
-      console.error('Modal element not found for hiding');
+      console.error("Modal element not found for hiding");
       return;
     }
 
@@ -449,8 +504,8 @@ export class UIService {
       this.currentFullImageLoader = null;
     }
 
-    this.modal.classList.add('hidden');
-    document.body.style.overflow = 'auto';
+    this.modal.classList.add("hidden");
+    document.body.style.overflow = "auto";
   }
 
   /**
@@ -461,110 +516,205 @@ export class UIService {
 
     this.modalPrevBtn.disabled = !canGoPrevious;
     this.modalNextBtn.disabled = !canGoNext;
-    
+
     if (canGoPrevious) {
-      this.modalPrevBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      this.modalPrevBtn.classList.remove("opacity-50", "cursor-not-allowed");
     } else {
-      this.modalPrevBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      this.modalPrevBtn.classList.add("opacity-50", "cursor-not-allowed");
     }
-    
+
     if (canGoNext) {
-      this.modalNextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+      this.modalNextBtn.classList.remove("opacity-50", "cursor-not-allowed");
     } else {
-      this.modalNextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+      this.modalNextBtn.classList.add("opacity-50", "cursor-not-allowed");
     }
   }
 
   /**
    * Updates modal metadata display
-   */  
+   */
   private updateModalMetadata(photo: HachiImageData): void {
-    if (!this.modalMetadata) return;    
+    if (!this.modalMetadata) return;
 
     const metadata = photo.metadata;
     if (!metadata) {
-      this.modalMetadata.innerHTML = '<p class="text-gray-500">No metadata available</p>';
+      this.modalMetadata.innerHTML =
+        '<p class="text-gray-500">No metadata available</p>';
       return;
-    }    
+    }
 
     // Pre-filter and prepare metadata items for efficiency
     const metadataItems = [
-      { label: 'Filename', value: metadata.filename },
-      { label: 'Dimensions', value: metadata.width && metadata.height ? `${metadata.width} × ${metadata.height}` : null },
-      { label: 'Date Taken', value: metadata.taken_at && metadata.taken_at.toLowerCase() !== 'unk' ? metadata.taken_at : null },
-      { label: 'Location', value: metadata.place && metadata.place.toLowerCase() !== 'unk' ? metadata.place : null },
-      { label: 'Description', value: metadata.description },
-      { label: 'Device', value: metadata.device && metadata.device.toLowerCase() !== 'unk' ? metadata.device : null },
-    ].filter(item => item.value && item.value.toString().trim() !== '');
-    
+      { label: "Filename", value: metadata.filename },
+      {
+        label: "Dimensions",
+        value:
+          metadata.width && metadata.height
+            ? `${metadata.width} × ${metadata.height}`
+            : null,
+      },
+      {
+        label: "Date Taken",
+        value:
+          metadata.taken_at && metadata.taken_at.toLowerCase() !== "unk"
+            ? metadata.taken_at
+            : null,
+      },
+      {
+        label: "Location",
+        value:
+          metadata.place && metadata.place.toLowerCase() !== "unk"
+            ? metadata.place
+            : null,
+      },
+      { label: "Description", value: metadata.description },
+      {
+        label: "Device",
+        value:
+          metadata.device && metadata.device.toLowerCase() !== "unk"
+            ? metadata.device
+            : null,
+      },
+      { label: "Path", value: metadata.resource_path },
+    ].filter((item) => item.value && item.value.toString().trim() !== "");
+
     // Use DocumentFragment for efficient DOM building
     const fragment = document.createDocumentFragment();
-    
+
     // Create standard metadata items
-    metadataItems.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'grid grid-cols-3 gap-2 py-1 border-b border-gray-800 last:border-b-0';
-      
-      const label = document.createElement('span');
-      label.className = 'font-semibold col-span-1 text-gray-800';
+    // Create standard metadata items
+    metadataItems.forEach((item) => {
+      const div = document.createElement("div");
+      div.className =
+        "grid grid-cols-3 gap-2 py-1 border-b border-gray-800 last:border-b-0";
+
+      const label = document.createElement("span");
+      label.className = "font-semibold col-span-1 text-gray-800";
       label.textContent = `${item.label}:`;
-      
-      const value = document.createElement('span');
-      value.className = 'col-span-2 text-gray-500';
-      value.textContent = item.value as string;
-      
       div.appendChild(label);
-      div.appendChild(value);
+      const valueText = item.value as string;
+
+      // Special handling for Path label
+      if (item.label === "Path") {
+        // Create container for value and copy button
+        const valueContainer = document.createElement("div");
+        valueContainer.className = "col-span-2 flex gap-2";
+
+        const value = document.createElement("span");
+        value.className = "text-gray-500 flex-1 min-w-0";
+
+        const maxLength = 20; // Adjust this value as needed
+        const trimmedText =
+          valueText.length > maxLength
+            ? valueText.substring(0, maxLength) + "..."
+            : valueText;
+        value.textContent = trimmedText;
+        value.title = valueText; // Full path in tooltip
+
+        // Create copy button
+        const copyButton = document.createElement("button");
+        copyButton.className =
+          "text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded transition-colors";
+        copyButton.innerHTML = "📋"; // You can replace with an icon
+        copyButton.title = "Copy full path";
+
+        // Copy functionality
+        copyButton.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(valueText);
+            copyButton.innerHTML = "✅";
+            setTimeout(() => {
+              copyButton.innerHTML = "📋";
+            }, 1000);
+          } catch (err) {
+            // Fallback for older browsers
+            const textArea = document.createElement("textarea");
+            textArea.value = valueText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+
+            copyButton.innerHTML = "✅";
+            setTimeout(() => {
+              copyButton.innerHTML = "📋";
+            }, 1000);
+          }
+        });
+
+        valueContainer.appendChild(value);
+        valueContainer.appendChild(copyButton);
+        div.appendChild(valueContainer);
+      } else {
+        // Standard handling for other labels
+        const value = document.createElement("span");
+        value.className = "col-span-2 text-gray-500";
+        value.textContent = valueText;
+        div.appendChild(value);
+      }
+
+      
+      // Value handling is now inside the conditional above
       fragment.appendChild(div);
     });
-        
+
     // Add people section if available
-    const hasPeople = metadata.person && 
-                      metadata.person.length > 0 && 
-                      !metadata.person.every(p => p === "no_person_detected" || p === "no_categorical_info");      
+    const hasPeople =
+      metadata.person &&
+      metadata.person.length > 0 &&
+      !metadata.person.every(
+        (p) =>
+          p === "no_person_detected" || p === "no_categorical_info" || p === ""
+      );
 
     if (hasPeople) {
-      const peopleDiv = document.createElement('div');
-      peopleDiv.className = 'py-1 border-b border-gray-800';
-      
-      const peopleLabel = document.createElement('span');
-      peopleLabel.className = 'font-semibold text-gray-800';
-      peopleLabel.textContent = 'People:';
-      
-      const peopleContainer = document.createElement('div');
-      peopleContainer.className = 'flex flex-wrap gap-2 mt-1';
-      peopleContainer.setAttribute('data-people-container', 'true');
-      
+      const peopleDiv = document.createElement("div");
+      peopleDiv.className = "py-1 border-b border-gray-800";
+
+      const peopleLabel = document.createElement("span");
+      peopleLabel.className = "font-semibold text-gray-800";
+      peopleLabel.textContent = "People:";
+
+      const peopleContainer = document.createElement("div");
+      peopleContainer.className = "flex flex-wrap gap-2 mt-1";
+      peopleContainer.setAttribute("data-people-container", "true");
+
       // Create person avatars efficiently
-      const validPeople = metadata.person?.filter(personId => 
-        personId !== "no_person_detected" && personId !== "no_categorical_info"
-      ) || [];
-      
-      validPeople.forEach(personId => {
-        const personWrapper = document.createElement('div');
-        personWrapper.className = 'flex flex-col items-center';
-        
-        const img = document.createElement('img');
+      const validPeople =
+        metadata.person?.filter(
+          (personId) =>
+            personId !== "no_person_detected" &&
+            personId !== "no_categorical_info"
+        ) || [];
+
+      validPeople.forEach((personId) => {
+        const personWrapper = document.createElement("div");
+        personWrapper.className = "flex flex-col items-center";
+
+        const img = document.createElement("img");
         img.src = `${endpoints.GET_PERSON_IMAGE}/${personId}`;
         img.alt = personId;
-        img.className = 'w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors';
+        img.className =
+          "w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors";
         img.title = `Click to view ${personId}'s photos`;
-        img.setAttribute('data-person-id', personId);
-        
+        img.setAttribute("data-person-id", personId);
+
         // Add click handler directly instead of using setupPersonAvatarClickHandlers
-        img.addEventListener('click', () => this.handlePersonAvatarClick(personId));
-        
+        img.addEventListener("click", () =>
+          this.handlePersonAvatarClick(personId)
+        );
+
         personWrapper.appendChild(img);
         peopleContainer.appendChild(personWrapper);
       });
-      
+
       peopleDiv.appendChild(peopleLabel);
       peopleDiv.appendChild(peopleContainer);
       fragment.appendChild(peopleDiv);
     }
-    
+
     // Clear and append all at once for efficiency
-    this.modalMetadata.innerHTML = '';
+    this.modalMetadata.innerHTML = "";
     this.modalMetadata.appendChild(fragment);
   }
 
@@ -576,9 +726,9 @@ export class UIService {
 
     if (photo.metadata?.filename) {
       this.modalFilename.textContent = photo.metadata.filename;
-      this.modalFilename.classList.remove('hidden');
+      this.modalFilename.classList.remove("hidden");
     } else {
-      this.modalFilename.classList.add('hidden');
+      this.modalFilename.classList.add("hidden");
     }
   }
 
@@ -589,9 +739,9 @@ export class UIService {
     if (!this.noResultsMessage) return;
 
     if (isSearchDone) {
-      this.noResultsMessage.classList.remove('hidden');
+      this.noResultsMessage.classList.remove("hidden");
     } else {
-      this.noResultsMessage.classList.add('hidden');
+      this.noResultsMessage.classList.add("hidden");
     }
   }
 
@@ -600,11 +750,15 @@ export class UIService {
    */
   private handleToggleFullScreen(): void {
     if (!this.modalImage) return;
-    
+
     if (!document.fullscreenElement) {
-      this.modalImage.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
-        alert(`Could not enter fullscreen. Your browser might not support it or it's disabled.`);
+      this.modalImage.requestFullscreen().catch((err) => {
+        console.error(
+          `Error attempting to enable full-screen mode: ${err.message} (${err.name})`
+        );
+        alert(
+          `Could not enter fullscreen. Your browser might not support it or it's disabled.`
+        );
       });
     } else {
       document.exitFullscreen();
@@ -631,12 +785,14 @@ export class UIService {
     try {
       // Hide the current modal first
       this.hideModal();
-      
+
       // Check if we're already on the person photos page
       const currentPath = window.location.pathname;
-      const targetUrl = `/person-photos.html?id=${encodeURIComponent(personId)}`;
-      
-      if (currentPath.includes('person-photos.html')) {
+      const targetUrl = `/person-photos.html?id=${encodeURIComponent(
+        personId
+      )}`;
+
+      if (currentPath.includes("person-photos.html")) {
         // We're already on person photos page, need to reload with new person ID
         window.location.replace(targetUrl);
       } else {
@@ -644,7 +800,7 @@ export class UIService {
         window.location.href = targetUrl;
       }
     } catch (error) {
-      console.error('Error navigating to person page:', error);
+      console.error("Error navigating to person page:", error);
       alert(`Failed to navigate to person page: ${personId}`);
     }
   }
@@ -654,12 +810,12 @@ export class UIService {
    */
   private injectResponsivePhotoStyles(): void {
     // Check if styles already exist
-    if (document.getElementById('responsive-photo-styles')) {
+    if (document.getElementById("responsive-photo-styles")) {
       return;
     }
 
-    const style = document.createElement('style');
-    style.id = 'responsive-photo-styles';
+    const style = document.createElement("style");
+    style.id = "responsive-photo-styles";
     style.textContent = `
       .mobile-photo-height {
         height: 140px !important;
@@ -683,7 +839,7 @@ export class UIService {
         }
       }
     `;
-    
+
     document.head.appendChild(style);
   }
 }

@@ -1,6 +1,6 @@
 import "./style.css";
 import { Layout } from "./components/layout";
-import Config from "./config";
+import Config, { endpoints } from "./config";
 import { folderCache } from "./services/folder-cache";
 import type { CachedFolderData } from "./services/folder-cache";
 import { html } from "./utils";
@@ -92,7 +92,7 @@ class FoldersApp {
             fullPath: cached.fullPath,
             imageCount: cached.imageCount,
             previewImage: cached.previewImageHash
-              ? `${API_URL}/getRawData/${cached.previewImageHash}`
+              ? `${endpoints.GET_IMAGE}/${cached.previewImageHash}`
               : undefined,
           }));
 
@@ -136,7 +136,7 @@ class FoldersApp {
   }
 
   private async loadFoldersFromAPI(): Promise<void> {
-    const response = await fetch(`${API_URL}/getGroup/resource_directory`);
+    const response = await fetch(endpoints.GET_FOLDERS);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch folders: ${response.status}`);
@@ -173,7 +173,7 @@ class FoldersApp {
 
   private async refreshFoldersInBackground(): Promise<void> {
     try {
-      const response = await fetch(`${API_URL}/getGroup/resource_directory`);
+      const response = await fetch(endpoints.GET_FOLDERS);
       if (!response.ok) {
         console.warn("Background refresh failed:", response.status);
         return;
@@ -249,7 +249,7 @@ class FoldersApp {
               .replace(/\//g, "|");
 
             const response = await fetch(
-              `${API_URL}/getMeta/resource_directory/${filename}`
+              `${endpoints.GET_FOLDER_IMAGES}/${filename}`
             );
 
             if (response.ok) {
@@ -262,7 +262,7 @@ class FoldersApp {
                 if (data.data_hash && data.data_hash.length > 0) {
                   const firstImageHash = data.data_hash[0];
                   if (firstImageHash) {
-                    folder.previewImage = `${API_URL}/getRawData/${firstImageHash}`;
+                    folder.previewImage = `${endpoints.GET_IMAGE}/${firstImageHash}`;
                   }
                 }
               }
@@ -304,7 +304,7 @@ class FoldersApp {
               .replace(/\//g, "|");
 
             const response = await fetch(
-              `${API_URL}/getMeta/resource_directory/${filename}`
+              `${endpoints.GET_FOLDER_IMAGES}/${filename}`
             );
 
             if (response.ok) {
@@ -317,7 +317,7 @@ class FoldersApp {
                 if (data.data_hash && data.data_hash.length > 0) {
                   const firstImageHash = data.data_hash[0];
                   if (firstImageHash) {
-                    folder.previewImage = `${API_URL}/getRawData/${firstImageHash}`;
+                    folder.previewImage = `${endpoints.GET_IMAGE}/${firstImageHash}`;
                   }
                 }
               }

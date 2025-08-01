@@ -1,10 +1,14 @@
-import './style.css';
-import { Layout } from './components/layout';
-import Config from './config';
-import { UIService } from './imageSearch/uiService';
-import type { HachiImageData } from './imageSearch/types';
-import { ImageModalComponent, PhotoGridComponent, PhotoFilterComponent } from './components';
-import { folderCache } from './services/folder-cache';
+import "./style.css";
+import { Layout } from "./components/layout";
+import Config, { endpoints } from "./config";
+import { UIService } from "./imageSearch/uiService";
+import type { HachiImageData } from "./imageSearch/types";
+import {
+  ImageModalComponent,
+  PhotoGridComponent,
+  PhotoFilterComponent,
+} from "./components";
+import { folderCache } from "./services/folder-cache";
 
 const API_URL = Config.apiUrl;
 
@@ -16,16 +20,16 @@ interface FolderPhotoData {
 }
 
 // Folder photos page functionality
-class FolderPhotosApp {  
+class FolderPhotosApp {
   private photos: HachiImageData[] = [];
   private filteredPhotos: HachiImageData[] = [];
   private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
   private currentPhotoIndex: number = -1;
-  private folderPath: string = '';
-  private folderName: string = '';
+  private folderPath: string = "";
+  private folderName: string = "";
   private uiService!: UIService;
   private photoFilter!: PhotoFilterComponent;
-  
+
   // Pagination properties
   private readonly PAGE_SIZE = 100; // Display 100 photos per page for good performance
   private currentPage = 1;
@@ -33,21 +37,22 @@ class FolderPhotosApp {
 
   constructor() {
     this.init();
-  }  private async init(): Promise<void> {
+  }
+  private async init(): Promise<void> {
     // Initialize layout first
     new Layout({
-      title: 'Folder Photos - Hachi',
-      currentPage: '/folder-photos.html',
-      showNavbar: true
+      title: "Folder Photos - Hachi",
+      currentPage: "/folder-photos.html",
+      showNavbar: true,
     });
-    
+
     // Initialize reusable components before UIService
     this.initializeComponents();
-    
+
     // Now create UIService after components are in the DOM
     // Use photo-grid-container since that's where the photo grid elements are created
-    this.uiService = new UIService('photo-grid-container');
-    
+    this.uiService = new UIService("photo-grid-container");
+
     this.extractFolderPath();
     this.setupEventListeners();
     await this.loadFolderPhotos();
@@ -55,37 +60,39 @@ class FolderPhotosApp {
   private initializeComponents(): void {
     // Initialize reusable components
     ImageModalComponent.initialize();
-    PhotoGridComponent.initialize('photo-grid-container', {
-      loadingId: 'loading-indicator',
-      errorId: 'error-display',
-      noResultsId: 'no-results-message',
-      gridId: 'photo-grid'
+    PhotoGridComponent.initialize("photo-grid-container", {
+      loadingId: "loading-indicator",
+      errorId: "error-display",
+      noResultsId: "no-results-message",
+      gridId: "photo-grid",
     });
 
     // Initialize photo filter component
     this.photoFilter = new PhotoFilterComponent({
-      onFilterChange: (filteredPhotos) => this.handleFilteredPhotosUpdate(filteredPhotos)
-    });    // Initialize filter UI
-    const filterContainer = document.getElementById('photo-filter-container');
+      onFilterChange: (filteredPhotos) =>
+        this.handleFilteredPhotosUpdate(filteredPhotos),
+    }); // Initialize filter UI
+    const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.add('hidden');
-      
-      filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter');
-      this.photoFilter.initialize('photo-filter');
+      filterContainer.classList.add("hidden");
+
+      filterContainer.innerHTML =
+        PhotoFilterComponent.getTemplate("photo-filter");
+      this.photoFilter.initialize("photo-filter");
     }
   }
 
   private extractFolderPath(): void {
     const urlParams = new URLSearchParams(window.location.search);
-    const pathParam = urlParams.get('path');
-    
+    const pathParam = urlParams.get("path");
+
     if (pathParam) {
       this.folderPath = decodeURIComponent(pathParam);
       this.folderName = this.getDisplayName(this.folderPath);
       this.updateHeader();
     } else {
-      this.showError('No folder path specified');
+      this.showError("No folder path specified");
     }
   }
 
@@ -95,122 +102,155 @@ class FolderPhotosApp {
   }
 
   private updateHeader(): void {
-    const folderNameEl = document.getElementById('folder-name');
-    const folderPathEl = document.getElementById('folder-path');
-    
+    const folderNameEl = document.getElementById("folder-name");
+    const folderPathEl = document.getElementById("folder-path");
+
     if (folderNameEl) {
       folderNameEl.textContent = this.folderName;
     }
-    
+
     if (folderPathEl) {
       folderPathEl.textContent = this.folderPath;
     }
-  }  private setupEventListeners(): void {
+  }
+  private setupEventListeners(): void {
     // Back button
-    const backBtn = document.getElementById('back-btn');
+    const backBtn = document.getElementById("back-btn");
     if (backBtn) {
-      backBtn.addEventListener('click', () => {
-        window.location.href = '/folders.html';
+      backBtn.addEventListener("click", () => {
+        window.location.href = "/folders.html";
       });
     }
-    
+
     // Setup UI service event listeners
     this.uiService.setupEventListeners({
       onPhotoClick: (photo: HachiImageData) => this.handlePhotoClick(photo),
       onModalClose: () => this.closeModal(),
       onModalNext: () => this.nextPhoto(),
-      onModalPrevious: () => this.previousPhoto()
+      onModalPrevious: () => this.previousPhoto(),
     });
   }
 
   private async loadFolderPhotos(): Promise<void> {
     if (!this.folderPath) {
-      this.showError('No folder path specified');
+      this.showError("No folder path specified");
       return;
     }
 
     this.showLoading(true);
-    this.hideError();    try {
+    this.hideError();
+    try {
       // Preprocess filename according to backend requirements
-      const filename = this.folderPath.toString().toLowerCase().replace(/\//g, '|');
-      const response = await fetch(`${API_URL}/getMeta/resource_directory/${filename}`);
-      
+      const filename = this.folderPath
+        .toString()
+        .toLowerCase()
+        .replace(/\//g, "|");
+      const response = await fetch(
+        `${endpoints.GET_FOLDER_IMAGES}/${filename}`
+      );
+
       if (!response.ok) {
         throw new Error(`Failed to fetch folder photos: ${response.status}`);
-      }      const data: FolderPhotoData = await response.json();        if (data && data.meta_data && Array.isArray(data.meta_data)) {        // Convert API data to HachiImageData format for UIService
+      }
+      const data: FolderPhotoData = await response.json();
+      if (data && data.meta_data && Array.isArray(data.meta_data)) {
+        // Convert API data to HachiImageData format for UIService
         this.photos = data.data_hash.map((hash: string, index: number) => ({
           id: hash,
           score: data.score[index] || 0,
-          metadata: data.meta_data[index] || {}
+          metadata: data.meta_data[index] || {},
         }));
-        this.filteredPhotos = [...this.photos];        // Update photo filter with loaded photos
+        this.filteredPhotos = [...this.photos]; // Update photo filter with loaded photos
         this.photoFilter.updatePhotos(this.photos);
-        
+
         // Set the current folder path as resource directory context for semantic search
         this.photoFilter.setResourceDirectory([this.folderPath]);
-        
+
         // Show filter container if we have photos
-        const filterContainer = document.getElementById('photo-filter-container');
+        const filterContainer = document.getElementById(
+          "photo-filter-container"
+        );
         if (filterContainer) {
           if (this.photos.length > 0) {
-            filterContainer.classList.remove('hidden');
+            filterContainer.classList.remove("hidden");
           } else {
-            filterContainer.classList.add('hidden');
+            filterContainer.classList.add("hidden");
           }
-        }        this.updatePhotoCount();
+        }
+        this.updatePhotoCount();
         this.updatePagination(); // Initialize pagination
         this.renderPhotos();
-        
+
         // Setup pagination event listeners after pagination UI is rendered
         this.setupPaginationEventListeners();
-        
+
         // Update the folder cache with accurate photo count and preview
         this.updateFolderCache(data.data_hash[0] || undefined);
       } else {
-        throw new Error('Invalid response format');
+        throw new Error("Invalid response format");
       }
     } catch (error) {
-      console.error('Error loading folder photos:', error);
-      this.showError(`Failed to load photos: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Error loading folder photos:", error);
+      this.showError(
+        `Failed to load photos: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     } finally {
       this.showLoading(false);
     }
-  }  private updatePhotoCount(): void {
-    const photoCountEl = document.getElementById('folder-photo-count');
+  }
+  private updatePhotoCount(): void {
+    const photoCountEl = document.getElementById("folder-photo-count");
     if (photoCountEl) {
       const totalCount = this.photos.length;
       const filteredCount = this.filteredPhotos.length;
-      
+
       if (filteredCount === totalCount) {
-        photoCountEl.textContent = `${totalCount} photo${totalCount !== 1 ? 's' : ''}`;
+        photoCountEl.textContent = `${totalCount} photo${
+          totalCount !== 1 ? "s" : ""
+        }`;
       } else {
-        photoCountEl.textContent = `${filteredCount} of ${totalCount} photo${totalCount !== 1 ? 's' : ''} (filtered)`;
+        photoCountEl.textContent = `${filteredCount} of ${totalCount} photo${
+          totalCount !== 1 ? "s" : ""
+        } (filtered)`;
       }
     }
   }
 
   private updatePagination(): void {
     this.totalPages = Math.ceil(this.filteredPhotos.length / this.PAGE_SIZE);
-    
+
     // Calculate displayed photos for current page
     const startIndex = (this.currentPage - 1) * this.PAGE_SIZE;
-    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
+    const endIndex = Math.min(
+      startIndex + this.PAGE_SIZE,
+      this.filteredPhotos.length
+    );
     this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
-    
+
     this.updatePaginationUI();
-  }  private updatePaginationUI(): void {
+  }
+  private updatePaginationUI(): void {
     // Update pagination info
-    const paginationInfo = document.getElementById('pagination-info');
+    const paginationInfo = document.getElementById("pagination-info");
     if (paginationInfo) {
       const startIndex = (this.currentPage - 1) * this.PAGE_SIZE + 1;
-      const endIndex = Math.min(this.currentPage * this.PAGE_SIZE, this.filteredPhotos.length);
+      const endIndex = Math.min(
+        this.currentPage * this.PAGE_SIZE,
+        this.filteredPhotos.length
+      );
       paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${this.filteredPhotos.length} photos`;
     }
 
     // Update pagination buttons
-    const prevBtn = document.getElementById('prev-page-btn') as HTMLButtonElement;
-    const nextBtn = document.getElementById('next-page-btn') as HTMLButtonElement;
-    const pageInfo = document.getElementById('page-info');
+    const prevBtn = document.getElementById(
+      "prev-page-btn"
+    ) as HTMLButtonElement;
+    const nextBtn = document.getElementById(
+      "next-page-btn"
+    ) as HTMLButtonElement;
+    const pageInfo = document.getElementById("page-info");
 
     if (prevBtn) {
       prevBtn.disabled = this.currentPage <= 1;
@@ -223,55 +263,64 @@ class FolderPhotosApp {
     }
 
     // Show/hide pagination controls based on whether pagination is needed
-    const paginationContainer = document.getElementById('pagination-container');
+    const paginationContainer = document.getElementById("pagination-container");
     if (paginationContainer) {
       if (this.totalPages > 1) {
-        paginationContainer.classList.remove('hidden');
+        paginationContainer.classList.remove("hidden");
       } else {
-        paginationContainer.classList.add('hidden');
+        paginationContainer.classList.add("hidden");
       }
     }
-  }  private goToPage(page: number): void {
+  }
+  private goToPage(page: number): void {
     if (page < 1 || page > this.totalPages) return;
-    
+
     this.currentPage = page;
     this.updatePagination();
     this.renderPhotos();
-    
+
     // Scroll to the top of the page instantly for performance
     window.scrollTo(0, 0);
   }
 
   private scrollToFilterLevel(): void {
     // Find the filter container or photos section to scroll to
-    const filterContainer = document.getElementById('photo-filter-container');
-    const photosSection = document.querySelector('section');
-    
+    const filterContainer = document.getElementById("photo-filter-container");
+    const photosSection = document.querySelector("section");
+
     // Use the filter container if visible, otherwise use the photos section
-    const targetElement = filterContainer && !filterContainer.classList.contains('hidden') ? filterContainer : photosSection;
-    
+    const targetElement =
+      filterContainer && !filterContainer.classList.contains("hidden")
+        ? filterContainer
+        : photosSection;
+
     if (targetElement) {
       // Use requestAnimationFrame to ensure DOM updates are complete
       requestAnimationFrame(() => {
         const rect = targetElement.getBoundingClientRect();
         const offsetTop = window.pageYOffset + rect.top - 20; // 20px padding from top
-        
+
         window.scrollTo({
           top: offsetTop,
-          behavior: 'instant'
+          behavior: "instant",
         });
       });
     }
-  }private setupPaginationEventListeners(): void {
-    const prevBtn = document.getElementById('prev-page-btn') as HTMLButtonElement;
-    const nextBtn = document.getElementById('next-page-btn') as HTMLButtonElement;
+  }
+  private setupPaginationEventListeners(): void {
+    const prevBtn = document.getElementById(
+      "prev-page-btn"
+    ) as HTMLButtonElement;
+    const nextBtn = document.getElementById(
+      "next-page-btn"
+    ) as HTMLButtonElement;
 
     if (prevBtn) {
       // Remove any existing listeners first
       const newPrevBtn = prevBtn.cloneNode(true) as HTMLButtonElement;
       prevBtn.parentNode?.replaceChild(newPrevBtn, prevBtn);
-      
-      newPrevBtn.addEventListener('click', (e) => {
+
+      newPrevBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (!newPrevBtn.disabled) {
@@ -284,8 +333,8 @@ class FolderPhotosApp {
       // Remove any existing listeners first
       const newNextBtn = nextBtn.cloneNode(true) as HTMLButtonElement;
       nextBtn.parentNode?.replaceChild(newNextBtn, nextBtn);
-      
-      newNextBtn.addEventListener('click', (e) => {
+
+      newNextBtn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         if (!newNextBtn.disabled) {
@@ -295,41 +344,42 @@ class FolderPhotosApp {
     }
   }
   private renderPhotos(): void {
-    const container = document.getElementById('photo-grid-container');
-    const noPhotos = document.getElementById('no-photos');
-    
+    const container = document.getElementById("photo-grid-container");
+    const noPhotos = document.getElementById("no-photos");
+
     if (!container || !noPhotos) return;
 
     if (this.filteredPhotos.length === 0) {
-      container.innerHTML = '';
-      noPhotos.classList.remove('hidden');
+      container.innerHTML = "";
+      noPhotos.classList.remove("hidden");
       return;
     }
 
-    noPhotos.classList.add('hidden');
+    noPhotos.classList.add("hidden");
 
     // Use UIService to update the photo grid with ONLY the displayed photos (pagination)
-    this.uiService.updatePhotos(this.displayedPhotos, (photo: HachiImageData) => this.handlePhotoClick(photo));
-  }  private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
-    console.log('Filtered photos updated:', filteredPhotos.length);
+    this.uiService.updatePhotos(this.displayedPhotos);
+  }
+  private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
+    console.log("Filtered photos updated:", filteredPhotos.length);
     this.filteredPhotos = filteredPhotos;
-    
+
     // Reset to page 1 when filters change
     this.currentPage = 1;
-    
+
     this.updatePhotoCount();
     this.updatePagination(); // Update pagination first
     this.renderPhotos();
-    
+
     // Re-setup pagination event listeners to ensure they work correctly
     this.setupPaginationEventListeners();
   }
   private handlePhotoClick(photo: HachiImageData): void {
     // Find the index in the FILTERED photos (not just displayed photos)
-    this.currentPhotoIndex = this.filteredPhotos.findIndex(p => 
-      p.id === photo.id
+    this.currentPhotoIndex = this.filteredPhotos.findIndex(
+      (p) => p.id === photo.id
     );
-    
+
     if (this.currentPhotoIndex !== -1) {
       this.openModal(photo);
     }
@@ -337,7 +387,7 @@ class FolderPhotosApp {
   private openModal(photo: HachiImageData): void {
     const canGoPrevious = this.currentPhotoIndex > 0;
     const canGoNext = this.currentPhotoIndex < this.filteredPhotos.length - 1;
-    
+
     this.uiService.showModal(photo, canGoPrevious, canGoNext);
   }
 
@@ -362,61 +412,67 @@ class FolderPhotosApp {
     }
   }
   private showLoading(show: boolean): void {
-    const indicator = document.getElementById('loading-indicator');
+    const indicator = document.getElementById("loading-indicator");
     if (indicator) {
       if (show) {
-        indicator.classList.remove('hidden');
-        indicator.classList.add('flex');
+        indicator.classList.remove("hidden");
+        indicator.classList.add("flex");
       } else {
-        indicator.classList.add('hidden');
-        indicator.classList.remove('flex');
+        indicator.classList.add("hidden");
+        indicator.classList.remove("flex");
       }
     }
   }
 
   private showError(message: string): void {
-    const errorDiv = document.getElementById('error-message');
-    const errorText = document.getElementById('error-text');
-    
+    const errorDiv = document.getElementById("error-message");
+    const errorText = document.getElementById("error-text");
+
     if (errorDiv && errorText) {
       errorText.textContent = message;
-      errorDiv.classList.remove('hidden');
+      errorDiv.classList.remove("hidden");
     }
   }
   private hideError(): void {
-    const errorDiv = document.getElementById('error-message');
+    const errorDiv = document.getElementById("error-message");
     if (errorDiv) {
-      errorDiv.classList.add('hidden');
+      errorDiv.classList.add("hidden");
     }
   }
   private async updateFolderCache(previewImageHash?: string): Promise<void> {
     try {
       // Update the folder's photo count and preview image in cache
       const cachedFolder = await folderCache.getCachedFolder(this.folderPath);
-      
+
       if (cachedFolder) {
         // Update the existing cache entry with accurate data
         await folderCache.updateFolderData(this.folderPath, {
           imageCount: this.photos.length,
-          previewImageHash: previewImageHash || cachedFolder.previewImageHash
+          previewImageHash: previewImageHash || cachedFolder.previewImageHash,
         });
-        
-        console.log(`Updated cache for folder ${this.folderName}: ${this.photos.length} photos`);
+
+        console.log(
+          `Updated cache for folder ${this.folderName}: ${this.photos.length} photos`
+        );
       } else {
         // Create a new cache entry if it doesn't exist
         const displayName = this.getDisplayName(this.folderPath);
-        await folderCache.cacheFolderData([{
-          name: displayName,
-          fullPath: this.folderPath,
-          imageCount: this.photos.length,
-          previewImageHash: previewImageHash,
-          lastUpdated: Date.now()
-        }]);
-        
-        console.log(`Created cache entry for folder ${this.folderName}: ${this.photos.length} photos`);
+        await folderCache.cacheFolderData([
+          {
+            name: displayName,
+            fullPath: this.folderPath,
+            imageCount: this.photos.length,
+            previewImageHash: previewImageHash,
+            lastUpdated: Date.now(),
+          },
+        ]);
+
+        console.log(
+          `Created cache entry for folder ${this.folderName}: ${this.photos.length} photos`
+        );
       }
     } catch (error) {
-      console.warn('Failed to update folder cache:', error);
+      console.warn("Failed to update folder cache:", error);
     }
   }
 }
@@ -427,4 +483,4 @@ const folderPhotosApp = new FolderPhotosApp();
 // Make it globally accessible for onclick handlers
 (window as any).folderPhotosApp = folderPhotosApp;
 
-console.log('Folder photos page initialized');
+console.log("Folder photos page initialized");

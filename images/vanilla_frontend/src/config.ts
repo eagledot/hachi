@@ -21,6 +21,9 @@ class Endpoints {
     GET_PERSON_IMAGE = BASE_URL + "/api/getPreviewPerson"
     GET_PERSON_PHOTOS = BASE_URL + "/api/getMeta/person"
     GET_PEOPLE = BASE_URL + "/api/getGroup/person"
+    GET_FOLDERS = BASE_URL + "/api/getGroup/resource_directory"
+    GET_FOLDER_IMAGES = BASE_URL + "/api/getMeta/resource_directory"
+    GET_META_STATS = BASE_URL + "/api/getMetaStats"
 }
 
 const endpoints = new Endpoints();
