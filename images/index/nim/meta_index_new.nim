@@ -282,14 +282,15 @@ template queryStringImpl(
   var count = 0
   let arr = cast[ptr UncheckedArray[string]](c_t.payload)
   var unique_count = 0 # search up to that count..
-  for row_idx in 0..<boundary_t:
-    var current_item = arr[row_idx] # in either case, it will be a string.
 
-    for query_t in query_arr_t:
+  for i, query_t in query_arr_t: # outer-loop for query array to preserve the order (returned!)
+    for row_idx in 0..<boundary_t:
+      var current_item = arr[row_idx] # in either case, it will be a string.
+
       # Check if current_item is valid candidate given query_t first, conditioned on the arguments provided!    
       var is_valid_candidate = false
       if query_t == "*":
-        is_valid_candidate = true
+        is_valid_candidate = true  
       elif (exact_string_match_t) == true:
         if c_t.kind == colArrayString:
           for x in current_item.split(StringBoundary):
@@ -320,7 +321,7 @@ template queryStringImpl(
       
         if count == top_k:
           break
-  
+    
   # NOTE: we are only interested in (unique)`row indices`, if data is an array/arrayString, we wil check that given `query` is in that row or not, collection is different and may depend on the frontend needs!! 
   count    # return this..
 
