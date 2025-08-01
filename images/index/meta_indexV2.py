@@ -116,12 +116,17 @@ class MetaIndex(object):
                 mBackend.query_column(
                     attribute = "resource_hash",
                     query = json.dumps([resource_hash]),
+                    exact_string_match = True            # since primary key, although no primary index for now!
                 )) # first get the desired row_index that we need to update.
 
             assert len(row_indices) == 0 or len(row_indices) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
             return len(row_indices) == 1
 
-    def suggest(self, attribute:str, query:str):
+    def suggest(self, 
+                attribute:str, 
+                query:str,
+                raw_json:bool = False   # TODO: test it!
+                ):
         """for now we just search substrings in the string, which a column of colString does by default!
         later when fuzzy search is embedded, then can use that!
 
@@ -132,17 +137,35 @@ class MetaIndex(object):
             return result
 
         with self.lock:
-            # NOTE: should work with all attributes now!
-            # pagination sequence: (query and collect)
+            # NOTE: for suggestions, we call the query_generic directly and collect meta-data for that attribute!
             n_suggestions = 20
-            (query_token, n_pages) = self.query(attribute = attribute, query = [query], page_size = n_suggestions)
-            meta_data_array = self.collect(query_token, page_id = 0) # first n suggestions should be enough for now!
-            assert n_pages >= 1, "always it should be right!"
-            assert len(meta_data_array) <= n_suggestions
-            for i in range(len(meta_data_array)):
-                result.append(meta_data_array[i][attribute])
-            del meta_data_array
-            return result
+            # TODO: top_k may only help in suggest case only! otherwise redundant !
+            final_row_indices = self.query_generic(
+                attribute = attribute,
+                query = [query],
+                exact_string_match = False   # since we suggest, we match for subtrings too..
+            )
+            final_row_indices = final_row_indices[:n_suggestions]
+            
+            # collect asked attribute elements only!
+            result_json = mBackend.collect_rows(
+                attribute,
+                indices = final_row_indices
+            )
+            if raw_json:
+                return result_json
+            else:
+                return json.loads(result_json)
+        
+            
+            # # (query_token, n_pages) = self.query(attribute = attribute, query = [query], page_size = n_suggestions)
+            # meta_data_array = self.collect(query_token, page_id = 0) # first n suggestions should be enough for now!
+            # assert n_pages >= 1, "always it should be right!"
+            # assert len(meta_data_array) <= n_suggestions
+            # for i in range(len(meta_data_array)):
+            #     result.append(meta_data_array[i][attribute])
+            # del meta_data_array
+            # return result
             
     # class QueryInfo(NamedTuple):
     #     query_completed:bool    # if false, client is excepted to call `query` routine until set to true.
@@ -234,14 +257,14 @@ class MetaIndex(object):
         with self.lock:
             global query_token_counter
 
-            # We collect all the (unique)`row indices` for this attribute.
-            # Useful to get all the possible values for an attribute, like how many `people`, `folders` etc! 
             final_row_indices = self.query_generic(
                 attribute = attribute,
-                query = ["*"] # wild-card to return all (unique) rows!
+                query = ["*"], # wild-card to return all (unique) rows!,
+                unique_only = True
             )
 
             query_token = "xxxxxxx_{}".format(query_token_counter)
+            query_token_counter += 1
             # -------------------------------------
             # Generate Pagination info..
             # ------------------------------------
@@ -262,13 +285,14 @@ class MetaIndex(object):
             )
             # -------------------------------
 
-        return (query_token, n_pages)
+        return (query_token, n_pages, len(final_row_indices))
 
     def query(
             self,
             attribute:str,
             query:list[Any],
             unique_only:bool = True,
+            exact_string_match:bool = True,
             page_size:int = 200):
         
         with self.lock:
@@ -279,7 +303,8 @@ class MetaIndex(object):
             final_row_indices = self.query_generic(
                 attribute = attribute,
                 query = query,
-                unique_only=unique_only
+                unique_only=unique_only,
+                exact_string_match = exact_string_match   # only of string type data/elements. (strict match!)
             )
             print("Final row indices: {}".format(len(final_row_indices)))
 
@@ -307,7 +332,8 @@ class MetaIndex(object):
     def query_generic(self, 
               attribute:str,      # attribute to query. 
               query:list[Any], # based on the column type, multiple queries can be supplied for an attribute
-              unique_only:bool = True
+              unique_only:bool = True,
+              exact_string_match:bool = True
               ) -> Iterable[int]:
         
         """
@@ -327,7 +353,8 @@ class MetaIndex(object):
         row_indices_json = mBackend.query_column(
             attribute = attribute,
             query = json.dumps(query), # backend consumes in json, to handle multiple column types!
-            unique_only = unique_only
+            unique_only = unique_only,
+            exact_string_match = exact_string_match
         )
         final_row_indices = json.loads(row_indices_json)
         return final_row_indices 
@@ -347,12 +374,13 @@ class MetaIndex(object):
 
             row_indices = self.query_generic(
                 attribute = attribute,
-                query = ["*"]
+                query = ["*"],
+                exact_string_match = True
             )
 
-            result  = None
             if self.get_attribute_type(attribute) == "arrayString":
-                # then de-duplicate too, as we only got the `uniqueness about array representation not individual elements!`
+                # NOTE: (it is correct, dont overthink)
+                # NOTE: then de-duplicate too, as we only got the `uniqueness about array representation not individual elements!`
                 temp = set()
                 result_json = mBackend.collect_rows(
                     attribute,
@@ -366,7 +394,7 @@ class MetaIndex(object):
                 result =  len(row_indices)
 
             self.column_stats[self.__get_index(attribute)] = result
-            return result
+            return len(row_indices)
 
     # TODO: name it append/put instead of update!
     def update(self,
@@ -375,6 +403,7 @@ class MetaIndex(object):
 
         # print("[TODO]: rename `update` to `append`")
         with self.lock:
+
             assert len(meta_data["resource_hash"]) > 10 # (assuming atleast 10 chars), proper hash was supposed to be generated!
             flatten_dict = flatten_the_metadata(meta_data)
             
@@ -407,7 +436,6 @@ class MetaIndex(object):
                 # set/update the column_stats too.. 
                 for i in range(len(self.column_labels)):
                     self.column_stats.append(0)
-                self.stats_need_update = True
                 
                 mBackend.init(
                     name = self.name,
@@ -423,6 +451,9 @@ class MetaIndex(object):
                 ):
                     print("[WARNING]: Don't call metaIndex update/append, when already indexed\nCheck `if_indexed` first")
                     return
+            
+            # cached stats, have to be updated if asked for!
+            self.stats_need_update = True # for any new data update call we should set this to true, until `get_stats` will set it to false by updating self.column_stats !
             
             # TODO: set resource_hash column to be immutable (kind of primary key..)
             json_meta = json.dumps(flatten_dict) # serialize !

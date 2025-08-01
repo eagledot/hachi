@@ -67,7 +67,8 @@ proc append(
 proc query_column(
   attribute:string, # column Name
   query:string,     # json encoded string!
-  unique_only:bool = true
+  unique_only:bool = true,
+  exact_string_match:bool = true   # this can be set to false, for suggestions like, then substrings would be matched!
   ):string {.exportpy.} = 
   # query is supposed to be jsonEncoded string, with column names as keys.
   # Return Indices for the rows matched! (we json encode it, can make it faster by writing directly to python memory, but later people!!!)
@@ -77,7 +78,8 @@ proc query_column(
   var indices = m.query_column(
     attribute = attribute,
     query = query,
-    unique_only = unique_only 
+    unique_only = unique_only,
+    exact_string_match = exact_string_match 
     )
   return indices.toJson() 
 
