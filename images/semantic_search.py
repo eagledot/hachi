@@ -62,14 +62,14 @@ def get_drives() -> List[str]:
 try:
     from .index.image_index import ImageIndex
     from .index.face_clustering import FaceIndex
-    from .index.meta_indexV2 import MetaIndex
+    from .index.meta_indexV2 import MetaIndex, mBackend
     from .index.global_data_cache import GlobalDataCache
     from .index.indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
     from .index.pagination import PaginationCache, PaginationInfo
 except:
     from index.image_index import ImageIndex
     from index.face_clustering import FaceIndex
-    from index.meta_indexV2 import MetaIndex
+    from index.meta_indexV2 import MetaIndex, mBackend
     from index.global_data_cache import GlobalDataCache
     from index.indexing_local import IndexingLocal, IndexingInfo, generate_text_embedding, ReturnInfo
     from index.pagination import PaginationCache, PaginationInfo
@@ -278,7 +278,7 @@ def collect_query_meta(token:str, page_id:int):
 
     temp = {}
     temp["data_hash"] = resource_hashes
-    temp["score"] = scores
+    temp["score"] = scores    
     temp["meta_data"] = callback(row_indices)
     del scores, resource_hashes
     return flask.jsonify(temp)
@@ -330,6 +330,8 @@ def query_thread():
         temp["data_hash"] = []       # TODO: may rename it `resource_hash` on client side!
         temp["score"] = []
         misc_time = 0
+
+        benchmarking = {}
         if not rerank_approach:
             
             current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
@@ -338,9 +340,14 @@ def query_thread():
             # pagination sequence query + collect. (query part must be as fast as possible!)
             # -------------------------------------------
             # text_embedding = np.random.uniform(size = (1, 512)).astype(np.float32)
+            s = time.time_ns()
             text_embedding = generate_text_embedding(current_query)
+            benchmarking["embedding"] = (time.time_ns() - s) / 1e6
+
+            s = time.time_ns()
             flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
-            
+            benchmarking["shard-querying"] = (time.time_ns() - s) / 1e6
+
             # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
             top_k = int(3 * len(image_hash2scores) / 100)
             start = time.time_ns()
@@ -354,16 +361,20 @@ def query_thread():
             # query/scan the whole meta-index. to getting matching/relevant row-indices, given top-keys!
             # TODO: pass exact = true.
             # NOTE: For now, Q routine, must be able to estimate the number of total possible/max matches. (given a query).
+            s = time.time_ns()
             final_row_indices = metaIndex.query_generic(
                 attribute = "resource_hash",
                 query = top_keys
             )
-            print("no of matched rows: {}".format(len(final_row_indices)))
+            benchmarking["metaIndex-querying"] = (time.time_ns() - s) / 1e6
+
+            # print("no of matched rows: {}".format(len(final_row_indices)))
             assert len(final_row_indices) == len(top_keys), "Are top keys not de-duplicated, or we didn't return all the matching meta0da"
 
             # -------------------------------------
             # Generate Pagination info..
             # ------------------------------------
+            s = time.time_ns()
             info:PaginationInfo = {}
             n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
             page_meta = []
@@ -376,7 +387,10 @@ def query_thread():
                         [float(max(image_hash2scores[k])) for k in top_keys[i*page_size: (i+1)*page_size]]  # why i am not sending `float` values in json??
                     )
                 )
-
+            benchmarking["pageinfo-generation"] = (time.time_ns() - s) / 1e6
+            print(benchmarking)
+            
+            
             # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
             query_token = "notRandomEnoughToken_{}".format(query_token_counter)
             # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
@@ -761,37 +775,48 @@ def editMetaData():
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
     # get the unique/all possible values for an attribute!
+    # NOTE: CLIENT SIDE pagination is pending...
     
     # TODO: if can directly get in json..otherwise decoding it and then encoding it.. Don't do this!
     # pagination sequence (query and collect)!
-    return_json = False
-    (query_token, n_pages) = metaIndex.get_attribute_all(
+    return_json = False  # TO BE USED when client side pagination is done!
+    (query_token, n_pages, n_matches_found) = metaIndex.get_attribute_all(
         attribute = attribute,
-        page_size = 2000,       # TODO: just set it to 200, for testing now.
+        page_size = 400,       
         return_json = return_json     # May be we can just directly get json from `collect` and send it to client, wo
     )
-    # collect
-    attribute_values = metaIndex.collect(
-        query_token,
-        page_id = 0   # TODO: client should call it later on demand!
-    )
-    if metaIndex.get_attribute_type(attribute) == "arrayString":
-        if return_json:
-            attribute_values = json.loads(attribute_values) # have to load to `flatten`
-            return_json = False # no longer valid!
-        
-        # de-duplication has to be done.. since `string representation of array/persons`  is different/unique, we are interested in unique items/elements.
-        temp_set = set()
-        for i,x in enumerate(attribute_values):
-            for x in attribute_values[i]:
-                if len(x) > 0:
-                    temp_set.add(x)
-        result = list(temp_set)
-        del temp_set
 
-    else:
-        result = attribute_values
-    del attribute_values
+    # collect (TODO: called by client!)
+    assert return_json == False, "Until client adds pagination!"
+    result = []
+    # For now query all the pages, until client adds pagination!
+    
+    need_deduplication = False
+    if metaIndex.get_attribute_type(attribute) == "arrayString":
+        # de-duplication has to be done despite of passing unique to query !.. since `string representation of array/persons` is by definition different/unique, we are interested in unique items/elements.
+        need_deduplication = True
+        temp_set = set()
+    
+    result = []
+    for page_id in range(n_pages):
+        # PORT THIS CODE INTO A DEDICATED ROUTE for client to collect results for this kind of query! !
+        
+        # collect page by page.... just for now.. 
+        attribute_values = metaIndex.collect(
+            query_token,
+            page_id = page_id   # TODO: client should call it later on demand!
+        )
+        assert isinstance(attribute_values, list)
+        if need_deduplication:
+            for i,x in enumerate(attribute_values):
+                for x in attribute_values[i]:
+                        if len(x) > 0 and not (x in temp_set):
+                            result.append(x)
+                            temp_set.add(x)
+        else:
+            result.extend(attribute_values)
+        del attribute_values
+    
     # signal to delete this query_token!
     metaIndex.remove_pagination_token(query_token)
 
@@ -817,6 +842,7 @@ def getMeta(attribute:str, value:Any):
         attribute = attribute,
         query = [value],
         unique_only = False,   # we need any row matching this value for this attribute here!
+        exact_string_match = False,
         page_size = 2000       # TODO: just for testing now.. 
     )
     # collect (for now single page only.. 2000 would be enough for testing)
@@ -861,14 +887,26 @@ def get_original_cluster_id(cluster_id):
 
     assert metaIndex.backend_is_initialized == True
 
-    # query and collect sequence . (since this shouldn't be costly!)
-    (query_token, n_pages) = metaIndex.query(
+    # TODO: here top-k argument would be useful, since we would looking for only first match for this attribute, value pair.
+    # Or can i model such cases more efficiently in the future?
+    row_indices = metaIndex.query_generic(
         attribute = "person",
         query = [cluster_id],
+        unique_only = True,
+        exact_string_match = True
     )
-    assert n_pages > 0
-    meta_array = metaIndex.collect(query_token, page_id = 0)[0] # any row would work, since we are looking for a cluster_id, which mapped to the `person cluster id` asked for!
-    metaIndex.remove_pagination_token(query_token) # yes, we are done with query_token, better to remove this entry from cache too!
+    print("For attribute: {} Got unique matches: {}".format('person', cluster_id))
+    assert len(row_indices) >= 1, "Must had a match!!"
+    meta_array = metaIndex.collect_meta_rows(row_indices = row_indices[:1])[0] # only 1 is enough!
+
+    # query and collect sequence . (since this shouldn't be costly!)
+    # (query_token, n_pages) = metaIndex.query(
+    #     attribute = "person",
+    #     query = [cluster_id],
+    # )
+    # assert n_pages > 0
+    # meta_array = metaIndex.collect(query_token, page_id = 0)[0] # any row would work, since we are looking for a cluster_id, which mapped to the `person cluster id` asked for!
+    # metaIndex.remove_pagination_token(query_token) # yes, we are done with query_token, better to remove this entry from cache too!
 
     idx = None
     person_user_arr = meta_array["person"]
