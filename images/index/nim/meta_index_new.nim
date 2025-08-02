@@ -221,14 +221,14 @@ proc modify_string(c:var Column, row_idx:Natural, data:string)=
 template queryImpl[T](
   result_t: var seq[int32], # NOTE: must be enough to hold `top_k_t`!
   c_t:Column, 
-  query_arr_t:openArray[T], 
+  query_arr_t:openArray[T], # all values must be unique in it, OR op is done!
   boundary_t, top_k_t:Natural,
   exact_match_t:bool,    # NOTE: if false, we match to all elements in this column, like a wildcard match!! 
   unique_only_t:bool
   ):Natural=
   
-  if len(query_arr_t) > 1:
-    doAssert unique_only == true, "Since OR-ing is expected to make sense with unique collection only for now!"
+  # Its ok, unique is an option, just make sure all items in query_arr are unique, so as we don't cross the `boundary` slots allocaated! 
+  # NOTE: query_arr_t supposed to contain unique values only!
 
   var count = 0
   let arr = cast[ptr UncheckedArray[T]](c_t.payload)
@@ -248,18 +248,19 @@ template queryImpl[T](
               break
 
         if is_unique:
+          if unlikely(count == top_k):
+            echo "[WARNING] Breaking.. limit reached, generally it means some candidates wouldn't be returned. Are enteries in query_arr are unique? or did you provide top_k intentionally?"
+            break
+          
           result_t[count] = row_idx.int32
           inc count
-          
-          if count == top_k:
-            break
 
   count # return this..
 
 template queryStringImpl(
   result_t: var seq[int32], 
   c_t:Column, 
-  query_arr_t:openArray[string],  # acts like OR!
+  query_arr_t:openArray[string],  # # all values must be unique in it! acts like OR!
   boundary_t, 
   top_k_t:Natural,
   unique_only_t:bool,
@@ -274,8 +275,8 @@ template queryStringImpl(
   # Returns:
   # number of `matched rows`, so as to slice `result_seq_t`
 
-  if len(query_arr_t) > 1:
-    doAssert unique_only_t == true, "Since OR-ing is expected to make sense with unique collection only for now!"
+  # Its ok, unique is an option, just make sure all items in query_arr are unique, so as we don't cross the `boundary` slots allocaated! 
+  # NOTE: query_arr_t supposed to contain unique values only!
 
   doAssert c_t.kind == colString or c_t.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
 
@@ -316,11 +317,13 @@ template queryStringImpl(
             break
         
       if is_unique:
+        if unlikely(count == top_k):
+          echo "[WARNING] Breaking.. limit reached, generally it means some candidates wouldn't be returned. Are enteries in query_arr are unique? or did you provide top_k intentionally?"
+          break
+
         result_t[count] = row_idx.int32
         inc count
       
-        if count == top_k:
-          break
     
   # NOTE: we are only interested in (unique)`row indices`, if data is an array/arrayString, we wil check that given `query` is in that row or not, collection is different and may depend on the frontend needs!! 
   count    # return this..
