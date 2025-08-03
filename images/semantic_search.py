@@ -38,7 +38,7 @@ import numpy as np
 # configuration:
 IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index","preview_image")
 IMAGE_INDEX_SHARD_SIZE = 10_000    # Good default!
-TOP_K_SHARD =   int(3 * IMAGE_INDEX_SHARD_SIZE / 100)    # at max 3% top results from each shard are considered for semantic query.  
+TOP_K_EACH_SHARD =  5      # iN PERCENT!
 IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./static", "preview_image") # letting frontend proxy like caddy, serve the previews instead...
 if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PREVIEW_DATA_PATH)
@@ -354,21 +354,21 @@ def query_thread():
             benchmarking["embedding"] = (time.time_ns() - s) / 1e6
 
             s = time.time_ns()
-            flag, image_hash2scores = imageIndex.query(text_embedding, client_key = client_id)
+            image_hash2scores = imageIndex.query_all_shards(
+                text_embedding, 
+                client_key = client_id,
+                top_k_each_shard = TOP_K_EACH_SHARD
+            )
             benchmarking["shard-querying"] = (time.time_ns() - s) / 1e6
-
-            # limit to top_k results. (Already sorted) # TODO: may be possible to provide top_k as an argument to metaIndex/imageIndex itself!!!
-            top_k = int(3 * len(image_hash2scores) / 100)
-            start = time.time_ns()
-            top_keys = []
-            for i,k in enumerate(image_hash2scores):
-                top_keys.append(k)
-                del k
-                if i == top_k:
-                    break
             
+            # Sorting, as each shard is queried independently, so GLOBAL sorting required!
+            top_keys = sorted(
+                image_hash2scores.keys(),
+                key = lambda x: max(image_hash2scores[x]),
+                reverse = True
+            )
+
             # query/scan the whole meta-index. to getting matching/relevant row-indices, given top-keys!
-            # TODO: pass exact = true.
             # NOTE: For now, Q routine, must be able to estimate the number of total possible/max matches. (given a query).
             s = time.time_ns()
             final_row_indices = metaIndex.query_generic(
@@ -490,9 +490,8 @@ def query_thread():
 
                 # NOTE: we get the sorted hash 2 scores mapping. (based on score!)
                 s = time.time_ns()
-                flag, image_hash2scores = imageIndex.query(
+                image_hash2scores = imageIndex.query_all_shards(
                         text_embedding,
-                        # key = unsorted_resource_hashes,
                         client_key = client_id)
                 assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
                 benchmarking["image-index-query"] = (time.time_ns() - s) / 1e6
