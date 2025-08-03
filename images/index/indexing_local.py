@@ -70,7 +70,8 @@ def generate_resource_hash(resource_data:bytes, chunk_size:int = 400) -> Optiona
     if resource_size < chunk_size:
         print("[WARNING]: not enough data to generate hash.. ")
         return None
-    m = hashlib.sha256()
+    # m = hashlib.sha256()
+    m = hashlib.md5()
     start_bytes = resource_data[:chunk_size]
     end_bytes = resource_data[-1 * int(0.1*resource_size) : ]
 

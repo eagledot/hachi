@@ -60,7 +60,7 @@ META_INDEX_FILE = os.path.join(META_DATA_INDEX_DIRECTORY, "meta_data.json")
 
 class MetaIndex(object):
     # yeah try to work through newer backend for meta index.
-    def __init__(self, name:str = "metaIndexV2", capacity:int = 120_000, index_directory:str = META_DATA_INDEX_DIRECTORY) -> None:
+    def __init__(self, name:str = "metaIndexV2", capacity:int = 150_000, index_directory:str = META_DATA_INDEX_DIRECTORY) -> None:
 
         self.backend_is_initialized = False
         self.capacity = capacity
