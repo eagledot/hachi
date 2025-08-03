@@ -326,8 +326,7 @@ def query_thread():
     global query_token_counter
 
     flag = False
-    top_k = TOP_K_SHARD
-    
+     
     while True:
         (temp_q, query, page_size) = query_queue.get()
 
@@ -568,7 +567,6 @@ def query(page_size:int = 200):
     # mem_start = p.memory_info()[0] # residential (non-swapped physical memory)
     # print("mem start: {}".format(mem_start))
 
-    top_k = TOP_K_SHARD
     # TODO: we don't need query_start, as scan all the shards in one Go, a bit costly, but aligned with `pagination-pipeline`.
     # also keeps complexity on the client-side low as well. (earlier we were trying to hide latency! but end results were about the same..as images were being rendered on new shard if better score!)
     # query_start = flask.request.form["query_start"].strip().lower()
