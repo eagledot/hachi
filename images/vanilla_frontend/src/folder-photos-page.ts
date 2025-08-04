@@ -1,6 +1,6 @@
 import "./style.css";
 import { Layout } from "./components/layout";
-import Config, { endpoints } from "./config";
+import { endpoints } from "./config";
 import { UIService } from "./imageSearch/uiService";
 import type { HachiImageData } from "./imageSearch/types";
 import {
@@ -8,9 +8,6 @@ import {
   PhotoGridComponent,
   PhotoFilterComponent,
 } from "./components";
-import { folderCache } from "./services/folder-cache";
-
-const API_URL = Config.apiUrl;
 
 // Interface for folder photo data matching the actual API response
 interface FolderPhotoData {
@@ -71,7 +68,9 @@ class FolderPhotosApp {
     this.photoFilter = new PhotoFilterComponent({
       onFilterChange: (filteredPhotos) =>
         this.handleFilteredPhotosUpdate(filteredPhotos),
-    }); // Initialize filter UI
+    });
+    
+    // Initialize filter UI
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
@@ -184,8 +183,6 @@ class FolderPhotosApp {
         // Setup pagination event listeners after pagination UI is rendered
         this.setupPaginationEventListeners();
 
-        // Update the folder cache with accurate photo count and preview
-        this.updateFolderCache(data.data_hash[0] || undefined);
       } else {
         throw new Error("Invalid response format");
       }
@@ -283,30 +280,6 @@ class FolderPhotosApp {
     window.scrollTo(0, 0);
   }
 
-  private scrollToFilterLevel(): void {
-    // Find the filter container or photos section to scroll to
-    const filterContainer = document.getElementById("photo-filter-container");
-    const photosSection = document.querySelector("section");
-
-    // Use the filter container if visible, otherwise use the photos section
-    const targetElement =
-      filterContainer && !filterContainer.classList.contains("hidden")
-        ? filterContainer
-        : photosSection;
-
-    if (targetElement) {
-      // Use requestAnimationFrame to ensure DOM updates are complete
-      requestAnimationFrame(() => {
-        const rect = targetElement.getBoundingClientRect();
-        const offsetTop = window.pageYOffset + rect.top - 20; // 20px padding from top
-
-        window.scrollTo({
-          top: offsetTop,
-          behavior: "instant",
-        });
-      });
-    }
-  }
   private setupPaginationEventListeners(): void {
     const prevBtn = document.getElementById(
       "prev-page-btn"
@@ -360,6 +333,7 @@ class FolderPhotosApp {
     // Use UIService to update the photo grid with ONLY the displayed photos (pagination)
     this.uiService.updatePhotos(this.displayedPhotos);
   }
+
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log("Filtered photos updated:", filteredPhotos.length);
     this.filteredPhotos = filteredPhotos;
@@ -374,6 +348,7 @@ class FolderPhotosApp {
     // Re-setup pagination event listeners to ensure they work correctly
     this.setupPaginationEventListeners();
   }
+
   private handlePhotoClick(photo: HachiImageData): void {
     // Find the index in the FILTERED photos (not just displayed photos)
     this.currentPhotoIndex = this.filteredPhotos.findIndex(
@@ -437,42 +412,6 @@ class FolderPhotosApp {
     const errorDiv = document.getElementById("error-message");
     if (errorDiv) {
       errorDiv.classList.add("hidden");
-    }
-  }
-  private async updateFolderCache(previewImageHash?: string): Promise<void> {
-    try {
-      // Update the folder's photo count and preview image in cache
-      const cachedFolder = await folderCache.getCachedFolder(this.folderPath);
-
-      if (cachedFolder) {
-        // Update the existing cache entry with accurate data
-        await folderCache.updateFolderData(this.folderPath, {
-          imageCount: this.photos.length,
-          previewImageHash: previewImageHash || cachedFolder.previewImageHash,
-        });
-
-        console.log(
-          `Updated cache for folder ${this.folderName}: ${this.photos.length} photos`
-        );
-      } else {
-        // Create a new cache entry if it doesn't exist
-        const displayName = this.getDisplayName(this.folderPath);
-        await folderCache.cacheFolderData([
-          {
-            name: displayName,
-            fullPath: this.folderPath,
-            imageCount: this.photos.length,
-            previewImageHash: previewImageHash,
-            lastUpdated: Date.now(),
-          },
-        ]);
-
-        console.log(
-          `Created cache entry for folder ${this.folderName}: ${this.photos.length} photos`
-        );
-      }
-    } catch (error) {
-      console.warn("Failed to update folder cache:", error);
     }
   }
 }
