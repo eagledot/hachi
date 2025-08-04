@@ -86,11 +86,14 @@ class MetaIndex(object):
                 name = self.name,
                 load_dir = self.index_directory
                 )
+            
+            # State, need to be sync whenever required, otherwise leads to weird bugs. 
             self.column_labels = json.loads(mBackend.get_column_labels())
             self.column_types = json.loads(mBackend.get_column_types())
             self.column_stats = [0 for _ in range(len(self.column_labels))]
             self.backend_is_initialized = True
             self.stats_need_update = True    # by default, each call to `update/append` should set it to true!
+            self.sync_secondary_index = True # by default, secondary index would be sync/generated on first `query_generic`
             print("[MetaIndexV2] Loaded from: {}".format(self.meta_index_path))
         else:
             # lazy when first time update/put is called. we can have the column_labels and column_types available then..
@@ -111,13 +114,17 @@ class MetaIndex(object):
             # for now there is not data-present, not on disk and not from application. so false!
             return False
         else:
-            # may load json a bit faster, parse bytes directly, as we just have to check if how many rows returned!
-            row_indices = json.loads(
-                mBackend.query_column(
-                    attribute = "resource_hash",
-                    query = json.dumps([resource_hash]),
-                    exact_string_match = True            # since primary key, although no primary index for now!
-                )) # first get the desired row_index that we need to update.
+            row_indices = self.query_generic(
+                attribute = "resource_hash",
+                query = [resource_hash]
+            )
+            
+            # row_indices = json.loads(
+            #     mBackend.query_column(
+            #         attribute = "resource_hash",
+            #         query = json.dumps([resource_hash]),
+            #         exact_string_match = True            # since primary key, although no primary index for now!
+            #     )) # first get the desired row_index that we need to update.
 
             assert len(row_indices) == 0 or len(row_indices) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
             return len(row_indices) == 1
@@ -339,6 +346,8 @@ class MetaIndex(object):
         """
         Query: must be fast enough to generate pagination data in <50 ms for say 1 Million Photos!
         Otherwise refactor it to move latency/cost to T (Transformation) function . (to be happened during `collect`)
+        
+        NOTE: use/call this routine, rather than calling/using `mBackend.query_column` directly at any other places, as also `sync` the `secondary index` if necessary!
         """
 
         if self.backend_is_initialized == False:
@@ -347,6 +356,17 @@ class MetaIndex(object):
 
         # -----------------------------------------------
         assert isinstance(attribute,str) and isinstance(query, list)
+
+        # ------------------------------------
+        # First time query, we generate the secondary index for resource hash to speed up querying resource hashes!
+        if self.sync_secondary_index == True:
+            print("[DEBUG]: Generating Secondary Index of resource_hash...")
+            mBackend.generate_secondary_index(
+                "resource_hash"
+            )
+            self.sync_secondary_index = False  # This would be set to false, after bunch of updates too!
+        # --------------------------------------------
+
 
         # TODO: can share the python memory to write row_indices directly to it but later!
         # But with `unique` returns by default, this should be around a couple of thousand, matching indices only for a query!
@@ -622,60 +642,106 @@ class MetaIndex(object):
         return result
 
 if __name__ == "__main__":
+    import time
     from metadata import extract_image_metaData, generate_dummy_string
+
+    # load the saved one..
     sample_index = MetaIndex(
-        name = "test",
-        index_directory = "."
+        name = "MetaIndexV2",
+        index_directory = "./meta_indices"
     )
-    GENERATE_FRESH = False
-    
-    if GENERATE_FRESH:
-        sample_index.reset()
-        n_iterations = 100
-        
-        tic = time.time()
-        for i in range(n_iterations):    
-            if (i % 10_000) == 0:
-                print("[TIME]: {} seconds".format(time.time() - tic))
-                tic = time.time()
+    print("loaded..")
+
+    # create a secondary index for `resource_hash`!!
+    # mBackend.generate_secondary_index(
+    #     "resource_hash"
+    # )
+    # print("Done...")
+
+    sample_hash  = [
+        "83ddbb2006338fdcb573c4076ab79008",
+        "9f7534dfc97415076c20ec48aa5b135e"
+    ]
+
+    row_indices = sample_index.query_generic(
+        attribute = "resource_hash",
+        query = sample_hash
+    )
+    print(row_indices)
+
+    tic = time.time()
+    for i in range(10_000):
+        row_indices = sample_index.query_generic(
+        attribute = "resource_hash",
+        query = sample_hash
+    )
+    toc = time.time()
+    print("[QUERY]: {} ms".format(((time.time() - tic) * 1000) / 10_000))
+
+    # sample_index.query_generic(
+    #     attribute = "resource_hash",
+    #     query = []
+    # )
+
+
+    """
+    Dummy test generation and benchmarking 
+    """
+    TEST_ON_DUMMY  = False
+    if TEST_ON_DUMMY:
+    # Generate some dummy data to test on!
+        sample_index = MetaIndex(
+            name = "dummytest",
+            index_directory = "."
+        )
+        GENERATE_FRESH = False
+        if GENERATE_FRESH:
+            sample_index.reset()
+            n_iterations = 100
+            
+            tic = time.time()
+            for i in range(n_iterations):    
+                if (i % 10_000) == 0:
+                    print("[TIME]: {} seconds".format(time.time() - tic))
+                    tic = time.time()
+                
+                sample_meta_data = extract_image_metaData(
+                    resource_path = "D://dummy.xyz",
+                    dummy_data = True
+                )
+                sample_meta_data["resource_hash"] = generate_dummy_string(size = 32)
+                sample_meta_data["main_attributes"]["resource_directory"] = "D:/dummy"
+
+                # update..
+                sample_index.update(
+                    sample_meta_data
+                )
+                del sample_meta_data
             
             sample_meta_data = extract_image_metaData(
-                resource_path = "D://dummy.xyz",
-                dummy_data = True
-            )
+                    resource_path = "D://xyz/test",
+                    dummy_data = True
+                )
             sample_meta_data["resource_hash"] = generate_dummy_string(size = 32)
-            sample_meta_data["main_attributes"]["resource_directory"] = "D:/dummy"
-
+            sample_meta_data["main_attributes"]["resource_directory"] = "D:/xyz/test"
+            
             # update..
             sample_index.update(
                 sample_meta_data
             )
-            del sample_meta_data
-        
-        sample_meta_data = extract_image_metaData(
-                resource_path = "D://xyz/test",
-                dummy_data = True
-            )
-        sample_meta_data["resource_hash"] = generate_dummy_string(size = 32)
-        sample_meta_data["main_attributes"]["resource_directory"] = "D:/xyz/test"
-        
-        # update..
-        sample_index.update(
-            sample_meta_data
-        )
-        
-        sample_index.save()
-        print("Saved..")  
+            
+            sample_index.save()
+            print("Saved..")  
 
-    
-    sample_hash = "dvoicbhpisrvidupsnovuycjblupaszd"
-    sample_hash_2 = "esujgxynepxtjcmfyllhjjfspminfbgi"
-    print(sample_index.get_stats())
-    (query_token, n_pages) = sample_index.query(
-        attribute = "resource_hash",
-        query = [sample_hash, sample_hash_2],
-        page_size = 200
-    )
+        
+        sample_hash = "dvoicbhpisrvidupsnovuycjblupaszd"
+        sample_hash_2 = "esujgxynepxtjcmfyllhjjfspminfbgi"
+        print(sample_index.get_stats())
+        (query_token, n_pages) = sample_index.query(
+            attribute = "resource_hash",
+            query = [sample_hash, sample_hash_2],
+            page_size = 200
+        )
 
 
     # meta_data = sample_index.collect(
