@@ -60,6 +60,10 @@ type
     immutable:bool = false  # can be set selectively for equivalent of a primarykey or foreign key !
     label*:string
 
+    # secondary Index generation.
+    secondaryIndex:pointer = nil
+    secondaryRowPointer:Natural = 0
+
 proc `=copy`(a:var ColumnObj, b:ColumnObj) {.error.}
 proc `=sink`(a:var ColumnObj, b:ColumnObj) {.error.}
 
@@ -77,7 +81,12 @@ proc `=destroy`(c:var ColumnObj)=
     dealloc(c.payload)
   
   c.payload = nil
-  reset(c.label)
+  
+  # deallocate secondary Index resources if any.
+  if not isNil(c.secondaryIndex):
+    dealloc(c.secondaryIndex)
+  c.secondaryRowPointer = 0 
+  reset(c.label)  # string resource !
 
 type Column = ref ColumnObj
 
@@ -257,6 +266,47 @@ template queryImpl[T](
 
   count # return this..
 
+
+# ---------------------------------------------------------------------
+#  Querying the secondary index
+# ---------------------------------------
+const SECONDARY_HASH_SIZE = 4  # FOR NOW 4 bytes only!
+proc query_secondary_index(
+  c:Column,
+  boundary:Natural,  # column boundary, comes from parent meta-index!
+  query_arr:openArray[string] # For now string only.. 
+):tuple[count:int32, memory: seq[int32]] =
+  # Return valid candidates!
+
+  # better to check.. 
+  doAssert boundary == c.secondaryRowPointer , "Must have been in synced!"
+  
+  var memory = newSeq[int32](boundary) # max possible candidates!  
+  var is_valids:array[SECONDARY_HASH_SIZE, uint8]
+  var count:int32 = 0
+  for row_idx in 0..<boundary:
+      let temp_arr = cast[ptr array[SECONDARY_HASH_SIZE, byte]](cast[int](c.secondaryIndex) + row_idx*SECONDARY_HASH_SIZE)
+
+      for query in query_arr:
+
+        # here compare the stored hash.
+        # Its ok, if we get the false positive..(since we do an accurate check)
+        # it is about reducing the set to a very limited candidates, compared to the stored rows!
+        for j in 0..<SECONDARY_HASH_SIZE:
+          is_valids[j] = uint8(temp_arr[j] == byte(query[j])) # if unrolled supposed to be run in parallel, (instruction level parallelism)
+
+        var sum:uint8 = 0  # as long as secondary hash size is less than 255, we are ok
+        for j in 0..<SECONDARY_HASH_SIZE:
+          sum += (is_valids[j])
+        
+        if sum == SECONDARY_HASH_SIZE:
+          memory[count] = row_idx.int32  # a possible match!
+          inc count
+  
+  result.memory = ensureMove memory # slice would create a copy!
+  result.count = count
+# -------------------------------------------------------------------------
+
 template queryStringImpl(
   result_t: var seq[int32], 
   c_t:Column, 
@@ -267,26 +317,42 @@ template queryStringImpl(
   exact_string_match_t:bool  # In case to match exact string, substring match is not checked!
   ):Natural = 
 
-  # NOTE:
-  # By default, we will consider even a `substring` match as a valid match!, 
-  # (If this is not fast-enough, it will be made fast-enough, it only makes sense to match substrings by default for real-world cases, until fuzzy search is added!)
-  # By default, only unique matching data/rows indices are returned!
-
-  # Returns:
-  # number of `matched rows`, so as to slice `result_seq_t`
-
-  # Its ok, unique is an option, just make sure all items in query_arr are unique, so as we don't cross the `boundary` slots allocaated! 
-  # NOTE: query_arr_t supposed to contain unique values only!
+  # NOTES:
+  # 1. Its ok, unique is an option, just make sure all items in query_arr are unique, so as we don't cross the `boundary` slots allocaated! 
+  # 2. NOTE: query_arr_t supposed to contain unique values only!
 
   doAssert c_t.kind == colString or c_t.kind == colArrayString  # TODO: use an api to get kind.. handle subkinds like colArraystring!
-
   var count = 0
+  let boundary_int32 = boundary_t.int32
+
   let arr = cast[ptr UncheckedArray[string]](c_t.payload)
   var unique_count = 0 # search up to that count..
 
+  # ------------------------------------------
+  # Create valid row Candidates to search for 
+  #-----------------------------------------------
+  var row_candidates:seq[int32]
+  var candidates_count:int32
+  if not isNil(c.secondaryIndex):
+    (candidates_count, row_candidates) = c.query_secondary_index(
+      boundary = boundary_t,
+      query_arr = query_arr_t
+    )
+  else:
+    # By default: all rows are valid candidates!
+    row_candidates = newSeq[int32](boundary_int32)
+    for i in 0..<boundary_int32:
+      row_candidates[i] = i.int32
+    candidates_count = len(row_candidates).int32
+  # -------------------------------------------------------------
+
   for i, query_t in query_arr_t: # outer-loop for query array to preserve the order (returned!)
-    for row_idx in 0..<boundary_t:
-      var current_item = arr[row_idx] # in either case, it will be a string.
+    var row_counter:int32 = 0
+    # Inner loop, to scan for all the `possible row indices` which could match `query_t` aka current query. Given set of options!
+    while row_counter < candidates_count:
+      let
+        row_idx = row_candidates[row_counter]
+        current_item = arr[row_idx]
 
       # Check if current_item is valid candidate given query_t first, conditioned on the arguments provided!    
       var is_valid_candidate = false
@@ -305,11 +371,11 @@ template queryStringImpl(
           is_valid_candidate = true
       
       if is_valid_candidate == false:
+        inc row_counter
         continue
 
       # Check the unique property!
       var is_unique = true
-      
       if unique_only_t:
         for j in 0..<count:
           if arr[result_t[j]] == current_item: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
@@ -321,10 +387,12 @@ template queryStringImpl(
           echo "[WARNING] Breaking.. limit reached, generally it means some candidates wouldn't be returned. Are enteries in query_arr are unique? or did you provide top_k intentionally?"
           break
 
-        result_t[count] = row_idx.int32
+        # result_t[count] = row_idx.int32
+        result_t[count] = row_idx
         inc count
       
-    
+      inc row_counter
+      
   # NOTE: we are only interested in (unique)`row indices`, if data is an array/arrayString, we wil check that given `query` is in that row or not, collection is different and may depend on the frontend needs!! 
   count    # return this..
 
@@ -682,6 +750,12 @@ proc query_column*(
   var top_k = boundary     
   let c = m[attribute]
 
+  # can i do this something.. liek this.
+  # let candidates = consult_secondary_index(c)
+  # then only query those candidates.
+  # for c in c
+
+
   doAssert query.kind == JArray # query is supposed to be array of individual elements to be OR queried
   var exact_match = true
   for x in query:
@@ -782,6 +856,9 @@ proc collect_rows*(
 #     result.add(result_temp)
 #   return result
 
+# --------------------------------------------------
+# Save/Load routines 
+# -----------------------------------------------
 # Type to represent info to be loaded and saved as json! (subset of the main object fields)
 type
   MetaJson = tuple
@@ -831,15 +908,15 @@ proc save*(
   return 1
 
 
-
 proc load*(
   name:string,
   load_dir:string
 ):MetaIndex = 
-  # during load, we should be able to populate column, right..
+  # We would have a base `meta_data.json`, for parent.
+  # Then we would have a `.json` for each of the column, with corresponding `colType` stored in that .json
+  # We can initialize/allocate-required-memory the parent meta-Index based just on the `meta_data.json`.
+  # Then we populate each of the columns too!
 
-  # but how..
-  # by reading the colData directly..
   assert os.dirExists(load_dir)
 
   # load base meta-data.
@@ -900,12 +977,16 @@ proc load*(
       for i in 0..<result.dbRowPointer:
         c[i] = col_data[i]
 
-###########################
-##### helper routines #######
-#######################################
+#################################################
 proc reset*(m:var MetaIndex)=
-  # just setting db.RowPointer to zero should be enough!
+  # just setting row Pointes to zero should be enough!
+  # No deallocation is done here!
   m.dbRowPointer = 0
+  for c in m.columns:
+    c.secondaryRowPointer = 0
+    # TODO: memset to zero, too for payload as well as secondary index(if any)! (prevent weird bugs later on)
+      
+##############################################
 
 # proc get_all*(m:MetaIndex, label:string, flatten:bool = false):JsonNode=
 #   # an array of string/float32/bool/int32
@@ -933,12 +1014,107 @@ proc reset*(m:var MetaIndex)=
 #   let matched_indices = m.query(key_value)
 #   return len(matched_indices) > 0
 
-proc set_primary_key(m:MetaIndex, label:string)=
+
+# ----------------------------------------------------------------------------------------------------
+#         Secondary Index and Hash generation to speed up scanning for a column, (like for a column containing the primary/unique keys)
+# ------------------------------------------------------------------------------------------
+template generate_hash(data_t:openArray[char]): array[SECONDARY_HASH_SIZE, byte] =
+  # we just take first 4 bytes, assuming we are creating an index for strings.
+  # in this case, useful, because `resource_hash` would be an md5/sha hash, hence a high entropy distribution.
+  assert len(data_t) >= SECONDARY_HASH_SIZE
+  var hash:array[SECONDARY_HASH_SIZE, byte]
+  hash[0] = byte data_t[0]
+  hash[1] = byte data_t[1]
+  hash[2] = byte data_t[2]
+  hash[3] = byte data_t[3]
+  hash      # return this 
+
+proc allocate_secondary_index(
+  m:MetaIndex, 
+  label:string,
+  )=
+  # Create a secondary index by generating a hash/fingerprint, to speed up scanning for valid candidates!
+  # For now make sense for `colString` types, only. (And that for only what would be acting as a primary key!)
+
+  let c = m[label]
+  doAssert c.kind == colString, "For now doesn't makes sense except for strings!"
+
+  if not isNil(c.secondaryIndex): 
+    echo "[WARNING]: Already allocated Secondary index for: "  & label, "Resetting..."
+    c.secondaryRowPointer = 0
+    return
+
+  let db_capacity = m.dbCapacity
+  # allocate enough memory, For now , we have no provision for reallocation of parent meta-index.
+  # so assuming one time effort for now.
+  c.secondaryIndex = cast[ptr UncheckedArray[byte]](alloc0(db_capacity * SECONDARY_HASH_SIZE))
+  c.secondaryRowPointer = 0
+
+proc update_secondary_index(
+  m:var MetaIndex,
+  label:string,
+  data:openArray[char], # char is equivalent to byte for us!
+  row_idx:Natural,
+  force = false      # if true, Some checks are discounted, for cases like creating a secondary index on-demand!
+)=
+
+  var c = m[label]
+  doAssert not isNil(c.secondaryIndex), "Not initialized secondary index for  " & label & " yet!"
+  
+  if force == false:
+    # Following should make sure, that secondary index is in sync with main database always!!, so that we don't need to do a separate counter!
+    doAssert row_idx == m.dbRowPointer, "Expected to be synced with main database!."
+
+  # Generate Hash and update it for given row_idx!
+  let hash = generate_hash(data)
+  let offset = row_idx * SECONDARY_HASH_SIZE
+  for i,d in hash:
+    cast[ptr UncheckedArray[byte]](c.secondaryIndex)[offset + i] = d
+
+  inc c.secondaryRowPointer
+
+proc generate_secondary_index*(
+  m:var MetaIndex,
+  label:string
+)=
+  # generate a secondary index for a column on demand, Could be called after a batch of updates, one time cost though!
+  # NOTE: may be the identifier/name could be better, if we have a way to speed up searching for a colType (for now strings only)
+  # we could create such secondary index for any of the column in the future!
+  m.allocate_secondary_index(label)
+
+  # populate it too!
+  var c = m[label]
+  doAssert c.kind == colString, "For now only string is expected!!, as they are most costly to scan for !"
+  for row_idx  in 0..<m.dbRowPointer:
+    let data = cast[ptr UncheckedArray[string]](c.payload)[row_idx]
+    m.update_secondary_index(
+      label = label,
+      data = data,
+      row_idx = row_idx,
+      force = true           # as may be doing it on-demand!
+    )
+  doAssert c.secondaryRowPointer == m.dbRowPointer
+
+# -------------------------------------------------------------
+  
+  
+  
+
+
+
+
+
+
+
+
+
+
+  
   # make a key primary key.. 
   # here create a set/index for faster collecting a row..
   # can be set whenever...i think!
 
-  discard
+  # discard
 
 
 when isMainModule:
@@ -986,9 +1162,13 @@ when isMainModule:
   )
   echo row_indices
 
+  var row_indices_natural = newSeq[Natural](len(row_indices))
+  for i,r in row_indices:
+    row_indices_natural[i] = (r.Natural)
+  
   let(c_kind, c_json) = m.collect_rows(
     attribute = "name",
-    indices = row_indices
+    indices = row_indices_natural
   )
   echo c_json.fromJson(seq[seq[string]])
 
