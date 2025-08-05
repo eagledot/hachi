@@ -119,13 +119,6 @@ class MetaIndex(object):
                 query = [resource_hash]
             )
             
-            # row_indices = json.loads(
-            #     mBackend.query_column(
-            #         attribute = "resource_hash",
-            #         query = json.dumps([resource_hash]),
-            #         exact_string_match = True            # since primary key, although no primary index for now!
-            #     )) # first get the desired row_index that we need to update.
-
             assert len(row_indices) == 0 or len(row_indices) == 1, "data-hash is supposed to be primary-key, so must correspond to a single row?"
             return len(row_indices) == 1
 
@@ -163,56 +156,7 @@ class MetaIndex(object):
                 return result_json
             else:
                 return json.loads(result_json)
-        
-            
-            # # (query_token, n_pages) = self.query(attribute = attribute, query = [query], page_size = n_suggestions)
-            # meta_data_array = self.collect(query_token, page_id = 0) # first n suggestions should be enough for now!
-            # assert n_pages >= 1, "always it should be right!"
-            # assert len(meta_data_array) <= n_suggestions
-            # for i in range(len(meta_data_array)):
-            #     result.append(meta_data_array[i][attribute])
-            # del meta_data_array
-            # return result
-            
-    # class QueryInfo(NamedTuple):
-    #     query_completed:bool    # if false, client is excepted to call `query` routine until set to true.
-    #     n_pages:int     # we should be able to estimate it on first fresh `query`
-    #     query_token:str # unique token for a query.. will be kept until all meta-data has been served exactly once!
-    #     page_size:int  # reflectance, maximum no of items per-page!
-
-    # # each call to `query` until done for a client, should be able to generate complete meta-data for a single page alteast!
-    # # call query.. for streaming..
-    # # enough meta for a single page.
-    # # if call to a page_id is done.. before meta-data is available then what!
-    
-    def collect(self,
-            query_token:str,
-            page_id:int
-            ) -> Any:
-        
-        # generic routine to actually collect the Transformed data, given page_id and a query token.
-        (callback, data) = self.pagination_cache.get(query_token, page_id)
-        return callback(data)
-    
-    def __collect_attribute_unique(
-            self,
-            data:tuple[str, Iterable[int], bool],
-    )-> Iterable[Any]:
-        """
-        NOTE: Internal, supposed to be called by `collect`!
-        """
-        # given the attribute, and specific row_indices collect unique values for that attribute!        
-        (attribute, row_indices, return_json) = data
-
-        result_json = mBackend.collect_rows(
-            attribute,
-            row_indices   # nimpy handles  the marshalling to seq[natural] !
-        )
-        if return_json:
-            return result_json
-        else:
-            return json.loads(result_json)
-          
+              
     def collect_meta_rows(
             self,
             row_indices:Iterable[int],   # collect these rows from meta-data backend!
@@ -254,87 +198,6 @@ class MetaIndex(object):
         # print("[QUERY]: {}".format((time.time_ns() - base_time) / 1e6))
 
         return final_meta_data
-
-    def get_attribute_all(
-            self,
-            attribute:str,
-            page_size:int = 200,
-            return_json:bool = False):
-        
-        with self.lock:
-            global query_token_counter
-
-            final_row_indices = self.query_generic(
-                attribute = attribute,
-                query = ["*"], # wild-card to return all (unique) rows!,
-                unique_only = True
-            )
-
-            query_token = "xxxxxxx_{}".format(query_token_counter)
-            query_token_counter += 1
-            # -------------------------------------
-            # Generate Pagination info..
-            # ------------------------------------
-            n_pages = len(final_row_indices) // page_size + 1
-            page_meta = []
-            for i in range(n_pages):
-                page_meta.append((attribute, final_row_indices[i*page_size: (i+1)*page_size], return_json))
-
-            info:PaginationInfo = {}
-            info["token"] = query_token
-            info["callback"] = self.__collect_attribute_unique
-            info["page_meta"] = page_meta
-            del page_meta
-
-            # add a new entry to the pagination cache for this query!
-            self.pagination_cache.add(
-                info
-            )
-            # -------------------------------
-
-        return (query_token, n_pages, len(final_row_indices))
-
-    def query(
-            self,
-            attribute:str,
-            query:list[Any],
-            unique_only:bool = True,
-            exact_string_match:bool = True,
-            page_size:int = 200):
-        
-        with self.lock:
-            # NOTE: supports (Pagination) sequence. (call it and then call `collect`)
-            global query_token_counter
-
-            # Get all the (unique) values/elements for a attribute!
-            final_row_indices = self.query_generic(
-                attribute = attribute,
-                query = query,
-                unique_only=unique_only,
-                exact_string_match = exact_string_match   # only of string type data/elements. (strict match!)
-            )
-            print("Final row indices: {}".format(len(final_row_indices)))
-
-            query_token = "xxxxxxx_{}".format(query_token_counter)
-            query_token_counter += 1
-            # -------------------------------------
-            # Generate Pagination info..
-            # ------------------------------------
-            info:PaginationInfo = {}
-            n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
-            page_meta = []
-            for i in range(n_pages):
-                page_meta.append(final_row_indices[i*page_size: (i+1)*page_size])
-            info["token"] = query_token
-            info["callback"] = self.collect_meta_rows
-            info["page_meta"] = page_meta
-            del page_meta
-
-            # add a new entry to the pagination cache for this query!
-            self.pagination_cache.add(info)
-            # --------------------------------------------
-
-            return (query_token, n_pages)
 
     def query_generic(self, 
               attribute:str,      # attribute to query. 
@@ -741,40 +604,14 @@ if __name__ == "__main__":
         sample_hash = "dvoicbhpisrvidupsnovuycjblupaszd"
         sample_hash_2 = "esujgxynepxtjcmfyllhjjfspminfbgi"
         print(sample_index.get_stats())
-        (query_token, n_pages) = sample_index.query(
+        row_indices = sample_index.query_generic(
             attribute = "resource_hash",
             query = [sample_hash, sample_hash_2],
             page_size = 200
         )
-
-
-    # meta_data = sample_index.collect(
-    #     query_token = query_token,
-    #     page_id = 0
-    # )
-
-
-    # Modification test!
-    # print(meta_data[0]["personML"])
-    # new_ml:MLAttributes = {}
-    # new_ml["personML"] = ["sanePerson", "xperson"]
-    # new_ml["tagsML"] = ["newTag"]
-    # new_ml["descriptionML"] = "I created this !"
-
-    # print(meta_data[0]["person"])
-    # sample_index.modify_meta_ml(
-    #     resource_hash=sample_hash,
-    #     meta_data = new_ml
-    # )
-
-    # meta_data = sample_index.collect(
-    #     query_token = query_token,
-    #     page_id = 0
-    # )
-    # print(meta_data[0]["person"])
-    # print(meta_data[0]["personML"])
-    # print(meta_data[0]["descriptionML"])
-
+        meta_rows = sample_index.collect_meta_rows(
+            row_indices
+        )
 
 
 
