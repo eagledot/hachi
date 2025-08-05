@@ -296,7 +296,7 @@ proc get_unique_str*(
 
   # optional, to apply this Op to only some selected rows!
   row_indices: Option[seq[int32]] = none(seq[int32]) 
-):tuple[count:int32, memory:seq[int32]] = 
+):tuple[count:int32, memory:seq[string]] = 
 
   # NOTE: it becomes costly very quickly, without some kind of hash-table.
   # it would be costly to check even at 50k elements, so using hash-table for now!
@@ -321,10 +321,10 @@ proc get_unique_str*(
     # NOTE: it collects unique by flattening the array. 
     var uniq_counter:int32 = 0
 
-    var seq_idx = newSeq[int32](boundary)
-    setLen(seq_idx, 0)      # in case of array, we may not exact number of max number of possible count, so we use `add`, setLen to make sure have enough capacity beforehand!
+    var seq_str = newSeq[string](boundary)
+    setLen(seq_str, 0)      # in case of array, we may not exact number of max number of possible count, so we use `add`, setLen to make sure have enough capacity beforehand!
     
-    var item2idx = initTable[string, int32](boundary)
+    var item2idx = initTable[string, int32](boundary) # using boundary as initial size a good estimate. (though still possible will be reallocated for rare cases!)
     for row_idx in row_candidates:
       let arr_items = data_arr[row_idx].split(StringBoundary)
 
@@ -334,15 +334,15 @@ proc get_unique_str*(
         
         if not(curr_item in item2idx):
           item2idx[curr_item] = row_idx
-          seq_idx.add(row_idx)
+          seq_str.add(curr_item)
           inc uniq_counter
 
     result.count = uniq_counter
-    result.memory = ensureMove seq_idx
+    result.memory = ensureMove seq_str
     return result
 
   if c.kind == colString:
-    var seq_idx = newSeq[int32](boundary)  # at-max boundary items possible!
+    var seq_str = newSeq[string](boundary)  # at-max boundary items possible!
     var uniq_counter:int32 = 0
     var item2idx = initTable[string, int32](boundary)
 
@@ -351,11 +351,11 @@ proc get_unique_str*(
 
       if not(curr_item in item2idx):
         item2idx[curr_item] = row_idx
-        seq_idx[uniq_counter] = row_idx
+        seq_str[uniq_counter] = curr_item
         inc uniq_counter
 
     result.count = uniq_counter
-    result.memory = ensureMove seq_idx
+    result.memory = ensureMove seq_str
     return result
 # --------------------------------------------
       
