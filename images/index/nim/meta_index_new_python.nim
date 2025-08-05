@@ -146,12 +146,17 @@ proc generate_secondary_index(
 # Ops like unique,  (more could be implemented when i get time!)
 # ----------
 proc get_unique_str(
-  attribute:string
+  attribute:string,
+  count_only:bool = false
 ):string {.exportpy.}=
   # Json-encoded array of unique string items!
   # Supports both colArrayString aswell as colString
   let c = m[attribute]
-  return c.get_unique_str(boundary = m.dbRowPointer).toJson()
+  let (count, memory) = c.get_unique_str(boundary = m.dbRowPointer)
+  if count_only:
+    return count.toJson()
+  else:
+    return memory[0..<count].toJson()
 #----------------------------------
 
 
