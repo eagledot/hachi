@@ -85,12 +85,14 @@ proc query_column(
 
 proc collect_rows(
   attribute:string,    # column label/name
-  indices:seq[Natural] # generally collected from  `query` routine.
+  indices:seq[Natural], # generally collected from  `query` routine.
+  flatten:bool = false    # in case wants to return flattened values for colArrayString types! rather than array !
   ):string {.exportpy.}=
   # Returns by default the Json-encoded, array of elements from `attribute` at indicated `indices`!
   let (col_kind, col_data_json) = m.collect_rows(
     attribute,
-    indices = indices
+    indices = indices,
+    flatten = flatten
   )
   return col_data_json
 
