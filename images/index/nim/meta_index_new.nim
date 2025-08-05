@@ -283,11 +283,17 @@ proc get_unique_str*(
 
   # optional, to apply this Op to only some selected rows!
   row_indices: Option[seq[int32]] = none(seq[int32]) 
-):seq[string] = 
+):tuple[count:int32, memory:seq[int32]] = 
 
+  # NOTE: it becomes costly very quickly, without some kind of hash-table.
+  # it would be costly to check even at 50k elements, so using hash-table for now!
+  # It could be made more leaner.. but i am tired for now!!!!!!
+
+  doAssert boundary < high(int32)
   doAssert c.kind == colArrayString or c.kind == colString
   let data_arr = cast[ptr UncheckedArray[string]](c.payload)
 
+  # create valid candidates!
   var row_candidates:seq[int32]
   if isSome(row_indices):
     row_candidates = row_indices.get()
@@ -296,14 +302,14 @@ proc get_unique_str*(
     row_candidates = newSeq[int32](boundary)
     for i in 0..<boundary.int32:
       row_candidates[i] = i
-
+  
   if c.kind == colArrayString:
-    var count = 0 # unique counter!
-    var row_counter = 0
-
-    result = newSeq[string](boundary)
-    setLen(result, 0)      # in case of array, we may not exact number of max number of possible count, so we use `add`, setLen to make sure have enough capacity beforehand!
+    var row_counter:int32 = 0
+    var seq_idx = newSeq[int32](boundary)
+    setLen(seq_idx, 0)      # in case of array, we may not exact number of max number of possible count, so we use `add`, setLen to make sure have enough capacity beforehand!
     
+
+    var item2idx = initTable[string, int32](boundary)
     while row_counter < boundary:
       let row_idx = row_candidates[row_counter]
       let arr_items = data_arr[row_idx].split(StringBoundary)
@@ -312,42 +318,33 @@ proc get_unique_str*(
         if len(curr_item) == 0:
           continue
         
-        # uniqueness checking! 
-        var is_unique = true
-        for j in 0..<count:
-          if result[j] == curr_item:
-            is_unique = false
-            break
-        
-        if is_unique:
-          result.add(curr_item)
-          inc count
+        if not(curr_item in item2idx):
+          item2idx[curr_item] = row_counter
+          seq_idx.add(row_counter)
+
       inc row_counter
-    return result[0..<count] # another copy !
+    
+    result.count = len(item2idx).int32
+    result.memory = ensureMove seq_idx
+    return result
 
   if c.kind == colString:
-    result = newSeq[string](boundary)
-    var count = 0 # unique counter!
-    var row_counter = 0
+    var seq_idx = newSeq[int32](boundary)
+    var row_counter:int32 = 0
+    var item2idx = initTable[string, int32](boundary)
 
     while row_counter < boundary:
       let row_idx = row_candidates[row_counter]
       let curr_item = data_arr[row_idx] 
 
-      # uniqueness checking! 
-      var is_unique = true
-      for j in 0..<count:
-        if result[j] == curr_item:
-          is_unique = false
-          break
-      
-      if is_unique:
-        result[count] = curr_item
-        inc count
-      
+      if not(curr_item in item2idx):
+        item2idx[curr_item] = row_counter
+        seq_idx[row_idx] = row_counter
       inc row_counter
-
-    return result[0..<count] # another copy !
+    
+    result.count = len(item2idx).int32
+    result.memory = ensureMove seq_idx
+    return result
 # --------------------------------------------
       
 ###############################################################################
@@ -418,7 +415,9 @@ proc query_secondary_index(
   boundary:Natural,  # column boundary, comes from parent meta-index!
   query_arr:openArray[string] # For now string only.. 
 ):tuple[count:int32, memory: seq[int32]] =
-  # Return valid candidates!
+  # NOTE: for now only being used to speed up `resource_hash` which is a sha/md5 hash. so i just take 4 first bytes to generate a hash!
+  # Return valid candidates, may contain false positives!
+  # just to quicky reduce the pool of possible candidates for (costly) exact search!
 
   # better to check.. 
   doAssert boundary == c.secondaryRowPointer , "Must have been in synced! Boundary is: " & $boundary &  " got: " & $c.secondaryRowPointer 
@@ -426,23 +425,27 @@ proc query_secondary_index(
   var memory = newSeq[int32](boundary) # max possible candidates!  
   var is_valids:array[SECONDARY_HASH_SIZE, uint8]
   var count:int32 = 0
-  for row_idx in 0..<boundary:
-      let temp_arr = cast[ptr array[SECONDARY_HASH_SIZE, byte]](cast[int](c.secondaryIndex) + row_idx*SECONDARY_HASH_SIZE)
 
+  # -----------------------------------------------------------
+  # Treating 4 bytes as a uint32 value!
+  doAssert SECONDARY_HASH_SIZE == 4, "assuming a uint32 value!"
+  let temp_arr = cast[ptr  UncheckedArray[uint32]](c.secondaryIndex)
+  #----------------------------------------------------------
+  
+  for row_idx in 0..<boundary.int32:
+      # let stored_hash = temp_arr[row_idx] # storing this here rather than in-situ during `test`.. shows a minor regression ??
       for query in query_arr:
 
         # here compare the stored hash.
         # Its ok, if we get the false positive..(since we do an accurate check)
         # it is about reducing the set to a very limited candidates, compared to the stored rows!
-        for j in 0..<SECONDARY_HASH_SIZE:
-          is_valids[j] = uint8(temp_arr[j] == byte(query[j])) # if unrolled supposed to be run in parallel, (instruction level parallelism)
 
-        var sum:uint8 = 0  # as long as secondary hash size is less than 255, we are ok
-        for j in 0..<SECONDARY_HASH_SIZE:
-          sum += (is_valids[j])
-        
-        if sum == SECONDARY_HASH_SIZE:
-          memory[count] = row_idx.int32  # a possible match!
+        # 4 bytes. aka (int32)
+        let query_hash = cast[ptr uint32](addr query[0])[]
+        let test = (temp_arr[row_idx] == query_hash)
+
+        if test:
+          memory[count] = row_idx  # a possible match!
           inc count
   
   result.memory = ensureMove memory # slice would create a copy!
