@@ -256,12 +256,11 @@ class MetaIndex(object):
                 return self.column_stats[self.__get_index(attribute)]
             
             if self.get_attribute_type(attribute) == "arrayString" or self.get_attribute_type(attribute) == "string":
-                unique_elements = json.loads(
-                    mBackend.get_unique_str(attribute)
+                unique_elements_count = json.loads(
+                    mBackend.get_unique_str(attribute, count_only = True)
                 ) 
-                result = len(unique_elements)
-                self.column_stats[self.__get_index(attribute)] = result
-                return result
+                self.column_stats[self.__get_index(attribute)] = unique_elements_count
+                return unique_elements_count
 
             else:
                 # TODO: shift to unique op for other types too!
@@ -502,21 +501,13 @@ if __name__ == "__main__":
     # load the saved one..
     sample_index = MetaIndex(
         name = "MetaIndexV2",
+        # index_directory = "D://akshay/meta_indices"
         index_directory = "./meta_indices"
     )
     assert sample_index.backend_is_initialized == True, "Empty database!"
     print("loaded..")
     print(sample_index.get_stats())
 
-    persons= json.loads(
-        mBackend.get_unique_str("person")
-    )
-    print("Len: {}".format(len(persons)))
-
-    resource_hashes = json.loads(
-        mBackend.get_unique_str("resource_hash")
-    )
-    print("Len: {}".format(len(resource_hashes)))
 
 
     # create a secondary index for `resource_hash`!!
@@ -526,8 +517,10 @@ if __name__ == "__main__":
     # print("Done...")
 
     # sample_hash  = [
-    #     "83ddbb2006338fdcb573c4076ab79008",
-    #     "9f7534dfc97415076c20ec48aa5b135e"
+    #     "8d4ba14cdb6002120fca3cada2a7d2f0",
+    #     "e032239ee39af833be6c105ad981fa1f",
+    #     "214a3d68379420ed91a112349894135c",
+    #     "e032239ee39af833be6c105ad981fa1f",
     # ]
 
     # row_indices = sample_index.query_generic(
