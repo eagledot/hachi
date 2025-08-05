@@ -816,17 +816,14 @@ def getRawData(resource_hash:str) -> any:
 
 @app.route("/getRawDataFull/<resource_hash>", methods = ["GET"])
 def getRawDataFull(resource_hash:str) -> flask.Response:
-    # hash_2_metaData = metaIndex.query(resource_hashes = resource_hash)
-    # temp_meta = hash_2_metaData[resource_hash]
-
-    # pagination sequence!
-    (query_token, n_pages) = metaIndex.query(attribute = "resource_hash", query = [resource_hash])
-    assert n_pages == 1, "Since resource hash is unique.. and if page_size > 1"
-    meta_array = metaIndex.collect(query_token, page_id = 0)
-    assert len(meta_array) == 1 
-    meta_data = meta_array[0]   
-    metaIndex.remove_pagination_token(query_token)
-    del meta_array
+    row_indices = metaIndex.query_generic(
+        attribute = "resource_hash",
+        query = [resource_hash]
+    )
+    assert len(row_indices) == 1, "Resource_hashes are unique!"
+    meta_data = metaIndex.collect_meta_rows(
+        row_indices
+    )[0]
 
     absolute_path = os.path.join(meta_data["resource_directory"], meta_data["filename"])
     resource_type = "image" # TODO: get it from meta-data?
@@ -916,57 +913,23 @@ def editMetaData():
 
 @app.route("/getGroup/<attribute>", methods = ["GET"])
 def getGroup(attribute:str):
-    # get the unique/all possible values for an attribute!
-    # NOTE: CLIENT SIDE pagination is pending...
-    
-    # TODO: if can directly get in json..otherwise decoding it and then encoding it.. Don't do this!
-    # pagination sequence (query and collect)!
-    return_json = False  # TO BE USED when client side pagination is done!
-    (query_token, n_pages, n_matches_found) = metaIndex.get_attribute_all(
-        attribute = attribute,
-        page_size = 400,       
-        return_json = return_json     # May be we can just directly get json from `collect` and send it to client, wo
-    )
-
-    # collect (TODO: called by client!)
-    assert return_json == False, "Until client adds pagination!"
-    result = []
-    # For now query all the pages, until client adds pagination!
-    
-    need_deduplication = False
-    if metaIndex.get_attribute_type(attribute) == "arrayString":
-        # de-duplication has to be done despite of passing unique to query !.. since `string representation of array/persons` is by definition different/unique, we are interested in unique items/elements.
-        need_deduplication = True
-        temp_set = set()
-    
-    result = []
-    for page_id in range(n_pages):
-        # PORT THIS CODE INTO A DEDICATED ROUTE for client to collect results for this kind of query! !
+    # get the unique/all-possible values for an attribute!
+    # NOTE: CLIENT SIDE pagination is pending ..
+    # NOTE: generally fewer values, as `folders`, `person` count is quite limited.
+    # LATER in the end, pagination would be added for this too
         
-        # collect page by page.... just for now.. 
-        attribute_values = metaIndex.collect(
-            query_token,
-            page_id = page_id   # TODO: client should call it later on demand!
+    attribute_py_type = metaIndex.get_attribute_type(attribute) 
+    assert attribute_py_type == "string" or attribute_py_type == "arrayString" , "For now.. TODO..."
+    return_raw_json = False
+    raw_json =  mBackend.get_unique_str(
+            attribute
         )
-        assert isinstance(attribute_values, list)
-        if need_deduplication:
-            for i,x in enumerate(attribute_values):
-                for x in attribute_values[i]:
-                        if len(x) > 0 and not (x in temp_set):
-                            result.append(x)
-                            temp_set.add(x)
-        else:
-            result.extend(attribute_values)
-        del attribute_values
-    
-    # signal to delete this query_token!
-    metaIndex.remove_pagination_token(query_token)
-
-    # return json directly, if can get directly get the json form!
-    if return_json:
-        return flask.Response(result, mimetype="application/json")
+    if return_raw_json:
+        return raw_json
     else:
-        return flask.jsonify(result)
+        return json.loads(
+            raw_json
+        )
 
 @app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
 def getMeta(attribute:str, value:Any):
