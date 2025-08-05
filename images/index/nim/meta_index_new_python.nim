@@ -136,15 +136,24 @@ proc get_column_types():string {.exportpy.}=
   echo $py_types
   return $py_types
 
-# proc get_all_elements(attribute:string):string {.exportpy.}=
-#   # an (flattened) array of all values for a given attribute!
-#   # may contains duplicates... just flatten...
-#   return $m.get_all(attribute, flatten = true)
+proc generate_secondary_index(
+  attribute:string
+) {.exportpy.} = 
+  # Generate a secondary index!
+  m.generate_secondary_index(attribute)
 
-# proc check(attribute_value:string):bool {.exportpy.}=
-#   # checks if attribut value pair exits...
-#   # would be faster in future.. if attribute is a primary-key/id
-#   return m.check(parseJson(attribute_value))
+# --------
+# Ops like unique,  (more could be implemented when i get time!)
+# ----------
+proc get_unique_str(
+  attribute:string
+):string {.exportpy.}=
+  # Json-encoded array of unique string items!
+  # Supports both colArrayString aswell as colString
+  let c = m[attribute]
+  return c.get_unique_str(boundary = m.dbRowPointer).toJson()
+#----------------------------------
+
 
 
 

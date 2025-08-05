@@ -188,7 +188,7 @@ class CommonIndex(object):
             if shard_saved:
                 self.save_index()
 
-    def compare(self, query:np.array, data_embeddings:np.array) -> Tuple[np.array, np.array]:
+    def compare(self, query:np.array, data_embeddings:np.array, top_k_each_shard:int) -> Tuple[np.array, np.array]:
         raise NotImplementedError
 
     def get_shard_row(self, data_hashes:List[str]) -> Dict[str, Dict[int, List[int]]]:
@@ -221,44 +221,29 @@ class CommonIndex(object):
                 result[temp_hash][shard_idx] = [row_idx]
         return result        
     
-    def query_base(self, query:np.array, client_key:str, key:Optional[List[str]] = None) -> Dict[str, List[float]]:
+    def query_base(self, query:np.array, client_key:str, top_k_each_shard:int) -> Dict[str, List[float]]:
 
         query = query.reshape((-1, self.embedding_size))
         with self.lock:
-
-            if key is not None:
-                result = {}
-                hash_2_shard_rows = self.get_shard_row(data_hashes=key)
-                for data_hash in hash_2_shard_rows:
-                    for shard_idx, row_indices in hash_2_shard_rows[data_hash].items():         # NOTE: row_indices are absolute indices.    
-
-                        temp_shard = self.shard_cache[shard_idx]  # load the shard, shard_idx are sorted, so helps in preloading.
-                        stored_embeddings = temp_shard[row_indices] # get corresponding embeddings.
-                        _, temp_scores = self.compare(query, data_embeddings=stored_embeddings)
-
-                        if data_hash not in result:
-                            result[data_hash] = []
-                        result[data_hash] += list(temp_scores.ravel())
-                return False, result
-
-            else:
                 if client_key not in self.key_2_shardIdx:
                     self.key_2_shardIdx[client_key] = 0
                 shard_idx_query = self.key_2_shardIdx[client_key]
                 assert shard_idx_query <= self.shard_idx_update
 
-
                 data_embeddings = self.shard_cache.get_embedding(shard_idx_query)
+
                 result = OrderedDict()
-                
+                # fixed for given shard_size and shard_idx query. 
+                fixed_offset = (self.shard_size * shard_idx_query) + N_ROWS_SHARD_META_DATA
+
                 for x in query:
-                    sorted_indices, sorted_scores = self.compare(x, data_embeddings = data_embeddings) # NOTE: sorted indices are relative indices, so we convert them to absolute indices.
+                    sorted_indices, sorted_scores = self.compare(x, data_embeddings = data_embeddings, top_k_each_shard=top_k_each_shard) # NOTE: sorted indices are relative indices, so we convert them to absolute indices.
                     for score, ix in zip(sorted_scores, sorted_indices):
-                        idx_hash = ix + (self.shard_size * shard_idx_query) + N_ROWS_SHARD_META_DATA # absolute index to get correponding hash.
+                        idx_hash = ix + fixed_offset # absolute index to get correponding hash.
                         data_hash = self.idx_2_hash[idx_hash]
                         if data_hash not in result:
                             result[data_hash] = []
-                        result[data_hash] += [score]
+                        result[data_hash].extend([score])
 
                 if shard_idx_query == self.shard_idx_update:       # meaning all shards have been queried for given key/id.
                     _ = self.key_2_shardIdx.pop(client_key)
@@ -267,11 +252,11 @@ class CommonIndex(object):
                     self.key_2_shardIdx[client_key] += 1
                     return (True, result)
     
-    def query_all(self, query:np.array, client_key:str) -> Dict:
+    def query_all(self, query:np.array, client_key:str, top_k_each_shard:int) -> Dict:
 
         final_result = {}
         while True:
-            flag, hash_2_scores = self.query(query, client_key = client_key) # result hash to scores list mapping.
+            flag, hash_2_scores = self.query_base(query, client_key = client_key, top_k_each_shard = top_k_each_shard) # result hash to scores list mapping.
             for k,v in hash_2_scores.items():
                 if k in final_result:
                     final_result[k] += v
@@ -279,7 +264,7 @@ class CommonIndex(object):
                     final_result[k] = v
             if flag == False:
                 break
-        
+            
         return False, final_result
     
     def update_base(self, data_hash:str, data_embedding:np.array) -> Tuple[int, int, int]:        

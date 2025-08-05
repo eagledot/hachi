@@ -612,6 +612,8 @@ class IndexingLocal(object):
                         self.meta_index.save()
                         self.semantic_index.save()
                         # imageIndex.sanity_check()
+                        self.meta_index.sync_secondary_index = True  # indicate to sync secondary index, at querying too!
+
                         self.indexing_info["details"] = "Indexing Completed Successfully!"
                     except Exception:
                         print(traceback.format_exc())
