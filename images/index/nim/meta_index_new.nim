@@ -198,7 +198,8 @@ type
 proc collect_elements(
     c:Column, 
     boundary:Natural,  # parent provides this!
-    gather_indices: Option[seq[Natural]] = none(seq[Natural])  # to gather only specific indices!
+    gather_indices: Option[seq[Natural]] = none(seq[Natural]),  # to gather only specific indices!
+    flatten = false     # for colArrayString types ..
     ):ColJson =   # directly return as json encoded string..
 
   result.kind = c.kind  # we can use this to further make decisions, to split, while consuming in a process or transformation!
@@ -212,11 +213,23 @@ proc collect_elements(
   
   case c.kind
   of colArrayString:
-    var result_container = newSeq[seq[string]](len(indices))
-    for i,idx in indices:
-      # TODO: i think `split` could be made faster if we just do it ourselves, but give me a break !!
-      result_container[i] = cast[ptr UncheckedArray[string]](c.payload)[idx].split(StringBoundary)
-    result.data_json = result_container.toJson()
+    let payload_data_arr = cast[ptr UncheckedArray[string]](c.payload)
+    
+    if flatten == true:
+      var result_container = newSeq[string](len(indices))
+      for i,idx in indices:
+        # TODO: i think `split` could be made faster if we just do it ourselves, but give me a break !!
+        for x in payload_data_arr[idx].split(StringBoundary):
+          if len(x) > 0: # Make it impossible in the first place...
+            result_container[i] = x
+      result.data_json = result_container.toJson()
+    else:
+      var result_container = newSeq[seq[string]](len(indices))
+      for i,idx in indices:
+        # TODO: i think `split` could be made faster if we just do it ourselves, but give me a break !!
+        result_container[i] = payload_data_arr[idx].split(StringBoundary)
+      result.data_json = result_container.toJson()
+
 
   of colString: 
     var result_container = newSeq[string](len(indices))
@@ -279,7 +292,7 @@ proc add_bool(c:var Column, row_idx:Natural, data:bool, aliasing:bool = false)=
 # ----------------------------
 proc get_unique_str*(
   c:Column,
-  boundary:Natural,
+  boundary:Natural, # generally the number of indexed rows so far!
 
   # optional, to apply this Op to only some selected rows!
   row_indices: Option[seq[int32]] = none(seq[int32]) 
@@ -297,21 +310,22 @@ proc get_unique_str*(
   var row_candidates:seq[int32]
   if isSome(row_indices):
     row_candidates = row_indices.get()
-    doAssert len(row_candidates) <= boundary, "Row indices are supposed to be unique, so cannot be greater than boundary generally!"
   else:
     row_candidates = newSeq[int32](boundary)
     for i in 0..<boundary.int32:
       row_candidates[i] = i
   
+  doAssert len(row_candidates) <= boundary, "Row indices are supposed to be unique, so cannot be greater than boundary generally!"
+
   if c.kind == colArrayString:
-    var row_counter:int32 = 0
+    # NOTE: it collects unique by flattening the array. 
+    var uniq_counter:int32 = 0
+
     var seq_idx = newSeq[int32](boundary)
     setLen(seq_idx, 0)      # in case of array, we may not exact number of max number of possible count, so we use `add`, setLen to make sure have enough capacity beforehand!
     
-
     var item2idx = initTable[string, int32](boundary)
-    while row_counter < boundary:
-      let row_idx = row_candidates[row_counter]
+    for row_idx in row_candidates:
       let arr_items = data_arr[row_idx].split(StringBoundary)
 
       for curr_item in arr_items:
@@ -319,30 +333,28 @@ proc get_unique_str*(
           continue
         
         if not(curr_item in item2idx):
-          item2idx[curr_item] = row_counter
-          seq_idx.add(row_counter)
+          item2idx[curr_item] = row_idx
+          seq_idx.add(row_idx)
+          inc uniq_counter
 
-      inc row_counter
-    
-    result.count = len(item2idx).int32
+    result.count = uniq_counter
     result.memory = ensureMove seq_idx
     return result
 
   if c.kind == colString:
-    var seq_idx = newSeq[int32](boundary)
-    var row_counter:int32 = 0
+    var seq_idx = newSeq[int32](boundary)  # at-max boundary items possible!
+    var uniq_counter:int32 = 0
     var item2idx = initTable[string, int32](boundary)
 
-    while row_counter < boundary:
-      let row_idx = row_candidates[row_counter]
+    for row_idx in row_candidates:
       let curr_item = data_arr[row_idx] 
 
       if not(curr_item in item2idx):
-        item2idx[curr_item] = row_counter
-        seq_idx[row_idx] = row_counter
-      inc row_counter
-    
-    result.count = len(item2idx).int32
+        item2idx[curr_item] = row_idx
+        seq_idx[uniq_counter] = row_idx
+        inc uniq_counter
+
+    result.count = uniq_counter
     result.memory = ensureMove seq_idx
     return result
 # --------------------------------------------
@@ -949,14 +961,16 @@ proc query_column*(
 proc collect_rows*(
   m:MetaIndex,
   attribute:string, # column label/name.
-  indices:seq[Natural]
+  indices:seq[Natural],
+  flatten:bool = false  # for colArrayString type!
 ):ColJson = 
   # Collect specific elements/rows from a column!
   # this way let the python, call directly this.. and later recreate a ROW from elements of all columns!
   let c = m[attribute]
   result = c.collect_elements(
     boundary = m.dbRowPointer,
-    gather_indices = some(indices)
+    gather_indices = some(indices),
+    flatten = flatten
   )
   return result
 
