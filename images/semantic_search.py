@@ -275,7 +275,7 @@ pagination_cache = PaginationCache() # for each (new) query, certain pagination 
 # Collect 
 # ----------------------
 @app.route("/collectQueryMeta/<token>/<page_id>")
-def collect_query_meta(token:str, page_id:int):    
+def collect_query_meta(token:str, page_id:int) -> Dict:   
     page_id = int(page_id)
     callback, (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
 
@@ -714,11 +714,32 @@ def getGroup(attribute:str):
             raw_json
         )
 
+def collect_attribute_meta(query_token:str, page_id:int):
+    # Supposed to be called for `queryMeta`.
+    # We collect corresponding meta-data/rows, which was conditioned in the corresponding `Q` routine!
+
+    # page_data would just be (valid) row_indices for that page, to quickly collect corresponding meta-data! 
+    (callback, page_row_indices) = pagination_cache.get(
+        query_token,
+        page_id
+    )
+    # callback would be metaIndex.collect_meta_rows
+    meta_data = callback(page_row_indices)
+
+    temp:MetaInfo = {}
+    temp["data_hash"] = [row["resource_hash"] for row in meta_data]
+    temp["score"] = [1 for i in range(len(meta_data))]
+    temp["meta_data"] = meta_data
+    return temp
+
+
 @app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
 def getMeta(attribute:str, value:Any):
     # TODO: update (nim) backend to accept if exact_match is requsted or not!
     # NOTE: We will be moving to `pagination sequence`. But for now.. we call them at there.. just to test front-end.
     # TODO: instead return pagination info, and let client call `collect`!
+
+    global query_token_counter
     
     # NOTE: we use a single `forward` slash while saving `meta-data` for paths. Should work well on `linux`, TODO: test it.
     if attribute == "resource_directory":
@@ -726,38 +747,50 @@ def getMeta(attribute:str, value:Any):
         assert os.path.exists(os.path.normpath(value))
 
     # query and collect sequence!
-    (query_token, n_pages) = metaIndex.query(
+    # ---------------------------------------
+    # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
+    query_token = "notRandomEnoughToken_{}".format(query_token_counter)
+    query_token_counter += 1  # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
+        
+    page_size = 2000
+    matching_row_indices = metaIndex.query_generic(
         attribute = attribute,
         query = [value],
         unique_only = False,   # we need any row matching this value for this attribute here!
-        exact_string_match = True,
-        page_size = 2000       # TODO: just for testing now.. 
+        exact_string_match = True
     )
-    # collect (for now single page only.. 2000 would be enough for testing)
-    meta_data_array = metaIndex.collect(
-        query_token,
+    
+    # generation pagination info
+    n_pages = len(matching_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+    page_meta = []
+    for i in range(n_pages):
+        # In this case, we would just need these row-indices to collect all the corresponding meta-data during collect.
+        page_meta.append(
+            matching_row_indices[i*page_size: (i+1)*page_size]
+        )
+    
+    info:PaginationInfo = {}
+    info["token"] = query_token
+    info["callback"] = metaIndex.collect_meta_rows
+    info["page_meta"] = page_meta
+    del page_meta
+    pagination_cache.add(info)
+    del info
+
+    # TO RETURN TO CLIENT ON PAGINATION
+    # q_info:QueryInfo = {}
+    # q_info["n_matches"] = len(final_row_indices)
+    # q_info["n_pages"] = n_pages
+    # q_info["query_token"] = query_token
+
+    # collect here too.. until client side pagination is added!
+    result = collect_attribute_meta(
+        query_token, 
         page_id = 0
     )
-    metaIndex.remove_pagination_token(query_token) # since we are done, remove this entry!
 
-    # since we match with substrings too in the backend by default!
-    # TODO: shouldn't be that costly.. right... we will benchmark it anyway!
-    new_meta_data_array = []
-    attr_type = metaIndex.get_attribute_type(attribute)
-    for i in range(len(meta_data_array)):
-        if attr_type == "arrayString":
-            if value in meta_data_array[i][attribute]:
-                new_meta_data_array.append(meta_data_array[i])
-        else:
-            if meta_data_array[i][attribute] == value:
-                new_meta_data_array.append(meta_data_array[i])
-    del meta_data_array
-
-    temp = {}
-    temp["data_hash"]= [x["resource_hash"] for x in new_meta_data_array]
-    temp["meta_data"] = new_meta_data_array
-    temp["score"] = [1 for _ in range(len(new_meta_data_array))]
-    return temp
+    pagination_cache.remove(query_token) # for now.. as its work would be done!
+    return flask.jsonify(result)
 
 @app.route("/getMetaStats", methods = ["GET"])
 def getMetaStats():
