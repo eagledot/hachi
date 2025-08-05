@@ -277,12 +277,12 @@ pagination_cache = PaginationCache() # for each (new) query, certain pagination 
 @app.route("/collectQueryMeta/<token>/<page_id>")
 def collect_query_meta(token:str, page_id:int) -> Dict:   
     page_id = int(page_id)
-    callback, (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
+    (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
 
     temp:MetaInfo = {}
     temp["data_hash"] = resource_hashes
     temp["score"] = scores    
-    temp["meta_data"] = callback(row_indices)
+    temp["meta_data"] = metaIndex.collect_meta_rows(row_indices)
     del scores, resource_hashes
     return flask.jsonify(temp)
 
@@ -370,6 +370,7 @@ def query_thread():
             # query/scan the whole meta-index. to getting matching/relevant row-indices, given top-keys!
             # NOTE: For now, Q routine, must be able to estimate the number of total possible/max matches. (given a query).
             s = time.time_ns()
+            # can shift this cost to collect !
             final_row_indices = metaIndex.query_generic(
                 attribute = "resource_hash",
                 query = top_keys
@@ -406,7 +407,6 @@ def query_thread():
             query_token_counter += 1
 
             info["token"] = query_token
-            info["callback"] = metaIndex.collect_meta_rows
             info["page_meta"] = page_meta
             del page_meta
             pagination_cache.add(info)
@@ -535,7 +535,6 @@ def query_thread():
             benchmarking["pageinfo-generation"] = (time.time_ns() - s)
 
             info["token"] = query_token
-            info["callback"] = metaIndex.collect_meta_rows
             info["page_meta"] = page_meta
             del page_meta
             pagination_cache.add(info)
@@ -719,12 +718,11 @@ def collect_attribute_meta(query_token:str, page_id:int):
     # We collect corresponding meta-data/rows, which was conditioned in the corresponding `Q` routine!
 
     # page_data would just be (valid) row_indices for that page, to quickly collect corresponding meta-data! 
-    (callback, page_row_indices) = pagination_cache.get(
+    page_row_indices = pagination_cache.get(
         query_token,
         page_id
     )
-    # callback would be metaIndex.collect_meta_rows
-    meta_data = callback(page_row_indices)
+    meta_data = metaIndex.collect_meta_rows(page_row_indices)
 
     temp:MetaInfo = {}
     temp["data_hash"] = [row["resource_hash"] for row in meta_data]
@@ -771,7 +769,6 @@ def getMeta(attribute:str, value:Any):
     
     info:PaginationInfo = {}
     info["token"] = query_token
-    info["callback"] = metaIndex.collect_meta_rows
     info["page_meta"] = page_meta
     del page_meta
     pagination_cache.add(info)
