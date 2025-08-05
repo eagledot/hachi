@@ -142,6 +142,18 @@ proc generate_secondary_index(
   # Generate a secondary index!
   m.generate_secondary_index(attribute)
 
+# --------
+# Ops like unique,  (more could be implemented when i get time!)
+# ----------
+proc get_unique_str(
+  attribute:string
+):string {.exportpy.}=
+  # Json-encoded array of unique string items!
+  # Supports both colArrayString aswell as colString
+  let c = m[attribute]
+  return c.get_unique_str(boundary = m.dbRowPointer).toJson()
+#----------------------------------
+
 
 
 
