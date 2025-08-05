@@ -238,10 +238,7 @@ class PeopleApp {
                 </svg>
                 <span class="hidden sm:inline">${person.id}</span>
                 <span class="sm:hidden">${person.id.length > 8 ? person.id.substring(0, 8) + '...' : person.id}</span>
-              ` : `
-                <span class="hidden sm:inline">Auto Detected</span>
-                <span class="sm:hidden">Auto</span>
-              `}
+              ` : ""}
             </span>
           </div>
 
