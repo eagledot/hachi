@@ -70,6 +70,8 @@ class MetaIndex(object):
         self.column_labels = []
         self.column_types = []
         self.column_stats = []  # unique elements for each column count!
+        self.stats_need_update = True    # by default, each call to `update/append` should set it to true!
+        self.sync_secondary_index = True # by default, secondary index would be sync/generated on first `query_generic`
         
         # initialize the index directory .
         self.index_directory = os.path.abspath(index_directory)
@@ -92,8 +94,6 @@ class MetaIndex(object):
             self.column_types = json.loads(mBackend.get_column_types())
             self.column_stats = [0 for _ in range(len(self.column_labels))]
             self.backend_is_initialized = True
-            self.stats_need_update = True    # by default, each call to `update/append` should set it to true!
-            self.sync_secondary_index = True # by default, secondary index would be sync/generated on first `query_generic`
             print("[MetaIndexV2] Loaded from: {}".format(self.meta_index_path))
         else:
             # lazy when first time update/put is called. we can have the column_labels and column_types available then..
@@ -391,31 +391,22 @@ class MetaIndex(object):
     def __count_unique(self, attribute:str) ->int:
             if self.stats_need_update == False:
                 return self.column_stats[self.__get_index(attribute)]
+            
+            if self.get_attribute_type(attribute) == "arrayString" or self.get_attribute_type(attribute) == "string":
+                unique_elements = json.loads(
+                    mBackend.get_unique_str(attribute)
+                ) 
+                result = len(unique_elements)
+                self.column_stats[self.__get_index(attribute)] = result
+                return result
 
-            row_indices = self.query_generic(
-                attribute = attribute,
-                query = ["*"],
-                exact_string_match = True
-            )
-
-            if self.get_attribute_type(attribute) == "arrayString":
-                # NOTE: (it is correct, dont overthink)
-                # NOTE: then de-duplicate too, as we only got the `uniqueness about array representation not individual elements!`
-                temp = set()
-                result_json = mBackend.collect_rows(
-                    attribute,
-                    row_indices   # nimpy handles  the marshalling to seq[natural] !
-                )
-                for arr in json.loads(result_json):
-                    for x in arr:
-                        temp.add(x)
-                result = len(temp)
             else:
-                result =  len(row_indices)
-
-            self.column_stats[self.__get_index(attribute)] = result
-            return len(row_indices)
-
+                # TODO: shift to unique op for other types too!
+                valid_row_indices = [i for i in range(self.rows_count)] # For now !
+                result = len(valid_row_indices)
+                self.column_stats[self.__get_index(attribute)] = result
+                return result
+    
     # TODO: name it append/put instead of update!
     def update(self,
                meta_data:ImageMetaAttributes
@@ -650,7 +641,20 @@ if __name__ == "__main__":
         name = "MetaIndexV2",
         index_directory = "./meta_indices"
     )
+    assert sample_index.backend_is_initialized == True, "Empty database!"
     print("loaded..")
+    print(sample_index.get_stats())
+
+    persons= json.loads(
+        mBackend.get_unique_str("person")
+    )
+    print("Len: {}".format(len(persons)))
+
+    resource_hashes = json.loads(
+        mBackend.get_unique_str("resource_hash")
+    )
+    print("Len: {}".format(len(resource_hashes)))
+
 
     # create a secondary index for `resource_hash`!!
     # mBackend.generate_secondary_index(
@@ -658,27 +662,27 @@ if __name__ == "__main__":
     # )
     # print("Done...")
 
-    sample_hash  = [
-        "83ddbb2006338fdcb573c4076ab79008",
-        "9f7534dfc97415076c20ec48aa5b135e"
-    ]
+    # sample_hash  = [
+    #     "83ddbb2006338fdcb573c4076ab79008",
+    #     "9f7534dfc97415076c20ec48aa5b135e"
+    # ]
 
-    row_indices = sample_index.query_generic(
-        attribute = "resource_hash",
-        query = sample_hash
-    )
-    print(row_indices)
+    # row_indices = sample_index.query_generic(
+    #     attribute = "resource_hash",
+    #     query = sample_hash
+    # )
+    # print(row_indices)
 
-    tic = time.time()
-    for i in range(10_000):
-        row_indices = sample_index.query_generic(
-        attribute = "resource_hash",
-        query = sample_hash
-    )
-    toc = time.time()
-    print("[QUERY]: {} ms".format(((time.time() - tic) * 1000) / 10_000))
+    # tic = time.time()
+    # for i in range(10_000):
+    #     row_indices = sample_index.query_generic(
+    #     attribute = "resource_hash",
+    #     query = sample_hash
+    # )
+    # toc = time.time()
+    # print("[QUERY]: {} ms".format(((time.time() - tic) * 1000) / 10_000))
 
-    # sample_index.query_generic(
+    # # sample_index.query_generic(
     #     attribute = "resource_hash",
     #     query = []
     # )
