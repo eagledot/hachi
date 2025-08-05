@@ -703,16 +703,26 @@ def getGroup(attribute:str):
     attribute_py_type = metaIndex.get_attribute_type(attribute) 
     assert attribute_py_type == "string" or attribute_py_type == "arrayString" , "For now.. TODO..."
     return_raw_json = False
-    raw_json =  mBackend.get_unique_str(
-            attribute
+    # TODO: extend this for every type quite easy, now we send row_indices back!!
+    matched_row_indices =  json.loads(
+        mBackend.get_unique_str(
+            attribute,
+            count_only = False
         )
+    )
+    # it collect corresponding rows for a given attribute!
+    # NOTE: it would be shifted to T routine, when pagination would be active!
+    raw_json = mBackend.collect_rows(
+        attribute = attribute,
+        indices = matched_row_indices,
+        flatten = True
+    )
     if return_raw_json:
-        return raw_json
+        return raw_json # TODO: wrap it into a proper response!
     else:
-        return json.loads(
-            raw_json
-        )
+        return flask.jsonify(json.loads(raw_json)) # TODO: do away with this cost!
 
+    
 def collect_attribute_meta(query_token:str, page_id:int):
     # Supposed to be called for `queryMeta`.
     # We collect corresponding meta-data/rows, which was conditioned in the corresponding `Q` routine!
