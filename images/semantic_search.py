@@ -277,12 +277,22 @@ pagination_cache = PaginationCache() # for each (new) query, certain pagination 
 @app.route("/collectQueryMeta/<token>/<page_id>")
 def collect_query_meta(token:str, page_id:int) -> Dict:   
     page_id = int(page_id)
-    callback, (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
+    # (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
+    (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
+    
+    if row_indices is None:
+        # For semantic query!!
+        # since all shards are queried for `resource_hashes`, and are sorted.
+        # we only collect the required meta-data conditoned on those hashes, on demand!
+        row_indices = metaIndex.query_generic(
+                    attribute = "resource_hash",
+                    query = resource_hashes # for this particular page!
+                )
 
     temp:MetaInfo = {}
     temp["data_hash"] = resource_hashes
     temp["score"] = scores    
-    temp["meta_data"] = callback(row_indices)
+    temp["meta_data"] = metaIndex.collect_meta_rows(row_indices)
     del scores, resource_hashes
     return flask.jsonify(temp)
 
@@ -367,30 +377,21 @@ def query_thread():
                 reverse = True
             )
 
-            # query/scan the whole meta-index. to getting matching/relevant row-indices, given top-keys!
-            # NOTE: For now, Q routine, must be able to estimate the number of total possible/max matches. (given a query).
-            s = time.time_ns()
-            final_row_indices = metaIndex.query_generic(
-                attribute = "resource_hash",
-                query = top_keys
-            )
-            benchmarking["metaIndex-querying"] = (time.time_ns() - s) / 1e6
-
-            # print("no of matched rows: {}".format(len(final_row_indices)))
-            assert len(final_row_indices) == len(top_keys), "Are top keys not de-duplicated, or we didn't return all the matching meta0da"
+            # NOTE: For now, Q routine(s) we can estimate max possible matches as `len(top_keys)`.
+            # NOTE: since `sorted resource hashes`, we collect only corresponding `meta-data` in `collect_query_meta` for a page, hence very very fast!
 
             # -------------------------------------
             # Generate Pagination info..
             # ------------------------------------
             s = time.time_ns()
             info:PaginationInfo = {}
-            n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+            n_pages = len(top_keys) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
             page_meta = []
             for i in range(n_pages):
                 # generate relevant meta-data for each page! TODO: check this logic!
                 page_meta.append(
                     (
-                        final_row_indices[i*page_size: (i+1)*page_size],
+                        None,        # we get corrsponding row_indices on demand for that page, based on top-keys
                         top_keys[i*page_size: (i+1)*page_size],
                         [float(max(image_hash2scores[k])) for k in top_keys[i*page_size: (i+1)*page_size]]  # why i am not sending `float` values in json??
                     )
@@ -406,14 +407,13 @@ def query_thread():
             query_token_counter += 1
 
             info["token"] = query_token
-            info["callback"] = metaIndex.collect_meta_rows
             info["page_meta"] = page_meta
             del page_meta
             pagination_cache.add(info)
             del info
 
             q_info:QueryInfo = {}
-            q_info["n_matches"] = len(final_row_indices)
+            q_info["n_matches"] = len(top_keys)
             q_info["n_pages"] = n_pages
             q_info["query_token"] = query_token
             temp_q.put(q_info) # read by the calling thread!
@@ -442,12 +442,14 @@ def query_thread():
                 # collect indices for each matching rows, for current attribute! 
                 assert isinstance(image_attributes[attribute], list), image_attributes[attribute]
                 # return corresponding unique row_indices
+
+                # TODO: speed up this, particulary for colArrayString types!
                 or_keys = metaIndex.query_generic(
                         attribute = attribute,
                         query = image_attributes[attribute],
                         unique_only = False   # Meaning any row index, matching one of values!
                     )
-                or_keys = set(or_keys)
+                or_keys = set(or_keys) # TODO: remove this!
 
                 # AND operation. (among independent attributes)!
                 if i == 0:        
@@ -535,7 +537,6 @@ def query_thread():
             benchmarking["pageinfo-generation"] = (time.time_ns() - s)
 
             info["token"] = query_token
-            info["callback"] = metaIndex.collect_meta_rows
             info["page_meta"] = page_meta
             del page_meta
             pagination_cache.add(info)
@@ -704,27 +705,36 @@ def getGroup(attribute:str):
     attribute_py_type = metaIndex.get_attribute_type(attribute) 
     assert attribute_py_type == "string" or attribute_py_type == "arrayString" , "For now.. TODO..."
     return_raw_json = False
-    raw_json =  mBackend.get_unique_str(
-            attribute
+    # TODO: extend this for every type quite easy, now we send row_indices back!!
+    matched_row_indices =  json.loads(
+        mBackend.get_unique_str(
+            attribute,
+            count_only = False
         )
+    )
+    # it collect corresponding rows for a given attribute!
+    # NOTE: it would be shifted to T routine, when pagination would be active!
+    raw_json = mBackend.collect_rows(
+        attribute = attribute,
+        indices = matched_row_indices,
+        flatten = True
+    )
     if return_raw_json:
-        return raw_json
+        return raw_json # TODO: wrap it into a proper response!
     else:
-        return json.loads(
-            raw_json
-        )
+        return flask.jsonify(json.loads(raw_json)) # TODO: do away with this cost!
 
+    
 def collect_attribute_meta(query_token:str, page_id:int):
     # Supposed to be called for `queryMeta`.
     # We collect corresponding meta-data/rows, which was conditioned in the corresponding `Q` routine!
 
     # page_data would just be (valid) row_indices for that page, to quickly collect corresponding meta-data! 
-    (callback, page_row_indices) = pagination_cache.get(
+    page_row_indices = pagination_cache.get(
         query_token,
         page_id
     )
-    # callback would be metaIndex.collect_meta_rows
-    meta_data = callback(page_row_indices)
+    meta_data = metaIndex.collect_meta_rows(page_row_indices)
 
     temp:MetaInfo = {}
     temp["data_hash"] = [row["resource_hash"] for row in meta_data]
@@ -771,7 +781,6 @@ def getMeta(attribute:str, value:Any):
     
     info:PaginationInfo = {}
     info["token"] = query_token
-    info["callback"] = metaIndex.collect_meta_rows
     info["page_meta"] = page_meta
     del page_meta
     pagination_cache.add(info)
