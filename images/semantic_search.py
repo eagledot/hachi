@@ -699,39 +699,83 @@ def editMetaData():
 def getGroup(attribute:str):
     # get the unique/all-possible values for an attribute!
     # NOTE: CLIENT SIDE pagination is pending ..
-    # NOTE: generally fewer values, as `folders`, `person` count is quite limited.
+    # NOTE: It is still quite fast, will get to it if starts to feel slow!
     # LATER in the end, pagination would be added for this too
         
     attribute_py_type = metaIndex.get_attribute_type(attribute) 
     assert attribute_py_type == "string" or attribute_py_type == "arrayString" , "For now.. TODO..."
-    return_raw_json = False
-    # TODO: extend this for every type quite easy, now we send row_indices back!!
-    matched_row_indices =  json.loads(
-        mBackend.get_unique_str(
-            attribute,
-            count_only = False
-        )
+    # TODO: extend this for every type when get some free time or required!
+    raw_json = mBackend.get_unique_str(
+        attribute, 
+        count_only = False
     )
-    # it collect corresponding rows for a given attribute!
-    # NOTE: it would be shifted to T routine, when pagination would be active!
-    raw_json = mBackend.collect_rows(
-        attribute = attribute,
-        indices = matched_row_indices,
-        flatten = True
-    )
-    if return_raw_json:
-        return raw_json # TODO: wrap it into a proper response!
-    else:
-        return flask.jsonify(json.loads(raw_json)) # TODO: do away with this cost!
+    return flask.Response(raw_json, mimetype = "application/json")
 
+# ---------------------------------------------------------
+# Pagination for getting Meta-data for an attribute...
+# Replacing `getMeta` with `queryAttribute` + `collectAttribute`
+# ----------------------------------------------------------
+@app.route("/queryAttribute/<attribute>/<value>/<page_size>", methods = ["GET"])
+def queryAttribute(attribute:str, value:Any, page_size:int) -> QueryInfo:
+    # Implements Paginatation Q/query part !
+    # queries/get all the relevant `row-indices`. for an attribute-value pair.
+    # generate page-data for each possible page, which can be collected on-demand!
     
-def collect_attribute_meta(query_token:str, page_id:int):
+    page_size = int(page_size)
+    global query_token_counter
+    
+    # NOTE: we use a single `forward` slash while saving `meta-data` for paths. Should work well on `linux`, TODO: test it.
+    if attribute == "resource_directory":
+        value = value.replace("|", "/")
+        assert os.path.exists(os.path.normpath(value))
+
+    # query and collect sequence!
+    # ---------------------------------------
+    # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
+    query_token = "notRandomEnoughToken_{}".format(query_token_counter)
+    query_token_counter += 1  # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
+
+    # TODO: speed it up for colArrayString atleast!
+    matching_row_indices = metaIndex.query_generic(
+        attribute = attribute,
+        query = [value],
+        unique_only = False,   # we need any row matching this value for this attribute here!
+        exact_string_match = True
+    )
+    
+    # generation pagination info
+    n_pages = len(matching_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+    page_meta = []
+    for i in range(n_pages):
+        # In this case, we would just need these row-indices to collect all the corresponding meta-data during collect.
+        page_meta.append(
+            matching_row_indices[i*page_size: (i+1)*page_size]
+        )
+    
+    info:PaginationInfo = {}
+    info["token"] = query_token
+    info["page_meta"] = page_meta
+    del page_meta
+    pagination_cache.add(info)
+    del info
+
+    # TO RETURN TO CLIENT ON PAGINATION
+    q_info:QueryInfo = {}
+    q_info["n_matches"] = len(matching_row_indices)
+    q_info["n_pages"] = n_pages
+    q_info["query_token"] = query_token
+
+    return flask.jsonify(q_info)
+
+@app.route("/collectAttributeMeta/<token>/<page_id>")
+def collectAttributeMeta(token:str, page_id:int) -> MetaInfo:
     # Supposed to be called for `queryMeta`.
     # We collect corresponding meta-data/rows, which was conditioned in the corresponding `Q` routine!
 
+    page_id = int(page_id)
     # page_data would just be (valid) row_indices for that page, to quickly collect corresponding meta-data! 
     page_row_indices = pagination_cache.get(
-        query_token,
+        token,
         page_id
     )
     meta_data = metaIndex.collect_meta_rows(page_row_indices)
@@ -741,7 +785,7 @@ def collect_attribute_meta(query_token:str, page_id:int):
     temp["score"] = [1 for i in range(len(meta_data))]
     temp["meta_data"] = meta_data
     return temp
-
+# ------------------------------------------------------------
 
 @app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
 def getMeta(attribute:str, value:Any):
@@ -793,7 +837,7 @@ def getMeta(attribute:str, value:Any):
     # q_info["query_token"] = query_token
 
     # collect here too.. until client side pagination is added!
-    result = collect_attribute_meta(
+    result = collectAttributeMeta(
         query_token, 
         page_id = 0
     )
