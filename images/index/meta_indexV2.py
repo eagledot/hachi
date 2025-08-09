@@ -373,7 +373,7 @@ class MetaIndex(object):
             )
             assert len(row_indices) == 1, "expected only 1 row as resource_hash acts like a primary key!"
 
-            mBackend.modify(
+            mBackend.modify_row(
                 row_idx = row_indices[0], 
                 meta_data = json.dumps(meta_data), 
             )
@@ -388,7 +388,7 @@ class MetaIndex(object):
                     user_meta[k.replace("ML","")] = meta_data[k]
 
             if len(user_meta) > 0:
-                mBackend.modify(
+                mBackend.modify_row(
                     row_idx = row_indices[0], 
                     meta_data = json.dumps(user_meta), 
                     )
@@ -417,10 +417,9 @@ class MetaIndex(object):
                 query = [resource_hash]
             )
             assert len(row_indices) == 1, "expected only 1 row as resource_hash acts like a primary key!"
-            mBackend.modify(
+            mBackend.modify_row(
                 row_index = row_indices[0], 
-                meta_datat = 
-                json.dumps(meta_data)
+                meta_data = json.dumps(meta_data)
                 )
 
     def remove_pagination_token(
