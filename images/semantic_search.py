@@ -644,7 +644,7 @@ def tagPerson():
     TODO: do a `replace` routine in backend, to speed such operations!
     
     """
-    new_person_id = flask.request.form["new_person_id"].strip()
+    new_person_id = flask.request.form["new_person_id"].strip().lower()
     old_person_id = flask.request.form["old_person_id"].strip()
 
     if "cluster" in new_person_id: 
@@ -751,14 +751,18 @@ def getGroup(attribute:str):
 # Its convenient, as sometimes, user may not know one attribute, but using another known attribute. and then filtering can quickly get the desired result.
 # Search-engine is supposed to assist in search with whatever information use may have.
 # -------------------------
-def filterQueryMeta(query_token:str, attribute:str, value:Any):
+@app.route("/filterQueryMeta/<query_token>/<attribute>/<value>", methods = ["GET"])
+def filterQueryMeta(query_token:str, attribute:str, value:Any) -> list[Dict]:
     # NOTE: filter-state must only be valid on client-side until user doesn't do a new `SEARCH`. (after that client must assume it is invalid to call the filter api with older token!)
+
+    # Returns a list of filtered Dict/meta-data. Each element would be a dict representing meta-data!
+    # No scores or resource_hashes key. (Client can extract `resource_hash` as needed!)
 
     attribute_type = metaIndex.get_attribute_type(attribute)
     assert attribute_type == "string" or attribute_type == "arrayString", "For now !"   
     final_row_indices = [] # collect all possible!
-
-    n_pages = 2
+    
+    n_pages = pagination_cache.get_pages_count(query_token)
     for page_id in range(n_pages):
         (row_indices, resource_hashes, scores) = pagination_cache.get(query_token, page_id)
         assert not (resource_hashes is None)
