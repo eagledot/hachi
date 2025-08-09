@@ -256,12 +256,22 @@ def getIndexStatus() -> IndexingInfo:
 
 @app.route("/getSuggestion", methods = ["POST"])
 def getSuggestion() -> Dict[str, List[str]]:
+    # TODO: run suggest all over.. (client shouldn't call this route for each attribute..)
+    allowed_attributes = [
+        "person",
+        "filename",
+        "resource_directory",
+        "place"
+    ]
 
     query = flask.request.form.get("query")
-    result = {}
     attribute = flask.request.form.get("attribute")
-    result[attribute] = metaIndex.suggest(attribute, query)
     
+    result = {}
+    if len(query) >= 3: # to much wasted cpus cycles otherwise. without enough info!
+        result[attribute] = metaIndex.suggest(attribute, query)
+    else:
+        result[attribute] = []
     return flask.jsonify(result)
 
 ##########################################
@@ -641,36 +651,59 @@ def tagPerson():
         return flask.jsonify({"success":False, "reason":"`cluster` is reserved, choose a different tag"})
     
     # we make sure new tag/cluster is not already present, so there is never some ambiguity.
-    if new_person_id in metaIndex.get_unique(attribute = "personML"):
-        return flask.jsonify({"success":False, "reason":"{} already present, choose a different tag".format(new_person_id)})
+    persons =  mBackend.get_unique_str(
+        attribute = "person",       # `person` initially/just-indexed is a copy of `personML``, but all user-changes are done for `person` only!
+        count_only = False
+    )
+
+    # NOTE: assuming `persons` array would have a limited size, even for around a million photos. so following operations are fast enough.
+    # Also this route would relatively be very-rare!
+    assert old_person_id in persons, "Expected {} to be in persons !!".format(old_person_id)
+    if new_person_id in persons:
+        return flask.jsonify(
+            {"success":False, 
+             "reason":"{} already present, choose a different tag".format(new_person_id)}
+        )
     
-    # TODO: update it?
-    hash_2_metaData = metaIndex.query(attribute = "person", attribute_value = [old_person_id])
-    for hash, meta_data in hash_2_metaData.items():
-        old_array = meta_data["person"]  # an array of strings is expected!
+    # We need to replace each of the `occurence` of `older person id` with `new person id`.
+    row_indices = metaIndex.query_generic(
+        attribute = "person",
+        query = [old_person_id],
+        unique_only = False      # match any row containing old_person_id!
+    )
+
+    # collect corresponding persons-arr!
+    persons_arr = json.loads(mBackend.collect_rows(
+        attribute = "person",
+        indices = row_indices,
+        ))
+    assert len(row_indices) == len(persons_arr)
+    for (row_idx, old_person_arr) in zip(row_indices,persons_arr):
+        
+        # find the `old_person_id` and replace it with `new_person_id`. 
         count = 0
         idx = None
-        for i,d in enumerate(old_array):
+        for i,d in enumerate(old_person_arr):
             if old_person_id == d:
                 count += 1
                 idx =  i # count must be 1, then only one (desired) idx would be returned, 
         assert count == 1, "{} Must have been found in: {}".format(old_person_id, old_array)
-        old_array[idx] = new_person_id
+        old_person_arr[idx] = new_person_id  # modifying while iterating, ok, since one read only! and then discarding it!
 
-        # modify it, for each `resource` indicating presence of that `person`
-        metaIndex.modify_meta_user(
-            resource_hash = hash, 
-            meta_data = {"person":old_array},
-            force = True        # as we would be overwriting it!
-            )
+        mBackend.modify(
+            row_idx = row_idx, 
+            meta_data = json.dumps({"person":old_person_arr})
+        )
+        del old_person_arr
     
+    # Modifying the session-cache to reflect this update! Code is correct, may look a bit messy!
     with global_lock:
         if old_person_id in Cluster_alias:
             assert "cluster" in Cluster_alias[old_person_id], Cluster_alias[old_person_id]
             Cluster_alias[new_person_id] = Cluster_alias[old_person_id]
         
-            # any new key is added in `getPreviewCluster`
-            _ = Cluster_alias.pop(old_person_id) # like if was `shelly` --> cluster_xx, replaced `shelly` -> `rafa`, so we `pop` `shelly`
+            # New keys are added in `getPreviewCluster` routine. Here we just replace 
+            _ = Cluster_alias.pop(old_person_id) # like if was `shelly` --> cluster_123, replaced `shelly` -> `rafa`, so we `pop` `shelly`, now `rafa` --> `cluster_123`
 
     result = {"success":True, "reason":""}
     metaIndex.save() # write to disk too..
@@ -851,13 +884,14 @@ def getMetaStats():
     result = metaIndex.get_stats()
     return flask.jsonify(result)
 
-def get_original_cluster_id(cluster_id):
+def get_original_cluster_id(person_id):
     """
-    Given some cluster_id or user provided person_id, we get the corresponding `original_cluster_id`.
+    Given user provided person_id, we get the corresponding `original_cluster_id`.
     Should be fast enough for most cases, using a cache/dict to speed-up subsequent requests! 
     """
-    if ("cluster" in cluster_id.lower()):
-       return cluster_id
+    if ("cluster" in person_id.lower()):
+       # cluster is reserved for ML original clusters, so `person_id` is returned as it is.
+       return person_id
 
     assert metaIndex.backend_is_initialized == True
 
@@ -865,33 +899,39 @@ def get_original_cluster_id(cluster_id):
     # Or can i model such cases more efficiently in the future?
     row_indices = metaIndex.query_generic(
         attribute = "person",
-        query = [cluster_id],
+        query = [person_id],
         unique_only = True,
         exact_string_match = True
     )
-    print("For attribute: {} Got unique matches: {}".format('person', cluster_id))
-    assert len(row_indices) >= 1, "Must had a match!!"
-    meta_array = metaIndex.collect_meta_rows(row_indices = row_indices[:1])[0] # only 1 is enough!
+    
+    # user provided data.
+    person_user_arr = json.loads(
+        mBackend.collect_rows(
+            attribute = "person",
+            indices = row_indices
+        )
+    )
+    # Ml generated cluster-ids.
+    person_ml_arr = json.loads(
+        mBackend.collect_rows(
+            attribute = "personML",
+            indices = row_indices
+        )
+    )
+    # find the corresponding index. and return ML data. (as preview clusters are indexed based on original cluster id)
+    assert len(person_ml_arr) == len(person_user_arr)
 
-    # query and collect sequence . (since this shouldn't be costly!)
-    # (query_token, n_pages) = metaIndex.query(
-    #     attribute = "person",
-    #     query = [cluster_id],
-    # )
-    # assert n_pages > 0
-    # meta_array = metaIndex.collect(query_token, page_id = 0)[0] # any row would work, since we are looking for a cluster_id, which mapped to the `person cluster id` asked for!
-    # metaIndex.remove_pagination_token(query_token) # yes, we are done with query_token, better to remove this entry from cache too!
-
-    idx = None
-    person_user_arr = meta_array["person"]
-    person_ml_arr = meta_array["personML"]
-    assert len(person_ml_arr) == len(person_user_arr), "Expected to be same, only content may differ"
-    for i in range(len(person_user_arr)):
-        if person_user_arr[i] == cluster_id:
-            idx = i 
-            break
-    assert not(idx is None)
-    return person_ml_arr[idx]
+    idx_i = None
+    idx_j = None
+    for i,arr in enumerate(person_user_arr):
+        for j,x in enumerate(arr):
+            if x == person_id:
+                idx_i = i
+                idx_j = j
+                # break on any first match.. as we just needed the `original cluster id`!
+                break
+    assert not(idx_i is None) and (not idx_j is None)
+    return person_ml_arr[idx_i][idx_j]
       
 @app.route("/getPreviewPerson/<person_id>", methods = ["GET"])
 def getPreviewCluster(person_id):
@@ -903,12 +943,19 @@ def getPreviewCluster(person_id):
         return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
     else:
         # Do the dance of getting original `corresponding` cluster_id, so that we can retrive the `face preview`
-        with global_lock:            
-            if Cluster_alias.get(person_id, False):
-                original_cluster_id = Cluster_alias[person_id]
-            else:
+        with global_lock:
+            if not(person_id in Cluster_alias):
                 original_cluster_id = get_original_cluster_id(person_id)
-                Cluster_alias[person_id] = original_cluster_id
+                Cluster_alias[person_id] = original_cluster_id # for faster subsequent access!
+            else:
+                original_cluster_id = Cluster_alias[person_id]
+
+
+            # if Cluster_alias.get(person_id, False):
+            #     original_cluster_id = Cluster_alias[person_id]
+            # else:
+            #     original_cluster_id = get_original_cluster_id(person_id)
+            #     Cluster_alias[person_id] = original_cluster_id
 
         c = faceIndex.get(original_cluster_id)
         png_data = c.preview_data
