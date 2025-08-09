@@ -744,6 +744,62 @@ def getGroup(attribute:str):
     )
     return flask.Response(raw_json, mimetype = "application/json")
 
+# --------------------------------
+# Filtering (conditioned on query token/pagination)
+# Given the query-token (and return results for that), we can support filtering .
+# NOTE: works for all pages (not a single page..) 
+# Its convenient, as sometimes, user may not know one attribute, but using another known attribute. and then filtering can quickly get the desired result.
+# Search-engine is supposed to assist in search with whatever information use may have.
+# -------------------------
+def filterQueryMeta(query_token:str, attribute:str, value:Any):
+    # NOTE: filter-state must only be valid on client-side until user doesn't do a new `SEARCH`. (after that client must assume it is invalid to call the filter api with older token!)
+
+    attribute_type = metaIndex.get_attribute_type(attribute)
+    assert attribute_type == "string" or attribute_type == "arrayString", "For now !"   
+    final_row_indices = [] # collect all possible!
+
+    n_pages = 2
+    for page_id in range(n_pages):
+        (row_indices, resource_hashes, scores) = pagination_cache.get(query_token, page_id)
+        assert not (resource_hashes is None)
+        if row_indices is None:
+            #  meaning semantic-query , without any meta-attributes was done!
+            # so collect row indices first!
+            row_indices = metaIndex.query_generic(
+                    attribute = "resource_hash",
+                    query = resource_hashes # for this particular page!
+                )
+            final_row_indices.extend(row_indices)
+        else:
+            final_row_indices.extend(row_indices)
+        del row_indices, resource_hashes
+
+    # collect all rows/elements for that attribute!    
+    results = json.loads(
+        mBackend.collect_rows(
+        attribute,
+        final_row_indices
+    ))
+    assert len(results) == len(final_row_indices)
+
+    # Do filtering!
+    filtered_row_indices = []
+    if attribute_type == "arrayString":
+        for ix,arr in enumerate(results):
+            if value in arr:
+                row_idx = final_row_indices[ix]
+                filtered_row_indices.append(row_idx)
+    else:
+        for ix, x in enumerate(results):
+            if value == x:
+                row_idx = final_row_indices[ix]
+                filtered_row_indices.append(row_idx)
+
+    # Now we have filtered row indices, collect all meta-rows.
+    # NOTE: no pagination for now.. for filtered row_indices.. JUST 1000 for now!
+    return metaIndex.collect_meta_rows(filtered_row_indices[:1000])
+
+
 # ---------------------------------------------------------
 # Pagination for getting Meta-data for an attribute...
 # Replacing `getMeta` with `queryAttribute` + `collectAttribute`
