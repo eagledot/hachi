@@ -161,6 +161,7 @@ class IndexBeginAttribute(TypedDict):
     identifier:str  # C:, D: or google_photos, google_drive etc!
     uri:list[str]   # could be empty too!
     complete_rescan:bool
+    simulate_indexing:bool     # to simulate some parts like image-embedding generation to speed up indexing !
 
 @app.route("/indexStart", methods = ["POST"])        
 def indexStart(batch_size = 1) -> ReturnInfo:
@@ -193,7 +194,8 @@ def indexStart(batch_size = 1) -> ReturnInfo:
                 meta_index = metaIndex,
                 face_index = faceIndex,
                 semantic_index = imageIndex,
-                complete_rescan = post_attributes["complete_rescan"]
+                complete_rescan = post_attributes["complete_rescan"],
+                simulate = post_attributes["simulate_indexing"]
             )        
             
             # start the indexing, it return after starting a background-thread!
@@ -208,7 +210,8 @@ def indexStart(batch_size = 1) -> ReturnInfo:
                 meta_index = metaIndex,
                 face_index = faceIndex,
                 semantic_index = imageIndex,
-                complete_rescan = post_attributes["complete_rescan"]
+                complete_rescan = post_attributes["complete_rescan"],
+                simulate = post_attributes["simulate_indexing"]
                 )
                 return flask.jsonify(index_obj.begin())           
             else:

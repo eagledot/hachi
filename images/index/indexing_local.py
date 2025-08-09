@@ -37,9 +37,10 @@ print("[Debug]: Loading Model, may take a few seconds.")
 clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
 clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
-def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
+def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False, simulate = False) -> Optional[np.ndarray]:
     # for simulating, (TODO: better simulation setup, if get time) 
-    # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
+    if simulate:
+        return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
     if isinstance(image,str):
         assert os.path.exists(image)
@@ -291,7 +292,8 @@ class IndexingLocal(object):
                  batch_size:int = 36,
                  include_subdirectories:bool = True,
                  generate_preview_data:bool  = True ,
-                 complete_rescan:bool = False
+                 complete_rescan:bool = False,
+                 simulate:bool = False   # For now it just speed-up image-embedding generation, by generating random embeddings!
     
     ) -> None:
         
@@ -306,6 +308,7 @@ class IndexingLocal(object):
         self.include_subdirectories = include_subdirectories
         self.generate_preview_data = generate_preview_data
         self.complete_rescan = complete_rescan
+        self.simulate_indexing = simulate
 
         self.lock = threading.RLock()
         self.indexing_status = IndexingStatus.INACTIVE # default
@@ -405,7 +408,12 @@ class IndexingLocal(object):
 
             # generate image embeddings
             self.profile_info.add("misc")
-            image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
+            image_embedding = generate_image_embedding(
+                image = frame, 
+                is_bgr = is_bgr, 
+                center_crop=False,
+                simulate = self.simulate_indexing
+                )
             self.profile_info.add("image-embedding")
             if image_embedding is None: # TODO: it cannot be None, if image-data seemed valid!
                 print("Invalid data for {}".format(resource_path))
