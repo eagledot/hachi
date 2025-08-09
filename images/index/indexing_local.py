@@ -37,22 +37,12 @@ print("[Debug]: Loading Model, may take a few seconds.")
 clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
 clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
-def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False, simulate = False) -> Optional[np.ndarray]:
+def generate_image_embedding(image:np.ndarray, is_bgr:bool = True, center_crop = False, simulate = False) -> np.ndarray:
     # for simulating, (TODO: better simulation setup, if get time) 
     if simulate:
         return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
-    if isinstance(image,str):
-        assert os.path.exists(image)
-        image_data = cv2.imread(image)
-        is_bgr = True # "If using opencv, is_bgr would be true."
-    else:
-        image_data = image
-    
-    if image_data is None:
-        return None
-
-    image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
+    image_features = clip.encode_image(image, is_bgr = is_bgr, center_crop = center_crop)
     assert image_features.size == IMAGE_EMBEDDING_SIZE
     return image_features
 
