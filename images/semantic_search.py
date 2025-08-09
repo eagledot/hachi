@@ -754,7 +754,8 @@ def getGroup(attribute:str):
 @app.route("/filterQueryMeta/<query_token>/<attribute>/<value>", methods = ["GET"])
 def filterQueryMeta(query_token:str, attribute:str, value:Any) -> list[Dict]:
     # NOTE: filter-state must only be valid on client-side until user doesn't do a new `SEARCH`. (after that client must assume it is invalid to call the filter api with older token!)
-
+    # TODO: add date filtering support!
+    
     # Returns a list of filtered Dict/meta-data. Each element would be a dict representing meta-data!
     # No scores or resource_hashes key. (Client can extract `resource_hash` as needed!)
 
