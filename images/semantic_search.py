@@ -751,11 +751,41 @@ def getGroup(attribute:str):
 # Its convenient, as sometimes, user may not know one attribute, but using another known attribute. and then filtering can quickly get the desired result.
 # Search-engine is supposed to assist in search with whatever information use may have.
 # -------------------------
+@app.route("/filterPopulateQuery/<query_token>/<attribute>", methods = ["GET"])
+def filterPopulateQuery(query_token:str,  attribute:str) -> list[str]:
+    # first may need to populate a filter with possible values to choose a value to filter !
+    attribute_type = metaIndex.get_attribute_type(attribute)
+    assert attribute_type == "string" or attribute_type == "arrayString", "For now !"   
+    
+    final_row_indices = []
+    n_pages = pagination_cache.get_pages_count(query_token)
+    for page_id in range(n_pages):
+        (row_indices, resource_hashes, scores) = pagination_cache.get(query_token, page_id)
+        assert not (resource_hashes is None)
+        if row_indices is None:
+            #  meaning semantic-query , without any meta-attributes was done!
+            # so collect row indices first!
+            row_indices = metaIndex.query_generic(
+                    attribute = "resource_hash",
+                    query = resource_hashes # for this particular page!
+                )
+            final_row_indices.extend(row_indices)
+        else:
+            final_row_indices.extend(row_indices)
+        del row_indices, resource_hashes
+
+    raw_json = mBackend.get_unique_str(
+                attribute,
+                count_only = False,        
+                row_indices = final_row_indices
+        )
+    return flask.Response(raw_json, mimetype="application/json")
+
 @app.route("/filterQueryMeta/<query_token>/<attribute>/<value>", methods = ["GET"])
 def filterQueryMeta(query_token:str, attribute:str, value:Any) -> list[Dict]:
     # NOTE: filter-state must only be valid on client-side until user doesn't do a new `SEARCH`. (after that client must assume it is invalid to call the filter api with older token!)
     # TODO: add date filtering support!
-    
+
     # Returns a list of filtered Dict/meta-data. Each element would be a dict representing meta-data!
     # No scores or resource_hashes key. (Client can extract `resource_hash` as needed!)
 
