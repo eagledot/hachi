@@ -90,7 +90,8 @@ class PersonPhotosApp {
     const backBtn = document.getElementById('back-btn');
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        window.location.href = '/people.html';
+        // window.location.href = '/people.html';
+        window.history.back();
       });
     }
 

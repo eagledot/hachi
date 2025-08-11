@@ -1,10 +1,7 @@
-
 import "./style.css";
 import { Layout } from "./components/layout";
-import Config, { endpoints } from "./config";
+import { endpoints } from "./config";
 import { html } from "./utils";
-
-const API_URL = Config.apiUrl;
 
 // Initialize the layout for the people page
 new Layout({
@@ -47,6 +44,10 @@ class PeopleApp {
 
   // --- Initialization ---
 
+  /**
+   * Waits for the DOM to be fully loaded before executing the callback.
+   * Ensures that DOM elements are available for manipulation.
+   */
   private waitForDOMReady(callback: () => void) {
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", callback);
@@ -55,94 +56,188 @@ class PeopleApp {
     }
   }
 
+  /**
+   * Initializes the app after the DOM is ready.
+   * Caches DOM elements, sets up event listeners, and starts the main logic.
+   */
   private initializeApp() {
     this.cacheDOMElements();
     this.setupPaginationEventListeners();
     this.init();
   }
 
+  /**
+   * Caches frequently accessed DOM elements for performance and convenience.
+   * Reduces repeated DOM queries throughout the class.
+   */
   private cacheDOMElements() {
     this.paginationInfoElement = document.getElementById("pagination-info");
     this.pageInfoElement = document.getElementById("page-info");
-    this.nextBtnElement = document.getElementById("next-page-btn") as HTMLButtonElement;
-    this.prevBtnElement = document.getElementById("prev-page-btn") as HTMLButtonElement;
-    this.paginationContainerElement = document.getElementById("pagination-container");
+    this.nextBtnElement = document.getElementById(
+      "next-page-btn"
+    ) as HTMLButtonElement;
+    this.prevBtnElement = document.getElementById(
+      "prev-page-btn"
+    ) as HTMLButtonElement;
+    this.paginationContainerElement = document.getElementById(
+      "pagination-container"
+    );
   }
-
+  /**
+   * Main initialization logic for the people page.
+   * Reads the current page from the URL (if present) and loads people data.
+   * This method is called after DOM is ready and all elements are cached.
+   */
   private init() {
-    console.log("People page initialized");
-    this.loadPeople();
+    // Parse the current URL to extract query parameters
+    const urlParams = new URLSearchParams(window.location.search); // Get URL parameters
+
+    // Attempt to read the "page" parameter from the URL (for pagination)
+    const pageParam = urlParams.get("page"); // Get the page parameter
+
+    // If the page parameter exists and is a valid number, set the current page accordingly
+    if (pageParam && !isNaN(Number(pageParam))) {
+      // Check if pageParam is a valid number
+      // Convert to zero-based index (UI is 1-based, internal is 0-based)
+      this.currentPage = Math.max(0, Number(pageParam) - 1); // Set currentPage based on pageParam
+    }
+
+    // Begin loading people data from the API
+    this.loadPeople(); // Load people data
   }
 
-  // --- Data Fetching & Filtering ---
-
+  /**
+   * Loads the list of people from the API.
+   * Handles loading state, error handling, and initializes people data.
+   */
   private async loadPeople() {
-    this.showLoading(true);
+    this.showLoading(true); // Show loading indicator while fetching data
     try {
       console.log("Fetching people...");
+      // Fetch people data from the API endpoint
       const response = await fetch(endpoints.GET_PEOPLE);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`); // Handle HTTP errors
+
+      // Parse the JSON response (expected to be an array of person IDs)
       const data: string[] = await response.json();
+
+      // Map the array of IDs to Person objects
       this.people = data.map((id) => ({ id }));
+
+      // Initialize filteredPeople with all people (no filtering yet)
       this.filteredPeople = [...this.people];
+
+      // Apply filtering and update UI
       this.filterPeople();
     } catch (error) {
+      // Log error and show user-friendly error message
       console.error("Error loading people:", error);
       this.showError("Failed to load people. Please try again.");
     } finally {
+      // Hide loading indicator regardless of success or failure
       this.showLoading(false);
     }
   }
 
+  /**
+   * Filters the people list (currently no filtering logic, just copies all people).
+   * Updates pagination, URL, renders people, and restores scroll position.
+   * This method can be extended to support search/filtering in the future.
+   */
   private filterPeople() {
-    this.currentPage = 0;
+    // Update pagination state based on the filtered people list
     this.updatePagination();
+
+    // Update the page parameter in the URL to reflect the current page
+    this.updatePageInUrl();
+
+    // Render the people grid for the current page
     this.renderPeople();
+
+    // Restore scroll position if previously saved (e.g., after navigation)
+    this.restoreScrollPosition();
   }
 
-  // --- Pagination ---
-
+  /**
+   * Sets up event listeners for pagination buttons (previous/next).
+   * Handles page navigation and updates the UI accordingly.
+   */
   private setupPaginationEventListeners() {
+    // Previous page button
     if (this.prevBtnElement) {
       this.prevBtnElement.addEventListener("click", async (e) => {
-        e.preventDefault();
-        this.currentPage -= 1;
-        await this.updatePaginationAndRender();
+        e.preventDefault(); // Prevent default button behavior
+        this.currentPage -= 1; // Go to previous page
+        this.updatePageInUrl(); // Update the page parameter in the URL
+        await this.updatePaginationAndRender(); // Re-render people and update pagination UI
       });
     }
+    // Next page button
     if (this.nextBtnElement) {
       this.nextBtnElement.addEventListener("click", async (e) => {
-        e.preventDefault();
-        this.currentPage += 1;
-        await this.updatePaginationAndRender();
+        e.preventDefault(); // Prevent default button behavior
+        this.currentPage += 1; // Go to next page
+        this.updatePageInUrl(); // Update the page parameter in the URL
+        await this.updatePaginationAndRender(); // Re-render people and update pagination UI
       });
     }
   }
 
+  /**
+   * Updates pagination state variables based on the current filtered people list.
+   * Ensures currentPage is within valid bounds after filtering or data changes.
+   */
   private updatePagination() {
+    // Set the number of results per page (currently same as itemsPerPage, but allows for future flexibility)
     this.resultsPerPage = this.itemsPerPage;
+
+    // Update the total number of results after filtering
     this.totalResults = this.filteredPeople.length;
+
+    // Calculate the total number of pages needed
     this.totalPages = Math.ceil(this.totalResults / this.resultsPerPage);
+
+    // Ensure currentPage is within valid bounds (e.g., after filtering reduces total pages)
     if (this.currentPage >= this.totalPages) {
       this.currentPage = Math.max(0, this.totalPages - 1);
     }
   }
 
+  /**
+   * Updates the pagination UI elements (info text, buttons, visibility).
+   */
   private updatePaginationUI() {
+    // Update the "Showing X-Y of Z" info
     if (this.paginationInfoElement) {
       const startIndex = this.currentPage * this.resultsPerPage;
-      const endIndex = Math.min((this.currentPage + 1) * this.resultsPerPage, this.totalResults);
-      this.paginationInfoElement.textContent = `Showing ${startIndex + 1}-${endIndex} of ${this.totalResults} photos`;
+      const endIndex = Math.min(
+        (this.currentPage + 1) * this.resultsPerPage,
+        this.totalResults
+      );
+      this.paginationInfoElement.textContent = `Showing ${
+        startIndex + 1
+      }-${endIndex} of ${this.totalResults} photos`;
     }
+
+    // Enable/disable previous button
     if (this.prevBtnElement) {
       this.prevBtnElement.disabled = this.currentPage <= 0;
     }
+
+    // Enable/disable next button
     if (this.nextBtnElement) {
       this.nextBtnElement.disabled = this.currentPage >= this.totalPages - 1;
     }
+
+    // Update the "Page X of Y" info
     if (this.pageInfoElement) {
-      this.pageInfoElement.textContent = `Page ${this.currentPage + 1} of ${this.totalPages}`;
+      this.pageInfoElement.textContent = `Page ${this.currentPage + 1} of ${
+        this.totalPages
+      }`;
     }
+
+    // Show/hide pagination controls based on total pages
     if (this.paginationContainerElement) {
       if (this.totalPages && this.totalPages > 1) {
         this.paginationContainerElement.classList.remove("hidden");
@@ -152,34 +247,55 @@ class PeopleApp {
     }
   }
 
+  /**
+   * Updates the pagination state and re-renders the people grid.
+   * Scrolls to the top of the page and resets the saved scroll position.
+   * This is called after changing pages via pagination controls.
+   */
   private async updatePaginationAndRender() {
-    this.renderPeople();
-    window.scrollTo({ top: 0 });
+    this.renderPeople(); // Re-render the people grid for the new page
+    window.scrollTo({ top: 0 }); // Scroll to the top of the page
+    this.saveScrollPosition(0); // Reset the saved scroll position
   }
 
   // --- Rendering ---
 
+  /**
+   * Renders the people grid for the current page.
+   * Handles empty state, pagination, and updates the UI accordingly.
+   */
   private renderPeople() {
+    console.log("Rendering people...");
     const grid = document.getElementById("people-grid");
     const noPeopleMsg = document.getElementById("no-people");
     if (!grid || !noPeopleMsg) return;
 
+    // Show "no people" message if there are no people to display
     if (this.filteredPeople.length === 0) {
       grid.innerHTML = "";
       noPeopleMsg.classList.remove("hidden");
       this.updatePaginationUI();
       return;
     }
+    // Hide "no people" message if there are people to show
     noPeopleMsg.classList.add("hidden");
 
+    // Calculate the range of people to display for the current page
     const startIdx = this.currentPage * this.itemsPerPage;
-    const endIdx = Math.min(startIdx + this.itemsPerPage, this.filteredPeople.length);
+    const endIdx = Math.min(
+      startIdx + this.itemsPerPage,
+      this.filteredPeople.length
+    );
     const peopleToShow = this.filteredPeople.slice(startIdx, endIdx);
 
+    // Render person cards and update the grid's HTML
     grid.innerHTML = peopleToShow
       .map((person) => this.renderPersonCard(person))
       .join("");
+
+    // Update pagination UI and URL to reflect the current state
     this.updatePaginationUI();
+    this.updatePageInUrl();
   }
 
   private renderPersonCard(person: Person): string {
@@ -206,14 +322,20 @@ class PeopleApp {
             </svg>
             <span class="hidden sm:inline">${person.id}</span>
             <span class="sm:hidden">${
-              person.id.length > 8 ? person.id.substring(0, 8) + "..." : person.id
+              person.id.length > 8
+                ? person.id.substring(0, 8) + "..."
+                : person.id
             }</span>
           `
               : ""}
           </span>
         </div>
-        <div class="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
-          <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 opacity-20"></div>
+        <div
+          class="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden"
+        >
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 opacity-20"
+          ></div>
           <img
             src="${avatarUrl}"
             alt="${displayName}"
@@ -221,30 +343,61 @@ class PeopleApp {
             onerror="this.src='./assets/sample_place_bg.jpg'; this.classList.add('opacity-75')"
             loading="lazy"
           />
-          <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+          <div
+            class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          ></div>
+          <div
+            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center"
+          >
             <div class="flex space-x-1 sm:space-x-2">
               <button
                 class="p-1 sm:p-1.5 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-md"
                 onclick="event.stopPropagation(); window.peopleApp.viewPersonDetails('${person.id}')"
               >
-                <svg class="w-3 h-3 sm:w-4 sm:h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                <svg
+                  class="w-3 h-3 sm:w-4 sm:h-4 text-gray-700"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  ></path>
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                  ></path>
                 </svg>
               </button>
               <button
                 class="p-1 sm:p-1.5 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-md"
                 onclick="event.stopPropagation(); window.peopleApp.editPersonName('${person.id}')"
               >
-                <svg class="w-3 h-3 sm:w-4 sm:h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                <svg
+                  class="w-3 h-3 sm:w-4 sm:h-4 text-gray-700"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  ></path>
                 </svg>
               </button>
             </div>
           </div>
         </div>
-        <div class="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"></div>
+        <div
+          class="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"
+        ></div>
       </div>
     `;
   }
@@ -252,19 +405,62 @@ class PeopleApp {
   // --- User Actions ---
 
   public handlePersonClick(personId: string) {
-    window.location.href = `/person-photos.html?id=${encodeURIComponent(personId)}`;
+    this.saveScrollPosition(window.scrollY);
+    // Pass current page in URL for back navigation
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set("page", (this.currentPage + 1).toString());
+    window.location.href = `/person-photos.html?id=${encodeURIComponent(
+      personId
+    )}`;
+  }
+
+  // --- Pagination State in URL ---
+  private updatePageInUrl() {
+    const url = new URL(window.location.href); // Create a new URL object
+    url.searchParams.set("page", (this.currentPage + 1).toString()); // Update the page parameter
+    window.history.pushState({}, "", url.toString()); // Update the browser's URL without reloading
+  }
+
+  // --- Scroll Position Persistence ---
+  private saveScrollPosition(pos: number) {
+    try {
+      // Should I use sessionStorage or localStorage?
+      sessionStorage.setItem("peoplePageScroll", String(pos));
+    } catch {
+      console.error("Failed to save scroll position:", pos);
+    }
+  }
+
+  // --- Scroll Position Restoration ---
+  private restoreScrollPosition() {
+    try {
+      const pos = sessionStorage.getItem("peoplePageScroll");
+      if (pos) {
+        // Ensure scroll position is restored after the DOM is fully rendered and painted to the screen
+        // For now, I am using timeout. Other approaches could be considered later such as using requestAnimationFrame if the current approach proves insufficient
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(pos, 10));
+          sessionStorage.removeItem("peoplePageScroll");
+        }, 0);
+      }
+    } catch {
+      console.error("Failed to restore scroll position");
+    }
   }
 
   public viewPersonDetails(personId: string) {
-    window.location.href = `/person-photos.html?id=${encodeURIComponent(personId)}`;
+    window.location.href = `/person-photos.html?id=${encodeURIComponent(
+      personId
+    )}`;
   }
 
   public editPersonName(personId: string) {
     const person = this.people.find((p) => p.id === personId);
     const currentName = person?.name || personId;
-    const promptText = window.innerWidth < 640
-      ? `Edit name for person:\n\nCurrent: ${currentName}\n\nEnter new name:`
-      : `Edit name for person:`;
+    const promptText =
+      window.innerWidth < 640
+        ? `Edit name for person:\n\nCurrent: ${currentName}\n\nEnter new name:`
+        : `Edit name for person:`;
     const newName = prompt(promptText, currentName);
     if (newName && newName.trim() && newName.trim() !== currentName) {
       this.renamePersonGlobally(personId, newName.trim())
@@ -285,24 +481,34 @@ class PeopleApp {
     }
   }
 
-  private async renamePersonGlobally(oldPersonId: string, newPersonId: string): Promise<boolean> {
+  private async renamePersonGlobally(
+    oldPersonId: string,
+    newPersonId: string
+  ): Promise<boolean> {
     const formData = new FormData();
     formData.append("old_person_id", oldPersonId);
     formData.append("new_person_id", newPersonId);
     try {
-      const response = await fetch(`${API_URL}/tagPerson`, {
+      const response = await fetch(endpoints.TAG_PERSON, {
         method: "POST",
         body: formData,
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ reason: "Network error or invalid JSON response" }));
-        throw new Error(errorData.reason || `Error ${response.status}: ${response.statusText}`);
+        const errorData = await response
+          .json()
+          .catch(() => ({ reason: "Network error or invalid JSON response" }));
+        throw new Error(
+          errorData.reason || `Error ${response.status}: ${response.statusText}`
+        );
       }
       const result = await response.json();
       if (result.success) return true;
-      throw new Error(result.reason || "Renaming person failed for an unknown reason.");
+      throw new Error(
+        result.reason || "Renaming person failed for an unknown reason."
+      );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
       throw new Error(errorMessage);
     }
   }
@@ -316,7 +522,8 @@ class PeopleApp {
       loadingIndicator.classList.remove("hidden");
       const loadingText = loadingIndicator.querySelector("span");
       if (loadingText) {
-        loadingText.textContent = window.innerWidth < 640 ? "Loading..." : "Loading people...";
+        loadingText.textContent =
+          window.innerWidth < 640 ? "Loading..." : "Loading people...";
       }
     } else {
       loadingIndicator.classList.add("hidden");
@@ -327,9 +534,10 @@ class PeopleApp {
     const errorDiv = document.getElementById("error-message");
     const errorText = document.getElementById("error-text");
     if (errorDiv && errorText) {
-      const displayMessage = window.innerWidth < 640 && message.length > 50
-        ? message.substring(0, 50) + "..."
-        : message;
+      const displayMessage =
+        window.innerWidth < 640 && message.length > 50
+          ? message.substring(0, 50) + "..."
+          : message;
       errorText.textContent = displayMessage;
       errorDiv.classList.remove("hidden");
       setTimeout(() => errorDiv.classList.add("hidden"), 5000);
@@ -338,7 +546,8 @@ class PeopleApp {
 
   private showSuccessMessage(message: string) {
     const successDiv = document.createElement("div");
-    successDiv.className = "fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 shadow-lg";
+    successDiv.className =
+      "fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 shadow-lg";
     successDiv.innerHTML = `
       <div class="flex items-center">
         <div class="flex-shrink-0">

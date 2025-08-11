@@ -24,6 +24,7 @@ class Endpoints {
     GET_FOLDERS = BASE_URL + "/api/getGroup/resource_directory"
     GET_FOLDER_IMAGES = BASE_URL + "/api/getMeta/resource_directory"
     GET_META_STATS = BASE_URL + "/api/getMetaStats"
+    TAG_PERSON = BASE_URL + "/api/tagPerson"
 }
 
 const endpoints = new Endpoints();
