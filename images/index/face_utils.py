@@ -29,9 +29,9 @@ def compare_hog_image(image_1, image_2):
         
 
     # NOTE: tried different metrics like cosine-similarity, but following worked best ! 
-    dist_1 =  np.linalg.norm((hog_11 / np.linalg.norm(hog_11)) - (hog_21 / np.linalg.norm(hog_21)))
-    dist_2 =  np.linalg.norm((hog_12 / np.linalg.norm(hog_12)) - (hog_22 / np.linalg.norm(hog_22)))
-    dist_3 =  np.linalg.norm((hog_13 / np.linalg.norm(hog_13)) - (hog_23 / np.linalg.norm(hog_23)))
+    dist_1 =  np.linalg.norm((hog_11 / (1e-7 + np.linalg.norm(hog_11))) - (hog_21 / (1e-7 + np.linalg.norm(hog_21))) )
+    dist_2 =  np.linalg.norm((hog_12 / (1e-7 + np.linalg.norm(hog_12))) - (hog_22 / (1e-7 + np.linalg.norm(hog_22))) )
+    dist_3 =  np.linalg.norm((hog_13 / (1e-7 + np.linalg.norm(hog_13))) - (hog_23 / (1e-7 + np.linalg.norm(hog_23))) )
     
     return [dist_1, dist_2, dist_3]
 
@@ -44,7 +44,7 @@ def get_new_matrix_try(matrix):
     m3,n3 = matrix[2,0], matrix[2,1]
     
     # new matrix [x1,y1], [x2,y2] ..
-    temp = (m1*n2) - (n1*m2)
+    temp = (m1*n2) - (n1*m2) + 1e-7
     a = (n3*m2 - n2*m3) / temp
     b = (m3*n1 - n3*m1) / temp
     
@@ -182,6 +182,13 @@ def collect_eyes(face, matrix, landmarks, patch_width = 12, patch_height = 10):
 
     left_patch = gray[bottom:bottom + 2*patch_height, left:left + 2*patch_width]
     right_patch = gray[bottom_r:bottom_r + 2*patch_height, left_r:left_r + 2*patch_width]
-    eyes = np.concatenate([left_patch, right_patch], axis = 1)
+    
+    if (left_patch.shape[0] != 2*patch_height or right_patch.shape[0] != 2*patch_height or left_patch.shape[1] != 2*patch_width or right_patch.shape[1] != 2*patch_width):
+        # Should be very rare!!
+        flag = False
+        eyes = None
+        print("[WARNING]: Not being able to generate eyes patches of expected size!")
+    else:
+        eyes = np.concatenate([left_patch, right_patch], axis = 1)
     
     return (flag, eyes, new_landmarks)

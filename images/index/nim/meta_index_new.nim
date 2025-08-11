@@ -146,7 +146,36 @@ proc update_secondary_index(
   inc c.secondaryRowPointer
 # --------------------------------------------------------
 
-const StringBoundary = "|"
+const StringBoundary = '|'
+
+# ------------------------------------------------------------------
+# Our split routine, to handle substrings for zero length!
+proc split_string_mine(data:string, boundary:char):seq[string] =
+    # NOTE: this version return candidates only if len(candidate) was found to be greater than zero. 
+    result = newSeq[string](16) # 16 is a good guess !
+    result.setLen(0)
+
+    var counter = 0
+    var i_start = 0
+    while counter < len(data):
+        if data[counter] == boundary:
+            let candidate_length = counter - i_start  # not including boundary!
+            if candidate_length > 0:
+                result.add(
+                ensureMove data[i_start..<counter]  # slice is a copy!
+                )
+            i_start = counter + 1
+        
+        counter += 1
+    # trailing substring if any!
+    if ((counter - i_start) > 0):
+        result.add(
+            ensureMove data[i_start..<counter]  # slice is a copy!
+        )
+
+    return result
+# -------------------------------------------------------
+
 type AllowedColumnTypes = int32 | float32 | string | bool | seq[string] # based on the ColType
 proc `[]=`[T:AllowedColumnTypes](c:var Column, idx:Natural, data:T)=
   # NOTE: IT does NOT check, if idx is within bounds, and can overwrite without any warning.
@@ -194,7 +223,6 @@ type
     kind:ColType
     data_json:string        # all data in json-encoded string
 
-# TODO: use unique here...
 proc collect_elements(
     c:Column, 
     boundary:Natural,  # parent provides this!
@@ -219,7 +247,7 @@ proc collect_elements(
       var result_container = newSeq[string](len(indices))
       for i,idx in indices:
         # TODO: i think `split` could be made faster if we just do it ourselves, but give me a break !!
-        for x in payload_data_arr[idx].split(StringBoundary):
+        for x in payload_data_arr[idx].split_string_mine(StringBoundary):
           if len(x) > 0: # Make it impossible in the first place...
             result_container[i] = x
       result.data_json = result_container.toJson()
@@ -227,7 +255,7 @@ proc collect_elements(
       var result_container = newSeq[seq[string]](len(indices))
       for i,idx in indices:
         # TODO: i think `split` could be made faster if we just do it ourselves, but give me a break !!
-        result_container[i] = payload_data_arr[idx].split(StringBoundary)
+        result_container[i] = payload_data_arr[idx].split_string_mine(StringBoundary)
       result.data_json = result_container.toJson()
 
 
@@ -326,7 +354,7 @@ proc get_unique_str*(
     
     var item2idx = initTable[string, int32](boundary) # using boundary as initial size a good estimate. (though still possible will be reallocated for rare cases!)
     for row_idx in row_candidates:
-      let arr_items = data_arr[row_idx].split(StringBoundary)
+      let arr_items = data_arr[row_idx].split_string_mine(StringBoundary)
 
       for curr_item in arr_items:
         if len(curr_item) == 0:
@@ -515,7 +543,7 @@ template queryStringImpl(
       var is_valid_candidate = false
       if (exact_string_match_t) == true:
         if c_t.kind == colArrayString:
-          for x in current_item.split(StringBoundary):
+          for x in current_item.split_string_mine(StringBoundary):
             if x == query_t:
               is_valid_candidate = true
               break
@@ -663,7 +691,7 @@ proc query_bool(
 type
   MetaIndex* = object
     # append only, no deletion! 
-    stringConcatenator:string = StringBoundary                 # we may support multiple strings for colString columns, by concatenating into a single string using this string/character.
+    stringConcatenator:char = StringBoundary                 # we may support multiple strings for colString columns, by concatenating into a single string using this string/character.
     # actual order/column-id should not matter, as long as we provide correct mapping. (i.e key must match with column label)
     fields:Table[string, Natural]  # mapping from the column's label to the id in the columns. (want it to be same even after loading from disk!)
     dbCapacity:Natural          # max number of elements/data for each column. (have to set during initialization)

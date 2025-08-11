@@ -27,6 +27,13 @@ class PaginationCache(object):
         # TODO: make the decision to pop some of older keys!
         return self.__data[token][page_id]
 
+    def get_pages_count(
+            self,
+            token:str
+    ) -> int:
+        print(self.__data.keys())
+        return len(self.__data[token])
+    
     def remove(
         self,
         token:str):

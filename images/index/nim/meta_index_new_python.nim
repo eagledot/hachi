@@ -16,6 +16,7 @@
 
 import std/json
 import std/tables
+import std/options
 
 import nimpy
 import jsony
@@ -149,12 +150,21 @@ proc generate_secondary_index(
 # ----------
 proc get_unique_str(
   attribute:string,
-  count_only:bool = false
+  count_only:bool = false,
+  row_indices:seq[int32] = @[] 
 ):string {.exportpy.}=
   # Json-encoded array of unique string items!
   # Supports both colArrayString aswell as colString
   let c = m[attribute]
-  let (count, memory) = c.get_unique_str(boundary = m.dbRowPointer)
+
+  var temp_row_indices:Option[seq[int32]] # by default None
+  if len(row_indices) > 0:
+    temp_row_indices = some(row_indices)
+
+  let (count, memory) = c.get_unique_str(
+    boundary = m.dbRowPointer,
+    row_indices = temp_row_indices
+    )
   if count_only:
     return count.toJson()
   else:

@@ -419,8 +419,7 @@ class MetaIndex(object):
             assert len(row_indices) == 1, "expected only 1 row as resource_hash acts like a primary key!"
             mBackend.modify(
                 row_index = row_indices[0], 
-                meta_datat = 
-                json.dumps(meta_data)
+                meta_data = json.dumps(meta_data)
                 )
 
     def remove_pagination_token(

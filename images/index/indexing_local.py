@@ -18,7 +18,7 @@ from .utils import ChannelConversion, ColorFormat, encode_image, resize
 
 import utils_nim 
 
-import cv2
+import cv2   # TODO: remove dependence on opencv as we have ported almost all of required functionalities!
 import numpy as np
 
 # -----------------
@@ -37,21 +37,12 @@ print("[Debug]: Loading Model, may take a few seconds.")
 clip.load_text_transformer(os.path.join(IMAGE_APP_PATH, "data", "ClipTextTransformerV2.bin"))
 clip.load_vit_b32Q(os.path.join(IMAGE_APP_PATH, "data", "ClipViTB32V2.bin"))
 
-def generate_image_embedding(image:Union[str, np.ndarray], is_bgr:bool = True, center_crop = False) -> Optional[np.ndarray]:
+def generate_image_embedding(image:np.ndarray, is_bgr:bool = True, center_crop = False, simulate = False) -> np.ndarray:
     # for simulating, (TODO: better simulation setup, if get time) 
-    # return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
+    if simulate:
+        return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
-    if isinstance(image,str):
-        assert os.path.exists(image)
-        image_data = cv2.imread(image)
-        is_bgr = True # "If using opencv, is_bgr would be true."
-    else:
-        image_data = image
-    
-    if image_data is None:
-        return None
-
-    image_features = clip.encode_image(image_data, is_bgr = is_bgr, center_crop = center_crop)
+    image_features = clip.encode_image(image, is_bgr = is_bgr, center_crop = center_crop)
     assert image_features.size == IMAGE_EMBEDDING_SIZE
     return image_features
 
@@ -220,13 +211,23 @@ class ReturnInfo(TypedDict):
 
 class ProfileInfoNaive(object):
     def __init__(self) -> None:
+        self.start_tic:float = time.time()
         self.last_tic:float = time.time()
         self.container = {}
     def reset(self):
         self.container:dict = {}
         self.last_tic = time.time()
+        self.start_tic = time.time()
     def add(self, key:str):
-        assert key != "total", "reserved, so that don't get confused later!"
+        if len(self.container) == 0:
+            # after reset or on init!
+            self.start_tic = time.time()
+            self.last_tic = self.start_tic
+
+        if key == "total": 
+            print("reserved, so that don't get confused later!")
+            return
+    
         if not(key in self.container):
             self.container[key] = 0.00
         cur_time = time.time()
@@ -234,11 +235,9 @@ class ProfileInfoNaive(object):
         self.last_tic = cur_time
     def get_summary(self) -> dict[str, (int, int)]:
         result = {}
-        total = 1e-7
-        for v in self.container.values():
-            total += v
+        total = (time.time() - self.start_tic + 1e-7)    
         for k,v  in self.container.items():
-            result[k] = (v, int(v/total)*100)
+            result[k] = (v, int(v/total*100))
         result["total"] = (total, 100)
         return result
 
@@ -257,6 +256,21 @@ class QueueData(NamedTuple):
     is_batch_done:bool
     is_thread_done:bool
 
+# Can keep reading data from disk in a separate thread!
+image_bytes_queue = Queue() # make it local to IndexingLocal class!
+def read_from_disk_bg(
+        resources_batch_queue:Queue[tuple[os.PathLike, bytes]],  # queue being filled by this routine!
+        resource_path_batch:list[os.PathLike]
+):  
+    for resource_path in resource_path_batch:
+        if (os.path.exists(resource_path)):  # NOTE: shouldn't happen, as generator would be calling `os.listDir`!
+            with open(resource_path, "rb") as f:
+                image_encoded_data = f.read()
+        else:
+            image_encoded_data = None # Note we still send it .. as reading thread will be expecting SOME data for each resource_path in the queue, to not get a blocked queue!
+        resources_batch_queue.put((resource_path, image_encoded_data))
+        del image_encoded_data
+
 class IndexingLocal(object):
     def __init__(self,
                  root_dir:os.PathLike,
@@ -265,10 +279,11 @@ class IndexingLocal(object):
                  face_index:FaceIndex,  # face_index, embeddings and stuff
                  semantic_index:ImageIndex, # semantic information!
 
-                 batch_size:int = 20,
+                 batch_size:int = 36,
                  include_subdirectories:bool = True,
                  generate_preview_data:bool  = True ,
-                 complete_rescan:bool = False
+                 complete_rescan:bool = False,
+                 simulate:bool = False   # For now it just speed-up image-embedding generation, by generating random embeddings!
     
     ) -> None:
         
@@ -283,6 +298,7 @@ class IndexingLocal(object):
         self.include_subdirectories = include_subdirectories
         self.generate_preview_data = generate_preview_data
         self.complete_rescan = complete_rescan
+        self.simulate_indexing = simulate
 
         self.lock = threading.RLock()
         self.indexing_status = IndexingStatus.INACTIVE # default
@@ -319,7 +335,8 @@ class IndexingLocal(object):
     
     def __index_batch(
         self,
-        resources_batch:List[os.PathLike] # Absolute path!
+        resources_batch_queue:Queue[tuple[os.PathLike, bytes]],
+        batch_size:int
     ):
         """Actual logic for indexing. This would need to be speed up or benchmarked if ever!
         Batching mainly provides `breakpoints` to collect the `current state/info` for ongoing indexing. (mainly to send back to client).
@@ -327,11 +344,15 @@ class IndexingLocal(object):
         """
         
         counter = 0
-        for resource_path in resources_batch:
+        # for resource_path in resources_batch:
+        for _ in range(batch_size): # NOTE: batch_size is used to make sure `queue.get` doesn't get blocked, we would have put that number of data into queue. before calling `__index_batch` routine! 
             self.profile_info.add("misc")
 
-            with open(resource_path, "rb") as f:
-                image_encoded_data = f.read()
+            # read from the queue, being fulfilled in another thread!
+            (resource_path, image_encoded_data) = resources_batch_queue.get()
+            if image_encoded_data is None:
+                print("[WARNING]: Read from disk failed due to Non existent Path for {} . Shouldn't have happened.".format(resource_path))
+                continue
             
             resource_hash = generate_resource_hash(
                 image_encoded_data
@@ -377,7 +398,12 @@ class IndexingLocal(object):
 
             # generate image embeddings
             self.profile_info.add("misc")
-            image_embedding = generate_image_embedding(image = frame, is_bgr = is_bgr, center_crop=False)
+            image_embedding = generate_image_embedding(
+                image = frame, 
+                is_bgr = is_bgr, 
+                center_crop=False,
+                simulate = self.simulate_indexing
+                )
             self.profile_info.add("image-embedding")
             if image_embedding is None: # TODO: it cannot be None, if image-data seemed valid!
                 print("Invalid data for {}".format(resource_path))
@@ -474,6 +500,9 @@ class IndexingLocal(object):
             self,
             ):
         
+        # We keep putting raw-bytes into this after reading from disk in another thread!
+        resources_batch_queue:Queue[tuple[os.PathLike, bytes]] = Queue() # we create one for each such thread!
+
         test_count = 0
         self.profile_info.reset()
         try:
@@ -526,8 +555,6 @@ class IndexingLocal(object):
                     del resource_mapping_generator
                     break
 
-                # process the contents in batches.
-                # print("processing: {}".format(current_directory))
                 count = 0
                 eta = None # unknown!
                 while True:
@@ -556,12 +583,21 @@ class IndexingLocal(object):
                         self.indexing_info["total"] = len(contents)
                         
                     tic = time.time()         # start timing for this batch.
+                    
+                    # create a new thread to
+                    # print("[DEBUG]: Starting background thread to read from disk!!") 
+                    read_bg_thread = threading.Thread(
+                        target = read_from_disk_bg,
+                        args = (resources_batch_queue, contents_batch,)
+                    )
+                    read_bg_thread.start()
                     observed_counter = self.__index_batch(
-                        resources_batch = contents_batch,
+                        resources_batch_queue,
+                        batch_size = len(contents_batch) # Passing 
                         )
-                    if observed_counter != len(contents_batch):
-                        print("Differnce for: {}".format(len(contents_batch) - observed_counter))
-                                    
+                    read_bg_thread.join() # We do away with this thread!
+                    # NOTE: observed_counter difference with `len(content_batch)` may not match for each batch due to corrupt data or something. (but not too great which may mean bug!)
+
                     count += len(contents_batch)
 
                     # calculate eta..
@@ -599,6 +635,8 @@ class IndexingLocal(object):
             print("Error: {}".format(error_trace))
         finally:
             with self.lock:
+                del resources_batch_queue
+
                 # indicate error first, so as client can read that.. before trying to save
                 self.indexing_info["eta"] = None
                 self.indexing_info["processed"] = None
@@ -643,7 +681,6 @@ class IndexingLocal(object):
             self.profile_info.add("prev-generate-wait")
 
             print("All done..")
-            print("Processed estimated: {}".format(test_count))
             self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
             self.indexing_status = IndexingStatus.INACTIVE #(global, so lock) this can/will be read by callee.. to get `indexing status`!
             print(self.profile_info)
