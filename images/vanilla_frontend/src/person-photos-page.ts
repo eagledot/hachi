@@ -25,7 +25,7 @@ class PersonPhotosApp {
   private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
   
   // Pagination properties
-  private readonly PAGE_SIZE = 100; // Display 100 photos per page for good performance
+  private readonly PAGE_SIZE = 5; // Display 5 photos per page for good performance
   private currentPage = 1;
   private totalPages = 0;
 

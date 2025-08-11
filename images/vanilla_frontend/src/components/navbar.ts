@@ -26,43 +26,30 @@ export class Navbar {
   }
   private render(): void {
     this.container.innerHTML = `
-      <nav class="bg-white shadow-md border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex justify-between items-center h-14">
-            <!-- Logo/Brand -->
-            <div class="flex items-center">
-              <a href="/" class="flex items-center space-x-2 text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors">
-                <span class="text-xl">📸</span>
-                <span>Hachi</span>
-              </a>
-            </div>
-
-            <!-- Navigation Links -->
-            <div class="hidden md:block">
-              <div class="ml-10 flex items-baseline space-x-4">
-                ${this.navItems.map(item => this.renderNavItem(item)).join('')}
-              </div>
-            </div>
-
-            <!-- Mobile menu button -->
-            <div class="md:hidden">              <button id="mobile-menu-button" type="button" class="bg-gray-50 inline-flex items-center justify-center p-1.5 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500" aria-controls="mobile-menu" aria-expanded="false">
-                <span class="sr-only">Open main menu</span>
-                <!-- Menu icon -->
-                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <!-- Mobile menu -->
-          <div class="md:hidden hidden" id="mobile-menu">
-            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
-              ${this.navItems.map(item => this.renderMobileNavItem(item)).join('')}
-            </div>
+  <nav class="fixed top-0 left-0 z-40 w-64 h-screen bg-white shadow-lg border-r border-gray-200 flex flex-col transition-transform duration-300 transform -translate-x-full md:translate-x-0 md:fixed md:top-0 md:left-0" id="sidebar-nav">
+        <div class="flex items-center h-16 px-6 border-b border-gray-100">
+          <a href="/" class="flex items-center space-x-2 text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors">
+            <span class="text-2xl">📸</span>
+            <span>Hachi</span>
+          </a>
+          <button id="sidebar-close" class="ml-auto md:hidden p-2 rounded hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Close sidebar">
+            <svg class="h-6 w-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto py-4 px-2">
+          <div class="space-y-2">
+            ${this.navItems.map(item => this.renderNavItem(item)).join('')}
           </div>
         </div>
       </nav>
+
+      <!-- Sidebar overlay for mobile -->
+      <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-30 z-30 hidden md:hidden"></div>
+
+      <!-- Sidebar open button for mobile -->
+      <button id="sidebar-open" class="fixed top-4 left-4 z-50 p-2 rounded bg-white shadow-md border border-gray-200 text-gray-700 md:hidden" aria-label="Open sidebar">
+        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
     `;
 
     this.setupEventListeners();
@@ -70,32 +57,20 @@ export class Navbar {
 
   private renderNavItem(item: NavItem): string {
     const isActive = this.isCurrentPage(item.href);
-    const baseClasses = "px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center space-x-2";
-    const activeClasses = "bg-blue-100 text-blue-700";
-    const inactiveClasses = "text-gray-500 hover:bg-gray-100 hover:text-gray-700";
-    
+    const baseClasses = "flex items-center px-4 py-3 rounded-lg text-base font-medium transition-colors duration-200 space-x-3";
+    const activeClasses = "bg-blue-100 text-blue-700 font-semibold";
+    const inactiveClasses = "text-gray-600 hover:bg-gray-100 hover:text-blue-700";
     return `
       <a href="${item.href}" class="${baseClasses} ${isActive ? activeClasses : inactiveClasses}">
-        ${item.icon ? `<span class="text-lg">${item.icon}</span>` : ''}
+        ${item.icon ? `<span class='text-xl'>${item.icon}</span>` : ''}
         <span>${item.label}</span>
       </a>
     `;
   }
 
   private renderMobileNavItem(item: NavItem): string {
-    const isActive = this.isCurrentPage(item.href);
-    const baseClasses = "block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200";
-    const activeClasses = "bg-blue-100 text-blue-700";
-    const inactiveClasses = "text-gray-500 hover:bg-gray-100 hover:text-gray-700";
-    
-    return `
-      <a href="${item.href}" class="${baseClasses} ${isActive ? activeClasses : inactiveClasses}">
-        <div class="flex items-center space-x-2">
-          ${item.icon ? `<span class="text-lg">${item.icon}</span>` : ''}
-          <span>${item.label}</span>
-        </div>
-      </a>
-    `;
+  // Not used in sidebar version
+  return '';
   }
 
   private isCurrentPage(href: string): boolean {
@@ -106,37 +81,29 @@ export class Navbar {
   }
 
   private setupEventListeners(): void {
-    // Mobile menu toggle
-    const mobileMenuButton = document.getElementById('mobile-menu-button');
-    const mobileMenu = document.getElementById('mobile-menu');
-    
-    if (mobileMenuButton && mobileMenu) {
-      mobileMenuButton.addEventListener('click', () => {
-        const isHidden = mobileMenu.classList.contains('hidden');
-        if (isHidden) {
-          mobileMenu.classList.remove('hidden');
-          mobileMenuButton.setAttribute('aria-expanded', 'true');
-        } else {
-          mobileMenu.classList.add('hidden');
-          mobileMenuButton.setAttribute('aria-expanded', 'false');
-        }
-      });
+    // Sidebar open/close for mobile
+    const sidebar = document.getElementById('sidebar-nav');
+    const sidebarOpen = document.getElementById('sidebar-open');
+    const sidebarClose = document.getElementById('sidebar-close');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+    function openSidebar() {
+      if (sidebar) sidebar.classList.remove('-translate-x-full');
+      if (sidebarOverlay) sidebarOverlay.classList.remove('hidden');
+    }
+    function closeSidebar() {
+      if (sidebar) sidebar.classList.add('-translate-x-full');
+      if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
     }
 
-    // Close mobile menu when clicking outside
-    document.addEventListener('click', (event) => {
-      if (mobileMenu && !mobileMenu.contains(event.target as Node) && 
-          !mobileMenuButton?.contains(event.target as Node)) {
-        mobileMenu.classList.add('hidden');
-        mobileMenuButton?.setAttribute('aria-expanded', 'false');
-      }
-    });
+    sidebarOpen?.addEventListener('click', openSidebar);
+    sidebarClose?.addEventListener('click', closeSidebar);
+    sidebarOverlay?.addEventListener('click', closeSidebar);
 
-    // Close mobile menu on window resize
+    // Close sidebar on resize to desktop
     window.addEventListener('resize', () => {
-      if (window.innerWidth >= 768 && mobileMenu) { // md breakpoint
-        mobileMenu.classList.add('hidden');
-        mobileMenuButton?.setAttribute('aria-expanded', 'false');
+      if (window.innerWidth >= 768) {
+        closeSidebar();
       }
     });
   }
