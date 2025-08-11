@@ -305,18 +305,16 @@ class PeopleApp {
     const hasCustomName = !isAutoDetected;
     return html`
       <div
-        class="group bg-white shadow-sm sm:shadow-md border border-gray-100 overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer transform hover:-translate-y-1 hover:scale-[1.01] relative active:scale-95"
+        class="group bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer overflow-hidden relative active:scale-98"
+        style="margin:8px;"
         onclick="window.peopleApp.handlePersonClick('${person.id}')"
       >
         <!-- Status badge -->
+        ${hasCustomName ? `
         <div class="absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
           <span
-            class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium ${hasCustomName
-              ? "bg-green-100 text-green-800 border-green-200"
-              : "bg-amber-100 text-amber-800 border-amber-200"} border"
+            class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-200"
           >
-            ${hasCustomName
-              ? `
             <svg class="w-2 h-2 sm:w-2.5 sm:h-2.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
             </svg>
@@ -326,36 +324,29 @@ class PeopleApp {
                 ? person.id.substring(0, 8) + "..."
                 : person.id
             }</span>
-          `
-              : ""}
           </span>
         </div>
+        ` : ""}
         <div
-          class="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden"
+          class="aspect-square bg-gray-100 relative overflow-hidden flex items-center justify-center"
         >
-          <div
-            class="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 opacity-20"
-          ></div>
           <img
             src="${avatarUrl}"
             alt="${displayName}"
-            class="w-full h-full object-cover transition-all duration-300 group-hover:scale-105"
+            class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105 rounded-t-xl"
             onerror="this.src='./assets/sample_place_bg.jpg'; this.classList.add('opacity-75')"
             loading="lazy"
           />
           <div
-            class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-          ></div>
-          <div
-            class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center"
+            class="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-60 transition-opacity duration-200 flex items-center justify-center"
           >
-            <div class="flex space-x-1 sm:space-x-2">
+            <div class="flex space-x-2">
               <button
-                class="p-1 sm:p-1.5 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-md"
+                class="p-1 bg-white/90 rounded-full hover:bg-white transition-colors duration-150 shadow"
                 onclick="event.stopPropagation(); window.peopleApp.viewPersonDetails('${person.id}')"
               >
                 <svg
-                  class="w-3 h-3 sm:w-4 sm:h-4 text-gray-700"
+                  class="w-4 h-4 text-gray-700"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -375,11 +366,11 @@ class PeopleApp {
                 </svg>
               </button>
               <button
-                class="p-1 sm:p-1.5 bg-white/90 rounded-full hover:bg-white transition-colors duration-200 shadow-md"
+                class="p-1 bg-white/90 rounded-full hover:bg-white transition-colors duration-150 shadow"
                 onclick="event.stopPropagation(); window.peopleApp.editPersonName('${person.id}')"
               >
                 <svg
-                  class="w-3 h-3 sm:w-4 sm:h-4 text-gray-700"
+                  class="w-4 h-4 text-gray-700"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -395,9 +386,7 @@ class PeopleApp {
             </div>
           </div>
         </div>
-        <div
-          class="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left"
-        ></div>
+        
       </div>
     `;
   }

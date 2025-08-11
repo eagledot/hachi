@@ -57,6 +57,14 @@
   animation: loading-gradient 1.5s ease-in-out infinite;
 }
 
+/* Sticky pagination container */
+#pagination-container {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  background: white;
+}
+
 @keyframes loading-gradient {
   0% {
     background-position: 200% 0;
