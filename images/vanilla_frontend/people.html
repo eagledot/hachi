@@ -12,7 +12,8 @@
     <!-- Navbar will be inserted here by Layout -->
 
     <main>
-        <div class="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-7xl"> <!-- Compact Enhanced Header -->
+        <div class="container mx-auto px-3 sm:px-4 py-4 sm:py-8 max-w-7xl"> 
+            <!-- Compact Enhanced Header -->
             <header class="text-center mb-4 sm:mb-6 relative">
                 <!-- Simplified background decoration -->
                 <div class="absolute inset-0 -z-10 overflow-hidden">
@@ -50,24 +51,8 @@
                     </div>
                 </div>
             </header>
-            <!-- Simplified Search Section -->
-            <section class="mb-6 sm:mb-8">
-                <div class="max-w-2xl mx-auto">
-                    <div class="bg-white rounded-lg shadow-md border border-gray-100 p-3 sm:p-4">
-                        <div class="relative group">
-                            <!-- Search icon -->
-                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <svg class="h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors"
-                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                                </svg>
-                            </div> <input type="text" id="people-search" placeholder="Search by name..."
-                                class="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all duration-200 text-gray-700 placeholder-gray-400 bg-gray-50 focus:bg-white hover:bg-white text-sm">
-                        </div>
-                    </div>
-                </div>
-            </section> <!-- Loading indicator -->
+            
+            <!-- Loading indicator -->
             <div id="loading-indicator" class="hidden justify-center items-center py-8 sm:py-12">
                 <div class="flex items-center space-x-2">
                     <div class="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-blue-600"></div>
@@ -89,7 +74,8 @@
                         <p class="text-sm text-red-800" id="error-text"></p>
                     </div>
                 </div>
-            </div> <!-- Enhanced No results message -->
+            </div> 
+            <!-- Enhanced No results message -->
             <div id="no-people" class="hidden text-center py-12 sm:py-16">
                 <div class="max-w-md mx-auto px-4">
                     <!-- Animated illustration -->
@@ -144,7 +130,7 @@
                 class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 2xl:grid-cols-8">
                 <!-- People cards will be dynamically inserted here with enhanced styling -->
             </section>
-            <div id="pagination-container" class="mt-6 mb-4">
+            <div id="pagination-container" class="mt-6 mb-4 hidden">
                 <div class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
                     <!-- Pagination Info -->
                     <div class="text-xs text-gray-600">
@@ -177,24 +163,7 @@
                     </div>
                 </div>
             </div>
-            <!-- Enhanced Load More Button -->
-            <div id="load-more-container" class="hidden text-center mt-8 sm:mt-12">
-                <div class="inline-flex flex-col items-center">
-                    <button id="load-more-btn"
-                        class="group bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-blue-300 text-sm sm:text-base">
-                        <span class="flex items-center">
-                            <svg class="w-4 h-4 mr-2 group-hover:animate-pulse" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
-                            </svg>
-                            Load More People
-                        </span>
-                    </button>
-                    <p class="text-xs sm:text-sm text-gray-500 mt-2 sm:mt-3">Showing <span id="current-count">0</span>
-                        of <span id="total-count">0</span> people</p>
-                </div>
-            </div>
+
     </main>
 
     <script type="module" src="/src/people-page.ts"></script>
