@@ -31,7 +31,15 @@ export function html(strings: TemplateStringsArray, ...values: any[]): string {
 }
 
 
-async function queryAttribute(attribute: string, value: string, pageSize: number): Promise<string[]> {
+
+interface IQueryAttribute {
+  n_matches?: number;
+  n_pages?: number;
+  query_token?: string;
+}
+
+
+export async function queryAttribute(attribute: string, value: string, pageSize: number): Promise<IQueryAttribute> {
   const endpoint = endpoints.QUERY_ATTRIBUTE(attribute, value, pageSize);
   const response = await fetch(endpoint);
   if (!response.ok) {
@@ -41,7 +49,7 @@ async function queryAttribute(attribute: string, value: string, pageSize: number
   return data;
 }
 
-async function collectAttributeMeta(token: string, pageId: number): Promise<any> {
+export async function collectAttributeMeta(token: string, pageId: number): Promise<any> {
   const endpoint = endpoints.COLLECT_ATTRIBUTE_META(token, pageId);
   const response = await fetch(endpoint);
   if (!response.ok) {

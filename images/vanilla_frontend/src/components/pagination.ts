@@ -5,6 +5,7 @@ export interface PaginationProps {
   itemsPerPage: number;
   initialPage?: number; // zero-based, default 0
   onPageChange?: (page: number) => void;
+  totalPages?: number;
 }
 
 export class PaginationComponent {
@@ -13,9 +14,9 @@ export class PaginationComponent {
   private itemsPerPage: number;
   private currentPage: number;
   private onPageChange?: (page: number) => void;
+  private totalPages?: number;
 
   constructor(props: PaginationProps) {
-    console.log("Pagination props:", props);
     this.container = props.container;
     this.totalItems = props.totalItems;
     this.itemsPerPage = props.itemsPerPage;
@@ -25,7 +26,7 @@ export class PaginationComponent {
   }
 
   public setPage(page: number) {
-    const totalPages = this.getTotalPages();
+    const totalPages = this.totalPages!;
     const newPage = Math.max(0, Math.min(page, totalPages - 1));
     if (newPage !== this.currentPage) {
       this.currentPage = newPage;
@@ -47,10 +48,13 @@ export class PaginationComponent {
   }
 
   public update(props: Partial<Omit<PaginationProps, 'container'>>) {
-    if (props.totalItems !== undefined) this.totalItems = props.totalItems;
-    if (props.itemsPerPage !== undefined) this.itemsPerPage = props.itemsPerPage;
-    if (props.onPageChange !== undefined) this.onPageChange = props.onPageChange;
-    if (props.initialPage !== undefined) this.currentPage = props.initialPage;
+    console.log("Updating pagination props:", props);
+    if (props.totalItems) this.totalItems = props.totalItems;
+    if (props.itemsPerPage) this.itemsPerPage = props.itemsPerPage;
+    if (props.onPageChange) this.onPageChange = props.onPageChange;
+    if (props.initialPage) this.currentPage = props.initialPage;
+    if (props.totalPages) this.totalPages = props.totalPages;
+
     this.render();
   }
 

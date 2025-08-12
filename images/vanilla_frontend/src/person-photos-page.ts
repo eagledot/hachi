@@ -9,10 +9,10 @@ import {
 } from "./components";
 import { PaginationComponent } from "./components/pagination";
 import Config, { endpoints } from "./config";
+import { collectAttributeMeta, queryAttribute } from "./utils";
 
 // API base URL
 const API_URL = Config.apiUrl;
-
 
 interface PersonPhotosData {
   data_hash: string[];
@@ -34,6 +34,7 @@ class PersonPhotosApp {
   private readonly PAGE_SIZE = 5; // Display 5 photos per page for good performance
   private currentPage = 1;
   private paginationComponent?: PaginationComponent;
+  private queryToken: string | null = null;
 
   constructor() {
     this.init();
@@ -61,6 +62,8 @@ class PersonPhotosApp {
     }
 
     this.setupEventListeners();
+    // Setup pagination using PaginationComponent
+    this.setupPagination();
     await this.loadPersonData();
   }
 
@@ -79,7 +82,9 @@ class PersonPhotosApp {
     this.photoFilter = new PhotoFilterComponent({
       onFilterChange: (filteredPhotos) =>
         this.handleFilteredPhotosUpdate(filteredPhotos),
-    }); // Initialize filter UI
+    });
+
+    // Initialize filter UI
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
@@ -95,6 +100,7 @@ class PersonPhotosApp {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get("id");
   }
+
   private setupEventListeners(): void {
     // Back button
     const backBtn = document.getElementById("back-btn");
@@ -155,19 +161,39 @@ class PersonPhotosApp {
   }
 
   private async loadPersonData(): Promise<void> {
+    console.log("Calling loadPersonData()");
     if (!this.personId) return;
 
     this.showLoading(true);
 
     try {
-      // Load person photos
-      const response = await fetch(
-        `${endpoints.GET_PERSON_PHOTOS}/${this.personId}`
-      );
-      if (!response.ok)
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!this.personPhotosData) {
+        // Get pagination information for the attribute
+        const paginationInfo = await queryAttribute(
+          "person",
+          this.personId,
+          this.PAGE_SIZE
+        );
 
-      this.personPhotosData = await response.json();
+        this.paginationComponent?.update({
+          totalItems: paginationInfo.n_matches,
+          totalPages: paginationInfo.n_pages,
+        });
+        console.log("Pagination Info:", paginationInfo);
+        this.queryToken = paginationInfo.query_token || null;
+      }
+
+      if (!this.queryToken) return;
+
+      // Load person photos
+      const personPhotoData = await collectAttributeMeta(this.queryToken!, this.currentPage - 1);
+      if (!personPhotoData) {
+        this.showError("No photos found for this person");
+        return;
+      }
+
+      this.personPhotosData = personPhotoData;
+      console.log("Collected Person Photos:", this.personPhotosData);
 
       this.updatePersonInfo();
       this.renderPhotos();
@@ -308,15 +334,15 @@ class PersonPhotosApp {
         filterContainer.classList.add("hidden");
       }
     }
-
-    // Setup pagination using PaginationComponent
-    this.setupPagination();
   }
 
-
   private setupPagination(): void {
+    console.log("Setting up pagination");
     const paginationContainer = document.getElementById("pagination-container");
-    if (!paginationContainer) return;
+    if (!paginationContainer) {
+      console.warn("Pagination container not found");
+      return;
+    }
 
     // Remove previous pagination if any
     paginationContainer.innerHTML = "";
@@ -328,28 +354,28 @@ class PersonPhotosApp {
       initialPage: 0,
       onPageChange: (page) => {
         this.currentPage = page + 1; // PaginationComponent is 0-based
-        this.renderDisplayedPhotos();
+        this.loadPersonData();
       },
     });
 
     this.currentPage = 1;
-    this.renderDisplayedPhotos();
   }
-
-
-
 
   private renderDisplayedPhotos(): void {
     const startIndex = (this.currentPage - 1) * this.PAGE_SIZE;
-    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
+    const endIndex = Math.min(
+      startIndex + this.PAGE_SIZE,
+      this.filteredPhotos.length
+    );
     this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
     this.uiService.updatePhotos(this.displayedPhotos);
   }
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     this.filteredPhotos = filteredPhotos;
     this.currentPage = 1;
-    this.setupPagination();
+    this.renderDisplayedPhotos();
   }
+
   private handlePhotoClick(photo: HachiImageData): void {
     if (!this.personPhotosData) return;
 
