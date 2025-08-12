@@ -794,7 +794,7 @@ export class UIService {
 
       if (currentPath.includes("person-photos.html")) {
         // We're already on person photos page, need to reload with new person ID
-        window.location.replace(targetUrl);
+        window.location.assign(targetUrl);
       } else {
         // We're on a different page (like image search), navigate normally
         window.location.href = targetUrl;

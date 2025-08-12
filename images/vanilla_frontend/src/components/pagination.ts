@@ -26,7 +26,7 @@ export class PaginationComponent {
   }
 
   public setPage(page: number) {
-    const totalPages = this.totalPages!;
+    const totalPages = this.totalPages! ?? this.getTotalPages();
     const newPage = Math.max(0, Math.min(page, totalPages - 1));
     if (newPage !== this.currentPage) {
       this.currentPage = newPage;
@@ -36,10 +36,12 @@ export class PaginationComponent {
   }
 
   public nextPage() {
+    console.log("Going to next page", this.currentPage + 1);
     this.setPage(this.currentPage + 1);
   }
 
   public prevPage() {
+    console.log("Going to previous page", this.currentPage - 1);
     this.setPage(this.currentPage - 1);
   }
 
