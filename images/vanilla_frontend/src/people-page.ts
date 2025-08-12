@@ -1,7 +1,9 @@
 import "./style.css";
 import { Layout } from "./components/layout";
+
 import { endpoints } from "./config";
 import { html } from "./utils";
+import { PaginationComponent } from "./components/pagination";
 
 // Initialize the layout for the people page
 new Layout({
@@ -25,17 +27,11 @@ class PeopleApp {
   private filteredPeople: Person[] = [];
 
   // Pagination
-  private itemsPerPage = 100;
+  private readonly itemsPerPage = 100;
   private currentPage = 0;
-  private totalPages = 0;
-  private totalResults = 0;
-  private resultsPerPage = 0;
+  private paginationComponent?: PaginationComponent;
 
   // DOM Elements
-  private prevBtnElement: HTMLButtonElement | null = null;
-  private nextBtnElement: HTMLButtonElement | null = null;
-  private pageInfoElement: HTMLElement | null = null;
-  private paginationInfoElement: HTMLElement | null = null;
   private paginationContainerElement: HTMLElement | null = null;
 
   constructor() {
@@ -71,17 +67,7 @@ class PeopleApp {
    * Reduces repeated DOM queries throughout the class.
    */
   private cacheDOMElements() {
-    this.paginationInfoElement = document.getElementById("pagination-info");
-    this.pageInfoElement = document.getElementById("page-info");
-    this.nextBtnElement = document.getElementById(
-      "next-page-btn"
-    ) as HTMLButtonElement;
-    this.prevBtnElement = document.getElementById(
-      "prev-page-btn"
-    ) as HTMLButtonElement;
-    this.paginationContainerElement = document.getElementById(
-      "pagination-container"
-    );
+    this.paginationContainerElement = document.getElementById("pagination-container");
   }
   /**
    * Main initialization logic for the people page.
@@ -146,16 +132,9 @@ class PeopleApp {
    * This method can be extended to support search/filtering in the future.
    */
   private filterPeople() {
-    // Update pagination state based on the filtered people list
-    this.updatePagination();
-
-    // Update the page parameter in the URL to reflect the current page
+    this.setupPagination();
     this.updatePageInUrl();
-
-    // Render the people grid for the current page
     this.renderPeople();
-
-    // Restore scroll position if previously saved (e.g., after navigation)
     this.restoreScrollPosition();
   }
 
@@ -164,98 +143,41 @@ class PeopleApp {
    * Handles page navigation and updates the UI accordingly.
    */
   private setupPaginationEventListeners() {
-    // Previous page button
-    if (this.prevBtnElement) {
-      this.prevBtnElement.addEventListener("click", async (e) => {
-        e.preventDefault(); // Prevent default button behavior
-        this.currentPage -= 1; // Go to previous page
-        this.updatePageInUrl(); // Update the page parameter in the URL
-        await this.updatePaginationAndRender(); // Re-render people and update pagination UI
-      });
-    }
-    // Next page button
-    if (this.nextBtnElement) {
-      this.nextBtnElement.addEventListener("click", async (e) => {
-        e.preventDefault(); // Prevent default button behavior
-        this.currentPage += 1; // Go to next page
-        this.updatePageInUrl(); // Update the page parameter in the URL
-        await this.updatePaginationAndRender(); // Re-render people and update pagination UI
-      });
-    }
+    // No-op: handled by PaginationComponent
+  }
+
+  private setupPagination() {
+    if (!this.paginationContainerElement) return;
+    this.paginationContainerElement.innerHTML = "";
+    this.paginationComponent = new PaginationComponent({
+      container: this.paginationContainerElement,
+      totalItems: this.filteredPeople.length,
+      itemsPerPage: this.itemsPerPage,
+      initialPage: this.currentPage,
+      onPageChange: (page) => {
+        this.currentPage = page;
+        this.updatePageInUrl();
+        this.renderPeople();
+        window.scrollTo({ top: 0 });
+        this.saveScrollPosition(0);
+      },
+    });
   }
 
   /**
    * Updates pagination state variables based on the current filtered people list.
    * Ensures currentPage is within valid bounds after filtering or data changes.
    */
-  private updatePagination() {
-    // Set the number of results per page (currently same as itemsPerPage, but allows for future flexibility)
-    this.resultsPerPage = this.itemsPerPage;
 
-    // Update the total number of results after filtering
-    this.totalResults = this.filteredPeople.length;
-
-    // Calculate the total number of pages needed
-    this.totalPages = Math.ceil(this.totalResults / this.resultsPerPage);
-
-    // Ensure currentPage is within valid bounds (e.g., after filtering reduces total pages)
-    if (this.currentPage >= this.totalPages) {
-      this.currentPage = Math.max(0, this.totalPages - 1);
-    }
-  }
-
-  /**
-   * Updates the pagination UI elements (info text, buttons, visibility).
-   */
-  private updatePaginationUI() {
-    // Update the "Showing X-Y of Z" info
-    if (this.paginationInfoElement) {
-      const startIndex = this.currentPage * this.resultsPerPage;
-      const endIndex = Math.min(
-        (this.currentPage + 1) * this.resultsPerPage,
-        this.totalResults
-      );
-      this.paginationInfoElement.textContent = `Showing ${
-        startIndex + 1
-      }-${endIndex} of ${this.totalResults} photos`;
-    }
-
-    // Enable/disable previous button
-    if (this.prevBtnElement) {
-      this.prevBtnElement.disabled = this.currentPage <= 0;
-    }
-
-    // Enable/disable next button
-    if (this.nextBtnElement) {
-      this.nextBtnElement.disabled = this.currentPage >= this.totalPages - 1;
-    }
-
-    // Update the "Page X of Y" info
-    if (this.pageInfoElement) {
-      this.pageInfoElement.textContent = `Page ${this.currentPage + 1} of ${
-        this.totalPages
-      }`;
-    }
-
-    // Show/hide pagination controls based on total pages
-    if (this.paginationContainerElement) {
-      if (this.totalPages && this.totalPages > 1) {
-        this.paginationContainerElement.classList.remove("hidden");
-      } else {
-        this.paginationContainerElement.classList.add("hidden");
-      }
-    }
-  }
 
   /**
    * Updates the pagination state and re-renders the people grid.
    * Scrolls to the top of the page and resets the saved scroll position.
    * This is called after changing pages via pagination controls.
    */
+
   private async updatePaginationAndRender() {
-    this.renderPeople(); // Re-render the people grid for the new page
-    window.scrollTo({ top: 0 }); // Scroll to the top of the page
-    this.saveScrollPosition(0); // Reset the saved scroll position
+    // No-op: handled by PaginationComponent
   }
 
   // --- Rendering ---
@@ -265,36 +187,22 @@ class PeopleApp {
    * Handles empty state, pagination, and updates the UI accordingly.
    */
   private renderPeople() {
-    console.log("Rendering people...");
     const grid = document.getElementById("people-grid");
     const noPeopleMsg = document.getElementById("no-people");
     if (!grid || !noPeopleMsg) return;
 
-    // Show "no people" message if there are no people to display
     if (this.filteredPeople.length === 0) {
       grid.innerHTML = "";
       noPeopleMsg.classList.remove("hidden");
-      this.updatePaginationUI();
       return;
     }
-    // Hide "no people" message if there are people to show
     noPeopleMsg.classList.add("hidden");
 
-    // Calculate the range of people to display for the current page
     const startIdx = this.currentPage * this.itemsPerPage;
-    const endIdx = Math.min(
-      startIdx + this.itemsPerPage,
-      this.filteredPeople.length
-    );
+    const endIdx = Math.min(startIdx + this.itemsPerPage, this.filteredPeople.length);
     const peopleToShow = this.filteredPeople.slice(startIdx, endIdx);
 
-    // Render person cards and update the grid's HTML
-    grid.innerHTML = peopleToShow
-      .map((person) => this.renderPersonCard(person))
-      .join("");
-
-    // Update pagination UI and URL to reflect the current state
-    this.updatePaginationUI();
+    grid.innerHTML = peopleToShow.map((person) => this.renderPersonCard(person)).join("");
     this.updatePageInUrl();
   }
 

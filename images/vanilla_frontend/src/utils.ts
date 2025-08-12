@@ -1,3 +1,5 @@
+import { endpoints } from "./config";
+
 /**
  * Tagged template function for rendering HTML strings.
  * Allows writing HTML in a more readable way with template literals.
@@ -26,6 +28,27 @@ export function html(strings: TemplateStringsArray, ...values: any[]): string {
     }
   });
   return str;
+}
+
+
+async function queryAttribute(attribute: string, value: string, pageSize: number): Promise<string[]> {
+  const endpoint = endpoints.QUERY_ATTRIBUTE(attribute, value, pageSize);
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch data from ${endpoint}`);
+  }
+  const data = await response.json();
+  return data;
+}
+
+async function collectAttributeMeta(token: string, pageId: number): Promise<any> {
+  const endpoint = endpoints.COLLECT_ATTRIBUTE_META(token, pageId);
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch data from ${endpoint}`);
+  }
+  const data = await response.json();
+  return data;
 }
 
 // Make it globally available
