@@ -61,16 +61,17 @@
 
 /* Sidebar responsive padding for main content */
 @media (min-width: 768px) {
-  main {
+  main#main {
     padding-left: 16rem !important; /* 64 * 0.25rem = 16rem */
     transition: padding-left 0.3s;
   }
 }
 @media (max-width: 767px) {
-  main {
+  main#main {
     padding-left: 0 !important;
   }
 }
+
 #pagination-container {
   position: sticky;
   bottom: 0;

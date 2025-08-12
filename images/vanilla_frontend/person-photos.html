@@ -14,7 +14,8 @@
 <body> <!-- Navbar will be inserted here by Layout -->
 
     <main id="main">
-        <div class="container mx-auto px-4 py-8 max-w-7xl"> <!-- Header with back button and person info -->
+        <div class="container min-h-[calc(100vh-47px)] mx-auto px-4 py-8 max-w-7xl">
+            <!-- Header with back button and person info -->
             <header class="mb-4">
                 <div class="flex items-center py-3">
                     <!-- Left: Back button -->
@@ -93,52 +94,53 @@
                         <!-- Photo filters will be injected here -->
                     </aside>
                     <!-- Main Content Area - Photo Grid -->
-                    <main class="flex-1 min-w-0">
+                    <main class="">
                         <div id="photo-grid-container">
                             <!-- Photo grid components will be injected here -->
                         </div>
                         <!-- Pagination Controls -->
-                        <div id="pagination-container" class="hidden mt-6 mb-4">
-                            <div
-                                class="flex items-center justify-between bg-white rounded-lg border border-gray-200 p-3 shadow-sm">
-                                <!-- Pagination Info -->
-                                <div class="text-xs text-gray-600">
-                                    <span id="pagination-info">Showing 1-100 of 25000 photos</span>
-                                </div>
 
-                                <!-- Pagination Controls -->
-                                <div class="flex items-center space-x-3">
-                                    <button id="prev-page-btn"
-                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-                                        disabled>
-                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M15 19l-7-7 7-7"></path>
-                                        </svg>
-                                        Previous
-                                    </button>
-
-                                    <span id="page-info"
-                                        class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
-                                        Page 1 of 250
-                                    </span>
-
-                                    <button id="next-page-btn"
-                                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors">
-                                        Next
-                                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M9 5l7 7-7 7"></path>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
                     </main>
+
                 </div>
             </section>
         </div>
+        <div id="pagination-container"
+            class="w-full sticky bottom-0 z-30 bg-white border-t border-gray-100 shadow-sm hidden">
+            <div class="flex items-center justify-between max-w-7xl mx-auto px-3 sm:px-4 py-2">
+                <!-- Pagination Info -->
+                <div class="text-xs text-gray-600">
+                    <span id="pagination-info">Showing 1-100 of 25000 photos</span>
+                </div>
+
+                <!-- Pagination Controls -->
+                <div class="flex items-center space-x-3">
+                    <button id="prev-page-btn"
+                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+                        disabled>
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7">
+                            </path>
+                        </svg>
+                        Previous
+                    </button>
+                    <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
+                        Page 1 of 250
+                    </span>
+
+                    <button id="next-page-btn"
+                        class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors">
+                        Next
+                        <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
+
 
     <!-- Modal will be injected here by ImageModalComponent -->
 
