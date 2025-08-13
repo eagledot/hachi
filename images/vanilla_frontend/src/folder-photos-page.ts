@@ -8,6 +8,7 @@ import {
   PhotoGridComponent,
   PhotoFilterComponent,
 } from "./components";
+import { PaginationComponent } from "./components/pagination";
 
 // Interface for folder photo data matching the actual API response
 interface FolderPhotoData {
@@ -26,11 +27,10 @@ class FolderPhotosApp {
   private folderName: string = "";
   private uiService!: UIService;
   private photoFilter!: PhotoFilterComponent;
+  private paginationComponent!: PaginationComponent;
 
   // Pagination properties
-  private readonly PAGE_SIZE = 100; // Display 100 photos per page for good performance
-  private currentPage = 1;
-  private totalPages = 0;
+  private readonly PAGE_SIZE = 10; // Display 10 photos per page for good performance
 
   constructor() {
     this.init();
@@ -79,6 +79,18 @@ class FolderPhotosApp {
       filterContainer.innerHTML =
         PhotoFilterComponent.getTemplate("photo-filter");
       this.photoFilter.initialize("photo-filter");
+    }
+
+    // Initialize pagination component
+    const paginationContainer = document.getElementById("pagination-container");
+    if (paginationContainer) {
+      this.paginationComponent = new PaginationComponent({
+        container: paginationContainer,
+        totalItems: 0,
+        itemsPerPage: this.PAGE_SIZE,
+        initialPage: 0,
+        onPageChange: (page: number) => this.handlePageChange(page)
+      });
     }
   }
 
@@ -180,9 +192,6 @@ class FolderPhotosApp {
         this.updatePagination(); // Initialize pagination
         this.renderPhotos();
 
-        // Setup pagination event listeners after pagination UI is rendered
-        this.setupPaginationEventListeners();
-
       } else {
         throw new Error("Invalid response format");
       }
@@ -216,105 +225,30 @@ class FolderPhotosApp {
   }
 
   private updatePagination(): void {
-    this.totalPages = Math.ceil(this.filteredPhotos.length / this.PAGE_SIZE);
+    // Update pagination component with current filtered photos
+    this.paginationComponent.update({
+      totalItems: this.filteredPhotos.length,
+      itemsPerPage: this.PAGE_SIZE,
+      initialPage: 0 // Reset to first page
+    });
 
     // Calculate displayed photos for current page
-    const startIndex = (this.currentPage - 1) * this.PAGE_SIZE;
-    const endIndex = Math.min(
-      startIndex + this.PAGE_SIZE,
-      this.filteredPhotos.length
-    );
+    const currentPage = this.paginationComponent.getCurrentPage();
+    const startIndex = currentPage * this.PAGE_SIZE;
+    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
+    this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
+  }
+  private handlePageChange(page: number): void {
+    // Update displayed photos for the new page
+    const startIndex = page * this.PAGE_SIZE;
+    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
     this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
 
-    this.updatePaginationUI();
-  }
-  private updatePaginationUI(): void {
-    // Update pagination info
-    const paginationInfo = document.getElementById("pagination-info");
-    if (paginationInfo) {
-      const startIndex = (this.currentPage - 1) * this.PAGE_SIZE + 1;
-      const endIndex = Math.min(
-        this.currentPage * this.PAGE_SIZE,
-        this.filteredPhotos.length
-      );
-      paginationInfo.textContent = `Showing ${startIndex}-${endIndex} of ${this.filteredPhotos.length} photos`;
-    }
-
-    // Update pagination buttons
-    const prevBtn = document.getElementById(
-      "prev-page-btn"
-    ) as HTMLButtonElement;
-    const nextBtn = document.getElementById(
-      "next-page-btn"
-    ) as HTMLButtonElement;
-    const pageInfo = document.getElementById("page-info");
-
-    if (prevBtn) {
-      prevBtn.disabled = this.currentPage <= 1;
-    }
-    if (nextBtn) {
-      nextBtn.disabled = this.currentPage >= this.totalPages;
-    }
-    if (pageInfo) {
-      pageInfo.textContent = `Page ${this.currentPage} of ${this.totalPages}`;
-    }
-
-    // Show/hide pagination controls based on whether pagination is needed
-    const paginationContainer = document.getElementById("pagination-container");
-    if (paginationContainer) {
-      if (this.totalPages > 1) {
-        paginationContainer.classList.remove("hidden");
-      } else {
-        paginationContainer.classList.add("hidden");
-      }
-    }
-  }
-  private goToPage(page: number): void {
-    if (page < 1 || page > this.totalPages) return;
-
-    this.currentPage = page;
-    this.updatePagination();
+    // Re-render photos for the new page
     this.renderPhotos();
 
     // Scroll to the top of the page instantly for performance
     window.scrollTo(0, 0);
-  }
-
-  private setupPaginationEventListeners(): void {
-    const prevBtn = document.getElementById(
-      "prev-page-btn"
-    ) as HTMLButtonElement;
-    const nextBtn = document.getElementById(
-      "next-page-btn"
-    ) as HTMLButtonElement;
-
-    if (prevBtn) {
-      // Remove any existing listeners first
-      const newPrevBtn = prevBtn.cloneNode(true) as HTMLButtonElement;
-      prevBtn.parentNode?.replaceChild(newPrevBtn, prevBtn);
-
-      newPrevBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!newPrevBtn.disabled) {
-          this.goToPage(this.currentPage - 1);
-        }
-      });
-    }
-
-    if (nextBtn) {
-      // Remove any existing listeners first
-      const newNextBtn = nextBtn.cloneNode(true) as HTMLButtonElement;
-      nextBtn.parentNode?.replaceChild(newNextBtn, nextBtn);
-
-      newNextBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!newNextBtn.disabled) {
-          this.goToPage(this.currentPage + 1);
-        }
-      });
-    }
   }
   private renderPhotos(): void {
     const container = document.getElementById("photo-grid-container");
@@ -338,15 +272,9 @@ class FolderPhotosApp {
     console.log("Filtered photos updated:", filteredPhotos.length);
     this.filteredPhotos = filteredPhotos;
 
-    // Reset to page 1 when filters change
-    this.currentPage = 1;
-
     this.updatePhotoCount();
     this.updatePagination(); // Update pagination first
     this.renderPhotos();
-
-    // Re-setup pagination event listeners to ensure they work correctly
-    this.setupPaginationEventListeners();
   }
 
   private handlePhotoClick(photo: HachiImageData): void {
