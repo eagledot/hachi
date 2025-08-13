@@ -743,9 +743,12 @@ export class PhotoFilterComponent {
     // Toggle visibility of the current dropdown
     const isHidden = dropdown.classList.contains("hidden");
     if (isHidden) {
-      // Position the dropdown below the tab element
-      this.positionDropdown(dropdown, tab);
-      dropdown.classList.remove("hidden"); // Show the dropdown
+  // Make dropdown temporarily visible (but hidden) for accurate measurement
+  dropdown.classList.remove("hidden");
+  const previousVisibility = dropdown.style.visibility;
+  dropdown.style.visibility = "hidden";
+  this.positionDropdown(dropdown, tab); // Position after we can measure
+  dropdown.style.visibility = previousVisibility || ""; // Restore visibility
       tab.classList.add(
         "bg-blue-50", // Light blue background for focus
         "border-blue-300", // Blue border
@@ -767,7 +770,21 @@ export class PhotoFilterComponent {
   private positionDropdown(dropdown: HTMLElement, tab: HTMLElement): void {
     const tabRect = tab.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
-    const dropdownWidth = dropdown.offsetWidth || 300; // fallback width
+    // Measure width; if hidden (offsetWidth == 0), force a temporary measurement
+    let dropdownWidth = dropdown.offsetWidth;
+    if (dropdownWidth === 0) {
+      const prevDisplay = dropdown.style.display;
+      const prevVisibility = dropdown.style.visibility;
+      dropdown.style.visibility = "hidden";
+      dropdown.style.display = "block";
+      dropdownWidth = dropdown.offsetWidth;
+      // Revert styles
+      dropdown.style.display = prevDisplay;
+      dropdown.style.visibility = prevVisibility;
+    }
+    if (!dropdownWidth || dropdownWidth === 0) {
+      dropdownWidth = 300; // fallback width
+    }
 
     // Mobile positioning
     if (viewportWidth <= 768) {
@@ -785,17 +802,26 @@ export class PhotoFilterComponent {
     dropdown.style.position = "fixed";
     dropdown.style.top = `${tabRect.bottom + 4}px`;
 
-    // Horizontal positioning - center under tab, but keep in viewport
-    let left = tabRect.left + tabRect.width / 2 - dropdownWidth / 2;
+    const padding = 16; // 1rem
+    // Start left-aligned with tab
+    let left = tabRect.left;
 
-    // Ensure dropdown doesn't go off screen
-    if (left < 16) {
-      left = 16; // 1rem padding from left edge
-    } else if (left + dropdownWidth > viewportWidth - 16) {
-      left = viewportWidth - dropdownWidth - 16; // 1rem padding from right edge
+    // If overflow right edge, attempt right-align with tab's right edge
+    if (left + dropdownWidth > viewportWidth - padding) {
+      left = tabRect.right - dropdownWidth;
     }
 
-    dropdown.style.left = `${left}px`;
+    // If still overflowing (very wide dropdown or tiny viewport), clamp within viewport
+    if (left + dropdownWidth > viewportWidth - padding) {
+      left = viewportWidth - dropdownWidth - padding;
+    }
+
+    // Ensure not less than padding
+    if (left < padding) {
+      left = padding;
+    }
+
+    dropdown.style.left = `${Math.round(left)}px`;
     dropdown.style.right = "auto";
     dropdown.style.width = "";
   }
