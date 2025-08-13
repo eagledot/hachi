@@ -677,7 +677,7 @@ export class UIService {
       peopleLabel.textContent = "People:";
 
       const peopleContainer = document.createElement("div");
-      peopleContainer.className = "flex flex-wrap gap-2 mt-1";
+      peopleContainer.className = "flex flex-wrap gap-4 mt-2";
       peopleContainer.setAttribute("data-people-container", "true");
 
       // Create person avatars efficiently
@@ -685,29 +685,55 @@ export class UIService {
         metadata.person?.filter(
           (personId) =>
             personId !== "no_person_detected" &&
-            personId !== "no_categorical_info"
+            personId !== "no_categorical_info" &&
+            personId.trim() !== ""
         ) || [];
 
-      validPeople.forEach((personId) => {
-        const personWrapper = document.createElement("div");
-        personWrapper.className = "flex flex-col items-center";
+      if (validPeople.length === 0) {
+        // Show a placeholder if no valid people
+        const noPeople = document.createElement("span");
+        noPeople.className = "text-gray-500 text-sm";
+        noPeople.textContent = "No people detected.";
+        peopleContainer.appendChild(noPeople);
+      } else {
+        validPeople.forEach((personId) => {
+          const personWrapper = document.createElement("div");
+          personWrapper.className = "flex flex-col items-center w-16 group";
 
-        const img = document.createElement("img");
-        img.src = `${endpoints.GET_PERSON_IMAGE}/${personId}`;
-        img.alt = personId;
-        img.className =
-          "w-12 h-12 rounded-full object-cover border border-gray-300 cursor-pointer hover:border-blue-500 transition-colors";
-        img.title = `Click to view ${personId}'s photos`;
-        img.setAttribute("data-person-id", personId);
+          const img = document.createElement("img");
+          img.src = `${endpoints.GET_PERSON_IMAGE}/${personId}`;
+          img.alt = personId;
+          img.className =
+            "w-12 h-12 rounded-full object-cover border-2 border-gray-300 shadow-sm cursor-pointer group-hover:border-blue-500 group-hover:scale-105 transition-all duration-200 bg-gray-200";
+          img.title = `Click to view ${personId}'s photos`;
+          img.setAttribute("data-person-id", personId);
 
-        // Add click handler directly instead of using setupPersonAvatarClickHandlers
-        img.addEventListener("click", () =>
-          this.handlePersonAvatarClick(personId)
-        );
+          // Fallback for broken images
+          img.onerror = () => {
+            img.src = UIService.FALLBACK_IMAGE_SVG;
+            img.classList.add("bg-gray-100");
+          };
 
-        personWrapper.appendChild(img);
-        peopleContainer.appendChild(personWrapper);
-      });
+          // Add click handler directly
+          img.addEventListener("click", () =>
+            this.handlePersonAvatarClick(personId)
+          );
+
+          // Add name label under avatar (show short version if long)
+          const nameLabel = document.createElement("span");
+          nameLabel.className = "mt-1 text-xs text-gray-700 text-center truncate max-w-full";
+          // If personId looks like a hash, show only first 8 chars, else show as is
+          nameLabel.textContent =
+            personId.length > 16 && /^[a-f0-9]+$/i.test(personId)
+              ? personId.slice(0, 8) + "..."
+              : personId;
+          nameLabel.title = personId;
+
+          personWrapper.appendChild(img);
+          personWrapper.appendChild(nameLabel);
+          peopleContainer.appendChild(personWrapper);
+        });
+      }
 
       peopleDiv.appendChild(peopleLabel);
       peopleDiv.appendChild(peopleContainer);
