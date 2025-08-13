@@ -507,7 +507,7 @@ class PersonPhotosApp {
     formData.append("new_person_id", newPersonId);
 
     try {
-      const response = await fetch(`${API_URL}/tagPerson`, {
+      const response = await fetch(endpoints.TAG_PERSON, {
         method: "POST",
         body: formData,
       });
