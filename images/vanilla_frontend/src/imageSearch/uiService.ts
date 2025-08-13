@@ -435,6 +435,7 @@ export class UIService {
    * Loads image progressively - starts with preview, then loads full resolution
    */
   private loadImageProgressively(photo: HachiImageData): void {
+    // Check if modal image element exists
     if (!this.modalImage) return;
 
     // Cancel any previous image loading
@@ -446,7 +447,7 @@ export class UIService {
 
     // Set image dimensions from metadata to prevent layout jumps
     if (photo.metadata?.width && photo.metadata?.height) {
-      this.modalImage.setAttribute("width", photo.metadata.height.toString());
+      this.modalImage.setAttribute("width", photo.metadata.width.toString());
       this.modalImage.setAttribute("height", photo.metadata.height.toString());
     } else {
       // Remove attributes if no metadata available
