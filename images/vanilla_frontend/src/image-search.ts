@@ -6,11 +6,14 @@ import {
 import type { HachiImageData } from "./imageSearch";
 import { FuzzySearchService } from "./imageSearch/fuzzySearchService";
 import { FuzzySearchUI } from "./imageSearch/fuzzySearchUI";
+
 import {
   ImageModalComponent,
   PhotoGridComponent,
   PhotoFilterComponent,
 } from "./components";
+import { PaginationComponent } from "./components/pagination";
+
 
 class ImageSearchApp {
   private searchService: SearchService;
@@ -23,11 +26,13 @@ class ImageSearchApp {
   private selectedPhoto: HachiImageData | null = null;
 
   // Pagination properties
-  private currentPage = 0; // NOTE: actual page_id for backend starts from zero, but we render zeroth/first page during `query` already!
+  private currentPage = 0;
   private totalPages = 0;
   private totalResults = 0;
   private queryToken = "";
   private resultsPerPage = 0;
+  private paginationComponent?: PaginationComponent;
+  private paginationContainerElement: HTMLElement | null = null;
 
 
 
@@ -76,9 +81,12 @@ class ImageSearchApp {
     this.searchService = new SearchService();
 
     this.setupEventListeners();
-    console.log("Before event listeners")
-    this.setupPaginationEventListeners();
+    this.cacheDOMElements();
     this.init();
+  }
+
+  private cacheDOMElements() {
+    this.paginationContainerElement = document.getElementById("pagination-container");
   }
 
   private init(): void {
@@ -116,7 +124,8 @@ class ImageSearchApp {
       this.queryToken = imageSearchResponse['query_token'];
       this.resultsPerPage = Math.floor(this.totalResults / this.totalPages);
 
-      await this.updatePaginationAndRenderPhotos()
+      this.setupPagination();
+      await this.updatePaginationAndRenderPhotos();
       this.handleLoadingChange(false);
       this.handleSearchDoneChange(true);
     }
@@ -129,6 +138,22 @@ class ImageSearchApp {
           : "Search failed. Please try again."
       );
     }
+  }
+  private setupPagination() {
+    if (!this.paginationContainerElement) return;
+    this.paginationContainerElement.innerHTML = "";
+    this.paginationComponent = new PaginationComponent({
+      container: this.paginationContainerElement,
+      totalItems: this.totalResults,
+      itemsPerPage: this.resultsPerPage,
+      initialPage: this.currentPage,
+      onPageChange: async (page) => {
+        this.currentPage = page;
+        await this.updatePaginationAndRenderPhotos();
+        window.scrollTo({ top: 0 });
+      },
+      totalPages: this.totalPages,
+    });
   }
 
   private async updatePaginationAndRenderPhotos(): Promise<void> {
@@ -146,82 +171,13 @@ class ImageSearchApp {
         filterContainer.classList.add("hidden");
       }
     }
-    this.renderDisplayedPhotos();
-    this.updatePaginationUI();
-    
-    window.scrollTo({ top: 0 })
+  this.renderDisplayedPhotos();
+  window.scrollTo({ top: 0 })
   }
 
-  private updatePaginationUI(): void {
-    // Update pagination info
-    const paginationInfo = document.getElementById("pagination-info");
-    if (paginationInfo) {
-      const startIndex = this.currentPage * this.resultsPerPage;
-      const endIndex = Math.min(
-        (this.currentPage + 1) * this.resultsPerPage,
-        this.totalResults
-      );
-      // TODO: may be integrate Filtered photos details here but filter should be page by page!
-      paginationInfo.textContent = `Showing ${startIndex + 1}-${endIndex} of ${this.totalResults} photos`;
-    }
+  // Pagination UI is now handled by PaginationComponent
 
-    // Update pagination buttons
-    const prevBtn = document.getElementById(
-      "prev-page-btn"
-    ) as HTMLButtonElement;
-    const nextBtn = document.getElementById(
-      "next-page-btn"
-    ) as HTMLButtonElement;
-    const pageInfo = document.getElementById("page-info");
-
-    if (prevBtn) {
-      prevBtn.disabled = this.currentPage <= 0;
-    }
-    if (nextBtn) {
-      nextBtn.disabled = this.currentPage >= this.totalPages - 1;
-    }
-    if (pageInfo) {
-      pageInfo.textContent = `Page ${this.currentPage + 1} of ${this.totalPages}`;
-    }
-
-    // Show/hide pagination controls based on whether pagination is needed
-    const paginationContainer = document.getElementById("pagination-container");
-    if (paginationContainer) {
-
-      if (this.totalPages && this.totalPages > 1) {
-        paginationContainer.classList.remove("hidden");
-      } else {
-        paginationContainer.classList.add("hidden");
-      }
-    }
-  }
-
-  private setupPaginationEventListeners(): void {
-    const prevBtn = document.getElementById(
-      "prev-page-btn"
-    ) as HTMLButtonElement;
-    const nextBtn = document.getElementById(
-      "next-page-btn"
-    ) as HTMLButtonElement;
-
-    if (prevBtn) {
-      prevBtn.addEventListener("click", async (e) => {
-        e.preventDefault();
-        this.currentPage -= 1
-        await this.updatePaginationAndRenderPhotos();
-      });
-    }
-
-    if (nextBtn) {
-      nextBtn.addEventListener("click", async (e) => {
-        console.log("Next button clicked")
-        e.preventDefault();
-        e.stopPropagation();
-        this.currentPage += 1
-        await this.updatePaginationAndRenderPhotos();
-      });
-    }
-  }
+  // Pagination event listeners are handled by PaginationComponent
 
   private renderDisplayedPhotos(): void {
     this.uiService.updatePhotos([...this.filteredPhotos]);
