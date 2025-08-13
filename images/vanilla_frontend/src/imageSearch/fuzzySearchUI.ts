@@ -70,16 +70,8 @@ export class FuzzySearchUI {
 
   private createUI(): void {
     this.container.innerHTML = html`
-      <div class="w-full max-w-5xl mx-auto p-2 sm:p-4 fuzzy-search-container">
+      <div class="w-full mx-auto p-2 sm:p-4 fuzzy-search-container">
         <div class="w-full relative">
-          <!-- Active Filters Display -->
-          <div
-            id="filters-container"
-            class="flex w-full items-center mb-3 sm:mb-4 flex-wrap gap-1 sm:gap-2 min-h-[2rem]"
-          >
-            <!-- Filters will be rendered here -->
-          </div>
-
           <!-- Modern Search Container -->
           <div class="flex flex-col space-y-3">
             <!-- Main Search Row -->
@@ -87,9 +79,10 @@ export class FuzzySearchUI {
               class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3"
             >
               <div id="input-container" class="relative flex-grow">
-                <!-- Modern Input Container -->
+                <!-- Integrated Input and Button Container -->
                 <div
                   class="relative border border-gray-200 rounded-xl focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200 bg-white flex items-center h-12 sm:h-12 shadow-sm hover:shadow-md group"
+                  style="padding-right:0;"
                 >
                   <!-- Search Icon -->
                   <div
@@ -116,8 +109,31 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-0 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal"
+                    class="flex-1 h-full px-0 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal rounded-l-xl rounded-r-none"
+                    style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
+
+                  <!-- Integrated Search Button -->
+                  <button
+                    id="fuzzy-search-btn"
+                    class="h-10 sm:h-12 px-4 sm:px-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-400 text-white font-semibold rounded-r-xl rounded-l-none transition-all duration-200 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[80px] sm:min-w-auto border-0 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:z-10"
+                    style="border-top-left-radius:0;border-bottom-left-radius:0;height:48px;margin-left:-1px;box-shadow:none;"
+                  >
+                    <svg
+                      class="w-4 sm:w-5 h-4 sm:h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      ></path>
+                    </svg>
+                    <span id="search-btn-text">Search</span>
+                  </button>
                 </div>
 
                 <!-- Modern Smart Dropdown -->
@@ -131,27 +147,14 @@ export class FuzzySearchUI {
                   </div>
                 </div>
               </div>
+            </div>
 
-              <!-- Modern Search Button -->
-              <button
-                id="fuzzy-search-btn"
-                class="h-12 px-4 sm:px-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-400 text-white font-semibold rounded-xl transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-auto"
-              >
-                <svg
-                  class="w-4 sm:w-5 h-4 sm:h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  ></path>
-                </svg>
-                <span id="search-btn-text">Search</span>
-              </button>
+            <!-- Active Filters Display (moved below input) -->
+            <div
+              id="filters-container"
+              class="flex w-full items-center mb-3 sm:mb-4 flex-wrap gap-1 sm:gap-2 min-h-[2rem] hidden"
+            >
+              <!-- Filters will be rendered here -->
             </div>
 
             <!-- Search Tips (shown only before first search) -->
@@ -493,6 +496,13 @@ export class FuzzySearchUI {
       .join("");
 
     this.filtersContainer.innerHTML = filtersHtml;
+
+    // Show or hide the filters container based on whether any filters are selected
+    if (filtersHtml.length > 0) {
+      this.filtersContainer.classList.remove("hidden");
+    } else {
+      this.filtersContainer.classList.add("hidden");
+    }
 
     // Add event listeners for filter removal
     const removeButtons = this.filtersContainer.querySelectorAll(
