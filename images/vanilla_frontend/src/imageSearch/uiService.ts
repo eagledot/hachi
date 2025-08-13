@@ -244,7 +244,7 @@ export class UIService {
    */
   updatePhotos(photos: HachiImageData[]): void {
     if (!this.photoGrid || !this.noResultsMessage) return;
-
+    console.log("Updating photos in UIService:", photos.length);
     // Handle empty state
     if (photos.length === 0) {
       this.clearPhotoGrid();

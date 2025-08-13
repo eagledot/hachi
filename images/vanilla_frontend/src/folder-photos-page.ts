@@ -9,6 +9,7 @@ import {
   PhotoFilterComponent,
 } from "./components";
 import { PaginationComponent } from "./components/pagination";
+import { collectAttributeMeta, queryAttribute } from "./utils";
 
 // Interface for folder photo data matching the actual API response
 interface FolderPhotoData {
@@ -19,7 +20,6 @@ interface FolderPhotoData {
 
 // Folder photos page functionality
 class FolderPhotosApp {
-  private photos: HachiImageData[] = [];
   private filteredPhotos: HachiImageData[] = [];
   private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
   private currentPhotoIndex: number = -1;
@@ -28,6 +28,8 @@ class FolderPhotosApp {
   private uiService!: UIService;
   private photoFilter!: PhotoFilterComponent;
   private paginationComponent!: PaginationComponent;
+  private queryToken: string | null = null;
+  private currentPage: number = 1; // Current page for pagination
 
   // Pagination properties
   private readonly PAGE_SIZE = 10; // Display 10 photos per page for good performance
@@ -69,7 +71,7 @@ class FolderPhotosApp {
       onFilterChange: (filteredPhotos) =>
         this.handleFilteredPhotosUpdate(filteredPhotos),
     });
-    
+
     // Initialize filter UI
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
@@ -89,7 +91,7 @@ class FolderPhotosApp {
         totalItems: 0,
         itemsPerPage: this.PAGE_SIZE,
         initialPage: 0,
-        onPageChange: (page: number) => this.handlePageChange(page)
+        onPageChange: (page: number) => this.handlePageChange(page),
       });
     }
   }
@@ -143,55 +145,91 @@ class FolderPhotosApp {
   }
 
   private async loadFolderPhotos(): Promise<void> {
+    // If the folder path is not set, show an error
     if (!this.folderPath) {
       this.showError("No folder path specified");
       return;
     }
 
+    // Show loading indicator
     this.showLoading(true);
+
+    // Hide error message
     this.hideError();
+
     try {
       // Preprocess filename according to backend requirements
+      // Replace slashes with pipe characters to avoid issues with URL encoding
+      // Does the backend expect the filename to have pipes instead of slashes?
       const filename = this.folderPath
         .toString()
         .toLowerCase()
         .replace(/\//g, "|");
-      const response = await fetch(
-        `${endpoints.GET_FOLDER_IMAGES}/${filename}`
-      );
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch folder photos: ${response.status}`);
+      if (!this.displayedPhotos.length) {
+        console.log("Fetching pagination info for:", filename);
+        // Get pagination information for the attribute
+        const paginationInfo = await queryAttribute(
+          "resource_directory",
+          filename,
+          this.PAGE_SIZE
+        );
+
+        this.paginationComponent?.update({
+          totalItems: paginationInfo.n_matches,
+          totalPages: paginationInfo.n_pages,
+        });
+
+        console.log("Pagination Info:", paginationInfo);
+        this.queryToken = paginationInfo.query_token || null;
       }
-      const data: FolderPhotoData = await response.json();
+
+      // If query token is not set, we cannot fetch images
+      if (!this.queryToken) return;
+
+      // Fetch folder images from the backend
+      const data: FolderPhotoData = await collectAttributeMeta(this.queryToken!, this.currentPage - 1);
+
+      console.log("Fetched folder photos:", data);
+
       if (data && data.meta_data && Array.isArray(data.meta_data)) {
         // Convert API data to HachiImageData format for UIService
-        this.photos = data.data_hash.map((hash: string, index: number) => ({
+        this.displayedPhotos = data.data_hash.map((hash: string, index: number) => ({
           id: hash,
           score: data.score[index] || 0,
           metadata: data.meta_data[index] || {},
         }));
-        this.filteredPhotos = [...this.photos]; // Update photo filter with loaded photos
-        this.photoFilter.updatePhotos(this.photos);
+
+        console.log("Converted photos:", this.displayedPhotos);
+
+        // Update photo filter with loaded photos
+        this.filteredPhotos = [...this.displayedPhotos];
+
+        // Update the photo filter component with the loaded photos
+        this.photoFilter.updatePhotos(this.displayedPhotos);
 
         // Set the current folder path as resource directory context for semantic search
         this.photoFilter.setResourceDirectory([this.folderPath]);
 
-        // Show filter container if we have photos
+        // Get the filter container element. TODO: Cache it for later use
         const filterContainer = document.getElementById(
           "photo-filter-container"
         );
+
+        // Show filter container if we have photos
         if (filterContainer) {
-          if (this.photos.length > 0) {
+          if (this.displayedPhotos.length > 0) {
             filterContainer.classList.remove("hidden");
           } else {
             filterContainer.classList.add("hidden");
           }
         }
-        this.updatePhotoCount();
-        this.updatePagination(); // Initialize pagination
-        this.renderPhotos();
 
+        
+        
+
+        // Render photos
+        this.renderPhotos();
       } else {
         throw new Error("Invalid response format");
       }
@@ -206,55 +244,25 @@ class FolderPhotosApp {
       this.showLoading(false);
     }
   }
-  private updatePhotoCount(): void {
-    const photoCountEl = document.getElementById("folder-photo-count");
-    if (photoCountEl) {
-      const totalCount = this.photos.length;
-      const filteredCount = this.filteredPhotos.length;
 
-      if (filteredCount === totalCount) {
-        photoCountEl.textContent = `${totalCount} photo${
-          totalCount !== 1 ? "s" : ""
-        }`;
-      } else {
-        photoCountEl.textContent = `${filteredCount} of ${totalCount} photo${
-          totalCount !== 1 ? "s" : ""
-        } (filtered)`;
-      }
-    }
-  }
 
-  private updatePagination(): void {
-    // Update pagination component with current filtered photos
-    this.paginationComponent.update({
-      totalItems: this.filteredPhotos.length,
-      itemsPerPage: this.PAGE_SIZE,
-      initialPage: 0 // Reset to first page
-    });
-
-    // Calculate displayed photos for current page
-    const currentPage = this.paginationComponent.getCurrentPage();
-    const startIndex = currentPage * this.PAGE_SIZE;
-    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
-    this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
-  }
   private handlePageChange(page: number): void {
     // Update displayed photos for the new page
-    const startIndex = page * this.PAGE_SIZE;
-    const endIndex = Math.min(startIndex + this.PAGE_SIZE, this.filteredPhotos.length);
-    this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
-
+    this.currentPage = page + 1;
     // Re-render photos for the new page
-    this.renderPhotos();
+    this.loadFolderPhotos();
 
     // Scroll to the top of the page instantly for performance
     window.scrollTo(0, 0);
   }
+
   private renderPhotos(): void {
     const container = document.getElementById("photo-grid-container");
     const noPhotos = document.getElementById("no-photos");
 
     if (!container || !noPhotos) return;
+
+    console.log("Photos inside renderPhotos", this.filteredPhotos.length);
 
     if (this.filteredPhotos.length === 0) {
       container.innerHTML = "";
@@ -271,9 +279,6 @@ class FolderPhotosApp {
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log("Filtered photos updated:", filteredPhotos.length);
     this.filteredPhotos = filteredPhotos;
-
-    this.updatePhotoCount();
-    this.updatePagination(); // Update pagination first
     this.renderPhotos();
   }
 
