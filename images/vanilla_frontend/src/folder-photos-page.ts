@@ -32,7 +32,7 @@ class FolderPhotosApp {
   private currentPage: number = 1; // Current page for pagination
 
   // Pagination properties
-  private readonly PAGE_SIZE = 10; // Display 10 photos per page for good performance
+  private readonly PAGE_SIZE = 100; // Display 10 photos per page for good performance
 
   constructor() {
     this.init();

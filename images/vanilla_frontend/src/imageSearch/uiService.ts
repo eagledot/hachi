@@ -545,7 +545,7 @@ export class UIService {
 
     // Pre-filter and prepare metadata items for efficiency
     const metadataItems = [
-      { label: "Filename", value: metadata.filename },
+      // { label: "Filename", value: metadata.filename },
       {
         label: "Dimensions",
         value:

@@ -18,14 +18,14 @@ export class ImageModalComponent {
         <div class="modal-backdrop fixed inset-0" id="modal-backdrop"></div>
         <div class="flex min-h-screen items-center justify-center p-4">
           <div
-            class="relative bg-white rounded-lg shadow-2xl w-full max-w-7xl min-h-[90vh] overflow-hidden border border-gray-200"
+            class="relative bg-white rounded-lg shadow-2xl w-full overflow-hidden border border-gray-200"
           >
             <!-- Modal header -->
             <div
               class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white/80 backdrop-blur-sm"
             >
               <h3 class="text-lg font-semibold text-gray-900" id="modal-title">
-                Image Details
+                
               </h3>
               <div class="flex items-center space-x-1">
                 <button
@@ -147,13 +147,13 @@ export class ImageModalComponent {
             <div class="flex flex-col lg:flex-row h-[calc(100vh-140px)]">
               <!-- Image container -->
               <div
-                class="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-6"
+                class="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100"
               >
                 <img
                   id="modal-image"
                   src=""
                   alt=""
-                  class="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                  class="w-full h-full object-contain rounded-lg"
                 />
               </div>
               <!-- Metadata sidebar -->

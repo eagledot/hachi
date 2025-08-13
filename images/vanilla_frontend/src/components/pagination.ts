@@ -73,7 +73,7 @@ export class PaginationComponent {
     this.container.classList.remove("hidden");
 
     this.container.innerHTML = `
-      <div class="flex items-center justify-between max-w-7xl mx-auto px-3 sm:px-4 py-2">
+      <div class="flex items-center justify-between mx-auto px-3 sm:px-4 py-2">
         <!-- Pagination Info -->
         <div class="text-xs text-gray-600">
           <span id="pagination-info">Showing ${this.totalItems === 0 ? 0 : startIndex + 1}-${endIndex} of ${this.totalItems} photos</span>
