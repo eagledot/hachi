@@ -59,6 +59,17 @@ export async function collectAttributeMeta(token: string, pageId: number): Promi
   return data;
 }
 
+
+export async function filterPopulateQuery(queryToken: string, attribute: string): Promise<any> {
+  const endpoint = endpoints.FILTER_POPULATE_QUERY(queryToken, attribute);
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch data from ${endpoint}`);
+  }
+  const data = await response.json();
+  return data;
+}
+
 // Make it globally available
 if (typeof window !== 'undefined') {
   (window as any).html = html;

@@ -2,7 +2,7 @@
 // This component provides filtering functionality for photo grids based on metadata
 
 import type { HachiImageData } from "../imageSearch/types";
-import { html } from "../utils";
+import { filterPopulateQuery, html } from "../utils";
 import { SearchApiService } from "../imageSearch/apiService";
 import {
   FuzzySearchService,
@@ -41,6 +41,7 @@ export interface FilterCallbacks {
 
 export class PhotoFilterComponent {
   private photos: HachiImageData[] = [];
+  private queryToken: string | null = null;
   private filteredPhotos: HachiImageData[] = [];
   private semanticSearchResults: HachiImageData[] = []; // Store semantic search results
   private filterCriteria: FilterCriteria = {};
@@ -70,6 +71,11 @@ export class PhotoFilterComponent {
     this.callbacks = callbacks;
     this.fuzzySearchService = new FuzzySearchService();
   }
+
+  public updateQueryToken(token: string | null): void {
+    this.queryToken = token;
+  }
+
   /**
    * Initialize the filter component in the specified container
    */
@@ -1498,10 +1504,15 @@ export class PhotoFilterComponent {
   /**
    * Apply current filters to photos
    */
-  private applyFilters(isInitialLoad: boolean = false): void {
+  private async applyFilters(isInitialLoad: boolean = false): Promise<void> {
     this.filteredPhotos = this.photos.filter((photo) => {
       return this.matchesFilter(photo, this.filterCriteria);
     });
+
+    if (this.queryToken) {
+      const data = await filterPopulateQuery(this.queryToken!, "person");
+      console.log("Filter data:", data);
+    }
 
     this.callbacks.onFilterChange(this.filteredPhotos);
     this.updateActiveFilters();

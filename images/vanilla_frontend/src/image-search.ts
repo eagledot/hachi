@@ -1,8 +1,5 @@
 // Main ImageSearch application entry point
-import {
-  SearchService,
-  UIService,
-} from "./imageSearch";
+import { SearchService, UIService } from "./imageSearch";
 import type { HachiImageData } from "./imageSearch";
 import { FuzzySearchService } from "./imageSearch/fuzzySearchService";
 import { FuzzySearchUI } from "./imageSearch/fuzzySearchUI";
@@ -13,7 +10,6 @@ import {
   PhotoFilterComponent,
 } from "./components";
 import { PaginationComponent } from "./components/pagination";
-
 
 class ImageSearchApp {
   private searchService: SearchService;
@@ -30,11 +26,10 @@ class ImageSearchApp {
   private totalPages = 0;
   private totalResults = 0;
   private queryToken = "";
-  private resultsPerPage = 0;
+  private resultsPerPage = 100;
   private paginationComponent?: PaginationComponent;
   private paginationContainerElement: HTMLElement | null = null;
-
-
+  private filterContainer: HTMLElement | null = null;
 
   constructor() {
     // Initialize reusable components first
@@ -62,16 +57,20 @@ class ImageSearchApp {
     });
 
     this.photoFilter = new PhotoFilterComponent({
-      onFilterChange: (filteredPhotos: HachiImageData[]) => this.handleFilteredPhotosUpdate(filteredPhotos),
-      hideSearchInput: true
+      onFilterChange: (filteredPhotos: HachiImageData[]) =>
+        this.handleFilteredPhotosUpdate(filteredPhotos),
+      hideSearchInput: true,
     });
 
-    const filterContainer = document.getElementById("photo-filter-container");
+    
 
-    if (filterContainer) {
-      filterContainer.classList.add("hidden");
-      filterContainer.innerHTML = PhotoFilterComponent.getTemplate('photo-filter', true);
-      this.photoFilter.initialize('photo-filter');
+    if (this.filterContainer) {
+      this.filterContainer.classList.add("hidden");
+      this.filterContainer.innerHTML = PhotoFilterComponent.getTemplate(
+        "photo-filter",
+        true
+      );
+      this.photoFilter.initialize("photo-filter");
     }
 
     // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
@@ -86,18 +85,21 @@ class ImageSearchApp {
   }
 
   private cacheDOMElements() {
-    this.paginationContainerElement = document.getElementById("pagination-container");
+    this.paginationContainerElement = document.getElementById(
+      "pagination-container"
+    );
+    this.filterContainer = document.getElementById("photo-filter-container");
   }
 
   private init(): void {
     console.log("ImageSearch app initialized");
+    this.setupPagination();
   }
 
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     this.filteredPhotos = [...filteredPhotos];
     this.renderDisplayedPhotos();
   }
-
 
   private setupEventListeners(): void {
     this.uiService.setupEventListeners({
@@ -106,30 +108,62 @@ class ImageSearchApp {
       onModalNext: () => this.handleModalNext(),
       onModalPrevious: () => this.handleModalPrevious(),
     });
-
   }
 
+  /**
+   * Handles the search operation when a user submits a query.
+   * - Validates the query.
+   * - Starts the search using the SearchService.
+   * - Updates pagination, filter, and UI state.
+   * - Handles loading and error states.
+   */
   private async handleSearch(query: string): Promise<void> {
+    // Validate the search query
     if (!query.trim()) {
       this.uiService.updateError("Please enter a search term");
       return;
     }
     console.log("Starting search for:", query);
     try {
+      // Set loading state
       this.handleLoadingChange(true);
-      this.currentPage = 0;
-      const imageSearchResponse = await this.searchService.startSearch(query);
-      this.totalPages = imageSearchResponse['n_pages'] - 1; // For now, I am substracting one as data from backend is incorrect
-      this.totalResults = imageSearchResponse['n_matches'];
-      this.queryToken = imageSearchResponse['query_token'];
-      this.resultsPerPage = Math.floor(this.totalResults / this.totalPages);
 
-      this.setupPagination();
+      // Reset to first page for new search
+      this.currentPage = 0;
+
+      // Start the search and get the response from the backend
+      const imageSearchResponse = await this.searchService.startSearch(query, this.resultsPerPage);
+
+      // Extract pagination and result info from the response
+      this.totalPages = imageSearchResponse["n_pages"] || 1;
+      this.totalResults = imageSearchResponse["n_matches"];
+      this.queryToken = imageSearchResponse["query_token"];
+
+      // Update the photo filter with the new query token
+      this.photoFilter.updateQueryToken(this.queryToken);
+
+      // Update or initialize the pagination component
+      if (this.paginationComponent) {
+        this.paginationComponent.update({
+          totalItems: this.totalResults,
+          itemsPerPage: this.resultsPerPage,
+          initialPage: this.currentPage,
+          totalPages: this.totalPages,
+        });
+        this.paginationContainerElement?.classList.remove("hidden");
+      } else {
+        // Fallback: initialize if not yet created
+        this.setupPagination();
+      }
+
+      // Fetch and render photos for the current page
       await this.updatePaginationAndRenderPhotos();
+
+      // Reset loading state and indicate search is done
       this.handleLoadingChange(false);
       this.handleSearchDoneChange(true);
-    }
-    catch (error) {
+    } catch (error) {
+      // Handle errors and reset loading state
       this.handleLoadingChange(false);
       console.error("Search failed:", error);
       this.handleErrorChange(
@@ -139,30 +173,54 @@ class ImageSearchApp {
       );
     }
   }
+
+
+  /**
+   * Initializes the pagination component.
+   */
   private setupPagination() {
-    if (!this.paginationContainerElement) return;
-    this.paginationContainerElement.innerHTML = "";
+    // Ensure the pagination container element exists
+    if (!this.paginationContainerElement) {
+      console.warn("Pagination container element is missing");
+      return;
+    }
+
+    // Initialize the pagination component
     this.paginationComponent = new PaginationComponent({
       container: this.paginationContainerElement,
       totalItems: this.totalResults,
       itemsPerPage: this.resultsPerPage,
       initialPage: this.currentPage,
+      totalPages: this.totalPages,
       onPageChange: async (page) => {
+        // Update the current page and re-render photos when the page changes
         this.currentPage = page;
         await this.updatePaginationAndRenderPhotos();
         window.scrollTo({ top: 0 });
       },
-      totalPages: this.totalPages,
     });
+
+    this.paginationContainerElement.classList.add("hidden");
   }
 
+  /**
+   * Fetches search results for the current page, updates filtered and displayed photos,
+   * updates the photo filter, toggles the filter container visibility, and renders photos.
+   */
   private async updatePaginationAndRenderPhotos(): Promise<void> {
+    // Fetch search results for the current page using the query token
     this.displayedPhotos = await this.searchService.fetchSearchResults(
       this.queryToken,
       this.currentPage
     );
+
+    // Set filteredPhotos to the newly fetched photos (before any filter is applied)
     this.filteredPhotos = [...this.displayedPhotos];
+
+    // Update the photo filter component with the new photos
     this.photoFilter.updatePhotos([...this.displayedPhotos]);
+
+    // Show or hide the filter container based on whether there are photos to display
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
       if (this.displayedPhotos.length > 0) {
@@ -171,8 +229,12 @@ class ImageSearchApp {
         filterContainer.classList.add("hidden");
       }
     }
-  this.renderDisplayedPhotos();
-  window.scrollTo({ top: 0 })
+
+    // Render the currently displayed (and filtered) photos in the UI
+    this.renderDisplayedPhotos();
+
+    // Scroll to the top of the page after updating photos
+    window.scrollTo({ top: 0 });
   }
 
   // Pagination UI is now handled by PaginationComponent

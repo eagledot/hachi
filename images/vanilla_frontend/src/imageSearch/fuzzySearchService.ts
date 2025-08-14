@@ -158,12 +158,16 @@ export class FuzzySearchService {
     const suggestionPromises = availableAttributes.map(async (attribute) => {
       try {
         // Use getSuggestionBatch to avoid request cancellation issues
-        const suggestions = await this.getSuggestionBatch(attribute, value);
-        return suggestions.map((suggestion: string) => ({
-          text: suggestion,
-          attribute: attribute,
-          type: 'suggestion' as const
-        }));
+        const suggestions = (await this.getSuggestionBatch(attribute, value)).flat();
+        // TODO: Remove this once backend is fixed
+        const uniqueSuggestions = Array.from(new Set(suggestions)); // Remove duplicates
+        return uniqueSuggestions.map((suggestion: string) => {
+          return {
+            text: suggestion,
+            attribute: attribute,
+            type: 'suggestion' as const
+          };
+        });
       } catch (error) {
         console.warn(`Failed to fetch suggestions for ${attribute}:`, error);
         return [];

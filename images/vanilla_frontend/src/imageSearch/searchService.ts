@@ -6,11 +6,11 @@ import type { ImageSearchResponse } from "./types";
 import { transformRawDataChunk } from "./utils";
 
 export class SearchService {
-  async startSearch(searchTerm: string): Promise<ImageSearchResponse> {
+  async startSearch(searchTerm: string, resultsPerPage: number): Promise<ImageSearchResponse> {
     let formData = new FormData();
     formData.append("query_start", String(true));
     formData.append("query", searchTerm);
-    formData.append("page_size", String(100));
+    formData.append("page_size", String(resultsPerPage));
 
     try {
       const response = await fetch(endpoints.IMAGE_SEARCH, {

@@ -22,11 +22,12 @@ export class PaginationComponent {
     this.itemsPerPage = props.itemsPerPage;
     this.currentPage = props.initialPage ?? 0;
     this.onPageChange = props.onPageChange;
+  this.totalPages = props.totalPages;
     this.render();
   }
 
   public setPage(page: number) {
-    const totalPages = this.totalPages! ?? this.getTotalPages();
+  const totalPages = this.getTotalPages();
     const newPage = Math.max(0, Math.min(page, totalPages - 1));
     if (newPage !== this.currentPage) {
       this.currentPage = newPage;
@@ -51,16 +52,21 @@ export class PaginationComponent {
 
   public update(props: Partial<Omit<PaginationProps, 'container'>>) {
     console.log("Updating pagination props:", props);
-    if (props.totalItems) this.totalItems = props.totalItems;
-    if (props.itemsPerPage) this.itemsPerPage = props.itemsPerPage;
+    if (typeof props.totalItems === 'number') this.totalItems = props.totalItems;
+    if (typeof props.itemsPerPage === 'number') this.itemsPerPage = props.itemsPerPage;
     if (props.onPageChange) this.onPageChange = props.onPageChange;
-    if (props.initialPage) this.currentPage = props.initialPage;
-    if (props.totalPages) this.totalPages = props.totalPages;
+    if (typeof props.initialPage === 'number') this.currentPage = props.initialPage;
+    if (typeof props.totalPages === 'number') this.totalPages = props.totalPages;
 
     this.render();
   }
 
   private getTotalPages() {
+    // If totalPages is explicitly provided, prefer it; otherwise compute from totals
+    if (typeof this.totalPages === 'number') {
+      return Math.max(0, this.totalPages);
+    }
+    if (this.itemsPerPage <= 0) return 0;
     return Math.ceil(this.totalItems / this.itemsPerPage);
   }
 

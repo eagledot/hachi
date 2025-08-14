@@ -31,6 +31,13 @@ class Endpoints {
     COLLECT_ATTRIBUTE_META = (token: string, pageId: number) => {
         return `${BASE_URL}/api/collectAttributeMeta/${token}/${pageId}`;
     }
+    FILTER_POPULATE_QUERY = (queryToken: string, attribute: string) => {
+        return `${BASE_URL}/api/filterPopulateQuery/${queryToken}/${attribute}`;
+    }
+
+    FILTER_QUERY_META = (queryToken: string, attribute: string, value: string) => {
+        return `${BASE_URL}/api/filterQueryMeta/${queryToken}/${attribute}/${value}`;
+    }
 }
 
 const endpoints = new Endpoints();
