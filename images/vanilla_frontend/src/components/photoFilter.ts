@@ -1,8 +1,8 @@
 // Reusable Photo Filter Component
 // This component provides filtering functionality for photo grids based on metadata
 
-import type { HachiImageData } from "../imageSearch/types";
-import { filterPopulateQuery, html } from "../utils";
+import type { HachiImageData, ImageMetaData } from "../imageSearch/types";
+import { filterPopulateQuery, filterQueryMeta, html } from "../utils";
 import { SearchApiService } from "../imageSearch/apiService";
 import {
   FuzzySearchService,
@@ -74,6 +74,10 @@ export class PhotoFilterComponent {
 
   public updateQueryToken(token: string | null): void {
     this.queryToken = token;
+    // Update filter UI asynchronously when query token changes
+    this.updateFilterUI().catch(error => {
+      console.error("Error updating filter UI after query token change:", error);
+    });
   }
 
   /**
@@ -89,46 +93,18 @@ export class PhotoFilterComponent {
     this.setupImageObserver();
     this.render();
     this.setupEventListeners();
-  }
-  /**
-   * Update the photos and regenerate filter options
-   */
-  updatePhotos(photos: HachiImageData[]): void {
-    // Mark that we're starting initialization
-    this.isInitializing = true;
-    // Create a copy of the photos array and assign it to this.photos
-    this.photos = [...photos];
-    // Generate new filter options based on the updated photos
-    this.generateFilterOptions();
-    // Apply existing filters to the photos (passing true for initial load)
-    this.applyFilters(true);
-    // Update the UI to reflect the current filter settings
-    this.updateFilterUI();
-    // Mark that initial load is complete
-    this.isInitialLoad = false;
-    // Use setTimeout to allow any pending calls to complete before clearing initializing flag
-    setTimeout(() => {
-      this.isInitializing = false;
-    }, 100);
+    console.log("Photo filter component initialized");
   }
 
-  /**
-   * Get the currently filtered photos
-   */
-  getFilteredPhotos(): HachiImageData[] {
-    return [...this.filteredPhotos];
-  }
 
   /**
    * Reset all filters
    */
-  resetFilters(): void {
-    // Preserve resource directory and person context when resetting
-    const resourceDirectory = this.filterCriteria.resourceDirectory;
-    const personContext = this.filterCriteria.personContext;
-    this.filterCriteria = { resourceDirectory, personContext };
-    this.applyFilters();
-    this.updateFilterUI();
+  async resetFilters(): Promise<void> {
+    // Clear all filters but preserve context
+    this.clearAllFiltersExceptContext();
+    await this.applyFilters();
+    await this.updateFilterUI();
   }
 
   /**
@@ -921,9 +897,131 @@ export class PhotoFilterComponent {
   }
 
   /**
-   * Generate filter options from current photos
+   * Generate filter options from server data when queryToken is available, 
+   * or from current photos for client-side filtering
    */
-  private generateFilterOptions(): void {
+  private async generateFilterOptions(): Promise<void> {
+    const options: FilterOptions = {
+      people: [],
+      years: [],
+      cameraMakes: [],
+      cameraModels: [],
+      places: [],
+      tags: [],
+    };
+
+    // If we have a query token, get filter options from server
+    if (this.queryToken) {
+      try {
+        console.log("Fetching filter options from server with token:", this.queryToken);
+        
+        // Fetch options for each filter attribute separately
+        // Some requests may fail if the server doesn't support all attributes yet
+        const requests = [
+          filterPopulateQuery(this.queryToken, "person").catch(err => {
+            console.warn("Failed to fetch people options:", err);
+            return [];
+          }),
+          filterPopulateQuery(this.queryToken, "year").catch(err => {
+            console.warn("Failed to fetch years options:", err);
+            return [];
+          }),
+          filterPopulateQuery(this.queryToken, "cameraMake").catch(err => {
+            console.warn("Failed to fetch camera makes options:", err);
+            return [];
+          }),
+          filterPopulateQuery(this.queryToken, "cameraModel").catch(err => {
+            console.warn("Failed to fetch camera models options:", err);
+            return [];
+          }),
+          filterPopulateQuery(this.queryToken, "place").catch(err => {
+            console.warn("Failed to fetch places options:", err);
+            return [];
+          }),
+          filterPopulateQuery(this.queryToken, "tag").catch(err => {
+            console.warn("Failed to fetch tags options:", err);
+            return [];
+          })
+        ];
+        
+        const [peopleData, yearsData, cameraMakesData, cameraModelsData, placesData, tagsData] = await Promise.all(requests);
+        
+        // Parse the server responses to populate filter options
+        // Each response contains the options for that specific attribute
+        if (peopleData && Array.isArray(peopleData)) {
+          options.people = peopleData.filter((person: string) => 
+            person && 
+            person !== "no_person_detected" && 
+            person !== "no_categorical_info"
+          );
+        }
+        
+        if (yearsData && Array.isArray(yearsData)) {
+          options.years = yearsData.filter((year: any) => 
+            typeof year === 'number' || !isNaN(parseInt(year))
+          ).map((year: any) => typeof year === 'number' ? year : parseInt(year));
+        }
+        
+        if (cameraMakesData && Array.isArray(cameraMakesData)) {
+          options.cameraMakes = cameraMakesData.filter((make: string) => make && make.trim());
+        }
+        
+        if (cameraModelsData && Array.isArray(cameraModelsData)) {
+          options.cameraModels = cameraModelsData.filter((model: string) => model && model.trim());
+        }
+        
+        if (placesData && Array.isArray(placesData)) {
+          options.places = placesData.filter((place: string) => place && place.trim());
+        }
+        
+        if (tagsData && Array.isArray(tagsData)) {
+          options.tags = tagsData.filter((tag: string) => tag && tag.trim());
+        }
+        
+        console.log("Server filter options:", options);
+        
+        // If no options were retrieved from server, fall back to client-side generation
+        const hasAnyServerOptions = options.people.length > 0 || 
+                                   options.years.length > 0 || 
+                                   options.cameraMakes.length > 0 || 
+                                   options.cameraModels.length > 0 || 
+                                   options.places.length > 0 || 
+                                   options.tags.length > 0;
+        
+        if (!hasAnyServerOptions) {
+          console.log("No server options available, falling back to client-side generation");
+          return this.generateClientSideFilterOptions();
+        }
+      } catch (error) {
+        console.error("Error fetching filter options from server:", error);
+        // Fall back to client-side generation if server request fails
+        return this.generateClientSideFilterOptions();
+      }
+    } else {
+      // Fall back to client-side filter generation when no query token
+      return this.generateClientSideFilterOptions();
+    }
+
+    // Sort all options
+    options.people.sort();
+    options.years.sort((a, b) => b - a); // Most recent first
+    options.cameraMakes.sort();
+    options.cameraModels.sort();
+    options.places.sort();
+    options.tags.sort();
+
+    this.filterOptions = options;
+
+    // Notify callback if provided
+    if (this.callbacks.onFilterOptionsUpdate) {
+      this.callbacks.onFilterOptionsUpdate(options);
+    }
+  }
+
+  /**
+   * Generate filter options from current photos (client-side fallback)
+   */
+  private generateClientSideFilterOptions(): void {
     const options: FilterOptions = {
       people: [],
       years: [],
@@ -1049,8 +1147,11 @@ export class PhotoFilterComponent {
   /**
    * Update the filter UI with current options
    */
-  private updateFilterUI(): void {
+  private async updateFilterUI(): Promise<void> {
     if (!this.container) return;
+
+    // Generate filter options (may be async if using server-side data)
+    await this.generateFilterOptions();
 
     this.updateFilterSection("people", this.filterOptions.people);
     this.updateFilterSection("years", this.filterOptions.years.map(String));
@@ -1346,7 +1447,7 @@ export class PhotoFilterComponent {
   }
 
   /**
-   * Update standard filter (non-people) with checkboxes
+   * Update standard filter (non-people) with radio buttons for single selection
    */
   private updateStandardFilter(
     content: Element,
@@ -1365,11 +1466,12 @@ export class PhotoFilterComponent {
               return `
         <label class="flex items-center space-x-2 py-1.5 px-2 hover:bg-gray-50 rounded cursor-pointer text-sm">
           <input 
-            type="checkbox" 
+            type="radio" 
+            name="${filterType}-filter"
             value="${option}" 
             data-filter-type="${filterType}"
             ${isChecked ? "checked" : ""}
-            class="filter-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+            class="filter-radio rounded-full border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
           />
           <span class="text-gray-700 truncate flex-1">${display}</span>
         </label>
@@ -1382,20 +1484,25 @@ export class PhotoFilterComponent {
       </div>
     `;
 
-    // Add event listeners to checkboxes
-    const checkboxes = content.querySelectorAll(".filter-checkbox");
-    checkboxes.forEach((checkbox) => {
-      this.addEventListenerTracked(checkbox as HTMLElement, "change", (e) => {
+    // Add event listeners to radio buttons
+    const radioButtons = content.querySelectorAll(".filter-radio");
+    radioButtons.forEach((radio) => {
+      this.addEventListenerTracked(radio as HTMLElement, "change", (e) => {
         this.handleFilterChange(e as Event);
         // Close dropdown after selection for better UX
         setTimeout(() => this.closeAllDropdowns(), 100);
       });
     });
   }
+
+  
   /**
    * Handle person filter toggle for thumbnail grid
    */
   private handlePersonFilterToggle(personId: string): void {
+    // Clear all existing filters first to enforce single filter selection
+    this.clearAllFiltersExceptContext();
+
     // Initialize people array if needed
     if (!this.filterCriteria.people) {
       this.filterCriteria.people = [];
@@ -1406,112 +1513,211 @@ export class PhotoFilterComponent {
     const isSelected = index > -1;
 
     if (isSelected) {
-      // Remove person from filter
+      // Remove person from filter (deselect)
       currentValues.splice(index, 1);
     } else {
-      // Add person to filter
-      currentValues.push(personId);
+      // Set only this person as selected (single selection)
+      this.filterCriteria.people = [personId];
     }
 
     // Clean up empty arrays
-    if (currentValues.length === 0) {
+    if (this.filterCriteria.people.length === 0) {
       delete this.filterCriteria.people;
     }
 
-    // Update visual state for this specific person only
-    const personElement = this.container?.querySelector(
-      `[data-person-id="${personId}"]`
-    ) as HTMLElement;
-    if (personElement) {
-      this.updatePersonElementState(personElement, !isSelected);
-    }
+    // Update all person elements visual state
+    this.updateAllPersonElementsState();
 
     this.applyFilters();
     this.updateActiveFilters();
-    this.updateTabLabel("people");
+    this.updateAllTabLabels();
 
     // Close dropdown after selection for better UX
     setTimeout(() => this.closeAllDropdowns(), 100);
   }
 
   /**
-   * Handle filter checkbox changes
+   * Handle filter input changes (radio buttons and checkboxes)
    */
   private handleFilterChange(e: Event): void {
-    const checkbox = e.target as HTMLInputElement;
-    const filterType = checkbox.dataset.filterType as keyof FilterCriteria;
-    const value = checkbox.value;
+    const input = e.target as HTMLInputElement;
+    const filterType = input.dataset.filterType as keyof FilterCriteria;
+    const value = input.value;
 
     if (!filterType) return;
 
-    // Initialize array if needed
-    if (!this.filterCriteria[filterType]) {
-      (this.filterCriteria[filterType] as any) = [];
-    }
+    // Clear all existing filters first to enforce single filter selection
+    this.clearAllFiltersExceptContext();
 
-    if (filterType === "years") {
-      // Special handling for years - convert strings to numbers
-      const currentValues = this.filterCriteria[filterType] as number[];
-      const numericValue = parseInt(value);
-
-      if (isNaN(numericValue)) return; // Skip invalid numbers
-
-      if (checkbox.checked) {
-        // Add filter
-        if (!currentValues.includes(numericValue)) {
-          currentValues.push(numericValue);
+    // Only proceed if input is being checked/selected
+    if (input.checked) {
+      if (filterType === "years") {
+        // Special handling for years - convert strings to numbers
+        const numericValue = parseInt(value);
+        if (!isNaN(numericValue)) {
+          this.filterCriteria.years = [numericValue];
         }
       } else {
-        // Remove filter
-        const index = currentValues.indexOf(numericValue);
-        if (index > -1) {
-          currentValues.splice(index, 1);
-        }
-      }
-
-      // Clean up empty arrays
-      if (currentValues.length === 0) {
-        delete this.filterCriteria[filterType];
-      }
-    } else {
-      // Standard string handling for other filter types
-      const currentValues = this.filterCriteria[filterType] as string[];
-
-      if (checkbox.checked) {
-        // Add filter
-        if (!currentValues.includes(value)) {
-          currentValues.push(value);
-        }
-      } else {
-        // Remove filter
-        const index = currentValues.indexOf(value);
-        if (index > -1) {
-          currentValues.splice(index, 1);
-        }
-      }
-
-      // Clean up empty arrays
-      if (currentValues.length === 0) {
-        delete this.filterCriteria[filterType];
+        // Standard string handling for other filter types
+        (this.filterCriteria[filterType] as string[]) = [value];
       }
     }
+
+    // Update all input elements state to reflect single selection
+    this.updateAllInputElementsState();
 
     this.applyFilters();
     this.updateActiveFilters();
-    this.updateTabLabel(filterType);
+    this.updateAllTabLabels();
+  }
+
+  /**
+   * Clear all filters except context filters (resourceDirectory and personContext)
+   */
+  private clearAllFiltersExceptContext(): void {
+    // Preserve resource directory and person context while clearing user filters
+    const resourceDirectory = this.filterCriteria.resourceDirectory;
+    const personContext = this.filterCriteria.personContext;
+
+    // Reset all filter criteria except context
+    this.filterCriteria = {
+      resourceDirectory: resourceDirectory,
+      personContext: personContext,
+    };
+  }
+
+  /**
+   * Update all person elements visual state based on current filter criteria
+   */
+  private updateAllPersonElementsState(): void {
+    const personElements = this.container?.querySelectorAll(
+      ".person-filter-item"
+    ) as NodeListOf<HTMLElement>;
+    
+    personElements.forEach((element) => {
+      const personId = element.dataset.personId;
+      if (personId) {
+        const isSelected = this.filterCriteria.people?.includes(personId) || false;
+        this.updatePersonElementState(element, isSelected);
+      }
+    });
+  }
+
+  /**
+   * Update all tab labels
+   */
+  private updateAllTabLabels(): void {
+    [
+      "people",
+      "years",
+      "tags",
+      "cameraMakes",
+      "cameraModels",
+      "places",
+    ].forEach((filterType) => {
+      this.updateTabLabel(filterType);
+    });
+  }
+
+  /**
+   * Update all input elements (radio buttons and checkboxes) state based on current filter criteria
+   */
+  private updateAllInputElementsState(): void {
+    // Update radio buttons
+    const radioButtons = this.container?.querySelectorAll(
+      'input[type="radio"]'
+    ) as NodeListOf<HTMLInputElement>;
+    
+    radioButtons.forEach((radio) => {
+      const filterType = radio.dataset.filterType as keyof FilterCriteria;
+      const value = radio.value;
+      
+      if (filterType) {
+        const currentValues = this.filterCriteria[filterType];
+        if (Array.isArray(currentValues)) {
+          if (filterType === "years") {
+            const numericValue = parseInt(value);
+            const yearValues = currentValues as number[];
+            radio.checked = !isNaN(numericValue) && yearValues.includes(numericValue);
+          } else {
+            const stringValues = currentValues as string[];
+            radio.checked = stringValues.includes(value);
+          }
+        } else {
+          radio.checked = false;
+        }
+      }
+    });
+
+    // Update any remaining checkboxes (for backward compatibility)
+    const checkboxes = this.container?.querySelectorAll(
+      'input[type="checkbox"]'
+    ) as NodeListOf<HTMLInputElement>;
+    
+    checkboxes.forEach((checkbox) => {
+      const filterType = checkbox.dataset.filterType as keyof FilterCriteria;
+      const value = checkbox.value;
+      
+      if (filterType) {
+        const currentValues = this.filterCriteria[filterType];
+        if (Array.isArray(currentValues)) {
+          if (filterType === "years") {
+            const numericValue = parseInt(value);
+            const yearValues = currentValues as number[];
+            checkbox.checked = !isNaN(numericValue) && yearValues.includes(numericValue);
+          } else {
+            const stringValues = currentValues as string[];
+            checkbox.checked = stringValues.includes(value);
+          }
+        } else {
+          checkbox.checked = false;
+        }
+      }
+    });
+  }
+
+  private transformFilterRawData(data: ImageMetaData[]): HachiImageData[] {
+    return data.map((item) => ({
+      id: item.resource_hash!,
+      score: 1,
+      metadata: item
+    }));
   }
 
   /**
    * Apply current filters to photos
    */
   private async applyFilters(isInitialLoad: boolean = false): Promise<void> {
-    this.filteredPhotos = this.photos.filter((photo) => {
-      return this.matchesFilter(photo, this.filterCriteria);
-    });
-
-    if (this.queryToken) {
-      const data = await filterPopulateQuery(this.queryToken!, "person");
-      console.log("Filter data:", data);
+    console.log("Applying filters...");
+    
+    // If we have a query token and user has selected filters, use server-side filtering
+    if (this.queryToken && this.hasActiveFilters()) {
+      try {
+        console.log("Using server-side filtering with criteria:", this.filterCriteria);
+        
+        // Determine which filter is active and get its attribute and value
+        const { attribute, value } = this.getActiveFilterAttributeAndValue();
+        
+        if (attribute && value) {
+          // Get filtered results from server using the actual selected attribute and value
+          const results = await filterQueryMeta(this.queryToken, attribute, value);
+          this.filteredPhotos = this.transformFilterRawData(results);
+          
+          console.log("Server filter results:", this.filteredPhotos);
+        } else {
+          console.warn("No valid filter attribute/value found");
+          this.filteredPhotos = [];
+        }
+      } catch (error) {
+        console.error("Error applying server-side filters:", error);
+        // Set empty results on server error
+        this.filteredPhotos = [];
+      }
+    } else {
+      // Use client-side filtering when no query token or no active filters
+      this.filteredPhotos = this.photos.filter((photo) => {
+        return this.matchesFilter(photo, this.filterCriteria);
+      });
     }
 
     this.callbacks.onFilterChange(this.filteredPhotos);
@@ -1521,6 +1727,107 @@ export class PhotoFilterComponent {
     if (!isInitialLoad && !this.isInitialLoad) {
       this.scrollToTop();
     }
+  }
+
+  /**
+   * Get the active filter attribute and its value for server-side filtering
+   * Since we enforce single selection, only one filter should be active at a time
+   */
+  private getActiveFilterAttributeAndValue(): { attribute: string | null; value: string | null } {
+    // Check each filter type for active selections
+    if (this.filterCriteria.people?.length) {
+      return { attribute: "person", value: this.filterCriteria.people[0] };
+    }
+    
+    if (this.filterCriteria.years?.length) {
+      return { attribute: "year", value: this.filterCriteria.years[0].toString() };
+    }
+    
+    if (this.filterCriteria.cameraMakes?.length) {
+      return { attribute: "cameraMake", value: this.filterCriteria.cameraMakes[0] };
+    }
+    
+    if (this.filterCriteria.cameraModels?.length) {
+      return { attribute: "cameraModel", value: this.filterCriteria.cameraModels[0] };
+    }
+    
+    if (this.filterCriteria.places?.length) {
+      return { attribute: "place", value: this.filterCriteria.places[0] };
+    }
+    
+    if (this.filterCriteria.tags?.length) {
+      return { attribute: "tag", value: this.filterCriteria.tags[0] };
+    }
+    
+    // If search text is provided, treat it as a special case
+    if (this.filterCriteria.searchText) {
+      return { attribute: "searchText", value: this.filterCriteria.searchText };
+    }
+    
+    return { attribute: null, value: null };
+  }
+
+  /**
+   * Check if user has any active filters (excluding context filters)
+   */
+  private hasActiveFilters(): boolean {
+    return !!(
+      this.filterCriteria.people?.length ||
+      this.filterCriteria.years?.length ||
+      this.filterCriteria.cameraMakes?.length ||
+      this.filterCriteria.cameraModels?.length ||
+      this.filterCriteria.places?.length ||
+      this.filterCriteria.tags?.length ||
+      this.filterCriteria.searchText
+    );
+  }
+
+  /**
+   * Build filter parameters for server query based on current filter criteria
+   */
+  private buildServerFilterParams(): any {
+    const params: any = {};
+
+    // Add single filter selection (since we enforce single selection)
+    if (this.filterCriteria.people?.length) {
+      params.person = this.filterCriteria.people[0]; // Single selection
+    }
+    
+    if (this.filterCriteria.years?.length) {
+      params.year = this.filterCriteria.years[0]; // Single selection
+    }
+    
+    if (this.filterCriteria.cameraMakes?.length) {
+      params.make = this.filterCriteria.cameraMakes[0]; // Single selection
+    }
+    
+    if (this.filterCriteria.cameraModels?.length) {
+      params.model = this.filterCriteria.cameraModels[0]; // Single selection
+    }
+    
+    if (this.filterCriteria.places?.length) {
+      params.place = this.filterCriteria.places[0]; // Single selection
+    }
+    
+    if (this.filterCriteria.tags?.length) {
+      params.tag = this.filterCriteria.tags[0]; // Single selection
+    }
+    
+    if (this.filterCriteria.searchText) {
+      params.searchText = this.filterCriteria.searchText;
+    }
+
+    // Include context filters if present
+    if (this.filterCriteria.resourceDirectory?.length) {
+      params.resourceDirectory = this.filterCriteria.resourceDirectory;
+    }
+    
+    if (this.filterCriteria.personContext) {
+      params.personContext = this.filterCriteria.personContext;
+    }
+
+    console.log("Built server filter params:", params);
+    return params;
   }
   /**
    * Check if a photo matches the current filter criteria
@@ -1816,7 +2123,9 @@ export class PhotoFilterComponent {
           clearAllButton as HTMLElement,
           "click",
           () => {
-            this.clearAllFilters();
+            this.clearAllFilters().catch(error => {
+              console.error("Error clearing all filters:", error);
+            });
           }
         );
       }
@@ -1828,7 +2137,7 @@ export class PhotoFilterComponent {
   /**
    * Clear a specific filter
    */
-  private clearFilter(filterType: string, filterValue: string): void {
+  private clearFilter(filterType: string, _filterValue: string): void {
     if (filterType === "searchText") {
       this.filterCriteria.searchText = undefined;
       // Clear the search input
@@ -1839,48 +2148,22 @@ export class PhotoFilterComponent {
         searchInput.value = "";
       }
     } else if (this.filterCriteria[filterType as keyof FilterCriteria]) {
-      if (filterType === "years") {
-        // Special handling for years - convert string back to number for removal
-        const filterArray = this.filterCriteria[filterType] as number[];
-        const numericValue = parseInt(filterValue);
-        if (!isNaN(numericValue)) {
-          const index = filterArray.indexOf(numericValue);
-          if (index > -1) {
-            filterArray.splice(index, 1);
-          }
-        }
-      } else if (filterType === "people") {
-        // Special handling for people - update visual state
-        const filterArray = this.filterCriteria[filterType] as string[];
-        const index = filterArray.indexOf(filterValue);
-        if (index > -1) {
-          filterArray.splice(index, 1);
-          // Update visual state for this specific person
-          const personElement = this.container?.querySelector(
-            `[data-person-id="${filterValue}"]`
-          ) as HTMLElement;
-          if (personElement) {
-            this.updatePersonElementState(personElement, false);
-          }
-        }
-      } else {
-        // Standard string handling for other filter types
-        const filterArray = this.filterCriteria[
-          filterType as keyof FilterCriteria
-        ] as string[];
-        const index = filterArray.indexOf(filterValue);
-        if (index > -1) {
-          filterArray.splice(index, 1);
-        }
-      }
-    } // Update UI and apply filters
+      // Clear the entire filter since we only allow single selections
+      delete this.filterCriteria[filterType as keyof FilterCriteria];
+    }
+
+    // Update all input elements state
+    this.updateAllInputElementsState();
+    
+    // Update all person elements state
+    this.updateAllPersonElementsState();
+
+    // Update UI and apply filters
     this.updateActiveFilters();
     this.applyFilters();
 
-    // Update tab label for the affected filter type
-    if (filterType !== "searchText") {
-      this.updateTabLabel(filterType);
-    }
+    // Update all tab labels
+    this.updateAllTabLabels();
 
     // Scroll to top when a filter is cleared
     this.scrollToTop();
@@ -1888,23 +2171,10 @@ export class PhotoFilterComponent {
   /**
    * Clear all filters
    */
-  private clearAllFilters(): void {
-    // Preserve resource directory and person context while clearing user filters
-    const resourceDirectory = this.filterCriteria.resourceDirectory;
-    const personContext = this.filterCriteria.personContext;
-
-    // Reset all filter criteria
-    this.filterCriteria = {
-      searchText: undefined,
-      people: [],
-      years: [],
-      cameraMakes: [],
-      cameraModels: [],
-      places: [],
-      tags: [],
-      resourceDirectory: resourceDirectory, // Preserve context
-      personContext: personContext, // Preserve context
-    };
+  private async clearAllFilters(): Promise<void> {
+    // Clear all filters including search text but preserve context
+    this.clearAllFiltersExceptContext();
+    this.filterCriteria.searchText = undefined;
 
     // Clear search input
     const searchInput = this.container?.querySelector(
@@ -1914,7 +2184,14 @@ export class PhotoFilterComponent {
       searchInput.value = "";
     }
 
-    // Clear all checkboxes
+    // Clear all input elements
+    const radioButtons = this.container?.querySelectorAll(
+      'input[type="radio"]'
+    ) as NodeListOf<HTMLInputElement>;
+    radioButtons.forEach((radio) => {
+      radio.checked = false;
+    });
+
     const checkboxes = this.container?.querySelectorAll(
       'input[type="checkbox"]'
     ) as NodeListOf<HTMLInputElement>;
@@ -1923,32 +2200,18 @@ export class PhotoFilterComponent {
     });
 
     // Clear people thumbnail selections - update visual state
-    const personElements = this.container?.querySelectorAll(
-      ".person-filter-item"
-    ) as NodeListOf<HTMLElement>;
-    personElements.forEach((element) => {
-      this.updatePersonElementState(element, false);
-    });
+    this.updateAllPersonElementsState();
 
     // Update all tab labels
-    [
-      "people",
-      "years",
-      "tags",
-      "cameraMakes",
-      "cameraModels",
-      "places",
-    ].forEach((filterType) => {
-      this.updateTabLabel(filterType);
-    });
+    this.updateAllTabLabels();
 
     // Close all dropdowns
     this.closeAllDropdowns();
 
     // Update UI state and active filters, then apply filters
-    this.updateFilterUI();
+    await this.updateFilterUI();
     this.updateActiveFilters();
-    this.applyFilters();
+    await this.applyFilters();
 
     // Scroll to top when all filters are cleared
     this.scrollToTop();

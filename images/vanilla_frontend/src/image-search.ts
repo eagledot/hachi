@@ -1,7 +1,6 @@
 // Main ImageSearch application entry point
 import { SearchService, UIService } from "./imageSearch";
 import type { HachiImageData } from "./imageSearch";
-import { FuzzySearchService } from "./imageSearch/fuzzySearchService";
 import { FuzzySearchUI } from "./imageSearch/fuzzySearchUI";
 
 import {
@@ -14,7 +13,6 @@ import { PaginationComponent } from "./components/pagination";
 class ImageSearchApp {
   private searchService: SearchService;
   private uiService: UIService;
-  private fuzzySearchService: FuzzySearchService;
   private fuzzySearchUI: FuzzySearchUI;
   private photoFilter: PhotoFilterComponent;
   private filteredPhotos: HachiImageData[] = [];
@@ -32,6 +30,7 @@ class ImageSearchApp {
   private filterContainer: HTMLElement | null = null;
 
   constructor() {
+    this.cacheDOMElements();
     // Initialize reusable components first
     ImageModalComponent.initialize();
 
@@ -42,8 +41,6 @@ class ImageSearchApp {
       gridId: "photo-grid",
     });
 
-    // Initialize fuzzy search service first
-    this.fuzzySearchService = new FuzzySearchService();
 
     // Get the fuzzy search container element
     const fuzzyContainer = document.getElementById("fuzzy-search-container");
@@ -80,7 +77,7 @@ class ImageSearchApp {
     this.searchService = new SearchService();
 
     this.setupEventListeners();
-    this.cacheDOMElements();
+    
     this.init();
   }
 
@@ -96,9 +93,43 @@ class ImageSearchApp {
     this.setupPagination();
   }
 
+  /**
+   * Handles updates to the filtered photos from the PhotoFilterComponent.
+   * - Resets pagination to the first page.
+   * - If no filtered photos, resets to show all results and updates pagination.
+   * - Otherwise, updates filtered and displayed photos, updates pagination, and re-renders.
+   */
+  /**
+   * Handles updates to the filtered photos from the PhotoFilterComponent.
+   * Resets pagination and updates UI accordingly.
+   */
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
+    console.log("Filtered photos updated:", filteredPhotos.length);
+    this.currentPage = 0;
+    if (filteredPhotos.length === 0) {
+      // No filters applied, show all results
+      this.filteredPhotos = [];
+      this.updatePaginationComponent(this.totalResults, this.totalPages, 0);
+      this.updatePaginationAndRenderPhotos();
+      return;
+    }
     this.filteredPhotos = [...filteredPhotos];
-    this.renderDisplayedPhotos();
+    this.displayedPhotos = [...filteredPhotos];
+    const filteredTotalPages = Math.ceil(this.filteredPhotos.length / this.resultsPerPage);
+    this.updatePaginationComponent(this.filteredPhotos.length, filteredTotalPages, 0);
+    this.updatePaginationAndRenderPhotos();
+  }
+
+  /**
+   * Helper to update pagination component state.
+   */
+  private updatePaginationComponent(totalItems: number, totalPages: number, initialPage: number) {
+    this.paginationComponent?.update({
+      totalItems,
+      itemsPerPage: this.resultsPerPage,
+      initialPage,
+      totalPages,
+    });
   }
 
   private setupEventListeners(): void {
@@ -117,60 +148,34 @@ class ImageSearchApp {
    * - Updates pagination, filter, and UI state.
    * - Handles loading and error states.
    */
+  /**
+   * Handles the search operation when a user submits a query.
+   * Validates, starts search, updates pagination, filter, and UI state.
+   */
   private async handleSearch(query: string): Promise<void> {
-    // Validate the search query
     if (!query.trim()) {
       this.uiService.updateError("Please enter a search term");
       return;
     }
     console.log("Starting search for:", query);
     try {
-      // Set loading state
       this.handleLoadingChange(true);
-
-      // Reset to first page for new search
       this.currentPage = 0;
-
-      // Start the search and get the response from the backend
       const imageSearchResponse = await this.searchService.startSearch(query, this.resultsPerPage);
-
-      // Extract pagination and result info from the response
       this.totalPages = imageSearchResponse["n_pages"] || 1;
       this.totalResults = imageSearchResponse["n_matches"];
       this.queryToken = imageSearchResponse["query_token"];
-
-      // Update the photo filter with the new query token
       this.photoFilter.updateQueryToken(this.queryToken);
-
-      // Update or initialize the pagination component
-      if (this.paginationComponent) {
-        this.paginationComponent.update({
-          totalItems: this.totalResults,
-          itemsPerPage: this.resultsPerPage,
-          initialPage: this.currentPage,
-          totalPages: this.totalPages,
-        });
-        this.paginationContainerElement?.classList.remove("hidden");
-      } else {
-        // Fallback: initialize if not yet created
-        this.setupPagination();
-      }
-
-      // Fetch and render photos for the current page
+      this.updatePaginationComponent(this.totalResults, this.totalPages, this.currentPage);
+      this.paginationContainerElement?.classList.remove("hidden");
+      this.filteredPhotos = [];
       await this.updatePaginationAndRenderPhotos();
-
-      // Reset loading state and indicate search is done
       this.handleLoadingChange(false);
       this.handleSearchDoneChange(true);
     } catch (error) {
-      // Handle errors and reset loading state
       this.handleLoadingChange(false);
       console.error("Search failed:", error);
-      this.handleErrorChange(
-        error instanceof Error
-          ? error.message
-          : "Search failed. Please try again."
-      );
+      this.handleErrorChange(error instanceof Error ? error.message : "Search failed. Please try again.");
     }
   }
 
@@ -178,14 +183,14 @@ class ImageSearchApp {
   /**
    * Initializes the pagination component.
    */
+  /**
+   * Initializes the pagination component and sets up page change handling.
+   */
   private setupPagination() {
-    // Ensure the pagination container element exists
     if (!this.paginationContainerElement) {
       console.warn("Pagination container element is missing");
       return;
     }
-
-    // Initialize the pagination component
     this.paginationComponent = new PaginationComponent({
       container: this.paginationContainerElement,
       totalItems: this.totalResults,
@@ -193,13 +198,11 @@ class ImageSearchApp {
       initialPage: this.currentPage,
       totalPages: this.totalPages,
       onPageChange: async (page) => {
-        // Update the current page and re-render photos when the page changes
         this.currentPage = page;
         await this.updatePaginationAndRenderPhotos();
         window.scrollTo({ top: 0 });
       },
     });
-
     this.paginationContainerElement.classList.add("hidden");
   }
 
@@ -207,34 +210,35 @@ class ImageSearchApp {
    * Fetches search results for the current page, updates filtered and displayed photos,
    * updates the photo filter, toggles the filter container visibility, and renders photos.
    */
+  /**
+   * Fetches and renders photos for the current page, handling both filtered and unfiltered states.
+   */
   private async updatePaginationAndRenderPhotos(): Promise<void> {
-    // Fetch search results for the current page using the query token
-    this.displayedPhotos = await this.searchService.fetchSearchResults(
-      this.queryToken,
-      this.currentPage
-    );
+    if (this.filteredPhotos.length) {
+      this.displayedPhotos = this.filteredPhotos.slice(
+        this.currentPage * this.resultsPerPage,
+        (this.currentPage + 1) * this.resultsPerPage
+      );
+    } else {
+      this.displayedPhotos = await this.searchService.fetchSearchResults(
+        this.queryToken,
+        this.currentPage
+      );
+    }
+    console.log("Displayed photos updated:", this.displayedPhotos.length);
+    this.toggleFilterContainer(this.displayedPhotos.length > 0);
+    this.renderDisplayedPhotos();
+    window.scrollTo({ top: 0 });
+  }
 
-    // Set filteredPhotos to the newly fetched photos (before any filter is applied)
-    this.filteredPhotos = [...this.displayedPhotos];
-
-    // Update the photo filter component with the new photos
-    this.photoFilter.updatePhotos([...this.displayedPhotos]);
-
-    // Show or hide the filter container based on whether there are photos to display
+  /**
+   * Show or hide the filter container based on photo count.
+   */
+  private toggleFilterContainer(show: boolean) {
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
-      if (this.displayedPhotos.length > 0) {
-        filterContainer.classList.remove("hidden");
-      } else {
-        filterContainer.classList.add("hidden");
-      }
+      filterContainer.classList.toggle("hidden", !show);
     }
-
-    // Render the currently displayed (and filtered) photos in the UI
-    this.renderDisplayedPhotos();
-
-    // Scroll to the top of the page after updating photos
-    window.scrollTo({ top: 0 });
   }
 
   // Pagination UI is now handled by PaginationComponent
@@ -242,7 +246,7 @@ class ImageSearchApp {
   // Pagination event listeners are handled by PaginationComponent
 
   private renderDisplayedPhotos(): void {
-    this.uiService.updatePhotos([...this.filteredPhotos]);
+    this.uiService.updatePhotos([...this.displayedPhotos]);
   }
 
   private handleLoadingChange(isLoading: boolean): void {

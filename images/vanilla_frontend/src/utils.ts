@@ -70,6 +70,17 @@ export async function filterPopulateQuery(queryToken: string, attribute: string)
   return data;
 }
 
+
+export async function filterQueryMeta(queryToken: string, attribute: string, value: string): Promise<any> {
+  const endpoint = endpoints.FILTER_QUERY_META(queryToken, attribute, value);
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch data from ${endpoint}`);
+  }
+  const data = await response.json();
+  return data;
+}
+
 // Make it globally available
 if (typeof window !== 'undefined') {
   (window as any).html = html;
