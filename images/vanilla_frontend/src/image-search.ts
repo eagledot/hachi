@@ -44,12 +44,9 @@ class ImageSearchApp {
 
     // Get the fuzzy search container element
     const fuzzyContainer = document.getElementById("fuzzy-search-container");
-    if (!fuzzyContainer) {
-      throw new Error("Fuzzy search container not found");
-    }
 
     // Initialize fuzzy search UI
-    this.fuzzySearchUI = new FuzzySearchUI(fuzzyContainer, {
+    this.fuzzySearchUI = new FuzzySearchUI(fuzzyContainer!, {
       onSearchExecuted: (query) => this.handleSearch(query),
     });
 
@@ -165,11 +162,11 @@ class ImageSearchApp {
       this.totalPages = imageSearchResponse["n_pages"] || 1;
       this.totalResults = imageSearchResponse["n_matches"];
       this.queryToken = imageSearchResponse["query_token"];
-      this.photoFilter.updateQueryToken(this.queryToken);
       this.updatePaginationComponent(this.totalResults, this.totalPages, this.currentPage);
       this.paginationContainerElement?.classList.remove("hidden");
       this.filteredPhotos = [];
       await this.updatePaginationAndRenderPhotos();
+      this.photoFilter.updateQueryToken(this.queryToken); // TODO: For now, this will trigger the requests for getting filter options from backend. Not the most efficient way yet. Required Inspection.
       this.handleLoadingChange(false);
       this.handleSearchDoneChange(true);
     } catch (error) {
@@ -241,10 +238,6 @@ class ImageSearchApp {
     }
   }
 
-  // Pagination UI is now handled by PaginationComponent
-
-  // Pagination event listeners are handled by PaginationComponent
-
   private renderDisplayedPhotos(): void {
     this.uiService.updatePhotos([...this.displayedPhotos]);
   }
@@ -275,8 +268,7 @@ class ImageSearchApp {
   private handlePhotoClick(photo: HachiImageData): void {
     console.log("Photo clicked:", photo);
 
-    // Find the index in the FILTERED photos (not just displayed photos)
-    const photoIndex = this.filteredPhotos.findIndex((p) => p.id === photo.id);
+    const photoIndex = this.displayedPhotos.findIndex((p) => p.id === photo.id);
     if (photoIndex === -1) return;
 
     // Update search service with selected photo for consistency
@@ -284,7 +276,7 @@ class ImageSearchApp {
 
     // Determine navigation capabilities based on filtered photos
     const canGoPrevious = photoIndex > 0;
-    const canGoNext = photoIndex < this.filteredPhotos.length - 1;
+    const canGoNext = photoIndex < this.displayedPhotos.length - 1;
 
     this.uiService.showModal(photo, canGoPrevious, canGoNext);
   }
@@ -299,16 +291,16 @@ class ImageSearchApp {
     if (!this.selectedPhoto) return;
 
     // Find current photo in filtered photos
-    const currentIndex = this.filteredPhotos.findIndex(
+    const currentIndex = this.displayedPhotos.findIndex(
       (p) => p.id === this.selectedPhoto!.id
     );
-    if (currentIndex !== -1 && currentIndex < this.filteredPhotos.length - 1) {
+    if (currentIndex !== -1 && currentIndex < this.displayedPhotos.length - 1) {
       console.log("Modal next");
-      const nextPhoto = this.filteredPhotos[currentIndex + 1];
+      const nextPhoto = this.displayedPhotos[currentIndex + 1];
       this.selectedPhoto = nextPhoto;
 
       const canGoPrevious = currentIndex + 1 > 0;
-      const canGoNext = currentIndex + 1 < this.filteredPhotos.length - 1;
+      const canGoNext = currentIndex + 1 < this.displayedPhotos.length - 1;
 
       this.uiService.showModal(nextPhoto, canGoPrevious, canGoNext);
     }
@@ -318,16 +310,16 @@ class ImageSearchApp {
     if (!this.selectedPhoto) return;
 
     // Find current photo in filtered photos
-    const currentIndex = this.filteredPhotos.findIndex(
+    const currentIndex = this.displayedPhotos.findIndex(
       (p) => p.id === this.selectedPhoto!.id
     );
     if (currentIndex !== -1 && currentIndex > 0) {
       console.log("Modal previous");
-      const prevPhoto = this.filteredPhotos[currentIndex - 1];
+      const prevPhoto = this.displayedPhotos[currentIndex - 1];
       this.selectedPhoto = prevPhoto;
 
       const canGoPrevious = currentIndex - 1 > 0;
-      const canGoNext = currentIndex - 1 < this.filteredPhotos.length - 1;
+      const canGoNext = currentIndex - 1 < this.displayedPhotos.length - 1;
 
       this.uiService.showModal(prevPhoto, canGoPrevious, canGoNext);
     }

@@ -922,29 +922,30 @@ export class PhotoFilterComponent {
             console.warn("Failed to fetch people options:", err);
             return [];
           }),
-          filterPopulateQuery(this.queryToken, "year").catch(err => {
-            console.warn("Failed to fetch years options:", err);
-            return [];
-          }),
-          filterPopulateQuery(this.queryToken, "cameraMake").catch(err => {
-            console.warn("Failed to fetch camera makes options:", err);
-            return [];
-          }),
-          filterPopulateQuery(this.queryToken, "cameraModel").catch(err => {
-            console.warn("Failed to fetch camera models options:", err);
-            return [];
-          }),
+          // filterPopulateQuery(this.queryToken, "year").catch(err => {
+          //   console.warn("Failed to fetch years options:", err);
+          //   return [];
+          // }),
+          // filterPopulateQuery(this.queryToken, "cameraMake").catch(err => {
+          //   console.warn("Failed to fetch camera makes options:", err);
+          //   return [];
+          // }),
+          // filterPopulateQuery(this.queryToken, "cameraModel").catch(err => {
+          //   console.warn("Failed to fetch camera models options:", err);
+          //   return [];
+          // }),
           filterPopulateQuery(this.queryToken, "place").catch(err => {
             console.warn("Failed to fetch places options:", err);
             return [];
           }),
-          filterPopulateQuery(this.queryToken, "tag").catch(err => {
+          filterPopulateQuery(this.queryToken, "tags").catch(err => {
             console.warn("Failed to fetch tags options:", err);
             return [];
           })
         ];
         
-        const [peopleData, yearsData, cameraMakesData, cameraModelsData, placesData, tagsData] = await Promise.all(requests);
+        // const [peopleData, yearsData, cameraMakesData, cameraModelsData, placesData, tagsData] = await Promise.all(requests);
+        const [peopleData, placesData, tagsData] = await Promise.all(requests);
         
         // Parse the server responses to populate filter options
         // Each response contains the options for that specific attribute
@@ -956,19 +957,19 @@ export class PhotoFilterComponent {
           );
         }
         
-        if (yearsData && Array.isArray(yearsData)) {
-          options.years = yearsData.filter((year: any) => 
-            typeof year === 'number' || !isNaN(parseInt(year))
-          ).map((year: any) => typeof year === 'number' ? year : parseInt(year));
-        }
+        // if (yearsData && Array.isArray(yearsData)) {
+        //   options.years = yearsData.filter((year: any) => 
+        //     typeof year === 'number' || !isNaN(parseInt(year))
+        //   ).map((year: any) => typeof year === 'number' ? year : parseInt(year));
+        // }
         
-        if (cameraMakesData && Array.isArray(cameraMakesData)) {
-          options.cameraMakes = cameraMakesData.filter((make: string) => make && make.trim());
-        }
+        // if (cameraMakesData && Array.isArray(cameraMakesData)) {
+        //   options.cameraMakes = cameraMakesData.filter((make: string) => make && make.trim());
+        // }
         
-        if (cameraModelsData && Array.isArray(cameraModelsData)) {
-          options.cameraModels = cameraModelsData.filter((model: string) => model && model.trim());
-        }
+        // if (cameraModelsData && Array.isArray(cameraModelsData)) {
+        //   options.cameraModels = cameraModelsData.filter((model: string) => model && model.trim());
+        // }
         
         if (placesData && Array.isArray(placesData)) {
           options.places = placesData.filter((place: string) => place && place.trim());
