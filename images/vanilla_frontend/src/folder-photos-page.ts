@@ -76,7 +76,7 @@ class FolderPhotosApp {
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
       // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.add("hidden");
+      // filterContainer.classList.add("hidden");
 
       filterContainer.innerHTML =
         PhotoFilterComponent.getTemplate("photo-filter");
@@ -205,31 +205,23 @@ class FolderPhotosApp {
         // Update photo filter with loaded photos
         this.filteredPhotos = [...this.displayedPhotos];
 
-        // Update the photo filter component with the loaded photos
-        this.photoFilter.updatePhotos(this.displayedPhotos);
-
-        // Set the current folder path as resource directory context for semantic search
-        this.photoFilter.setResourceDirectory([this.folderPath]);
-
         // Get the filter container element. TODO: Cache it for later use
         const filterContainer = document.getElementById(
           "photo-filter-container"
         );
 
         // Show filter container if we have photos
-        if (filterContainer) {
-          if (this.displayedPhotos.length > 0) {
-            filterContainer.classList.remove("hidden");
-          } else {
-            filterContainer.classList.add("hidden");
-          }
-        }
-
-        
-        
+        // if (filterContainer) {
+        //   if (this.displayedPhotos.length > 0) {
+        //     filterContainer.classList.remove("hidden");
+        //   } else {
+        //     filterContainer.classList.add("hidden");
+        //   }
+        // }
 
         // Render photos
         this.renderPhotos();
+        
       } else {
         throw new Error("Invalid response format");
       }

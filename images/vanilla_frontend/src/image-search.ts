@@ -52,8 +52,7 @@ class ImageSearchApp {
 
     this.photoFilter = new PhotoFilterComponent({
       onFilterChange: (filteredPhotos: HachiImageData[]) =>
-        this.handleFilteredPhotosUpdate(filteredPhotos),
-      hideSearchInput: true,
+        this.handleFilteredPhotosUpdate(filteredPhotos)
     });
 
     
@@ -62,7 +61,6 @@ class ImageSearchApp {
       this.filterContainer.classList.add("hidden");
       this.filterContainer.innerHTML = PhotoFilterComponent.getTemplate(
         "photo-filter",
-        true
       );
       this.photoFilter.initialize("photo-filter");
     }

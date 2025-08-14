@@ -35,15 +35,12 @@ export interface FilterOptions {
 export interface FilterCallbacks {
   onFilterChange: (filteredPhotos: HachiImageData[]) => void;
   onFilterOptionsUpdate?: (options: FilterOptions) => void;
-  onSemanticSearch?: (searchResults: HachiImageData[]) => void;
-  hideSearchInput?: boolean; // Option to hide search input
 }
 
 export class PhotoFilterComponent {
   private photos: HachiImageData[] = [];
   private queryToken: string | null = null;
   private filteredPhotos: HachiImageData[] = [];
-  private semanticSearchResults: HachiImageData[] = []; // Store semantic search results
   private filterCriteria: FilterCriteria = {};
   private filterOptions: FilterOptions = {
     people: [],
@@ -60,16 +57,12 @@ export class PhotoFilterComponent {
   private imageObserver: IntersectionObserver | null = null; // Lazy loading observer
   private readonly INITIAL_PEOPLE_LIMIT = 50; // Show only first 50 people initially
 
-  // Semantic search related properties
-  private fuzzySearchService: FuzzySearchService;
-  private isSemanticSearchMode: boolean = false;
-  private currentSearchTerm: string = "";
+
   private isInitialLoad: boolean = true; // Track if this is initial load
   private isInitializing: boolean = false; // Track if we're in initialization phase
 
   constructor(callbacks: FilterCallbacks) {
     this.callbacks = callbacks;
-    this.fuzzySearchService = new FuzzySearchService();
   }
 
   public updateQueryToken(token: string | null): void {
@@ -123,9 +116,6 @@ export class PhotoFilterComponent {
       this.imageObserver.disconnect(); // Stop observing images and disconnect the connection
       this.imageObserver = null; // Set imageObserver to null to ensure it won't be reused
     }
-
-    // Cleanup fuzzy search service resources
-    this.fuzzySearchService.cleanup(); // Ensure all resources are properly released for the fuzzy search service
   }
 
   /**
@@ -191,43 +181,11 @@ export class PhotoFilterComponent {
    */
   static getTemplate(
     containerId: string = "photo-filter",
-    hideSearchInput: boolean = false
   ): string {
     return html`
       ${PhotoFilterComponent.getStyles()}
       <!-- Photo Filter Component - Horizontal Filter Bar -->
       <div id="${containerId}" class="photo-filter-container sticky z-20">
-        ${hideSearchInput
-          ? ""
-          : html`
-              <!-- Filter Header -->
-              <div class="w-full py-1">
-                <div class="flex w-full items-center space-x-3">
-                  <!-- Search Input -->
-                  <div class="relative w-full">
-                    <input
-                      type="search"
-                      id="filter-search-text"
-                      placeholder="Search photos with AI..."
-                      class="w-full px-4 py-2.5 pl-10 pr-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm hover:shadow-md transition-shadow placeholder-gray-400"
-                    />
-                    <svg
-                      class="absolute left-3 top-3 w-4 h-4 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      ></path>
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            `}
 
         <!-- Horizontal Filter Tabs -->
         <div class="relative">
@@ -587,14 +545,11 @@ export class PhotoFilterComponent {
     // Check if the container element exists
     if (!this.container) return;
 
-    // Determine whether to hide the search input based on the callbacks or default value
-    const hideSearchInput = this.callbacks.hideSearchInput || false;
 
     // Use the PhotoFilterComponent.getTemplate method to generate the HTML template
     // This method takes the container's ID and a boolean indicating whether to hide the search input
     this.container.innerHTML = PhotoFilterComponent.getTemplate(
       this.container.id,
-      hideSearchInput
     );
   }
 
@@ -604,44 +559,7 @@ export class PhotoFilterComponent {
   private setupEventListeners(): void {
     if (!this.container) return;
 
-    // Search text filter - now with semantic search on Enter key
-    const searchInput = this.container.querySelector(
-      "#filter-search-text"
-    ) as HTMLInputElement;
-    if (searchInput) {
-      // Handle Enter key press for semantic search
-      this.addEventListenerTracked(
-        searchInput,
-        "keydown",
-        (e: KeyboardEvent) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            const target = e.target as HTMLInputElement;
-            const searchTerm = target.value.trim();
 
-            if (searchTerm) {
-              // Use semantic search for non-empty queries
-              // TODO: Change this search implementation
-              this.performSemanticSearch(searchTerm);
-            } else {
-              // Clear semantic search and return to normal filtering
-              this.clearSemanticSearch();
-            }
-          }
-        }
-      );
-
-      // Handle input changes to clear search when input is emptied
-      this.addEventListenerTracked(searchInput, "input", (e: Event) => {
-        const target = e.target as HTMLInputElement;
-        const searchTerm = target.value.trim();
-
-        // Only clear search if input is completely empty
-        if (!searchTerm && this.isSemanticSearchMode) {
-          this.clearSemanticSearch();
-        }
-      });
-    }
 
     // Reset filters button
     const resetBtn = this.container.querySelector(
@@ -650,7 +568,6 @@ export class PhotoFilterComponent {
     if (resetBtn) {
       this.addEventListenerTracked(resetBtn, "click", () => {
         this.resetFilters();
-        if (searchInput) searchInput.value = "";
       });
     }
 
@@ -980,154 +897,10 @@ export class PhotoFilterComponent {
         }
         
         console.log("Server filter options:", options);
-        
-        // If no options were retrieved from server, fall back to client-side generation
-        const hasAnyServerOptions = options.people.length > 0 || 
-                                   options.years.length > 0 || 
-                                   options.cameraMakes.length > 0 || 
-                                   options.cameraModels.length > 0 || 
-                                   options.places.length > 0 || 
-                                   options.tags.length > 0;
-        
-        if (!hasAnyServerOptions) {
-          console.log("No server options available, falling back to client-side generation");
-          return this.generateClientSideFilterOptions();
-        }
       } catch (error) {
         console.error("Error fetching filter options from server:", error);
-        // Fall back to client-side generation if server request fails
-        return this.generateClientSideFilterOptions();
       }
-    } else {
-      // Fall back to client-side filter generation when no query token
-      return this.generateClientSideFilterOptions();
-    }
-
-    // Sort all options
-    options.people.sort();
-    options.years.sort((a, b) => b - a); // Most recent first
-    options.cameraMakes.sort();
-    options.cameraModels.sort();
-    options.places.sort();
-    options.tags.sort();
-
-    this.filterOptions = options;
-
-    // Notify callback if provided
-    if (this.callbacks.onFilterOptionsUpdate) {
-      this.callbacks.onFilterOptionsUpdate(options);
-    }
-  }
-
-  /**
-   * Generate filter options from current photos (client-side fallback)
-   */
-  private generateClientSideFilterOptions(): void {
-    const options: FilterOptions = {
-      people: [],
-      years: [],
-      cameraMakes: [],
-      cameraModels: [],
-      places: [],
-      tags: [],
-    };
-
-    // Extract unique values from photo metadata
-    this.photos.forEach((photo) => {
-      const metadata = photo.metadata;
-      if (!metadata) return;
-
-      // People
-      if (metadata.person && Array.isArray(metadata.person)) {
-        metadata.person.forEach((person) => {
-          if (
-            person &&
-            person !== "no_person_detected" &&
-            person !== "no_categorical_info" &&
-            !options.people.includes(person)
-          ) {
-            options.people.push(person);
-          }
-        });
-      }
-
-      // Years from taken_at with fallback to modified_at
-      const extractYear = (dateString: string): number | null => {
-        if (!dateString) return null;
-
-        // Try multiple parsing approaches for different date formats
-        let date: Date | null = null;
-
-        // First try direct Date parsing
-        date = new Date(dateString);
-        if (!isNaN(date.getTime())) {
-          return date.getFullYear();
-        }
-
-        // Handle Python ctime format: "sun jun 8 03:26:24 2025"
-        const ctimeRegex =
-          /\w{3}\s+\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+(\d{4})/i;
-        const ctimeMatch = dateString.match(ctimeRegex);
-        if (ctimeMatch) {
-          const year = parseInt(ctimeMatch[1]);
-          if (!isNaN(year) && year > 1900 && year < 3000) {
-            return year;
-          }
-        }
-
-        // Try to extract year from various formats using regex
-        const yearRegex = /\b(19|20)\d{2}\b/;
-        const yearMatch = dateString.match(yearRegex);
-        if (yearMatch) {
-          const year = parseInt(yearMatch[0]);
-          if (!isNaN(year) && year > 1900 && year < 3000) {
-            return year;
-          }
-        }
-
-        return null;
-      };
-
-      // Try taken_at first, then fallback to modified_at
-      let year: number | null = null;
-      if (metadata.taken_at) {
-        year = extractYear(metadata.taken_at);
-      }
-      if (!year && metadata.modified_at) {
-        year = extractYear(metadata.modified_at);
-      }
-
-      if (year && !options.years.includes(year)) {
-        options.years.push(year);
-      }
-
-      // Camera makes
-      if (metadata.make && !options.cameraMakes.includes(metadata.make)) {
-        options.cameraMakes.push(metadata.make);
-      }
-
-      // Camera models
-      if (metadata.model && !options.cameraModels.includes(metadata.model)) {
-        options.cameraModels.push(metadata.model);
-      }
-
-      // Places
-      if (metadata.place && !options.places.includes(metadata.place)) {
-        options.places.push(metadata.place);
-      }
-
-      // Tags
-      if (metadata.tags) {
-        const tags = Array.isArray(metadata.tags)
-          ? metadata.tags
-          : [metadata.tags];
-        tags.forEach((tag) => {
-          if (tag && !options.tags.includes(tag)) {
-            options.tags.push(tag);
-          }
-        });
-      }
-    });
+    } 
 
     // Sort all options
     options.people.sort();
@@ -1190,6 +963,8 @@ export class PhotoFilterComponent {
     // Update tab label to show active filters
     this.updateTabLabel(filterType);
   }
+
+
   /**
    * Efficiently update people filter with thumbnail grid
    */
@@ -1387,10 +1162,10 @@ export class PhotoFilterComponent {
               : `src="${avatarUrl}"`
           }
           alt="${displayName}"
-          class="person-avatar w-14 h-14 rounded-full object-cover border-2 transition-all duration-200 bg-gray-100"
+          class="person-avatar w-14 h-14 object-cover transition-all duration-200 bg-gray-100"
           loading="lazy"
         />
-        <div class="person-fallback w-14 h-14 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-sm text-gray-500 font-medium">
+        <div class="person-fallback w-14 h-14 bg-gray-200 border-gray-300 hidden items-center justify-center text-sm text-gray-500 font-medium">
           ${personId.substring(0, 2).toUpperCase()}
         </div>
       </div>
@@ -1432,17 +1207,17 @@ export class PhotoFilterComponent {
 
     if (isSelected) {
       avatar.className =
-        "person-avatar w-14 h-14 rounded-full object-cover border-2 transition-all duration-200 border-blue-500 ring-2 ring-blue-200";
+        "person-avatar w-14 h-14 object-cover border-4 transition-all duration-200 border-blue-500 ring-2 ring-blue-200";
       if (fallback) {
         fallback.className =
-          "person-fallback w-14 h-14 rounded-full bg-gray-200 border-2 border-blue-500 ring-2 ring-blue-200 hidden items-center justify-center text-sm text-gray-500 font-medium";
+          "person-fallback w-14 h-14 bg-gray-200 border-4 border-blue-500 ring-2 ring-blue-200 hidden items-center justify-center text-sm text-gray-500 font-medium";
       }
     } else {
       avatar.className =
-        "person-avatar w-14 h-14 rounded-full object-cover border-2 transition-all duration-200 border-gray-300 group-hover:border-blue-400";
+        "person-avatar w-14 h-14 object-cover transition-all duration-200 border-gray-300 group-hover:border-blue-400";
       if (fallback) {
         fallback.className =
-          "person-fallback w-14 h-14 rounded-full bg-gray-200 border-2 border-gray-300 hidden items-center justify-center text-sm text-gray-500 font-medium";
+          "person-fallback w-14 h-14 bg-gray-200 border-gray-300 hidden items-center justify-center text-sm text-gray-500 font-medium";
       }
     }
   }
@@ -2217,77 +1992,8 @@ export class PhotoFilterComponent {
     // Scroll to top when all filters are cleared
     this.scrollToTop();
   }
-  /**
-   * Update search loading state in UI
-   */
-  private updateSearchLoadingState(isLoading: boolean): void {
-    const searchInput = this.container?.querySelector(
-      "#filter-search-text"
-    ) as HTMLInputElement;
-    if (searchInput) {
-      searchInput.disabled = isLoading;
-      if (isLoading) {
-        searchInput.placeholder = "Searching...";
-        searchInput.classList.add("opacity-50");
-      } else {
-        searchInput.placeholder = "Search photos... (Press Enter)";
-        searchInput.classList.remove("opacity-50");
-      }
-    }
-  }
 
-  /**
-   * Handle search errors
-   */
-  private handleSearchError(error: string | null): void {
-    if (error) {
-      console.error("Semantic search error:", error);
-      // Could show error in UI if needed
-    }
-  }
 
-  /**
-   * Handle search completion
-   */
-  private handleSearchComplete(isSearchDone: boolean): void {
-    if (isSearchDone) {
-      console.log("Semantic search completed");
-    }
-  }
-  /**
-   * Apply current filters to semantic search results
-   */
-  private applyFiltersToSemanticResults(): void {
-    if (!this.semanticSearchResults.length) {
-      console.log("No semantic search results to filter");
-      this.callbacks.onFilterChange([]);
-      return;
-    }
-
-    console.log(
-      "Applying filters to",
-      this.semanticSearchResults.length,
-      "semantic search results"
-    );
-    console.log("Current filter criteria:", this.filterCriteria);
-
-    // Apply current filter criteria to semantic search results
-    const filtered = this.semanticSearchResults.filter((photo) => {
-      return this.matchesFilter(photo, this.filterCriteria);
-    });
-
-    console.log("Filtered results:", filtered.length, "photos");
-    this.filteredPhotos = filtered;
-    this.callbacks.onFilterChange(filtered);
-
-    // Notify about semantic search results if callback exists
-    if (this.callbacks.onSemanticSearch) {
-      this.callbacks.onSemanticSearch(filtered);
-    }
-
-    // Scroll to top when semantic search results are filtered
-    this.scrollToTop();
-  }
   /**
    * Scroll to the very top of the page instantly for performance
    */
@@ -2300,130 +2006,5 @@ export class PhotoFilterComponent {
     // Always scroll to the very top of the page instantly
     window.scrollTo(0, 0);
   }
-  /**
-   * Perform semantic search with the given term
-   */
-  private async performSemanticSearch(searchTerm: string): Promise<void> {
-    this.isSemanticSearchMode = true;
-    this.currentSearchTerm = searchTerm;
 
-    // Build search filters object for FuzzySearchService
-    const searchFilters: SearchFilter = {};
-
-    // Add the search term as query
-    if (searchTerm.trim()) {
-      searchFilters.query = [searchTerm];
-    }
-
-    // Always include resource directory context if it exists in filter criteria
-    // Fix path separators for Windows and use proper directory format
-    if (
-      this.filterCriteria.resourceDirectory &&
-      this.filterCriteria.resourceDirectory.length > 0
-    ) {
-      searchFilters.resource_directory = this.filterCriteria.resourceDirectory;
-    }
-
-    // Always include person context if it exists in filter criteria
-    if (this.filterCriteria.personContext) {
-      searchFilters.person = [this.filterCriteria.personContext];
-    }
-
-    // Use FuzzySearchService to build the query string
-    const queryString = this.fuzzySearchService.buildQueryString(searchFilters);
-
-    console.log("Performing semantic search with filters:", searchFilters);
-    console.log("Generated query string:", queryString);
-
-    try {
-      // Update search loading state
-      this.updateSearchLoadingState(true);
-
-      // Call SearchApiService directly to avoid interfering with main image search UI
-      const rawData = await SearchApiService.searchImages(queryString, {
-        isInitialSearch: true,
-      }); // Transform raw data to HachiImageData format using utility function
-      const photos = transformRawDataChunk(rawData); // Sort photos by score in descending order (highest scores first)
-      photos.sort((a, b) => {
-        const scoreA = parseFloat(String(a.score || 0));
-        const scoreB = parseFloat(String(b.score || 0));
-        return scoreB - scoreA;
-      });
-
-      console.log("Semantic search completed:", photos.length, "photos");
-
-      // Store results and apply filters
-      this.semanticSearchResults = photos;
-      this.applyFiltersToSemanticResults();
-    } catch (error) {
-      console.error("Failed to perform semantic search:", error);
-      this.handleSearchError(
-        error instanceof Error ? error.message : "Search failed"
-      );
-      this.clearSemanticSearch();
-    } finally {
-      // Update search loading state
-      this.updateSearchLoadingState(false);
-    }
-  }
-  /**
-   * Clear semantic search and return to normal filtering
-   */
-  private clearSemanticSearch(): void {
-    this.isSemanticSearchMode = false;
-    this.currentSearchTerm = "";
-    this.semanticSearchResults = [];
-
-    // Clear the search text from filter criteria but preserve resource directory and person context
-    this.filterCriteria.searchText = undefined;
-
-    // Apply normal filters to original photos
-    this.applyFilters();
-  }
-  /**
-   * Set resource directory context for filtering
-   */
-  setResourceDirectory(directories: string[]): void {
-    // Set as context, not as a user filter - this won't appear in the UI
-    this.filterCriteria.resourceDirectory =
-      directories.length > 0 ? directories : undefined;
-
-    // If we're in semantic search mode, restart the search to include the new context
-    if (this.isSemanticSearchMode && this.currentSearchTerm) {
-      this.performSemanticSearch(this.currentSearchTerm);
-    } else {
-      // Otherwise apply normal filters
-      this.applyFilters();
-    }
-  }
-
-  /**
-   * Set person context for filtering (used in person photos pages)
-   */
-  setPersonContext(personId: string): void {
-    // Set as context, not as a user filter - this won't appear in the UI
-    this.filterCriteria.personContext = personId;
-
-    // If we're in semantic search mode, restart the search to include the new context
-    if (this.isSemanticSearchMode && this.currentSearchTerm) {
-      this.performSemanticSearch(this.currentSearchTerm);
-    } else {
-      // Otherwise apply normal filters
-      this.applyFilters();
-    }
-  }
-
-  /**
-   * Get current search mode
-   */
-  isInSemanticSearchMode(): boolean {
-    return this.isSemanticSearchMode;
-  }
-
-  /**
-   * Get current semantic search term
-   */
-  getCurrentSearchTerm(): string {
-    return this.currentSearchTerm;
-  }
 }

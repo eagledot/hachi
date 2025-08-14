@@ -85,15 +85,15 @@ class PersonPhotosApp {
     });
 
     // Initialize filter UI
-    const filterContainer = document.getElementById("photo-filter-container");
-    if (filterContainer) {
-      // Ensure filter starts completely hidden until photos are loaded
-      filterContainer.classList.add("hidden");
+    // const filterContainer = document.getElementById("photo-filter-container");
+    // if (filterContainer) {
+    //   // Ensure filter starts completely hidden until photos are loaded
+    //   filterContainer.classList.add("hidden");
 
-      filterContainer.innerHTML =
-        PhotoFilterComponent.getTemplate("photo-filter");
-      this.photoFilter.initialize("photo-filter");
-    }
+    //   filterContainer.innerHTML =
+    //     PhotoFilterComponent.getTemplate("photo-filter");
+    //   this.photoFilter.initialize("photo-filter");
+    // }
   }
 
   private getPersonIdFromUrl(): string | null {
@@ -197,6 +197,7 @@ class PersonPhotosApp {
 
       this.updatePersonInfo();
       this.renderPhotos();
+      this.renderDisplayedPhotos();
     } catch (error) {
       console.error("Failed to load person data:", error);
       this.showError("Failed to load person data. Please try again.");
@@ -315,14 +316,6 @@ class PersonPhotosApp {
     this.allPhotos = photosForGrid;
     this.filteredPhotos = [...this.allPhotos];
 
-    // Update photo filter with loaded photos
-    this.photoFilter.updatePhotos(this.allPhotos);
-
-    // Set person context for semantic search
-    if (this.personId) {
-      this.photoFilter.setPersonContext(this.personId);
-    }
-
     // Show filter container if we have photos
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
@@ -362,15 +355,14 @@ class PersonPhotosApp {
   }
 
   private renderDisplayedPhotos(): void {
-    const startIndex = (this.currentPage - 1) * this.PAGE_SIZE;
-    const endIndex = Math.min(
-      startIndex + this.PAGE_SIZE,
-      this.filteredPhotos.length
-    );
-    this.displayedPhotos = this.filteredPhotos.slice(startIndex, endIndex);
+    console.log("Rendering displayed photos", this.filteredPhotos);
+    this.displayedPhotos = [...this.filteredPhotos];
     this.uiService.updatePhotos(this.displayedPhotos);
   }
+
+
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
+    console.log("Filtered photos updated", filteredPhotos);
     this.filteredPhotos = filteredPhotos;
     this.currentPage = 1;
     this.renderDisplayedPhotos();
