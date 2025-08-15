@@ -1,4 +1,5 @@
 // Helper functions for search query construction and data transformation
+import type { ImagesData } from '../types/images';
 import type { HachiImageData, ImageSearchResponse } from './types';
 
 /**
@@ -35,7 +36,7 @@ export function constructQueryString(term: string): string {
 /**
  * Transforms raw data from a single API response into HachiImageData array
  */
-export function transformRawDataChunk(rawData: ImageSearchResponse): HachiImageData[] {
+export function transformRawDataChunk(rawData: ImagesData): HachiImageData[] {
   if (!rawData.data_hash || !rawData.score || !rawData.meta_data ||
       !(rawData.data_hash.length === rawData.score.length && rawData.score.length === rawData.meta_data.length)) {
     console.error('Malformed rawData in transformRawDataChunk:', rawData);

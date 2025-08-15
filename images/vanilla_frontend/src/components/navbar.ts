@@ -68,10 +68,6 @@ export class Navbar {
     `;
   }
 
-  private renderMobileNavItem(item: NavItem): string {
-  // Not used in sidebar version
-  return '';
-  }
 
   private isCurrentPage(href: string): boolean {
     if (href === '/' && (this.currentPage === '' || this.currentPage === '/' || this.currentPage === '/index.html')) {
