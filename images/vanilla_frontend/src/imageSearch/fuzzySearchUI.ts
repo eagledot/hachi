@@ -152,7 +152,7 @@ export class FuzzySearchUI {
             <!-- Active Filters Display (moved below input) -->
             <div
               id="filters-container"
-              class="flex w-full items-center mb-3 sm:mb-4 flex-wrap gap-1 sm:gap-2 min-h-[2rem] hidden"
+              class="flex w-full items-center mb-3 sm:mb-4 flex-wrap gap-1 sm:gap-2 min-h-[2rem] invisible"
             >
               <!-- Filters will be rendered here -->
             </div>
@@ -160,7 +160,7 @@ export class FuzzySearchUI {
             <!-- Search Tips (shown only before first search) -->
             <div
               id="search-tips"
-              class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm"
+              class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm hidden"
             >
               <h3 class="font-medium text-blue-900 mb-2 flex items-center">
                 <svg
@@ -499,9 +499,9 @@ export class FuzzySearchUI {
 
     // Show or hide the filters container based on whether any filters are selected
     if (filtersHtml.length > 0) {
-      this.filtersContainer.classList.remove("hidden");
+      this.filtersContainer.classList.remove("invisible");
     } else {
-      this.filtersContainer.classList.add("hidden");
+      this.filtersContainer.classList.add("invisible");
     }
 
     // Add event listeners for filter removal

@@ -117,7 +117,7 @@ class ImageSearchApp {
     
 
     if (this.filterContainer) {
-      this.filterContainer.classList.add("hidden");
+      this.filterContainer.classList.add("invisible");
       this.filterContainer.innerHTML = PhotoFilterComponent.getTemplate(
         "photo-filter",
       );
@@ -125,7 +125,8 @@ class ImageSearchApp {
     }
 
     // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
-    this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth);
+    this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth, this.resultsPerPage);
+    this.uiService.ensureElementsInDOM(this.resultsPerPage);
 
     // Initialize search service with event callbacks
     this.searchService = new SearchService();
@@ -213,7 +214,7 @@ class ImageSearchApp {
     }
     console.log("Starting search for:", query);
     try {
-      this.handleLoadingChange(true);
+      // this.handleLoadingChange(true); TODO: Deal with it later. For now removing it
       this.currentPage = 0;
       const imageSearchResponse = await this.searchService.startSearch(query, this.resultsPerPage);
       this.totalPages = imageSearchResponse["n_pages"] || 1;
@@ -224,10 +225,10 @@ class ImageSearchApp {
       this.filteredPhotos = [];
       await this.updatePaginationAndRenderPhotos();
       this.photoFilter.updateQueryToken(this.queryToken); // TODO: For now, this will trigger the requests for getting filter options from backend. Not the most efficient way yet. Required Inspection.
-      this.handleLoadingChange(false);
+      // this.handleLoadingChange(false);
       this.handleSearchDoneChange(true);
     } catch (error) {
-      this.handleLoadingChange(false);
+      // this.handleLoadingChange(false);
       console.error("Search failed:", error);
       this.handleErrorChange(error instanceof Error ? error.message : "Search failed. Please try again.");
     }
@@ -291,7 +292,7 @@ class ImageSearchApp {
   private toggleFilterContainer(show: boolean) {
     const filterContainer = document.getElementById("photo-filter-container");
     if (filterContainer) {
-      filterContainer.classList.toggle("hidden", !show);
+      filterContainer.classList.toggle("invisible", !show);
     }
   }
 

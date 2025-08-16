@@ -429,7 +429,7 @@ export class IndexingComponent {
   private async pollIndexStatus(pageLoaded: boolean = false) {
     if (!pageLoaded && !this.state.value.isIndexing) return;
     try {
-      const resp = await fetch(`${this.apiUrl}/getIndexStatus`);
+      const resp = await fetch(endpoints.GET_INDEX_STATUS);
       const data: IndexStatusResponse = await resp.json();
       if (data.done) {
         if (this.state.value.isCancelling) {
@@ -469,7 +469,7 @@ export class IndexingComponent {
     this.setState({ isCancelling: true });
     this.showNotification("Stopping scan...", "warning");
     try {
-      await fetch(`${this.apiUrl}/indexCancel`);
+      await fetch(endpoints.INDEX_CANCEL);
       this.pollIndexStatus();
     } catch (e) {
       this.setState({ error: "Could not stop the scan. Please contact administrator.", isCancelling: false });

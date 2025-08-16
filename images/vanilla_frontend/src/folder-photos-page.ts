@@ -31,6 +31,7 @@ class FolderPhotosApp {
   private queryToken: string | null = null;
   private currentPage: number = 1; // Current page for pagination
   private imageHeight: number = 0;
+  private imageWidth: number = 0;
 
   // Pagination properties
   private PAGE_SIZE = Math.floor(window.innerHeight / 45);
@@ -39,31 +40,86 @@ class FolderPhotosApp {
     this.init();
   }
 
-  private findGallerySize() {
-    // Get the photo-gallery container
+  // private findGallerySize() {
+  //   // Get the photo-gallery container
+  //   const photoGallery = document.getElementById("photo-gallery");
+
+  //   // If the photoGallery container is not there, log an error
+  //   if (!photoGallery) {
+  //     console.error("Photo gallery container not found");
+  //     return;
+  //   }
+
+  //   // Get its height and width
+  //   const photoGalleryHeight = photoGallery?.clientHeight!;
+
+  //   // Set columns TODO: Set it dynamically based on container width
+  //   const columns = 6;
+
+  //   // Set rows
+  //   const rows = 4;
+
+  //   // Calculate and set height
+  //   this.imageHeight = photoGalleryHeight / rows;
+  //   console.log(`Calculated photo height: ${this.imageHeight}px`);
+
+  //   // Set the page size
+  //   this.PAGE_SIZE = Math.floor(rows * columns);
+  // }
+
+    private findGallerySize() {
+    // Get the window height
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+
+    // Get photo-gallery element
     const photoGallery = document.getElementById("photo-gallery");
 
-    // If the photoGallery container is not there, log an error
-    if (!photoGallery) {
-      console.error("Photo gallery container not found");
-      return;
-    }
+    // Get the photo gallery height
+    const photoGalleryHeight = photoGallery?.clientHeight;
+    console.log(`Photo gallery height: ${photoGalleryHeight}px`);
 
-    // Get its height and width
-    const photoGalleryHeight = photoGallery?.clientHeight!;
+    // Get photo-gallery width
+    const photoGalleryWidth = photoGallery?.clientWidth!;
 
     // Set columns TODO: Set it dynamically based on container width
-    const columns = 6;
+    let columns = 6;
 
-    // Set rows
-    const rows = 4;
+    // Change columns based on width as per tailwind grid
+    if (windowWidth < 640) {
+      columns = 2;
+    } else if (windowWidth < 768) {
+      columns = 3;
+    } else if (windowWidth < 1024) {
+      columns = 4;
+    } else if (windowWidth < 1280) {
+      columns = 5;
+    }
+
+    // Based on the columns, determine width of each photo
+    const photoWidth = photoGalleryWidth / columns;
+      this.imageWidth = photoWidth - 8; // Subtracting for margins
+      console.log(`Calculated photo width: ${this.imageWidth}px`);
+
+    // Set rows based on window height
+    let rows = 4;
+    if (windowHeight < 640) {
+      rows = 2;
+    } else if (windowHeight < 768) {
+      rows = 3;
+    } else if (windowHeight < 1024) {
+      rows = 4;
+    } else if (windowHeight < 1280) {
+      rows = 5;
+    }
 
     // Calculate and set height
-    this.imageHeight = photoGalleryHeight / rows;
+    this.imageHeight = (photoGalleryHeight! / rows) - 8; // Substracting for margins
     console.log(`Calculated photo height: ${this.imageHeight}px`);
 
     // Set the page size
-    this.PAGE_SIZE = Math.floor(rows * columns);
+    this.PAGE_SIZE = rows * columns;
+    console.log(`Calculated results per page: ${this.PAGE_SIZE}`);
   }
 
 
@@ -84,7 +140,8 @@ class FolderPhotosApp {
 
     // Now create UIService after components are in the DOM
     // Use photo-grid-container since that's where the photo grid elements are created
-    this.uiService = new UIService("photo-grid-container", this.imageHeight);
+    this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth, this.PAGE_SIZE);
+    this.uiService.ensureElementsInDOM(this.PAGE_SIZE);
 
     this.extractFolderPath();
     this.setupEventListeners();
@@ -215,10 +272,13 @@ class FolderPhotosApp {
 
         console.log("Pagination Info:", paginationInfo);
         this.queryToken = paginationInfo.query_token || null;
+        // this.uiService.ensureElementsInDOM(this.PAGE_SIZE);
       }
 
       // If query token is not set, we cannot fetch images
       if (!this.queryToken) return;
+
+
 
       // Fetch folder images from the backend
       const data: FolderPhotoData = await collectAttributeMeta(this.queryToken!, this.currentPage - 1);

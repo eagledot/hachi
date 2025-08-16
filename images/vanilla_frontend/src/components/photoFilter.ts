@@ -834,36 +834,43 @@ export class PhotoFilterComponent {
         
         // Fetch options for each filter attribute separately
         // Some requests may fail if the server doesn't support all attributes yet
-        const requests = [
-          filterPopulateQuery(this.queryToken, "person").catch(err => {
-            console.warn("Failed to fetch people options:", err);
-            return [];
-          }),
-          // filterPopulateQuery(this.queryToken, "year").catch(err => {
-          //   console.warn("Failed to fetch years options:", err);
-          //   return [];
-          // }),
-          // filterPopulateQuery(this.queryToken, "cameraMake").catch(err => {
-          //   console.warn("Failed to fetch camera makes options:", err);
-          //   return [];
-          // }),
-          // filterPopulateQuery(this.queryToken, "cameraModel").catch(err => {
-          //   console.warn("Failed to fetch camera models options:", err);
-          //   return [];
-          // }),
-          filterPopulateQuery(this.queryToken, "place").catch(err => {
-            console.warn("Failed to fetch places options:", err);
-            return [];
-          }),
-          filterPopulateQuery(this.queryToken, "tags").catch(err => {
-            console.warn("Failed to fetch tags options:", err);
-            return [];
-          })
-        ];
+        // const requests = [
+        //   filterPopulateQuery(this.queryToken, "person").catch(err => {
+        //     console.warn("Failed to fetch people options:", err);
+        //     return [];
+        //   }),
+        //   // filterPopulateQuery(this.queryToken, "year").catch(err => {
+        //   //   console.warn("Failed to fetch years options:", err);
+        //   //   return [];
+        //   // }),
+        //   // filterPopulateQuery(this.queryToken, "cameraMake").catch(err => {
+        //   //   console.warn("Failed to fetch camera makes options:", err);
+        //   //   return [];
+        //   // }),
+        //   // filterPopulateQuery(this.queryToken, "cameraModel").catch(err => {
+        //   //   console.warn("Failed to fetch camera models options:", err);
+        //   //   return [];
+        //   // }),
+        //   filterPopulateQuery(this.queryToken, "place").catch(err => {
+        //     console.warn("Failed to fetch places options:", err);
+        //     return [];
+        //   }),
+        //   filterPopulateQuery(this.queryToken, "tags").catch(err => {
+        //     console.warn("Failed to fetch tags options:", err);
+        //     return [];
+        //   })
+        // ];
         
         // const [peopleData, yearsData, cameraMakesData, cameraModelsData, placesData, tagsData] = await Promise.all(requests);
-        const [peopleData, placesData, tagsData] = await Promise.all(requests);
-        
+        // const [peopleData, placesData, tagsData] = await Promise.all(requests); // TODO: MAKE IT ON DEMAND
+        // Add dummy values for now
+        const dummyData = {
+          people: ["Alice", "Bob", "Charlie"],
+          places: ["New York", "Los Angeles", "Chicago"],
+          tags: ["Nature", "Urban", "Portrait"]
+        };
+        const [peopleData, placesData, tagsData] = [dummyData.people, dummyData.places, dummyData.tags];
+
         // Parse the server responses to populate filter options
         // Each response contains the options for that specific attribute
         if (peopleData && Array.isArray(peopleData)) {

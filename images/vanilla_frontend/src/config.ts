@@ -25,6 +25,8 @@ class Endpoints {
     GET_FOLDER_IMAGES = BASE_URL + "/api/getMeta/resource_directory"
     GET_META_STATS = BASE_URL + "/api/getMetaStats"
     TAG_PERSON = BASE_URL + "/api/tagPerson"
+    GET_INDEX_STATUS = BASE_URL + "/api/getIndexStatus"
+    INDEX_CANCEL = BASE_URL + "/api/indexCancel"
     QUERY_ATTRIBUTE = (attribute: string, value: string, pageSize: number) => {
         return `${BASE_URL}/api/queryAttribute/${attribute}/${value}/${pageSize}`;
     }

@@ -37,9 +37,18 @@ export class UIService {
   // Event listener cleanup tracking
   private eventCleanupFunctions: (() => void)[] = [];
   private globalKeydownHandler?: (e: KeyboardEvent) => void;
-  constructor(containerId: string, imageHeight: number, imageWidth?: number) {
+  constructor(
+    containerId: string,
+    imageHeight: number,
+    imageWidth?: number,
+    pageSize?: number
+  ) {
     this.imageHeight = imageHeight;
     this.imageWidth = imageWidth || 0;
+    if (pageSize) {
+      this.maxPoolSize = pageSize;
+      this.ensureElementPool(pageSize);
+    }
     const container = document.getElementById(containerId);
     if (!container) {
       throw new Error(`Container with id '${containerId}' not found`);
@@ -278,13 +287,16 @@ export class UIService {
    */
   private updatePhotoGridForPagination(photos: HachiImageData[]): void {
     // Ensure we have enough elements in the pool
-    this.ensureElementPool(photos.length);
+    // this.ensureElementPool(photos.length);
 
-    // Update existing elements with new photo data
-    photos.forEach((photo, index) => {
-      const element = this.photoElementPool[index];
-      this.updateElementWithPhotoData(element, photo);
-      element.style.display = "block";
+    // Batch DOM updates
+    requestAnimationFrame(() => {
+      // Update existing elements with new photo data
+      photos.forEach((photo, index) => {
+        const element = this.photoElementPool[index];
+        this.updateElementWithPhotoData(element, photo);
+        element.style.display = "block";
+      });
     });
 
     // Hide unused elements
@@ -293,30 +305,42 @@ export class UIService {
     }
 
     // Ensure all visible elements are in the DOM
-    this.ensureElementsInDOM(photos.length);
+    // this.ensureElementsInDOM(photos.length);
   }
 
   /**
    * Ensures we have enough DOM elements in the pool
    */
   private ensureElementPool(requiredSize: number): void {
-    const neededElements =
-      Math.min(requiredSize, this.maxPoolSize) - this.photoElementPool.length;
+    // const neededElements =
+    //   Math.min(requiredSize, this.maxPoolSize) - this.photoElementPool.length;
+    console.log("Ensuring element pool size:", requiredSize);
+    const neededElements = requiredSize;
 
     for (let i = 0; i < neededElements; i++) {
       const element = this.createEmptyPhotoElement();
       this.photoElementPool.push(element);
     }
+    console.log(
+      "Element pool size after ensuring:",
+      this.photoElementPool.length
+    );
   }
 
   /**
    * Ensures the required number of elements are in the DOM
    */
-  private ensureElementsInDOM(visibleCount: number): void {
+  public ensureElementsInDOM(visibleCount: number): void {
+    console.log(
+      "Ensuring elements in DOM:",
+      visibleCount,
+      this.photoElementPool.length
+    );
     const fragment = document.createDocumentFragment();
     let needsUpdate = false;
 
     for (let i = 0; i < visibleCount && i < this.photoElementPool.length; i++) {
+      console.log("Ensuring element in DOM:", i);
       const element = this.photoElementPool[i];
       if (!element.parentNode) {
         fragment.appendChild(element);
@@ -335,7 +359,7 @@ export class UIService {
   private createEmptyPhotoElement(): HTMLElement {
     const div = document.createElement("div");
     div.className =
-      "group relative bg-gray-100 overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height";
+      "group relative bg-gray-100 overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height invisible";
 
     const img = document.createElement("img");
     img.className =
@@ -363,6 +387,7 @@ export class UIService {
 
     return div;
   }
+
   /**
    * Updates an existing DOM element with new photo data
    */
@@ -403,6 +428,9 @@ export class UIService {
         this.currentPhotoClick!(photo);
       };
     }
+
+    // Update the visibility
+    element.classList.remove("invisible");
   }
 
   /**
@@ -658,7 +686,6 @@ export class UIService {
         div.appendChild(value);
       }
 
-      
       // Value handling is now inside the conditional above
       fragment.appendChild(div);
     });
@@ -725,7 +752,8 @@ export class UIService {
 
           // Add name label under avatar (show short version if long)
           const nameLabel = document.createElement("span");
-          nameLabel.className = "mt-1 text-xs text-gray-700 text-center truncate max-w-full";
+          nameLabel.className =
+            "mt-1 text-xs text-gray-700 text-center truncate max-w-full";
           // If personId looks like a hash, show only first 8 chars, else show as is
           nameLabel.textContent =
             personId.length > 16 && /^[a-f0-9]+$/i.test(personId)
