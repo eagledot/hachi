@@ -24,6 +24,24 @@ export class PaginationComponent {
     this.onPageChange = props.onPageChange;
   this.totalPages = props.totalPages;
     this.render();
+
+  // Add global keyboard event listener for left/right arrow keys
+  this.handleKeyDown = this.handleKeyDown.bind(this);
+  window.addEventListener('keydown', this.handleKeyDown);
+  }
+  // Clean up event listener if needed
+  public destroy() {
+    window.removeEventListener('keydown', this.handleKeyDown);
+  }
+
+  private handleKeyDown(e: KeyboardEvent) {
+    // Only trigger if the pagination container is visible (not hidden)
+    if (this.container.classList.contains('hidden')) return;
+    if (e.key === 'ArrowLeft') {
+      this.prevPage();
+    } else if (e.key === 'ArrowRight') {
+      this.nextPage();
+    }
   }
 
   public setPage(page: number) {

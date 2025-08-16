@@ -24,10 +24,66 @@ class ImageSearchApp {
   private totalPages = 0;
   private totalResults = 0;
   private queryToken = "";
-  private resultsPerPage = 100;
+  private resultsPerPage = 10;
   private paginationComponent?: PaginationComponent;
   private paginationContainerElement: HTMLElement | null = null;
   private filterContainer: HTMLElement | null = null;
+  private imageHeight = 0; // Height of each photo in the grid
+  private imageWidth = 0; // Width of each photo in the grid
+
+  private findGallerySize() {
+    // Get the window height
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+
+    // Get photo-gallery element
+    const photoGallery = document.getElementById("photo-gallery");
+
+    // Get the photo gallery height
+    const photoGalleryHeight = windowHeight - 310; // Based on header and footer heights
+    console.log(`Photo gallery height: ${photoGalleryHeight}px`);
+
+    // Get photo-gallery width
+    const photoGalleryWidth = photoGallery?.clientWidth!;
+
+    // Set columns TODO: Set it dynamically based on container width
+    let columns = 6;
+
+    // Change columns based on width as per tailwind grid
+    if (windowWidth < 640) {
+      columns = 2;
+    } else if (windowWidth < 768) {
+      columns = 3;
+    } else if (windowWidth < 1024) {
+      columns = 4;
+    } else if (windowWidth < 1280) {
+      columns = 5;
+    }
+
+    // Based on the columns, determine width of each photo
+    const photoWidth = photoGalleryWidth / columns;
+    this.imageWidth = photoWidth - 8; // Subtracting for margins
+
+    // Set rows based on window height
+    let rows = 4;
+    if (windowHeight < 640) {
+      rows = 2;
+    } else if (windowHeight < 768) {
+      rows = 3;
+    } else if (windowHeight < 1024) {
+      rows = 4;
+    } else if (windowHeight < 1280) {
+      rows = 5;
+    }
+
+    // Calculate and set height
+    this.imageHeight = (photoGalleryHeight / rows) - 4; // Substracting for margins
+    console.log(`Calculated photo height: ${this.imageHeight}px`);
+
+    // Set the page size
+    this.resultsPerPage = rows * columns;
+    console.log(`Calculated results per page: ${this.resultsPerPage}`);
+  }
 
   constructor() {
     this.cacheDOMElements();
@@ -40,6 +96,9 @@ class ImageSearchApp {
       noResultsId: "no-results-message",
       gridId: "photo-grid",
     });
+
+    // Call findGallerySize to set the initial layout
+    this.findGallerySize();
 
 
     // Get the fuzzy search container element
@@ -66,7 +125,7 @@ class ImageSearchApp {
     }
 
     // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
-    this.uiService = new UIService("photo-grid-container");
+    this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth);
 
     // Initialize search service with event callbacks
     this.searchService = new SearchService();

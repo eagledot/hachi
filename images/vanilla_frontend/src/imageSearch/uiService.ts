@@ -26,6 +26,8 @@ export class UIService {
   private photoElementPool: HTMLElement[] = []; // Fixed pool of reusable DOM elements
   private maxPoolSize = 100; // Match typical pagination size
   private currentPhotoClick: ((photo: HachiImageData) => void) | null = null;
+  private imageHeight: number;
+  private imageWidth: number;
 
   // Performance optimizations
   private static readonly FALLBACK_IMAGE_SVG =
@@ -35,7 +37,9 @@ export class UIService {
   // Event listener cleanup tracking
   private eventCleanupFunctions: (() => void)[] = [];
   private globalKeydownHandler?: (e: KeyboardEvent) => void;
-  constructor(containerId: string) {
+  constructor(containerId: string, imageHeight: number, imageWidth?: number) {
+    this.imageHeight = imageHeight;
+    this.imageWidth = imageWidth || 0;
     const container = document.getElementById(containerId);
     if (!container) {
       throw new Error(`Container with id '${containerId}' not found`);
@@ -845,25 +849,8 @@ export class UIService {
     style.id = "responsive-photo-styles";
     style.textContent = `
       .mobile-photo-height {
-        height: 140px !important;
-      }
-      
-      @media (min-width: 640px) {
-        .mobile-photo-height {
-          height: 160px !important;
-        }
-      }
-      
-      @media (min-width: 768px) {
-        .mobile-photo-height {
-          height: 180px !important;
-        }
-      }
-      
-      @media (min-width: 1024px) {
-        .mobile-photo-height {
-          height: 200px !important;
-        }
+        height: ${this.imageHeight ? this.imageHeight : 140}px !important;
+        width: ${this.imageWidth ? this.imageWidth : 240}px !important;
       }
     `;
 

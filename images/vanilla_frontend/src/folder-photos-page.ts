@@ -30,14 +30,48 @@ class FolderPhotosApp {
   private paginationComponent!: PaginationComponent;
   private queryToken: string | null = null;
   private currentPage: number = 1; // Current page for pagination
+  private imageHeight: number = 0;
 
   // Pagination properties
-  private readonly PAGE_SIZE = 100; // Display 10 photos per page for good performance
+  private PAGE_SIZE = Math.floor(window.innerHeight / 45);
 
   constructor() {
     this.init();
   }
+
+  private findGallerySize() {
+    // Get the photo-gallery container
+    const photoGallery = document.getElementById("photo-gallery");
+
+    // If the photoGallery container is not there, log an error
+    if (!photoGallery) {
+      console.error("Photo gallery container not found");
+      return;
+    }
+
+    // Get its height and width
+    const photoGalleryHeight = photoGallery?.clientHeight!;
+
+    // Set columns TODO: Set it dynamically based on container width
+    const columns = 6;
+
+    // Set rows
+    const rows = 4;
+
+    // Calculate and set height
+    this.imageHeight = photoGalleryHeight / rows;
+    console.log(`Calculated photo height: ${this.imageHeight}px`);
+
+    // Set the page size
+    this.PAGE_SIZE = Math.floor(rows * columns);
+  }
+
+
   private async init(): Promise<void> {
+
+    // Call findGallerySize to set the initial layout
+    this.findGallerySize();
+
     // Initialize layout first
     new Layout({
       title: "Folder Photos - Hachi",
@@ -50,7 +84,7 @@ class FolderPhotosApp {
 
     // Now create UIService after components are in the DOM
     // Use photo-grid-container since that's where the photo grid elements are created
-    this.uiService = new UIService("photo-grid-container");
+    this.uiService = new UIService("photo-grid-container", this.imageHeight);
 
     this.extractFolderPath();
     this.setupEventListeners();
@@ -151,9 +185,6 @@ class FolderPhotosApp {
       return;
     }
 
-    // Show loading indicator
-    this.showLoading(true);
-
     // Hide error message
     this.hideError();
 
@@ -167,6 +198,8 @@ class FolderPhotosApp {
         .replace(/\//g, "|");
 
       if (!this.displayedPhotos.length) {
+        // Show loading indicator
+        this.showLoading(true);
         console.log("Fetching pagination info for:", filename);
         // Get pagination information for the attribute
         const paginationInfo = await queryAttribute(

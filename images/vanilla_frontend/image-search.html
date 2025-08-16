@@ -15,7 +15,7 @@
     <!-- Navbar will be inserted here by Layout -->
 
     <main id="main">
-        <div id="image-search-container" class="min-h-[calc(100vh-47px)] px-4 w-full">
+        <div id="image-search-container" class="min-h-[calc(100vh-47px)] px-4 w-full flex flex-col">
 
             <!-- Search Section -->
             <section>
@@ -26,14 +26,14 @@
                     </div>
                 </div>
             </section>
-            <section id="results-section" class="mb-8">
-                <div class="flex flex-col gap-6">
+            <section id="results-section" class="mb-8 flex flex-col flex-1">
+                <div class="flex flex-col flex-1  gap-6">
                     <!-- Left Sidebar - Filters -->
                     <div id="photo-filter-container" class="hidden">
                         <!-- Photo filters will be injected here -->
                     </div>
                     <!-- Main Content Area - Photo Grid -->
-                    <main class="flex-1 min-w-0">
+                    <main id="photo-gallery" class="flex-1 min-w-0">
                         <div id="photo-grid-container">
                             <!-- Photo grid components will be injected here -->
                         </div>

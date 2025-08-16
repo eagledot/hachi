@@ -15,7 +15,7 @@
     <!-- Navbar will be inserted here by Layout -->
 
     <main id="main">
-        <div class="min-h-[calc(100vh-47px)] px-4 py-6 w-full"> 
+        <div class="min-h-[calc(100vh-47px)] flex flex-col px-4 pt-6 w-full">
             <!-- Header with back button and folder info -->
             <header class="mb-4">
                 <div class="flex items-center py-3">
@@ -40,40 +40,26 @@
                     <!-- Right: Empty space for balance -->
                     <div class="w-16"></div>
                 </div>
-            </header> <!-- Loading indicator -->
-            <div id="loading-indicator" class="hidden">
-                <div class="flex justify-center items-center py-8">
-                    <div class="flex items-center space-x-2">
-                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                        <span class="text-gray-600 text-sm">Loading photos...</span>
-                    </div>
+            </header>
+
+
+
+            <section id="photo-gallery" class="flex-1">
+                <!-- Loading indicator -->
+                <div id="loading-indicator" class="hidden">
+                    
                 </div>
-            </div>
-
-            <!-- Error message -->
-            <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <svg class="h-4 w-4 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                    <div class="ml-2">
-                        <p class="text-xs text-red-800" id="error-text"></p>
-                    </div>
+                <!-- Error message -->
+                <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                   
                 </div>
-            </div>
 
-            <!-- No photos message -->
-            <div id="no-photos" class="hidden text-center py-8">
-                <div class="text-gray-400 text-4xl mb-3">📷</div>
-                <h3 class="text-md font-medium text-gray-900 mb-1">No photos found</h3>
-                <p class="text-gray-500 text-sm">This folder doesn't contain any photos</p>
-            </div>
-            <section class="mb-4">
-
+                <!-- No photos message -->
+                <div id="no-photos" class="hidden text-center py-8">
+                    <div class="text-gray-400 text-4xl mb-3">📷</div>
+                    <h3 class="text-md font-medium text-gray-900 mb-1">No photos found</h3>
+                    <p class="text-gray-500 text-sm">This folder doesn't contain any photos</p>
+                </div>
                 <div class="flex flex-col gap-4">
                     <!-- Left Sidebar - Filters -->
                     <div id="photo-filter-container" class="hidden w-full lg:flex-shrink-0">
@@ -84,15 +70,16 @@
                         <div id="photo-grid-container">
                             <!-- Photo grid components will be injected here -->
                         </div>
-                        
+
                     </main>
                 </div>
             </section>
         </div>
         <!-- Pagination Controls -->
-                        <div id="pagination-container" class="w-full sticky bottom-0 z-30 bg-white border-t border-gray-100 shadow-sm hidden">
-                            
-                        </div>
+        <div id="pagination-container"
+            class="w-full sticky bottom-0 z-30 bg-white border-t border-gray-100 shadow-sm hidden">
+
+        </div>
     </main>
 
     <!-- Modal will be injected here by ImageModalComponent -->
