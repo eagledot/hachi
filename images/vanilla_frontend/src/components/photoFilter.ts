@@ -190,7 +190,7 @@ export class PhotoFilterComponent {
         <!-- Horizontal Filter Tabs -->
         <div class="relative">
           <div
-            class="flex items-center py-3 space-x-2 overflow-x-auto scrollbar-hide"
+            class="flex items-center space-x-2 overflow-x-auto scrollbar-hide"
           >
             <!-- People Tab -->
             <div class="flex-shrink-0">

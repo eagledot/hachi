@@ -70,13 +70,13 @@ export class FuzzySearchUI {
 
   private createUI(): void {
     this.container.innerHTML = html`
-      <div class="w-full mx-auto p-2 sm:p-4 fuzzy-search-container">
+      <div class="w-full mx-auto px-2 mt-4 fuzzy-search-container">
         <div class="w-full relative">
           <!-- Modern Search Container -->
           <div class="flex flex-col space-y-3">
             <!-- Main Search Row -->
             <div
-              class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3"
+              class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 mb-3"
             >
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
@@ -152,7 +152,7 @@ export class FuzzySearchUI {
             <!-- Active Filters Display (moved below input) -->
             <div
               id="filters-container"
-              class="flex w-full items-center mb-3 sm:mb-4 flex-wrap gap-1 sm:gap-2 min-h-[2rem] invisible"
+              class="flex w-full items-center flex-wrap gap-1 sm:gap-2 invisible"
             >
               <!-- Filters will be rendered here -->
             </div>
@@ -479,9 +479,9 @@ export class FuzzySearchUI {
             const icon = this.fuzzySearchService.getAttributeIcon(attribute);
             const color = this.fuzzySearchService.getAttributeColor(attribute);
             return `
-            <div class="flex items-center px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl border-2 ${color} hover:shadow-lg transition-all duration-200 cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
+            <div class="flex items-center px-2 py-1 rounded-xl border-2 ${color} hover:shadow-lg transition-all duration-200 cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
               <span class="mr-1 sm:mr-2 text-xs sm:text-sm">${icon}</span>
-              <span class="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-none">${value}</span>
+              <span class="text-xs font-medium truncate max-w-[120px] sm:max-w-none">${value}</span>
               <button class="ml-1 sm:ml-2 text-current opacity-60 hover:opacity-100 hover:bg-white hover:bg-opacity-30 rounded-lg p-1 transition-all duration-200 remove-filter-btn" data-attribute="${attribute}" data-value="${value}">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>

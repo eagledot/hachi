@@ -40,7 +40,7 @@ class ImageSearchApp {
     const photoGallery = document.getElementById("photo-gallery");
 
     // Get the photo gallery height
-    const photoGalleryHeight = windowHeight - 310; // Based on header and footer heights
+    const photoGalleryHeight = windowHeight - 224; // Based on header and footer heights
     console.log(`Photo gallery height: ${photoGalleryHeight}px`);
 
     // Get photo-gallery width
