@@ -141,7 +141,6 @@ class FolderPhotosApp {
     // Now create UIService after components are in the DOM
     // Use photo-grid-container since that's where the photo grid elements are created
     this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth, this.PAGE_SIZE);
-    this.uiService.ensureElementsInDOM(this.PAGE_SIZE);
 
     this.extractFolderPath();
     this.setupEventListeners();

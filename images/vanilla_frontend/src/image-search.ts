@@ -126,7 +126,6 @@ class ImageSearchApp {
 
     // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
     this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth, this.resultsPerPage);
-    this.uiService.ensureElementsInDOM(this.resultsPerPage);
 
     // Initialize search service with event callbacks
     this.searchService = new SearchService();

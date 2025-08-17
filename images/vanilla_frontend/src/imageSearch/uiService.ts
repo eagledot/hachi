@@ -45,10 +45,8 @@ export class UIService {
   ) {
     this.imageHeight = imageHeight;
     this.imageWidth = imageWidth || 0;
-    if (pageSize) {
-      this.maxPoolSize = pageSize;
-      this.ensureElementPool(pageSize);
-    }
+    
+  
     const container = document.getElementById(containerId);
     if (!container) {
       throw new Error(`Container with id '${containerId}' not found`);
@@ -56,6 +54,11 @@ export class UIService {
     this.container = container;
     this.initializeElements();
     this.injectResponsivePhotoStyles();
+    if (pageSize) {
+      this.maxPoolSize = pageSize;
+      this.ensureElementPool(pageSize);
+      this.ensureElementsInDOM(pageSize);
+    }
   }
   private initializeElements(): void {
     // Elements within the container - search elements no longer needed as handled by FuzzySearchUI
@@ -278,7 +281,7 @@ export class UIService {
     // Don't clear innerHTML as it breaks the element pool
     // Instead, just hide all elements from the pool
     this.photoElementPool.forEach((element) => {
-      element.style.display = "none";
+      element.style.visibility = "hidden";
     });
   }
 
@@ -286,22 +289,18 @@ export class UIService {
    * Optimized for pagination - reuses DOM elements instead of creating/destroying
    */
   private updatePhotoGridForPagination(photos: HachiImageData[]): void {
-    // Ensure we have enough elements in the pool
-    // this.ensureElementPool(photos.length);
+    console.log("Updating photo grid for pagination:", photos.length);
 
-    // Batch DOM updates
-    requestAnimationFrame(() => {
-      // Update existing elements with new photo data
-      photos.forEach((photo, index) => {
-        const element = this.photoElementPool[index];
-        this.updateElementWithPhotoData(element, photo);
-        element.style.display = "block";
-      });
+    // Update existing elements with new photo data
+    photos.forEach((photo, index) => {
+      const element = this.photoElementPool[index];
+      this.updateElementWithPhotoData(element, photo);
     });
 
     // Hide unused elements
     for (let i = photos.length; i < this.photoElementPool.length; i++) {
-      this.photoElementPool[i].style.display = "none";
+      console.log("Hiding unused element:", i);
+      this.photoElementPool[i].style.visibility = "hidden";
     }
 
     // Ensure all visible elements are in the DOM
@@ -347,6 +346,8 @@ export class UIService {
         needsUpdate = true;
       }
     }
+
+    
 
     if (needsUpdate) {
       this.photoGrid.appendChild(fragment);
@@ -395,9 +396,10 @@ export class UIService {
     element: HTMLElement,
     photo: HachiImageData
   ): void {
+    
     const img = element.querySelector("img") as HTMLImageElement;
     if (!img) return;
-
+    console.log("Updating element with photo data:", photo.id);
     // Update image source and metadata
     img.src = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
     img.alt = photo.metadata?.filename || "";
@@ -430,7 +432,10 @@ export class UIService {
     }
 
     // Update the visibility
-    element.classList.remove("invisible");
+    // console.log("Updating visibility for element:", element);
+    // element.classList.remove("invisible");
+    element.style.visibility = "visible";
+    // console.log("Updated visibility for element:", element);
   }
 
   /**

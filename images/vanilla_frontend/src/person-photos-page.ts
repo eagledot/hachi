@@ -31,13 +31,73 @@ class PersonPhotosApp {
   private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
 
   // Pagination properties
-  private readonly PAGE_SIZE = 100;
+  private PAGE_SIZE = 100;
   private currentPage = 1;
   private paginationComponent?: PaginationComponent;
   private queryToken: string | null = null;
 
+  private imageWidth = 0;
+  private imageHeight = 0;
+
   constructor() {
+    this.findGallerySize();
     this.init();
+    
+  }
+
+  private findGallerySize() {
+    // Get the window height
+    const windowHeight = window.innerHeight;
+    const windowWidth = window.innerWidth;
+
+    // Get photo-gallery element
+    const photoGallery = document.getElementById("photo-gallery");
+
+    // Get the photo gallery height
+    const photoGalleryHeight = photoGallery?.clientHeight;
+    console.log(`Photo gallery height: ${photoGalleryHeight}px`);
+
+    // Get photo-gallery width
+    const photoGalleryWidth = photoGallery?.clientWidth!;
+
+    // Set columns TODO: Set it dynamically based on container width
+    let columns = 6;
+
+    // Change columns based on width as per tailwind grid
+    if (windowWidth < 640) {
+      columns = 2;
+    } else if (windowWidth < 768) {
+      columns = 3;
+    } else if (windowWidth < 1024) {
+      columns = 4;
+    } else if (windowWidth < 1280) {
+      columns = 5;
+    }
+
+    // Based on the columns, determine width of each photo
+    const photoWidth = photoGalleryWidth / columns;
+    this.imageWidth = photoWidth - 8; // Subtracting for margins
+    console.log(`Calculated photo width: ${this.imageWidth}px`);
+
+    // Set rows based on window height
+    let rows = 4;
+    if (windowHeight < 640) {
+      rows = 2;
+    } else if (windowHeight < 768) {
+      rows = 3;
+    } else if (windowHeight < 1024) {
+      rows = 4;
+    } else if (windowHeight < 1280) {
+      rows = 5;
+    }
+
+    // Calculate and set height
+    this.imageHeight = photoGalleryHeight! / rows - 8; // Substracting for margins
+    console.log(`Calculated photo height: ${this.imageHeight}px`);
+
+    // Set the page size
+    this.PAGE_SIZE = rows * columns;
+    console.log(`Calculated results per page: ${this.PAGE_SIZE}`);
   }
 
   private async init(): Promise<void> {
@@ -51,7 +111,7 @@ class PersonPhotosApp {
 
     // Now create UIService after components are in the DOM
     // Use photo-grid-container since that's where the photo grid elements are created
-    this.uiService = new UIService("photo-grid-container");
+    this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth, this.PAGE_SIZE);
 
     // Get person ID from URL parameters
     this.personId = this.getPersonIdFromUrl();
@@ -164,7 +224,7 @@ class PersonPhotosApp {
     console.log("Calling loadPersonData()");
     if (!this.personId) return;
 
-    this.showLoading(true);
+    // this.showLoading(true);
 
     try {
       if (!this.personPhotosData) {
@@ -186,7 +246,10 @@ class PersonPhotosApp {
       if (!this.queryToken) return;
 
       // Load person photos
-      const personPhotoData = await collectAttributeMeta(this.queryToken!, this.currentPage - 1);
+      const personPhotoData = await collectAttributeMeta(
+        this.queryToken!,
+        this.currentPage - 1
+      );
       if (!personPhotoData) {
         this.showError("No photos found for this person");
         return;
@@ -202,7 +265,7 @@ class PersonPhotosApp {
       console.error("Failed to load person data:", error);
       this.showError("Failed to load person data. Please try again.");
     } finally {
-      this.showLoading(false);
+      // this.showLoading(false);
     }
   }
   private updatePersonInfo(): void {
@@ -359,7 +422,6 @@ class PersonPhotosApp {
     this.displayedPhotos = [...this.filteredPhotos];
     this.uiService.updatePhotos(this.displayedPhotos);
   }
-
 
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log("Filtered photos updated", filteredPhotos);
@@ -537,9 +599,9 @@ class PersonPhotosApp {
       }
     }
 
-    if (photoGrid && show) {
-      photoGrid.innerHTML = "";
-    }
+    // if (photoGrid && show) {
+    //   photoGrid.innerHTML = "";
+    // }
   }
   private showError(message: string): void {
     const errorMessage = document.getElementById("error-display");
