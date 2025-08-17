@@ -472,22 +472,61 @@ proc query_secondary_index(
   let temp_arr = cast[ptr  UncheckedArray[uint32]](c.secondaryIndex)
   #----------------------------------------------------------
   
+  # -------------------------
+  # Collect query hashes first, (helps compiler to later do optimization on packed memory in a tight loop !!!)
+  # packing almost always help !!
+  var query_hashes_arr = newSeq[uint32](len(query_arr))
+  for i in 0..<len(query_arr):
+    # 4 bytes. aka (int32) we just collect 4 bytes as uint32 for faster comparison!
+    query_hashes_arr[i] = cast[ptr uint32](addr query_arr[i][0])[]
+  # ------------------------------------------------------------------
+
   for row_idx in 0..<boundary.int32:
-      # let stored_hash = temp_arr[row_idx] # storing this here rather than in-situ during `test`.. shows a minor regression ??
-      for query in query_arr:
+      let len_query_arr = len(query_arr)
+      var is_valid_candidate:bool = false
+
+      # Manually introducing a loop-unroll-factor of 4!
+      for query_idx in 0..<(len_query_arr div 4):
 
         # here compare the stored hash.
-        # Its ok, if we get the false positive..(since we do an accurate check)
+        # Its ok, if we get the false positives..(since we do an accurate check)
         # it is about reducing the set to a very limited candidates, compared to the stored rows!
+        # Also candidates order shouldn't matter, we still return an(incrementing) sequence. 
+        # But since for a random(no-prior-information) queries, resulting row_candidates so would be kind of random, resulting in quite a large cache misses.
+        # TODO: TO TRY TO PACK resulting row-candidates, into a packed area before running `generic` search loop!
 
-        # 4 bytes. aka (int32)
-        let query_hash = cast[ptr uint32](addr query[0])[]
-        let test = (temp_arr[row_idx] == query_hash)
+        # interleaved instructions help !!
+        let query_hash_1 = query_hashes_arr[4*query_idx]
+        let test_1 = (temp_arr[row_idx] == query_hash_1)
+        let query_hash_2 = query_hashes_arr[4*query_idx + 1]
+        let test_2 = (temp_arr[row_idx] == query_hash_2)
+        let query_hash_3 = query_hashes_arr[4*query_idx + 2]
+        let test_3 = (temp_arr[row_idx] == query_hash_3)
+        let query_hash_4 = query_hashes_arr[4*query_idx + 3]
+        let test_4 = (temp_arr[row_idx] == query_hash_4)
+        
 
-        if test:
-          memory[count] = row_idx  # a possible match!
-          inc count
-  
+        # Since OR op is assumed for each of the query, we break on first match.
+        # If AND type to be implemented.. minor changes would be required!
+        if test_1 or test_2 or test_3 or test_4:
+          is_valid_candidate = true
+          break
+      
+      if is_valid_candidate:
+        memory[count] = row_idx  # a possible match!
+        inc count
+      else:
+        # We just check the last 4s, even some of them already checked.
+        # this is else, so only occure if this row_idx is not a candidate by now.
+        # we check either checked and was not a valid candidate OR not checked, if found, we update!
+        for i in (len_query_arr - (len_query_arr mod 4))..<len_query_arr:
+          let query_hash = query_hashes_arr[i]
+          let test = (temp_arr[row_idx] == query_hash)
+          if test:
+            memory[count] = row_idx
+            inc count
+            break
+
   result.memory = ensureMove memory # slice would create a copy!
   result.count = count
 # -------------------------------------------------------------------------
@@ -550,7 +589,7 @@ template queryStringImpl(
         else:
           is_valid_candidate = (current_item == query_t)
       else:
-        if (current_item.contains(query_t)):
+        if (arr[row_idx].contains(query_t)):
           is_valid_candidate = true
       
       if is_valid_candidate == false:
@@ -560,8 +599,9 @@ template queryStringImpl(
       # Check the unique property!
       var is_unique = true
       if unique_only_t:
+        let temp_x = arr[row_idx] # Putting explicitly in a register, curr_item may not be in register anymore, results in !!  
         for j in 0..<count:
-          if arr[result_t[j]] == current_item: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
+          if arr[result_t[j]] == temp_x: # "x|y|z" and "x|y|m" are considered unique/different, even query was "x"!
             is_unique = false
             break
         

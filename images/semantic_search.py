@@ -766,12 +766,20 @@ def filterPopulateQuery(query_token:str,  attribute:str) -> list[str]:
         (row_indices, resource_hashes, scores) = pagination_cache.get(query_token, page_id)
         assert not (resource_hashes is None)
         if row_indices is None:
-            #  meaning semantic-query , without any meta-attributes was done!
+            # means it was a pure semantic-query , without any meta-attributes was done!
             # so collect row indices first!
             row_indices = metaIndex.query_generic(
                     attribute = "resource_hash",
                     query = resource_hashes # for this particular page!
                 )
+            
+            # Commit it to page-cache too, now this info is available for this page, to speed up subsequent calls!
+            pagination_cache.overwrite(
+                token = query_token,
+                page_id = page_id,
+                page_meta = (row_indices, resource_hashes, scores)  # Exact same except row_indices part!
+            )
+
             final_row_indices.extend(row_indices)
         else:
             final_row_indices.extend(row_indices)
