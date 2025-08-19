@@ -28,17 +28,21 @@ const Filter_Request_Mapping = {
 
 export default class PhotoFilterSidebar {
   private sidebarElement: HTMLElement;
+  private overlayElement: HTMLElement;
   private filters: PhotoFilters = {};
   private queryToken: string | null = null;
   private filteredImages: HachiImageData[] = [];
   private onFilterChange: (photos: HachiImageData[]) => void;
 
   constructor(onFilterChange: (photos: HachiImageData[]) => void, container?: HTMLElement) {
+    this.overlayElement = this.createOverlay();
     this.sidebarElement = this.createSidebar();
       this.onFilterChange = onFilterChange;
       if (container) {
+        container.appendChild(this.overlayElement);
         container.appendChild(this.sidebarElement);
       } else {
+        document.body.appendChild(this.overlayElement);
         document.body.appendChild(this.sidebarElement);
       }
   }
@@ -84,15 +88,51 @@ export default class PhotoFilterSidebar {
     return sidebarElement;
   }
 
+  createOverlay(): HTMLElement {
+    const overlayElement = document.createElement("div");
+    overlayElement.id = "photo-filter-overlay";
+    this.createOverlayStyles(overlayElement);
+    
+    // Add click handler to close sidebar when clicking on overlay
+    overlayElement.addEventListener("click", () => {
+      this.closeSidebar();
+    });
+    
+    return overlayElement;
+  }
+
+  createOverlayStyles(overlayElement: HTMLElement): void {
+    overlayElement.style.position = "fixed";
+    overlayElement.style.top = "0";
+    overlayElement.style.left = "0";
+    overlayElement.style.width = "100%";
+    overlayElement.style.height = "100%";
+    overlayElement.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+    overlayElement.style.zIndex = "999";
+    overlayElement.style.display = "block";
+  }
+
+  closeSidebar(): void {
+    this.overlayElement.style.display = "none";
+    this.sidebarElement.style.display = "none";
+  }
+
+  showSidebar(): void {
+    this.overlayElement.style.display = "block";
+    this.sidebarElement.style.display = "block";
+  }
+
   createSidebarStyles(sidebarElement: HTMLElement): void {
     sidebarElement.style.width = "320px";
     sidebarElement.style.height = "100%";
-    sidebarElement.style.position = "absolute";
+    sidebarElement.style.position = "fixed";
     sidebarElement.style.top = "0";
     sidebarElement.style.right = "0";
     sidebarElement.style.backgroundColor = "#fff";
     sidebarElement.style.boxShadow = "-2px 0 5px rgba(0,0,0,0.5)";
     sidebarElement.style.zIndex = "1000";
+    sidebarElement.style.display = "flex";
+    sidebarElement.style.flexDirection = "column";
   }
 
 createPeopleFilterUI(): HTMLElement {
@@ -294,10 +334,77 @@ createPeopleFilterUI(): HTMLElement {
     return filterContainer;
   }
 
+  createSidebarHeader(): HTMLElement {
+    const header = document.createElement("div");
+    header.className = "flex items-center justify-between p-4 border-b border-gray-200 bg-white";
+    header.style.borderBottom = "1px solid #e5e7eb";
+
+    const title = document.createElement("h3");
+    title.textContent = "Filters";
+    title.className = "text-lg font-semibold text-gray-800";
+
+    const closeButton = document.createElement("button");
+    closeButton.innerHTML = "×";
+    closeButton.className = "text-gray-500 hover:text-gray-700 text-2xl font-bold cursor-pointer bg-transparent border-none";
+    closeButton.style.fontSize = "24px";
+    closeButton.style.lineHeight = "1";
+    closeButton.style.padding = "0";
+    closeButton.style.width = "24px";
+    closeButton.style.height = "24px";
+    closeButton.style.display = "flex";
+    closeButton.style.alignItems = "center";
+    closeButton.style.justifyContent = "center";
+
+    closeButton.addEventListener("click", () => {
+      this.closeSidebar();
+    });
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+    return header;
+  }
+
+  createSidebarFooter(): HTMLElement {
+    const footer = document.createElement("div");
+    footer.className = "p-4 border-t border-gray-200 bg-white";
+    footer.style.borderTop = "1px solid #e5e7eb";
+
+    const clearButton = document.createElement("button");
+    clearButton.textContent = "Clear All Filters";
+    clearButton.className = "w-full py-2 px-4 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium";
+    clearButton.style.cursor = "pointer";
+    clearButton.style.border = "none";
+
+    clearButton.addEventListener("click", () => {
+      this.clearAllFilters();
+    });
+
+    footer.appendChild(clearButton);
+    return footer;
+  }
+
+  clearAllFilters(): void {
+    // Uncheck all images
+    this.uncheckAllImages();
+    // Uncheck all checkboxes
+    this.uncheckEveryCheckbox();
+    // Clear filtered images
+    this.filteredImages = [];
+    this.onFilterChange(this.filteredImages);
+  }
+
   createPhotoFiltersUI(): void {
+    // Empty sidebar element TODO: Recheck this approach
+    this.sidebarElement.innerHTML = "";
+    
+    // Create header with close button
+    const header = this.createSidebarHeader();
+    this.sidebarElement.appendChild(header);
+    
+    // Create main content container
     const filtersContainer = document.createElement("div");
     filtersContainer.id = "photo-filters";
-    filtersContainer.className = "p-4 space-y-6";
+    filtersContainer.className = "p-4 space-y-6 flex-1 overflow-y-auto";
 
     // Create filter elements for each filter category
     for (const [category, options] of Object.entries(this.filters)) {
@@ -307,8 +414,11 @@ createPeopleFilterUI(): HTMLElement {
         filtersContainer.appendChild(filterUI);
       }
     }
-    // Empty sidebar element TODO: Recheck this approach
-    this.sidebarElement.innerHTML = "";
+    
     this.sidebarElement.appendChild(filtersContainer);
+    
+    // Create footer with clear filters button
+    const footer = this.createSidebarFooter();
+    this.sidebarElement.appendChild(footer);
   }
 }
