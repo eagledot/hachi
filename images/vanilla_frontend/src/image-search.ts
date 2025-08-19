@@ -48,7 +48,7 @@ class ImageSearchApp {
     const photoGalleryWidth = photoGallery?.clientWidth!;
 
     // Set static dimensions
-    const side = windowHeight / 4;
+    const side = 180;
 
     const { rows, cols, tileWidth, tileHeight } = fitTiles(
       photoGalleryHeight!,

@@ -37,9 +37,9 @@ export class PaginationComponent {
   private handleKeyDown(e: KeyboardEvent) {
     // Only trigger if the pagination container is visible (not hidden)
     if (this.container.classList.contains('hidden')) return;
-    if (e.key === 'ArrowLeft') {
+    if (e.key === 'ArrowUp') {
       this.prevPage();
-    } else if (e.key === 'ArrowRight') {
+    } else if (e.key === 'ArrowDown') {
       this.nextPage();
     }
   }
