@@ -10,6 +10,7 @@ import {
 } from "./components";
 import { PaginationComponent } from "./components/pagination";
 import { fitTiles } from "./utils";
+import PhotoFilterSidebar from "./components/photoFilterSidebar";
 
 class ImageSearchApp {
   private searchService: SearchService;
@@ -31,6 +32,7 @@ class ImageSearchApp {
   private filterContainer: HTMLElement | null = null;
   private imageHeight = 0; // Height of each photo in the grid
   private imageWidth = 0; // Width of each photo in the grid
+  private photoFilterSidebar: PhotoFilterSidebar | null = null;
 
   private findGallerySize() {
     // Get the window height
@@ -88,6 +90,11 @@ class ImageSearchApp {
       onFilterChange: (filteredPhotos: HachiImageData[]) =>
         this.handleFilteredPhotosUpdate(filteredPhotos),
     });
+
+    this.photoFilterSidebar = new PhotoFilterSidebar(
+      (filteredPhotos: HachiImageData[]) =>
+        this.handleFilteredPhotosUpdate(filteredPhotos)
+    );
 
     if (this.filterContainer) {
       this.filterContainer.classList.add("invisible");
@@ -217,6 +224,7 @@ class ImageSearchApp {
       this.paginationContainerElement?.classList.remove("hidden");
       this.filteredPhotos = [];
       await this.updatePaginationAndRenderPhotos();
+      this.photoFilterSidebar?.updateQueryToken(this.queryToken);
       this.photoFilter.updateQueryToken(this.queryToken); // TODO: For now, this will trigger the requests for getting filter options from backend. Not the most efficient way yet. Required Inspection.
       // this.handleLoadingChange(false);
       this.handleSearchDoneChange(true);
@@ -266,7 +274,10 @@ class ImageSearchApp {
    * Fetches and renders photos for the current page, handling both filtered and unfiltered states.
    */
   private async updatePaginationAndRenderPhotos(): Promise<void> {
-    console.log("Updating pagination and rendering photos for page:", this.currentPage);
+    console.log(
+      "Updating pagination and rendering photos for page:",
+      this.currentPage
+    );
     if (this.filteredPhotos.length) {
       this.displayedPhotos = this.filteredPhotos.slice(
         this.currentPage * this.resultsPerPage,
