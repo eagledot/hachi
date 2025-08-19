@@ -339,7 +339,7 @@ export class UIService {
     let needsUpdate = false;
 
     for (let i = 0; i < visibleCount && i < this.photoElementPool.length; i++) {
-      console.log("Ensuring element in DOM:", i);
+      // console.log("Ensuring element in DOM:", i);
       const element = this.photoElementPool[i];
       if (!element.parentNode) {
         fragment.appendChild(element);
@@ -399,7 +399,7 @@ export class UIService {
     
     const img = element.querySelector("img") as HTMLImageElement;
     if (!img) return;
-    console.log("Updating element with photo data:", photo.id);
+    // console.log("Updating element with photo data:", photo.id);
     // Update image source and metadata
     img.src = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
     img.alt = photo.metadata?.filename || "";

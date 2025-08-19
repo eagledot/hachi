@@ -7,6 +7,7 @@ import { transformRawDataChunk } from "./utils";
 
 export class SearchService {
   async startSearch(searchTerm: string, resultsPerPage: number): Promise<ImageSearchResponse> {
+    console.log("Starting search:", searchTerm);
     let formData = new FormData();
     formData.append("query_start", String(true));
     formData.append("query", searchTerm);
@@ -29,7 +30,8 @@ export class SearchService {
     }
   }
 
-  async fetchSearchResults(queryToken: string, pageNumber: Number) : Promise<HachiImageData[]> {
+  async fetchSearchResults(queryToken: string, pageNumber: Number): Promise<HachiImageData[]> {
+    console.log("Fetching search results for token:", queryToken, "page:", pageNumber);
     try {
       const URL = `${endpoints.COLLECT_QUERY_META}/${queryToken}/${String(pageNumber)}`;
       console.log(URL)

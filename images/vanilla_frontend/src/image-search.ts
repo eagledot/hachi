@@ -238,6 +238,7 @@ class ImageSearchApp {
    * Initializes the pagination component and sets up page change handling.
    */
   private setupPagination() {
+    console.log("Setting up pagination");
     if (!this.paginationContainerElement) {
       console.warn("Pagination container element is missing");
       return;
@@ -265,6 +266,7 @@ class ImageSearchApp {
    * Fetches and renders photos for the current page, handling both filtered and unfiltered states.
    */
   private async updatePaginationAndRenderPhotos(): Promise<void> {
+    console.log("Updating pagination and rendering photos for page:", this.currentPage);
     if (this.filteredPhotos.length) {
       this.displayedPhotos = this.filteredPhotos.slice(
         this.currentPage * this.resultsPerPage,

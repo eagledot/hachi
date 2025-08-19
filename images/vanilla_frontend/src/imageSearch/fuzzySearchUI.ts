@@ -39,6 +39,7 @@ export class FuzzySearchUI {
    * Automatically focuses the search input when the component is initialized.
    */
   constructor(container: HTMLElement, callbacks: FuzzySearchCallbacks) {
+    console.log("Initializing FuzzySearchUI");
     this.container = container;
     this.callbacks = callbacks;
     this.fuzzySearchService = new FuzzySearchService();
@@ -50,6 +51,12 @@ export class FuzzySearchUI {
     // Auto-focus the search input when the component is initialized
     setTimeout(() => {
       this.searchInput.focus();
+      console.log("Search input focused");
+      // Check if last search query exists in local storage TODO: delete it later
+      const lastSearchQuery = localStorage.getItem("lastSearchQuery");
+      if (lastSearchQuery) {
+        this.callbacks.onSearchExecuted(lastSearchQuery);
+      }
     }, 0);
   }
 
@@ -301,6 +308,7 @@ export class FuzzySearchUI {
   }
 
   private handleKeyDown(e: KeyboardEvent): void {
+    console.log("Key down:", e.key);
     if (this.showDropdown && this.suggestions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -466,6 +474,9 @@ export class FuzzySearchUI {
       this.hasSearched = true;
       this.hideSearchTips();
     }
+
+    // Save it local storage. TODO: for debugging, remove it later may be
+    localStorage.setItem("lastSearchQuery", queryString);
 
     this.callbacks.onSearchExecuted(queryString);
   }
