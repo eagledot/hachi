@@ -70,6 +70,20 @@ export async function filterPopulateQuery(queryToken: string, attribute: string)
   return data;
 }
 
+export function fitTiles(
+  height: number,
+  width: number,
+  minSide: number
+): { rows: number; cols: number; tileWidth: number; tileHeight: number } {
+  const rows = Math.ceil(height / minSide);
+  const cols = Math.ceil(width / minSide);
+
+  const tileHeight = height / rows;
+  const tileWidth = width / cols;
+
+  return { rows, cols, tileWidth, tileHeight };
+}
+
 
 export async function filterQueryMeta(queryToken: string, attribute: string, value: string): Promise<any> {
   const endpoint = endpoints.FILTER_QUERY_META(queryToken, attribute, value);

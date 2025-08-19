@@ -9,7 +9,7 @@ import {
   PhotoFilterComponent,
 } from "./components";
 import { PaginationComponent } from "./components/pagination";
-import { collectAttributeMeta, queryAttribute } from "./utils";
+import { collectAttributeMeta, fitTiles, queryAttribute } from "./utils";
 
 // Interface for folder photo data matching the actual API response
 interface FolderPhotoData {
@@ -67,58 +67,26 @@ class FolderPhotosApp {
   //   this.PAGE_SIZE = Math.floor(rows * columns);
   // }
 
-    private findGallerySize() {
-    // Get the window height
-    const windowHeight = window.innerHeight;
-    const windowWidth = window.innerWidth;
-
+  private findGallerySize() {
     // Get photo-gallery element
     const photoGallery = document.getElementById("photo-gallery");
 
     // Get the photo gallery height
-    const photoGalleryHeight = photoGallery?.clientHeight;
+    const photoGalleryHeight = photoGallery?.clientHeight!;
     console.log(`Photo gallery height: ${photoGalleryHeight}px`);
 
     // Get photo-gallery width
     const photoGalleryWidth = photoGallery?.clientWidth!;
 
-    // Set columns TODO: Set it dynamically based on container width
-    let columns = 6;
+    // Set static dimensions
+    const side = 156;
 
-    // Change columns based on width as per tailwind grid
-    if (windowWidth < 640) {
-      columns = 2;
-    } else if (windowWidth < 768) {
-      columns = 3;
-    } else if (windowWidth < 1024) {
-      columns = 4;
-    } else if (windowWidth < 1280) {
-      columns = 5;
-    }
+    const { rows, cols, tileWidth, tileHeight } = fitTiles(photoGalleryHeight!, photoGalleryWidth, side);
 
-    // Based on the columns, determine width of each photo
-    const photoWidth = photoGalleryWidth / columns;
-      this.imageWidth = photoWidth - 8; // Subtracting for margins
-      console.log(`Calculated photo width: ${this.imageWidth}px`);
+    this.PAGE_SIZE = rows * cols;
+    this.imageHeight = tileHeight - 10;
+    this.imageWidth = tileWidth - 6;
 
-    // Set rows based on window height
-    let rows = 4;
-    if (windowHeight < 640) {
-      rows = 2;
-    } else if (windowHeight < 768) {
-      rows = 3;
-    } else if (windowHeight < 1024) {
-      rows = 4;
-    } else if (windowHeight < 1280) {
-      rows = 5;
-    }
-
-    // Calculate and set height
-    this.imageHeight = (photoGalleryHeight! / rows) - 8; // Substracting for margins
-    console.log(`Calculated photo height: ${this.imageHeight}px`);
-
-    // Set the page size
-    this.PAGE_SIZE = rows * columns;
     console.log(`Calculated results per page: ${this.PAGE_SIZE}`);
   }
 

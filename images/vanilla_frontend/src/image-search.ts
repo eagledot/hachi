@@ -9,6 +9,7 @@ import {
   PhotoFilterComponent,
 } from "./components";
 import { PaginationComponent } from "./components/pagination";
+import { fitTiles } from "./utils";
 
 class ImageSearchApp {
   private searchService: SearchService;
@@ -46,43 +47,18 @@ class ImageSearchApp {
     // Get photo-gallery width
     const photoGalleryWidth = photoGallery?.clientWidth!;
 
-    // Set columns TODO: Set it dynamically based on container width
-    let columns = 6;
+    // Set static dimensions
+    const side = windowHeight / 4;
 
-    // Change columns based on width as per tailwind grid
-    if (windowWidth < 640) {
-      columns = 2;
-    } else if (windowWidth < 768) {
-      columns = 3;
-    } else if (windowWidth < 1024) {
-      columns = 4;
-    } else if (windowWidth < 1280) {
-      columns = 5;
-    }
+    const { rows, cols, tileWidth, tileHeight } = fitTiles(
+      photoGalleryHeight!,
+      photoGalleryWidth,
+      side
+    );
 
-    // Based on the columns, determine width of each photo
-    const photoWidth = photoGalleryWidth / columns;
-    this.imageWidth = photoWidth - 8; // Subtracting for margins
-
-    // Set rows based on window height
-    let rows = 4;
-    if (windowHeight < 640) {
-      rows = 2;
-    } else if (windowHeight < 768) {
-      rows = 3;
-    } else if (windowHeight < 1024) {
-      rows = 4;
-    } else if (windowHeight < 1280) {
-      rows = 5;
-    }
-
-    // Calculate and set height
-    this.imageHeight = (photoGalleryHeight / rows) - 4; // Substracting for margins
-    console.log(`Calculated photo height: ${this.imageHeight}px`);
-
-    // Set the page size
-    this.resultsPerPage = rows * columns;
-    console.log(`Calculated results per page: ${this.resultsPerPage}`);
+    this.resultsPerPage = rows * cols;
+    this.imageHeight = tileHeight - 10;
+    this.imageWidth = tileWidth - 6;
   }
 
   constructor() {
@@ -100,7 +76,6 @@ class ImageSearchApp {
     // Call findGallerySize to set the initial layout
     this.findGallerySize();
 
-
     // Get the fuzzy search container element
     const fuzzyContainer = document.getElementById("fuzzy-search-container");
 
@@ -111,27 +86,29 @@ class ImageSearchApp {
 
     this.photoFilter = new PhotoFilterComponent({
       onFilterChange: (filteredPhotos: HachiImageData[]) =>
-        this.handleFilteredPhotosUpdate(filteredPhotos)
+        this.handleFilteredPhotosUpdate(filteredPhotos),
     });
-
-    
 
     if (this.filterContainer) {
       this.filterContainer.classList.add("invisible");
-      this.filterContainer.innerHTML = PhotoFilterComponent.getTemplate(
-        "photo-filter",
-      );
+      this.filterContainer.innerHTML =
+        PhotoFilterComponent.getTemplate("photo-filter");
       this.photoFilter.initialize("photo-filter");
     }
 
     // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
-    this.uiService = new UIService("photo-grid-container", this.imageHeight, this.imageWidth, this.resultsPerPage);
+    this.uiService = new UIService(
+      "photo-grid-container",
+      this.imageHeight,
+      this.imageWidth,
+      this.resultsPerPage
+    );
 
     // Initialize search service with event callbacks
     this.searchService = new SearchService();
 
     this.setupEventListeners();
-    
+
     this.init();
   }
 
@@ -169,15 +146,25 @@ class ImageSearchApp {
     }
     this.filteredPhotos = [...filteredPhotos];
     this.displayedPhotos = [...filteredPhotos];
-    const filteredTotalPages = Math.ceil(this.filteredPhotos.length / this.resultsPerPage);
-    this.updatePaginationComponent(this.filteredPhotos.length, filteredTotalPages, 0);
+    const filteredTotalPages = Math.ceil(
+      this.filteredPhotos.length / this.resultsPerPage
+    );
+    this.updatePaginationComponent(
+      this.filteredPhotos.length,
+      filteredTotalPages,
+      0
+    );
     this.updatePaginationAndRenderPhotos();
   }
 
   /**
    * Helper to update pagination component state.
    */
-  private updatePaginationComponent(totalItems: number, totalPages: number, initialPage: number) {
+  private updatePaginationComponent(
+    totalItems: number,
+    totalPages: number,
+    initialPage: number
+  ) {
     this.paginationComponent?.update({
       totalItems,
       itemsPerPage: this.resultsPerPage,
@@ -215,11 +202,18 @@ class ImageSearchApp {
     try {
       // this.handleLoadingChange(true); TODO: Deal with it later. For now removing it
       this.currentPage = 0;
-      const imageSearchResponse = await this.searchService.startSearch(query, this.resultsPerPage);
+      const imageSearchResponse = await this.searchService.startSearch(
+        query,
+        this.resultsPerPage
+      );
       this.totalPages = imageSearchResponse["n_pages"] || 1;
       this.totalResults = imageSearchResponse["n_matches"];
       this.queryToken = imageSearchResponse["query_token"];
-      this.updatePaginationComponent(this.totalResults, this.totalPages, this.currentPage);
+      this.updatePaginationComponent(
+        this.totalResults,
+        this.totalPages,
+        this.currentPage
+      );
       this.paginationContainerElement?.classList.remove("hidden");
       this.filteredPhotos = [];
       await this.updatePaginationAndRenderPhotos();
@@ -229,10 +223,13 @@ class ImageSearchApp {
     } catch (error) {
       // this.handleLoadingChange(false);
       console.error("Search failed:", error);
-      this.handleErrorChange(error instanceof Error ? error.message : "Search failed. Please try again.");
+      this.handleErrorChange(
+        error instanceof Error
+          ? error.message
+          : "Search failed. Please try again."
+      );
     }
   }
-
 
   /**
    * Initializes the pagination component.

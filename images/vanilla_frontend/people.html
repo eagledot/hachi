@@ -12,7 +12,7 @@
     <!-- Navbar will be inserted here by Layout -->
 
     <main id="main">
-    <div class="min-h-[calc(100vh-47px)] w-full px-3 sm:px-4 py-4 sm:py-8"> 
+    <div class="min-h-[calc(100vh-47px)] flex flex-col px-3 sm:px-4 py-4 sm:py-8"> 
             <!-- Compact Enhanced Header -->
             <header class="text-center mb-4 sm:mb-6 relative">
                 <!-- Simplified background decoration -->
@@ -127,7 +127,10 @@
 
             <!-- Enhanced People Grid with responsive layout -->
             <section id="people-grid"
-                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-8 2xl:grid-cols-8 w-full">
+                class="flex-1">
+                
+                <div class="flex flex-wrap" id="people-cards"></div>
+                
                 <!-- People cards will be dynamically inserted here with enhanced styling -->
             </section>
         </div>

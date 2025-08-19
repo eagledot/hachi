@@ -2,8 +2,9 @@ import "./style.css";
 import { Layout } from "./components/layout";
 
 import { endpoints } from "./config";
-import { html } from "./utils";
+import { fitTiles, html } from "./utils";
 import { PaginationComponent } from "./components/pagination";
+
 
 // Initialize the layout for the people page
 new Layout({
@@ -27,15 +28,41 @@ class PeopleApp {
   private filteredPeople: Person[] = [];
 
   // Pagination
-  private readonly itemsPerPage = 100;
+  private itemsPerPage = 10;
   private currentPage = 0;
   private paginationComponent?: PaginationComponent;
+
+  private imageHeight = 0;
+  private imageWidth = 0;
 
   // DOM Elements
   private paginationContainerElement: HTMLElement | null = null;
 
   constructor() {
     this.waitForDOMReady(() => this.initializeApp());
+  }
+
+  private findGallerySize() {
+    // Get photo-gallery element
+    const photoGallery = document.getElementById("people-grid");
+
+    // Get the photo gallery height
+    const photoGalleryHeight = photoGallery?.clientHeight!;
+    console.log(`Photo gallery height: ${photoGalleryHeight}px`);
+
+    // Get photo-gallery width
+    const photoGalleryWidth = photoGallery?.clientWidth!;
+
+    // Set static dimensions
+    const side = 156;
+
+    const { rows, cols, tileWidth, tileHeight } = fitTiles(photoGalleryHeight!, photoGalleryWidth, side);
+
+    this.itemsPerPage = rows * cols;
+    this.imageHeight = tileHeight - 1;
+    this.imageWidth = tileWidth - 1;
+
+    console.log(`Calculated results per page: ${this.itemsPerPage}`);
   }
 
   // --- Initialization ---
@@ -57,6 +84,7 @@ class PeopleApp {
    * Caches DOM elements, sets up event listeners, and starts the main logic.
    */
   private initializeApp() {
+    this.findGallerySize(); // Calculate gallery size based on current viewport
     this.cacheDOMElements();
     this.setupPaginationEventListeners();
     this.init();
@@ -67,7 +95,9 @@ class PeopleApp {
    * Reduces repeated DOM queries throughout the class.
    */
   private cacheDOMElements() {
-    this.paginationContainerElement = document.getElementById("pagination-container");
+    this.paginationContainerElement = document.getElementById(
+      "pagination-container"
+    );
   }
   /**
    * Main initialization logic for the people page.
@@ -169,7 +199,6 @@ class PeopleApp {
    * Ensures currentPage is within valid bounds after filtering or data changes.
    */
 
-
   /**
    * Updates the pagination state and re-renders the people grid.
    * Scrolls to the top of the page and resets the saved scroll position.
@@ -187,7 +216,7 @@ class PeopleApp {
    * Handles empty state, pagination, and updates the UI accordingly.
    */
   private renderPeople() {
-    const grid = document.getElementById("people-grid");
+    const grid = document.getElementById("people-cards");
     const noPeopleMsg = document.getElementById("no-people");
     if (!grid || !noPeopleMsg) return;
 
@@ -199,10 +228,15 @@ class PeopleApp {
     noPeopleMsg.classList.add("hidden");
 
     const startIdx = this.currentPage * this.itemsPerPage;
-    const endIdx = Math.min(startIdx + this.itemsPerPage, this.filteredPeople.length);
+    const endIdx = Math.min(
+      startIdx + this.itemsPerPage,
+      this.filteredPeople.length
+    );
     const peopleToShow = this.filteredPeople.slice(startIdx, endIdx);
 
-    grid.innerHTML = peopleToShow.map((person) => this.renderPersonCard(person)).join("");
+    grid.innerHTML = peopleToShow
+      .map((person) => this.renderPersonCard(person))
+      .join("");
     this.updatePageInUrl();
   }
 
@@ -213,12 +247,13 @@ class PeopleApp {
     const hasCustomName = !isAutoDetected;
     return html`
       <div
-        class="group bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer overflow-hidden relative active:scale-98"
-        style="margin:8px;"
+        style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
+        class="group duration-200 cursor-pointer relative active:scale-98"
         onclick="window.peopleApp.handlePersonClick('${person.id}')"
       >
         <!-- Status badge -->
-        ${hasCustomName ? `
+        ${hasCustomName
+          ? `
         <div class="absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
           <span
             class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-200"
@@ -234,14 +269,14 @@ class PeopleApp {
             }</span>
           </span>
         </div>
-        ` : ""}
-        <div
-          class="aspect-square bg-gray-100 relative overflow-hidden flex items-center justify-center"
-        >
+        `
+          : ""}
+        <div class=" bg-gray-100 relative flex items-center justify-center">
           <img
             src="${avatarUrl}"
             alt="${displayName}"
-            class="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105 rounded-t-xl"
+            style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
+            class="transition-transform duration-200 group-hover:scale-105"
             onerror="this.src='./assets/sample_place_bg.jpg'; this.classList.add('opacity-75')"
             loading="lazy"
           />
@@ -294,7 +329,6 @@ class PeopleApp {
             </div>
           </div>
         </div>
-        
       </div>
     `;
   }
