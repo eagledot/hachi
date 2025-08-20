@@ -59,8 +59,8 @@ class PeopleApp {
     const { rows, cols, tileWidth, tileHeight } = fitTiles(photoGalleryHeight!, photoGalleryWidth, side);
 
     this.itemsPerPage = rows * cols;
-    this.imageHeight = tileHeight - 1;
-    this.imageWidth = tileWidth - 1;
+    this.imageHeight = tileHeight - 4;
+    this.imageWidth = tileWidth - 4;
 
     console.log(`Calculated results per page: ${this.itemsPerPage}`);
   }

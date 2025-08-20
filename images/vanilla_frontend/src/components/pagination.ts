@@ -1,4 +1,3 @@
-
 export interface PaginationProps {
   container: HTMLElement;
   totalItems: number;
@@ -22,30 +21,12 @@ export class PaginationComponent {
     this.itemsPerPage = props.itemsPerPage;
     this.currentPage = props.initialPage ?? 0;
     this.onPageChange = props.onPageChange;
-  this.totalPages = props.totalPages;
+    this.totalPages = props.totalPages;
     this.render();
-
-  // Add global keyboard event listener for left/right arrow keys
-  this.handleKeyDown = this.handleKeyDown.bind(this);
-  window.addEventListener('keydown', this.handleKeyDown);
-  }
-  // Clean up event listener if needed
-  public destroy() {
-    window.removeEventListener('keydown', this.handleKeyDown);
-  }
-
-  private handleKeyDown(e: KeyboardEvent) {
-    // Only trigger if the pagination container is visible (not hidden)
-    if (this.container.classList.contains('hidden')) return;
-    if (e.key === 'ArrowUp') {
-      this.prevPage();
-    } else if (e.key === 'ArrowDown') {
-      this.nextPage();
-    }
   }
 
   public setPage(page: number) {
-  const totalPages = this.getTotalPages();
+    const totalPages = this.getTotalPages();
     const newPage = Math.max(0, Math.min(page, totalPages - 1));
     if (newPage !== this.currentPage) {
       this.currentPage = newPage;
@@ -68,20 +49,24 @@ export class PaginationComponent {
     return this.currentPage;
   }
 
-  public update(props: Partial<Omit<PaginationProps, 'container'>>) {
+  public update(props: Partial<Omit<PaginationProps, "container">>) {
     console.log("Updating pagination props:", props);
-    if (typeof props.totalItems === 'number') this.totalItems = props.totalItems;
-    if (typeof props.itemsPerPage === 'number') this.itemsPerPage = props.itemsPerPage;
+    if (typeof props.totalItems === "number")
+      this.totalItems = props.totalItems;
+    if (typeof props.itemsPerPage === "number")
+      this.itemsPerPage = props.itemsPerPage;
     if (props.onPageChange) this.onPageChange = props.onPageChange;
-    if (typeof props.initialPage === 'number') this.currentPage = props.initialPage;
-    if (typeof props.totalPages === 'number') this.totalPages = props.totalPages;
+    if (typeof props.initialPage === "number")
+      this.currentPage = props.initialPage;
+    if (typeof props.totalPages === "number")
+      this.totalPages = props.totalPages;
 
     this.render();
   }
 
   private getTotalPages() {
     // If totalPages is explicitly provided, prefer it; otherwise compute from totals
-    if (typeof this.totalPages === 'number') {
+    if (typeof this.totalPages === "number") {
       return Math.max(0, this.totalPages);
     }
     if (this.itemsPerPage <= 0) return 0;
@@ -100,14 +85,16 @@ export class PaginationComponent {
       <div class="flex items-center justify-between mx-auto px-3 sm:px-4 py-2">
         <!-- Pagination Info -->
         <div class="text-xs text-gray-600">
-          <span id="pagination-info">Showing ${this.totalItems === 0 ? 0 : startIndex + 1}-${endIndex} of ${this.totalItems} photos</span>
+          <span id="pagination-info">Showing ${
+            this.totalItems === 0 ? 0 : startIndex + 1
+          }-${endIndex} of ${this.totalItems} photos</span>
         </div>
 
         <!-- Pagination Controls -->
         <div class="flex items-center space-x-3">
           <button id="prev-page-btn"
             class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-            ${this.currentPage <= 0 ? 'disabled' : ''}>
+            ${this.currentPage <= 0 ? "disabled" : ""}>
             <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M15 19l-7-7 7-7"></path>
@@ -119,7 +106,7 @@ export class PaginationComponent {
           </span>
           <button id="next-page-btn"
             class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
-            ${this.currentPage >= totalPages - 1 ? 'disabled' : ''}>
+            ${this.currentPage >= totalPages - 1 ? "disabled" : ""}>
             Next
             <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -130,13 +117,17 @@ export class PaginationComponent {
     `;
 
     // Add event listeners
-    const prevBtn = this.container.querySelector('#prev-page-btn') as HTMLButtonElement;
-    const nextBtn = this.container.querySelector('#next-page-btn') as HTMLButtonElement;
-    prevBtn?.addEventListener('click', (e) => {
+    const prevBtn = this.container.querySelector(
+      "#prev-page-btn"
+    ) as HTMLButtonElement;
+    const nextBtn = this.container.querySelector(
+      "#next-page-btn"
+    ) as HTMLButtonElement;
+    prevBtn?.addEventListener("click", (e) => {
       e.preventDefault();
       this.prevPage();
     });
-    nextBtn?.addEventListener('click', (e) => {
+    nextBtn?.addEventListener("click", (e) => {
       e.preventDefault();
       this.nextPage();
     });
