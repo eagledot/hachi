@@ -11,8 +11,7 @@ grouped by `resource-type`. It does it so recursively, once provided a root-dire
 
 
 from typing import TypedDict, List, Generator, Iterable, Any
-import os
-import traceback
+import os, datetime
 
 from exif import Image as ImageExif
 
@@ -248,6 +247,7 @@ class MainAttributes(TypedDict):
     resource_directory:os.PathLike
     # resource_type:Audio | Video | Text | Image
     resource_type:str
+    resource_created:str           # yyyy-mm-dd format!
 
 class MLAttributes(TypedDict):
     # resulting from Machine learning processing. (best effort basis)
@@ -339,6 +339,15 @@ def extract_image_metaData(resource_path:os.PathLike, dummy_data:bool = False) -
             main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
             main_attributes["resource_directory"] = normalize_path(os.path.dirname(resource_path))
             main_attributes["filename"] = os.path.basename(resource_path)
+
+            # We populate yy/mm/dd information based on the created time, TODO: merge with `taken_at` from exif attributes later!
+            created_time = os.stat(resource_path).st_ctime
+            yyyy_mm_dd = datetime.datetime.fromtimestamp(created_time)
+            year = yyyy_mm_dd.year
+            month = yyyy_mm_dd.month
+            day = yyyy_mm_dd.day
+            main_attributes["resource_created"] = "{}-{}-{}".format(year, month, day)
+            del created_time, yyyy_mm_dd, month, year, day
 
         user_attributes:UserAttributes = populate_default_dict(UserAttributes, dummy_data = dummy_data)
         
