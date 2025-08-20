@@ -2,6 +2,10 @@ import { endpoints } from "../config";
 import type { HachiImageData, ImageMetaData } from "../imageSearch";
 import { filterPopulateQuery, filterQueryMeta } from "../utils";
 
+const Filter_On_SVG = `<svg  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"/></svg>`
+
+const Filter_Off_SVG = `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="m592-481-57-57 143-182H353l-80-80h487q25 0 36 22t-4 42L592-481ZM791-56 560-287v87q0 17-11.5 28.5T520-160h-80q-17 0-28.5-11.5T400-200v-247L56-791l56-57 736 736-57 56ZM535-538Z"/></svg>`
+
 interface PhotoFilters {
   people?: string[];
   cameraMakes?: string[];
@@ -34,18 +38,35 @@ export default class PhotoFilterSidebar {
   private filteredImages: HachiImageData[] = [];
   private onFilterChange: (photos: HachiImageData[]) => void;
 
-  constructor(onFilterChange: (photos: HachiImageData[]) => void, container?: HTMLElement) {
+  constructor(
+    onFilterChange: (photos: HachiImageData[]) => void,
+    container?: HTMLElement
+  ) {
     this.overlayElement = this.createOverlay();
     this.sidebarElement = this.createSidebar();
-      this.onFilterChange = onFilterChange;
-      if (container) {
-        container.appendChild(this.overlayElement);
-        container.appendChild(this.sidebarElement);
-      } else {
-        document.body.appendChild(this.overlayElement);
-        document.body.appendChild(this.sidebarElement);
+    this.onFilterChange = onFilterChange;
+    if (container) {
+      container.appendChild(this.overlayElement);
+      container.appendChild(this.sidebarElement);
+    } else {
+      document.body.appendChild(this.overlayElement);
+      document.body.appendChild(this.sidebarElement);
       }
-  }
+      this.addToggleListener();
+    }
+    
+    // If filters are applied, we changed the appearance of the the filter toggle button somewhat!
+    public toggleFilterButtonAppearance(props: { turnOn: boolean }): void {
+      const toggleButton = document.getElementById("filter-sidebar-toggle-btn");
+      if (!toggleButton) return;
+
+        
+      if (props.turnOn) {
+        toggleButton.innerHTML = Filter_Off_SVG;
+      } else {
+        toggleButton.innerHTML = Filter_On_SVG;
+      }
+    }
 
   async setFilteredImages(attribute: string, value: string): Promise<void> {
     if (!this.queryToken) return;
@@ -81,6 +102,13 @@ export default class PhotoFilterSidebar {
     };
   }
 
+  addToggleListener(): void {
+    const toggleButton = document.getElementById("filter-sidebar-toggle-btn");
+    toggleButton?.addEventListener("click", () => {
+      this.toggleSidebar();
+    });
+  }
+
   createSidebar(): HTMLElement {
     const sidebarElement = document.createElement("div");
     sidebarElement.id = "photo-filter-sidebar";
@@ -92,12 +120,12 @@ export default class PhotoFilterSidebar {
     const overlayElement = document.createElement("div");
     overlayElement.id = "photo-filter-overlay";
     this.createOverlayStyles(overlayElement);
-    
+
     // Add click handler to close sidebar when clicking on overlay
     overlayElement.addEventListener("click", () => {
       this.closeSidebar();
     });
-    
+
     return overlayElement;
   }
 
@@ -107,9 +135,9 @@ export default class PhotoFilterSidebar {
     overlayElement.style.left = "0";
     overlayElement.style.width = "100%";
     overlayElement.style.height = "100%";
-    overlayElement.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
+    overlayElement.style.backgroundColor = "rgba(0, 0, 0, 0.0)";
     overlayElement.style.zIndex = "999";
-    overlayElement.style.display = "block";
+    overlayElement.style.display = "none";
   }
 
   closeSidebar(): void {
@@ -119,7 +147,16 @@ export default class PhotoFilterSidebar {
 
   showSidebar(): void {
     this.overlayElement.style.display = "block";
-    this.sidebarElement.style.display = "block";
+    this.sidebarElement.style.display = "flex";
+  }
+
+  toggleSidebar(): void {
+    const isVisible = this.sidebarElement.style.display === "flex";
+    if (isVisible) {
+      this.closeSidebar();
+    } else {
+      this.showSidebar();
+    }
   }
 
   createSidebarStyles(sidebarElement: HTMLElement): void {
@@ -131,11 +168,11 @@ export default class PhotoFilterSidebar {
     sidebarElement.style.backgroundColor = "#fff";
     sidebarElement.style.boxShadow = "-2px 0 5px rgba(0,0,0,0.5)";
     sidebarElement.style.zIndex = "1000";
-    sidebarElement.style.display = "flex";
+    sidebarElement.style.display = "none";
     sidebarElement.style.flexDirection = "column";
   }
 
-createPeopleFilterUI(): HTMLElement {
+  createPeopleFilterUI(): HTMLElement {
     const people = this.filters.people || [];
     const filterContainer = document.createElement("div");
     filterContainer.className = "filter-container mb-2";
@@ -143,7 +180,7 @@ createPeopleFilterUI(): HTMLElement {
     const filterTitle = document.createElement("h4");
     filterTitle.textContent = "People";
     filterTitle.className =
-        "text-base font-semibold text-blue-700 mb-2 tracking-wide capitalize border-b border-blue-200 pb-0.5";
+      "text-base font-semibold text-blue-700 mb-2 tracking-wide capitalize border-b border-blue-200 pb-0.5";
     filterContainer.appendChild(filterTitle);
 
     const peopleList = document.createElement("div");
@@ -155,35 +192,32 @@ createPeopleFilterUI(): HTMLElement {
     peopleList.style.padding = "2px";
 
     people.forEach((person) => {
-        const personItem = document.createElement("div");
-        personItem.className =
-            "flex flex-col items-center cursor-pointer hover:bg-blue-50 rounded transition";
-        // personItem.style.width = "48px";
-        personItem.style.padding = "2px";
-        // personItem.style.margin = "0px";
-        personItem.style.alignItems = "center";
-        personItem.style.justifyContent = "center";
+      const personItem = document.createElement("div");
+      personItem.className =
+        "flex flex-col items-center cursor-pointer hover:bg-blue-50 rounded transition";
+      // personItem.style.width = "48px";
+      personItem.style.padding = "2px";
+      // personItem.style.margin = "0px";
+      personItem.style.alignItems = "center";
+      personItem.style.justifyContent = "center";
 
-        const photo = document.createElement("img");
-        photo.className =
-            "w-12 h-12 bg-gray-200 rounded-full object-cover";
-        photo.src = `${endpoints.GET_PERSON_IMAGE}/${person}`;
-        photo.alt = person;
-        photo.style.marginBottom = "2px";
+      const photo = document.createElement("img");
+      photo.className = "w-12 h-12 bg-gray-200 rounded-full object-cover";
+      photo.src = `${endpoints.GET_PERSON_IMAGE}/${person}`;
+      photo.alt = person;
+      photo.style.marginBottom = "2px";
 
-        photo.addEventListener("click", () => {
-            this.onImageClick(photo, person);
-        });
+      photo.addEventListener("click", () => {
+        this.onImageClick(photo, person);
+      });
 
-        
-
-        personItem.appendChild(photo);
-        peopleList.appendChild(personItem);
+      personItem.appendChild(photo);
+      peopleList.appendChild(personItem);
     });
 
     filterContainer.appendChild(peopleList);
     return filterContainer;
-}
+  }
 
   async populateSinglePhotoFilter(
     filterName: keyof typeof Filter_Request_Mapping
@@ -270,10 +304,10 @@ createPeopleFilterUI(): HTMLElement {
 
     checkboxes.forEach((checkbox) => {
       if (checkbox !== checkedCheckbox) {
-          (checkbox as HTMLInputElement).checked = false;
-          // Reset styles
-          const label = checkbox.parentElement as HTMLLabelElement;
-          label.classList.remove("bg-blue-100", "font-semibold", "text-blue-700");
+        (checkbox as HTMLInputElement).checked = false;
+        // Reset styles
+        const label = checkbox.parentElement as HTMLLabelElement;
+        label.classList.remove("bg-blue-100", "font-semibold", "text-blue-700");
       }
     });
   }
@@ -336,7 +370,8 @@ createPeopleFilterUI(): HTMLElement {
 
   createSidebarHeader(): HTMLElement {
     const header = document.createElement("div");
-    header.className = "flex items-center justify-between p-4 border-b border-gray-200 bg-white";
+    header.className =
+      "flex items-center justify-between p-4 border-b border-gray-200 bg-white";
     header.style.borderBottom = "1px solid #e5e7eb";
 
     const title = document.createElement("h3");
@@ -345,7 +380,8 @@ createPeopleFilterUI(): HTMLElement {
 
     const closeButton = document.createElement("button");
     closeButton.innerHTML = "×";
-    closeButton.className = "text-gray-500 hover:text-gray-700 text-2xl font-bold cursor-pointer bg-transparent border-none";
+    closeButton.className =
+      "text-gray-500 hover:text-gray-700 text-2xl font-bold cursor-pointer bg-transparent border-none";
     closeButton.style.fontSize = "24px";
     closeButton.style.lineHeight = "1";
     closeButton.style.padding = "0";
@@ -371,7 +407,8 @@ createPeopleFilterUI(): HTMLElement {
 
     const clearButton = document.createElement("button");
     clearButton.textContent = "Clear All Filters";
-    clearButton.className = "w-full py-2 px-4 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium";
+    clearButton.className =
+      "w-full py-2 px-4 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium";
     clearButton.style.cursor = "pointer";
     clearButton.style.border = "none";
 
@@ -396,11 +433,11 @@ createPeopleFilterUI(): HTMLElement {
   createPhotoFiltersUI(): void {
     // Empty sidebar element TODO: Recheck this approach
     this.sidebarElement.innerHTML = "";
-    
+
     // Create header with close button
     const header = this.createSidebarHeader();
     this.sidebarElement.appendChild(header);
-    
+
     // Create main content container
     const filtersContainer = document.createElement("div");
     filtersContainer.id = "photo-filters";
@@ -414,9 +451,9 @@ createPeopleFilterUI(): HTMLElement {
         filtersContainer.appendChild(filterUI);
       }
     }
-    
+
     this.sidebarElement.appendChild(filtersContainer);
-    
+
     // Create footer with clear filters button
     const footer = this.createSidebarFooter();
     this.sidebarElement.appendChild(footer);

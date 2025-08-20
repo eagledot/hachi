@@ -88,23 +88,23 @@ export class FuzzySearchUI {
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
-                  class="relative border border-gray-200 rounded-xl focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-100 transition-all duration-200 bg-white flex items-center h-12 sm:h-12 shadow-sm hover:shadow-md group"
+                  class="relative border-2 border-gray-200 rounded-xl focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50 transition-all duration-300 bg-white flex items-center h-12 sm:h-14 shadow-lg hover:shadow-xl group overflow-hidden"
                   style="padding-right:0;"
                 >
                   <!-- Search Icon -->
                   <div
-                    class="flex items-center justify-center w-10 sm:w-12 h-12 text-gray-400 group-focus-within:text-blue-500"
+                    class="flex items-center justify-center w-12 sm:w-14 h-12 sm:h-14 text-gray-500 group-focus-within:text-blue-600 transition-colors duration-300"
                   >
                     <svg
-                      class="w-4 sm:w-5 h-4 sm:h-5"
+                      class="w-5 sm:w-6 h-5 sm:h-6"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      stroke-width="2.5"
                     >
                       <path
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        stroke-width="2"
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       ></path>
                     </svg>
@@ -116,38 +116,48 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-0 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-normal rounded-l-xl rounded-r-none"
+                    class="flex-1 h-full px-3 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-500 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
                     style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
+
+                  <!-- Filter Toggle Button -->
+                  <button
+                    id="filter-sidebar-toggle-btn"
+                    class="flex cursor-pointer items-center justify-center w-12 h-full sm:w-14 bg-gradient-to-b from-gray-50 via-gray-100 to-gray-200 hover:from-gray-100 hover:to-gray-300 active:from-gray-200 active:to-gray-400 border-l border-gray-200 hover:border-gray-300 transition-all duration-200 group focus:outline-none shadow-sm hover:shadow-md"
+                    aria-label="Toggle advanced filters"
+                    title="Show/hide advanced search filters"
+                  >
+                    <svg  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"/></svg>
+                  </button>
 
                   <!-- Integrated Search Button -->
                   <button
                     id="fuzzy-search-btn"
-                    class="h-10 sm:h-12 px-4 sm:px-6 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-blue-400 disabled:to-blue-400 text-white font-semibold rounded-r-xl rounded-l-none transition-all duration-200 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[80px] sm:min-w-auto border-0 focus:outline-none focus:ring-2 focus:ring-blue-200 focus:z-10"
-                    style="border-top-left-radius:0;border-bottom-left-radius:0;height:48px;margin-left:-1px;box-shadow:none;"
+                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 active:from-blue-800 active:via-blue-900 active:to-blue-950 disabled:from-blue-300 disabled:via-blue-400 disabled:to-blue-400 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:z-10 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                    style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
                     <svg
-                      class="w-4 sm:w-5 h-4 sm:h-5"
+                      class="w-5 sm:w-6 h-5 sm:h-6 drop-shadow-sm"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      stroke-width="2.5"
                     >
                       <path
                         stroke-linecap="round"
                         stroke-linejoin="round"
-                        stroke-width="2"
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       ></path>
                     </svg>
-                    <span id="search-btn-text">Search</span>
+                    <span id="search-btn-text" class="font-bold tracking-wide">Search</span>
                   </button>
                 </div>
 
                 <!-- Modern Smart Dropdown -->
                 <div
                   id="fuzzy-dropdown"
-                  class="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-2xl mt-2 z-50 max-h-64 sm:max-h-80 overflow-y-auto hidden"
-                  style="box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);"
+                  class="absolute top-full left-0 right-0 bg-white border-2 border-gray-200 rounded-2xl shadow-2xl mt-3 z-50 max-h-64 sm:max-h-80 overflow-y-auto hidden backdrop-blur-sm"
+                  style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 20px -5px rgba(0, 0, 0, 0.1);"
                 >
                   <div id="dropdown-content">
                     <!-- Dropdown content will be rendered here -->
@@ -159,7 +169,7 @@ export class FuzzySearchUI {
             <!-- Active Filters Display (moved below input) -->
             <div
               id="filters-container"
-              class="flex w-full items-center flex-wrap gap-1 sm:gap-2 invisible"
+              class="flex w-full items-center flex-wrap gap-2 sm:gap-3 invisible transition-all duration-300"
             >
               <!-- Filters will be rendered here -->
             </div>
@@ -167,51 +177,61 @@ export class FuzzySearchUI {
             <!-- Search Tips (shown only before first search) -->
             <div
               id="search-tips"
-              class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm hidden"
+              class="mt-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 text-sm hidden shadow-lg"
             >
-              <h3 class="font-medium text-blue-900 mb-2 flex items-center">
+              <h3 class="font-bold text-blue-900 mb-3 flex items-center text-base">
                 <svg
-                  class="w-4 h-4 mr-2"
+                  class="w-5 h-5 mr-3 text-blue-600"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  stroke-width="2.5"
                 >
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    stroke-width="2"
                     d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                   ></path>
                 </svg>
-                Search Tips
+                💡 Search Tips
               </h3>
-              <div class="text-blue-800 space-y-2">
-                <p class="font-medium">You can search for:</p>
-                <ul class="space-y-1 ml-4">
-                  <li><strong>People:</strong> John, Sarah</li>
-                  <li>
-                    <strong>Keywords:</strong> beach, sunset, birthday, vacation
-                  </li>
-                  <li>
-                    <strong>Folders:</strong> 2023, Summer Photos, Wedding
-                  </li>
-                </ul>
-                <p class="font-medium mt-3">Multiple filters work together:</p>
-                <ul class="space-y-1 ml-4 text-sm">
-                  <li>
-                    • Person + Folder = Photos of that person in that folder
-                  </li>
-                  <li>
-                    • Keyword + Folder = Photos with that keyword in that folder
-                  </li>
-                  <li>
-                    • Person + Keyword = Photos of that person with that keyword
-                  </li>
-                </ul>
-                <p class="text-blue-700 text-xs mt-2 italic">
-                  Tip: Type to see suggestions, click to add as filters, then
-                  search to find photos
-                </p>
+              <div class="text-blue-800 space-y-4">
+                <div class="bg-white bg-opacity-60 rounded-xl p-4 border border-blue-100">
+                  <p class="font-bold text-blue-900 mb-3 flex items-center">
+                    🔍 You can search for:
+                  </p>
+                  <ul class="space-y-2 ml-2">
+                    <li class="flex items-center"><span class="mr-2">👥</span><strong>People:</strong> John, Sarah</li>
+                    <li class="flex items-center"><span class="mr-2">🏷️</span><strong>Keywords:</strong> beach, sunset, birthday, vacation</li>
+                    <li class="flex items-center"><span class="mr-2">📁</span><strong>Folders:</strong> 2023, Summer Photos, Wedding</li>
+                  </ul>
+                </div>
+                
+                <div class="bg-white bg-opacity-60 rounded-xl p-4 border border-blue-100">
+                  <p class="font-bold text-blue-900 mb-3 flex items-center">
+                    ⚡ Multiple filters work together:
+                  </p>
+                  <ul class="space-y-2 ml-2 text-sm">
+                    <li class="flex items-start">
+                      <span class="mr-2 mt-0.5">•</span>
+                      <span><strong>Person + Folder</strong> = Photos of that person in that folder</span>
+                    </li>
+                    <li class="flex items-start">
+                      <span class="mr-2 mt-0.5">•</span>
+                      <span><strong>Keyword + Folder</strong> = Photos with that keyword in that folder</span>
+                    </li>
+                    <li class="flex items-start">
+                      <span class="mr-2 mt-0.5">•</span>
+                      <span><strong>Person + Keyword</strong> = Photos of that person with that keyword</span>
+                    </li>
+                  </ul>
+                </div>
+                
+                <div class="text-center">
+                  <p class="text-blue-700 text-sm font-medium bg-blue-100 rounded-full px-4 py-2 inline-block">
+                    💡 Type to see suggestions, click to add as filters, then search to find photos
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -490,12 +510,12 @@ export class FuzzySearchUI {
             const icon = this.fuzzySearchService.getAttributeIcon(attribute);
             const color = this.fuzzySearchService.getAttributeColor(attribute);
             return `
-            <div class="flex items-center px-2 py-1 rounded-xl border-2 ${color} hover:shadow-lg transition-all duration-200 cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
-              <span class="mr-1 sm:mr-2 text-xs sm:text-sm">${icon}</span>
-              <span class="text-xs font-medium truncate max-w-[120px] sm:max-w-none">${value}</span>
-              <button class="ml-1 sm:ml-2 text-current opacity-60 hover:opacity-100 hover:bg-white hover:bg-opacity-30 rounded-lg p-1 transition-all duration-200 remove-filter-btn" data-attribute="${attribute}" data-value="${value}">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            <div class="flex items-center px-3 py-2 rounded-2xl border-2 ${color} hover:shadow-xl transition-all duration-300 cursor-pointer group filter-tag transform hover:scale-105 active:scale-95" data-attribute="${attribute}" data-value="${value}">
+              <span class="mr-2 sm:mr-3 text-sm sm:text-base">${icon}</span>
+              <span class="text-sm font-bold truncate max-w-[120px] sm:max-w-none">${value}</span>
+              <button class="ml-2 sm:ml-3 text-current opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-40 rounded-full p-1.5 transition-all duration-300 remove-filter-btn hover:scale-110 active:scale-90" data-attribute="${attribute}" data-value="${value}">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
               </button>
             </div>

@@ -364,7 +364,7 @@ export class UIService {
 
     const img = document.createElement("img");
     img.className =
-      "w-full h-full object-cover group-hover:scale-105 transition-transform duration-200";
+      "w-full h-full rounded-sm object-cover group-hover:scale-105 transition-transform duration-200";
     img.loading = "lazy";
 
     // Error handling

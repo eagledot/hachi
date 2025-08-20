@@ -16,7 +16,7 @@ class ImageSearchApp {
   private searchService: SearchService;
   private uiService: UIService;
   private fuzzySearchUI: FuzzySearchUI;
-  private photoFilter: PhotoFilterComponent;
+  // private photoFilter: PhotoFilterComponent;
   private filteredPhotos: HachiImageData[] = [];
   private displayedPhotos: HachiImageData[] = []; // Currently displayed photos (for pagination)
   private selectedPhoto: HachiImageData | null = null;
@@ -86,22 +86,22 @@ class ImageSearchApp {
       onSearchExecuted: (query) => this.handleSearch(query),
     });
 
-    this.photoFilter = new PhotoFilterComponent({
-      onFilterChange: (filteredPhotos: HachiImageData[]) =>
-        this.handleFilteredPhotosUpdate(filteredPhotos),
-    });
+    // this.photoFilter = new PhotoFilterComponent({
+    //   onFilterChange: (filteredPhotos: HachiImageData[]) =>
+    //     this.handleFilteredPhotosUpdate(filteredPhotos),
+    // });
 
     this.photoFilterSidebar = new PhotoFilterSidebar(
       (filteredPhotos: HachiImageData[]) =>
         this.handleFilteredPhotosUpdate(filteredPhotos)
     );
 
-    if (this.filterContainer) {
-      this.filterContainer.classList.add("invisible");
-      this.filterContainer.innerHTML =
-        PhotoFilterComponent.getTemplate("photo-filter");
-      this.photoFilter.initialize("photo-filter");
-    }
+    // if (this.filterContainer) {
+    //   this.filterContainer.classList.add("invisible");
+    //   this.filterContainer.innerHTML =
+    //     PhotoFilterComponent.getTemplate("photo-filter");
+    //   this.photoFilter.initialize("photo-filter");
+    // }
 
     // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
     this.uiService = new UIService(
@@ -143,6 +143,7 @@ class ImageSearchApp {
    */
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log("Filtered photos updated:", filteredPhotos.length);
+    this.photoFilterSidebar?.toggleFilterButtonAppearance({turnOn: filteredPhotos.length > 0});
     this.currentPage = 0;
     if (filteredPhotos.length === 0) {
       // No filters applied, show all results
@@ -225,7 +226,7 @@ class ImageSearchApp {
       this.filteredPhotos = [];
       await this.updatePaginationAndRenderPhotos();
       this.photoFilterSidebar?.updateQueryToken(this.queryToken);
-      this.photoFilter.updateQueryToken(this.queryToken); // TODO: For now, this will trigger the requests for getting filter options from backend. Not the most efficient way yet. Required Inspection.
+      // this.photoFilter.updateQueryToken(this.queryToken); // TODO: For now, this will trigger the requests for getting filter options from backend. Not the most efficient way yet. Required Inspection.
       // this.handleLoadingChange(false);
       this.handleSearchDoneChange(true);
     } catch (error) {
