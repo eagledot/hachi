@@ -757,6 +757,12 @@ def getGroup(attribute:str):
 @app.route("/filterPopulateQuery/<query_token>/<attribute>", methods = ["GET"])
 def filterPopulateQuery(query_token:str,  attribute:str) -> list[str]:
     # first may need to populate a filter with possible values to choose a value to filter !
+
+    # Handling the `year` attribute, as we store the `YYYY-mm--dd` created date!
+    # Later can modify the backend to handle data-time formats.
+    if attribute == "year":
+        attribute = "resource_created"
+    
     attribute_type = metaIndex.get_attribute_type(attribute)
     assert attribute_type == "string" or attribute_type == "arrayString", "For now !"   
     
@@ -785,11 +791,31 @@ def filterPopulateQuery(query_token:str,  attribute:str) -> list[str]:
             final_row_indices.extend(row_indices)
         del row_indices, resource_hashes
 
-    raw_json = mBackend.get_unique_str(
+    if attribute == "resource_created":
+        raw_json = mBackend.get_unique_str(
                 attribute,
                 count_only = False,        
                 row_indices = final_row_indices
         )
+        # TODO: may be shift this to client.. as we are generating better resolution, (month and date as well!)
+        # For now only sending the set of years for this query!
+        year_set = set()
+        for x in json.loads(raw_json):
+            # x would be in format "yyyy-mm-dd"
+            year_set.add(x.split("-")[0])
+        
+        # create a json repr from set TOdO:
+        # temp_str = str(year_set)
+        # temp_str = temp_str.replace("{", "[", 1)
+        # temp_str = temp_str.replace("}", "]", 1)
+        raw_json = json.dumps(list(year_set)) # BOxing again to create a list :)
+
+    else:
+        raw_json = mBackend.get_unique_str(
+                    attribute,
+                    count_only = False,        
+                    row_indices = final_row_indices
+            )
     return flask.Response(raw_json, mimetype="application/json")
 
 @app.route("/filterQueryMeta/<query_token>/<attribute>/<value>", methods = ["GET"])
@@ -800,6 +826,8 @@ def filterQueryMeta(query_token:str, attribute:str, value:Any) -> list[Dict]:
     # Returns a list of filtered Dict/meta-data. Each element would be a dict representing meta-data!
     # No scores or resource_hashes key. (Client can extract `resource_hash` as needed!)
 
+    if attribute == "year":
+        attribute = "resource_created"
     attribute_type = metaIndex.get_attribute_type(attribute)
     assert attribute_type == "string" or attribute_type == "arrayString", "For now !"   
     final_row_indices = [] # collect all possible!
@@ -836,10 +864,17 @@ def filterQueryMeta(query_token:str, attribute:str, value:Any) -> list[Dict]:
                 row_idx = final_row_indices[ix]
                 filtered_row_indices.append(row_idx)
     else:
-        for ix, x in enumerate(results):
-            if value == x:
-                row_idx = final_row_indices[ix]
-                filtered_row_indices.append(row_idx)
+        if attribute == "resource_created":
+            # For now just comparing `year` (client is providing this)
+            for ix, x in enumerate(results):
+                if value in x: # year in string of format "yyyy-mm-dd" 
+                    row_idx = final_row_indices[ix]
+                    filtered_row_indices.append(row_idx)
+        else:
+            for ix, x in enumerate(results):
+                if value == x:
+                    row_idx = final_row_indices[ix]
+                    filtered_row_indices.append(row_idx)
 
     # Now we have filtered row indices, collect all meta-rows.
     # NOTE: no pagination for now.. for filtered row_indices.. JUST 1000 for now!
