@@ -53,10 +53,10 @@ export class FuzzySearchUI {
       this.searchInput.focus();
       console.log("Search input focused");
       // Check if last search query exists in local storage TODO: delete it later
-      const lastSearchQuery = localStorage.getItem("lastSearchQuery");
-      if (lastSearchQuery) {
-        this.callbacks.onSearchExecuted(lastSearchQuery);
-      }
+      // const lastSearchQuery = localStorage.getItem("lastSearchQuery");
+      // if (lastSearchQuery) {
+      //   this.callbacks.onSearchExecuted(lastSearchQuery);
+      // }
     }, 0);
   }
 
@@ -122,12 +122,22 @@ export class FuzzySearchUI {
 
                   <!-- Filter Toggle Button -->
                   <button
+                    disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-pointer items-center justify-center w-12 h-full sm:w-14 bg-gradient-to-b from-gray-50 via-gray-100 to-gray-200 hover:from-gray-100 hover:to-gray-300 active:from-gray-200 active:to-gray-400 border-l border-gray-200 hover:border-gray-300 transition-all duration-200 group focus:outline-none shadow-sm hover:shadow-md"
+                    class="flex cursor-not-allowed items-center justify-center w-12 h-full sm:w-14 bg-gradient-to-b from-gray-50 via-gray-100 to-gray-200 hover:from-gray-100 hover:to-gray-300 active:from-gray-200 active:to-gray-400 border-l border-gray-200 hover:border-gray-300 transition-all duration-200 group focus:outline-none shadow-sm hover:shadow-md"
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
-                    <svg  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"/></svg>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      height="24px"
+                      viewBox="0 -960 960 960"
+                      width="24px"
+                    >
+                      <path
+                        d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"
+                      />
+                    </svg>
                   </button>
 
                   <!-- Integrated Search Button -->
@@ -149,7 +159,9 @@ export class FuzzySearchUI {
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       ></path>
                     </svg>
-                    <span id="search-btn-text" class="font-bold tracking-wide">Search</span>
+                    <span id="search-btn-text" class="font-bold tracking-wide"
+                      >Search</span
+                    >
                   </button>
                 </div>
 
@@ -179,7 +191,9 @@ export class FuzzySearchUI {
               id="search-tips"
               class="mt-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 text-sm hidden shadow-lg"
             >
-              <h3 class="font-bold text-blue-900 mb-3 flex items-center text-base">
+              <h3
+                class="font-bold text-blue-900 mb-3 flex items-center text-base"
+              >
                 <svg
                   class="w-5 h-5 mr-3 text-blue-600"
                   fill="none"
@@ -196,40 +210,66 @@ export class FuzzySearchUI {
                 💡 Search Tips
               </h3>
               <div class="text-blue-800 space-y-4">
-                <div class="bg-white bg-opacity-60 rounded-xl p-4 border border-blue-100">
+                <div
+                  class="bg-white bg-opacity-60 rounded-xl p-4 border border-blue-100"
+                >
                   <p class="font-bold text-blue-900 mb-3 flex items-center">
                     🔍 You can search for:
                   </p>
                   <ul class="space-y-2 ml-2">
-                    <li class="flex items-center"><span class="mr-2">👥</span><strong>People:</strong> John, Sarah</li>
-                    <li class="flex items-center"><span class="mr-2">🏷️</span><strong>Keywords:</strong> beach, sunset, birthday, vacation</li>
-                    <li class="flex items-center"><span class="mr-2">📁</span><strong>Folders:</strong> 2023, Summer Photos, Wedding</li>
+                    <li class="flex items-center">
+                      <span class="mr-2">👥</span><strong>People:</strong> John,
+                      Sarah
+                    </li>
+                    <li class="flex items-center">
+                      <span class="mr-2">🏷️</span
+                      ><strong>Keywords:</strong> beach, sunset, birthday,
+                      vacation
+                    </li>
+                    <li class="flex items-center">
+                      <span class="mr-2">📁</span
+                      ><strong>Folders:</strong> 2023, Summer Photos, Wedding
+                    </li>
                   </ul>
                 </div>
-                
-                <div class="bg-white bg-opacity-60 rounded-xl p-4 border border-blue-100">
+
+                <div
+                  class="bg-white bg-opacity-60 rounded-xl p-4 border border-blue-100"
+                >
                   <p class="font-bold text-blue-900 mb-3 flex items-center">
                     ⚡ Multiple filters work together:
                   </p>
                   <ul class="space-y-2 ml-2 text-sm">
                     <li class="flex items-start">
                       <span class="mr-2 mt-0.5">•</span>
-                      <span><strong>Person + Folder</strong> = Photos of that person in that folder</span>
+                      <span
+                        ><strong>Person + Folder</strong> = Photos of that
+                        person in that folder</span
+                      >
                     </li>
                     <li class="flex items-start">
                       <span class="mr-2 mt-0.5">•</span>
-                      <span><strong>Keyword + Folder</strong> = Photos with that keyword in that folder</span>
+                      <span
+                        ><strong>Keyword + Folder</strong> = Photos with that
+                        keyword in that folder</span
+                      >
                     </li>
                     <li class="flex items-start">
                       <span class="mr-2 mt-0.5">•</span>
-                      <span><strong>Person + Keyword</strong> = Photos of that person with that keyword</span>
+                      <span
+                        ><strong>Person + Keyword</strong> = Photos of that
+                        person with that keyword</span
+                      >
                     </li>
                   </ul>
                 </div>
-                
+
                 <div class="text-center">
-                  <p class="text-blue-700 text-sm font-medium bg-blue-100 rounded-full px-4 py-2 inline-block">
-                    💡 Type to see suggestions, click to add as filters, then search to find photos
+                  <p
+                    class="text-blue-700 text-sm font-medium bg-blue-100 rounded-full px-4 py-2 inline-block"
+                  >
+                    💡 Type to see suggestions, click to add as filters, then
+                    search to find photos
                   </p>
                 </div>
               </div>

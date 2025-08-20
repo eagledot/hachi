@@ -93,7 +93,7 @@ class ImageSearchApp {
 
     this.photoFilterSidebar = new PhotoFilterSidebar(
       (filteredPhotos: HachiImageData[]) =>
-        this.handleFilteredPhotosUpdate(filteredPhotos)
+        this.handleFilteredPhotosUpdate(filteredPhotos), "filter-sidebar-toggle-btn"
     );
 
     // if (this.filterContainer) {
@@ -143,7 +143,6 @@ class ImageSearchApp {
    */
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log("Filtered photos updated:", filteredPhotos.length);
-    this.photoFilterSidebar?.toggleFilterButtonAppearance({turnOn: filteredPhotos.length > 0});
     this.currentPage = 0;
     if (filteredPhotos.length === 0) {
       // No filters applied, show all results

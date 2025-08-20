@@ -2,9 +2,7 @@ import { endpoints } from "../config";
 import type { HachiImageData, ImageMetaData } from "../imageSearch";
 import { filterPopulateQuery, filterQueryMeta } from "../utils";
 
-const Filter_On_SVG = `<svg  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"/></svg>`
-
-const Filter_Off_SVG = `<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="m592-481-57-57 143-182H353l-80-80h487q25 0 36 22t-4 42L592-481ZM791-56 560-287v87q0 17-11.5 28.5T520-160h-80q-17 0-28.5-11.5T400-200v-247L56-791l56-57 736 736-57 56ZM535-538Z"/></svg>`
+const Filter_On_SVG = `<svg  xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"/></svg>`;
 
 interface PhotoFilters {
   people?: string[];
@@ -37,36 +35,26 @@ export default class PhotoFilterSidebar {
   private queryToken: string | null = null;
   private filteredImages: HachiImageData[] = [];
   private onFilterChange: (photos: HachiImageData[]) => void;
+  private toggleButtonId: string;
 
   constructor(
     onFilterChange: (photos: HachiImageData[]) => void,
-    container?: HTMLElement
+    toggleButtonId: string
   ) {
     this.overlayElement = this.createOverlay();
     this.sidebarElement = this.createSidebar();
     this.onFilterChange = onFilterChange;
-    if (container) {
-      container.appendChild(this.overlayElement);
-      container.appendChild(this.sidebarElement);
-    } else {
-      document.body.appendChild(this.overlayElement);
-      document.body.appendChild(this.sidebarElement);
-      }
-      this.addToggleListener();
-    }
-    
-    // If filters are applied, we changed the appearance of the the filter toggle button somewhat!
-    public toggleFilterButtonAppearance(props: { turnOn: boolean }): void {
-      const toggleButton = document.getElementById("filter-sidebar-toggle-btn");
-      if (!toggleButton) return;
+    this.toggleButtonId = toggleButtonId;
+    document.body.appendChild(this.overlayElement);
+    document.body.appendChild(this.sidebarElement);
+    this.addToggleListener();
+    this.createPhotoFiltersUI();
+  }
 
-        
-      if (props.turnOn) {
-        toggleButton.innerHTML = Filter_Off_SVG;
-      } else {
-        toggleButton.innerHTML = Filter_On_SVG;
-      }
-    }
+  async initialize() {
+    await this.populateAllPhotoFilters();
+    this.renderFilters();
+  }
 
   async setFilteredImages(attribute: string, value: string): Promise<void> {
     if (!this.queryToken) return;
@@ -88,8 +76,121 @@ export default class PhotoFilterSidebar {
   public async updateQueryToken(token: string): Promise<void> {
     console.log("Updating query token:", token);
     this.queryToken = token;
+      this.enableToggleButton(); // TODO: Should be called only once. Fix it later.
     await this.populateAllPhotoFilters();
-    this.createPhotoFiltersUI();
+    this.renderFilters();
+  }
+
+  enableToggleButton(): void {
+    const toggleButton = document.getElementById(this.toggleButtonId);
+    if (toggleButton) {
+      toggleButton.classList.remove("cursor-not-allowed");
+      toggleButton.classList.add("cursor-pointer");
+      toggleButton.removeAttribute("disabled");
+    }
+  }
+
+  removeAllFilterPills(): void {
+    const filterPillsContainer = document.getElementById("filters-container");
+
+    if (!filterPillsContainer) return;
+    const pills = filterPillsContainer.getElementsByClassName("filter-pill");
+    while (pills.length > 0) {
+      pills[0].remove();
+    }
+  }
+
+  public clearFilters(): void {
+    this.filteredImages = [];
+    this.uncheckAllImages();
+    this.uncheckEveryCheckbox();
+    // Remove all filter pills
+    this.removeAllFilterPills();
+    this.onFilterChange(this.filteredImages);
+  }
+
+  private addFilterPill(attribute: string, value: string): void {
+    const filterPillsContainer = document.getElementById("filters-container");
+    if (!filterPillsContainer) return;
+
+    const icon = "";
+    // Enhanced gradient and styling
+    const gradientBackground =
+      "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+    const shadowStyle = "0 4px 15px rgba(102, 126, 234, 0.3)";
+
+    // Manually create the filter pill UI node with enhanced styling
+    const pill = document.createElement("div");
+    pill.className =
+      "filter-pill flex items-center px-2 py-1 rounded-xl border-0 shadow-lg";
+    pill.style.background = gradientBackground;
+    pill.style.boxShadow = shadowStyle;
+    pill.style.transition = "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
+    pill.style.cursor = "pointer";
+    pill.style.color = "#ffffff";
+    pill.style.fontWeight = "500";
+    pill.style.letterSpacing = "0.025em";
+    pill.style.backdropFilter = "blur(10px)";
+    pill.style.border = "1px solid rgba(255, 255, 255, 0.2)";
+    pill.setAttribute("data-attribute", attribute);
+    pill.setAttribute("data-value", value);
+
+    // Icon span (keeping empty as in original)
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "mr-2 sm:mr-3 text-sm sm:text-base";
+    iconSpan.innerHTML = Filter_On_SVG;
+    // Change the fill color of the SVG
+    iconSpan.querySelector("svg")?.setAttribute("fill", "#ffffff");
+
+    pill.appendChild(iconSpan);
+
+    // Value span with enhanced typography
+    const valueSpan = document.createElement("span");
+    valueSpan.className = "text-xs font-semibold truncate";
+    valueSpan.style.maxWidth = "140px";
+    valueSpan.style.textShadow = "0 1px 2px rgba(0, 0, 0, 0.1)";
+    valueSpan.style.lineHeight = "1.4";
+    valueSpan.textContent = value;
+    pill.appendChild(valueSpan);
+
+    // Enhanced remove button
+    const removeBtn = document.createElement("button");
+    removeBtn.className =
+      "ml-3 sm:ml-4 text-white opacity-80 hover:opacity-100 cursor-pointer hover:bg-gray-100 hover:text-black hover:bg-opacity-20 rounded-full p-2 transition-all duration-300 remove-filter-btn";
+    removeBtn.style.display = "flex";
+    removeBtn.style.alignItems = "center";
+    removeBtn.style.justifyContent = "center";
+    removeBtn.style.minWidth = "28px";
+    removeBtn.style.minHeight = "28px";
+    removeBtn.style.backdropFilter = "blur(5px)";
+    removeBtn.setAttribute("data-attribute", attribute);
+    removeBtn.setAttribute("data-value", value);
+
+    removeBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.clearFilters();
+    });
+
+    // Enhanced SVG icon for remove with better styling
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "w-4 h-4");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("stroke-width", "2.5");
+    svg.style.filter = "drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))";
+
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("d", "M6 18L18 6M6 6l12 12");
+    svg.appendChild(path);
+
+    removeBtn.appendChild(svg);
+    pill.appendChild(removeBtn);
+
+    // Insert into container
+    filterPillsContainer?.appendChild(pill);
   }
 
   createDummyPhotoFilters(): void {
@@ -256,6 +357,7 @@ export default class PhotoFilterSidebar {
   onImageClick(image: HTMLImageElement, personId: string): void {
     const dataPersonId = image.dataset.personId;
     this.uncheckAllImages();
+    this.removeAllFilterPills();
     // Also uncheck all checkboxes as currently we only support single filter selection
     this.uncheckEveryCheckbox();
     if (dataPersonId === personId) {
@@ -265,6 +367,7 @@ export default class PhotoFilterSidebar {
       this.onFilterChange(this.filteredImages);
       return;
     }
+    this.addFilterPill("person", personId);
     // Add better styles to show a selected image
     image.parentElement!.style.border = "3px solid #2563eb"; // Use a blue accent for selection
     image.parentElement!.style.borderRadius = "8px"; // Rounded corners for better appearance
@@ -282,16 +385,13 @@ export default class PhotoFilterSidebar {
     this.uncheckEveryCheckbox(checkbox);
     // Uncheck all images as we currently only support single filter selection
     this.uncheckAllImages();
-    if (isChecked) {
-      console.log(`Adding ${option} to ${filterName}`);
-    } else {
-      console.log(`Removing ${option} from ${filterName}`);
-    }
+    this.removeAllFilterPills();
     if (!isChecked) {
       this.filteredImages = [];
       this.onFilterChange(this.filteredImages);
       return;
     }
+    this.addFilterPill(filterName, option);
     this.setFilteredImages(
       Filter_Request_Mapping[filterName as keyof typeof Filter_Request_Mapping],
       option
@@ -425,9 +525,31 @@ export default class PhotoFilterSidebar {
     this.uncheckAllImages();
     // Uncheck all checkboxes
     this.uncheckEveryCheckbox();
-    // Clear filtered images
+      // Clear filtered images
+      // TODO: Should be called only when filters are applied
+      // TODO: Need to keep a state to track which filters are on
     this.filteredImages = [];
     this.onFilterChange(this.filteredImages);
+  }
+
+  renderFilters() {
+    // Create main content container
+    const filtersContainer = document.getElementById("photo-filters");
+
+    if (!filtersContainer) {
+      return;
+    }
+
+    filtersContainer.innerHTML = ""; // Clear existing content
+
+    // Create filter elements for each filter category
+    for (const [category, options] of Object.entries(this.filters)) {
+      // Check if filter is not empty
+      if (options.length > 0) {
+        const filterUI = this.createSingleFilterUI(category, options);
+        filtersContainer.appendChild(filterUI);
+      }
+    }
   }
 
   createPhotoFiltersUI(): void {
@@ -438,20 +560,9 @@ export default class PhotoFilterSidebar {
     const header = this.createSidebarHeader();
     this.sidebarElement.appendChild(header);
 
-    // Create main content container
     const filtersContainer = document.createElement("div");
     filtersContainer.id = "photo-filters";
     filtersContainer.className = "p-4 space-y-6 flex-1 overflow-y-auto";
-
-    // Create filter elements for each filter category
-    for (const [category, options] of Object.entries(this.filters)) {
-      // Check if filter is not empty
-      if (options.length > 0) {
-        const filterUI = this.createSingleFilterUI(category, options);
-        filtersContainer.appendChild(filterUI);
-      }
-    }
-
     this.sidebarElement.appendChild(filtersContainer);
 
     // Create footer with clear filters button

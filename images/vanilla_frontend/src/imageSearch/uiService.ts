@@ -299,7 +299,7 @@ export class UIService {
 
     // Hide unused elements
     for (let i = photos.length; i < this.photoElementPool.length; i++) {
-      console.log("Hiding unused element:", i);
+      // console.log("Hiding unused element:", i);
       this.photoElementPool[i].style.visibility = "hidden";
     }
 
