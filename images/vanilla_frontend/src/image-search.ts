@@ -34,6 +34,7 @@ class ImageSearchApp {
   private imageWidth = 0; // Width of each photo in the grid
   private photoFilterSidebar: PhotoFilterSidebar | null = null;
 
+
   private findGallerySize() {
     // Get the window height
     const windowHeight = window.innerHeight;

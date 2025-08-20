@@ -52,6 +52,14 @@ export class FuzzySearchUI {
     setTimeout(() => {
       this.searchInput.focus();
       console.log("Search input focused");
+      // JUST TESTING IT: TODO: Remove it if not needed
+      const { attribute, value } = this.extractSearchQueryParam();
+      console.log("Extracted query params:", { attribute, value });
+      if (attribute && value) {
+        this.addFilter(attribute, value);
+        this.executeSearch();
+      }
+
       // Check if last search query exists in local storage TODO: delete it later
       // const lastSearchQuery = localStorage.getItem("lastSearchQuery");
       // if (lastSearchQuery) {
@@ -73,6 +81,19 @@ export class FuzzySearchUI {
     availableAttributes.forEach((attr) => {
       this.selectedFilters[attr] = [];
     });
+  }
+
+
+  private extractSearchQueryParam() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const person = urlParams.get("person") || "";
+    const resourceDirectory = urlParams.get("resource_directory") || "";
+    if (person) {
+      return { attribute: "person", value: person };
+    } else if (resourceDirectory) {
+      return { attribute: "resource_directory", value: resourceDirectory };
+    }
+    return { attribute: null, value: null };
   }
 
   private createUI(): void {

@@ -340,9 +340,9 @@ class PeopleApp {
     // Pass current page in URL for back navigation
     const urlParams = new URLSearchParams(window.location.search);
     urlParams.set("page", (this.currentPage + 1).toString());
-    window.location.href = `/person-photos.html?id=${encodeURIComponent(
-      personId
-    )}`;
+    // window.location.href = `/person-photos.html?id=${encodeURIComponent(personId)}`;
+    window.location.href = `/image-search.html?person=${personId}`;
+
   }
 
   // --- Pagination State in URL ---

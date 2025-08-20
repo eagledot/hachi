@@ -208,7 +208,8 @@ class FoldersApp {
       item.addEventListener("click", () => {
         const folderPath = item.getAttribute("data-folder-path");
         if (folderPath) {
-          window.location.href = `/folder-photos.html?path=${folderPath}`;
+          // window.location.href = `/folder-photos.html?path=${folderPath}`;
+          window.location.href = `/image-search.html?resource_directory=${folderPath}`;
         }
       });
     });
