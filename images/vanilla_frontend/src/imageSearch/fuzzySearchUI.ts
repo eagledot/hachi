@@ -550,7 +550,7 @@ export class FuzzySearchUI {
             const icon = this.fuzzySearchService.getAttributeIcon(attribute);
             const color = this.fuzzySearchService.getAttributeColor(attribute);
             return `
-            <div class="flex items-center px-3 py-2 rounded-2xl border-2 ${color} hover:shadow-xl transition-all duration-300 cursor-pointer group filter-tag transform hover:scale-105 active:scale-95" data-attribute="${attribute}" data-value="${value}">
+            <div class="flex items-center px-3 py-2 rounded-2xl border-2 ${color} hover:shadow-xl cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
               <span class="mr-2 sm:mr-3 text-sm sm:text-base">${icon}</span>
               <span class="text-sm font-bold truncate max-w-[120px] sm:max-w-none">${value}</span>
               <button class="ml-2 sm:ml-3 text-current opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-40 rounded-full p-1.5 transition-all duration-300 remove-filter-btn hover:scale-110 active:scale-90" data-attribute="${attribute}" data-value="${value}">
