@@ -87,13 +87,77 @@ class PeopleApp {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data: string[] = await response.json();
-      this.people = data.map((id) => ({ id })).slice(0, this.itemsPerPage * 2 + 10);
+      this.people = data.map((id) => ({ id }));
       console.log(this.people);
     } catch (error) {
       console.error("Error loading people:", error);
       // TODO: Show some error to the user
     } finally {
       // TODO: Hide loading
+    }
+  }
+
+  private updatePersonCard(card: HTMLElement, person: Person) {
+    // I want to update the person card with new information in place without re-rendering the entire card
+    const isAutoDetected = person.id.toLowerCase().startsWith("cluster");
+    const displayName = person.id;
+    const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${person.id}`;
+    const hasCustomName = !isAutoDetected;
+
+    // First update the badge
+    const badge = card.querySelector(".badge");
+    // If not auto-detected, set its visibility style to "hidden"
+    if (hasCustomName) {
+      if (badge) {
+        (badge as HTMLElement).style.visibility = "visible";
+      }
+      const avatarNameEl = card.querySelector(".avatar-name");
+      if (avatarNameEl) {
+        avatarNameEl.textContent = displayName;
+      }
+      // Similarly for avatarNameMobile
+      const avatarNameMobileEl = card.querySelector(".avatar-name-mobile");
+      if (avatarNameMobileEl) {
+        avatarNameMobileEl.textContent = displayName.length > 8
+          ? displayName.substring(0, 8) + "..."
+          : displayName;
+      }
+    } else {
+      // If not auto-detected, set its visibility style to "hidden"
+      if (badge) {
+        console.log("Hiding badge for person:", person.id);
+        (badge as HTMLElement).style.visibility = "hidden";
+      }
+    }
+
+    // Update data-person-id for buttons person-edit-btn and person-details-btn
+    const personEditBtn = card.querySelector(".person-edit-btn");
+    if (personEditBtn) {
+      console.log("Setting person ID for edit button:", person.id);
+      (personEditBtn as HTMLElement).dataset.personId = person.id;
+    }
+
+    const personDetailsBtn = card.querySelector(".person-details-btn");
+    if (personDetailsBtn) {
+      console.log("Setting person ID for details button:", person.id);
+      (personDetailsBtn as HTMLElement).dataset.personId = person.id;
+    }
+
+    // Remove and add event listeners for for person-edit-btn and person-details-btn
+    if (personEditBtn) {
+      personEditBtn.removeEventListener("click", this.editPersonName);
+      personEditBtn.addEventListener("click", this.editPersonName);
+    }
+
+    if (personDetailsBtn) {
+      personDetailsBtn.removeEventListener("click", this.handlePersonClick);
+      personDetailsBtn.addEventListener("click", this.handlePersonClick);
+    }
+
+    const img = card.querySelector("img");
+    if (img) {
+      img.src = avatarUrl;
+      img.alt = displayName;
     }
   }
 
@@ -106,29 +170,24 @@ class PeopleApp {
       <div
         style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
         class="group duration-200 cursor-pointer relative active:scale-98"
-        onclick="window.peopleApp.handlePersonClick('${person.id}')"
       >
         <!-- Status badge -->
-        ${hasCustomName
-          ? `
-          <div class="absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
+          <div style='${hasCustomName ? "visibility: visible;" : "visibility: hidden;"}' class="badge absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
             <span
               class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-200"
             >
               <svg class="w-2 h-2 sm:w-2.5 sm:h-2.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
               </svg>
-              <span class="hidden sm:inline">${person.id}</span>
-              <span class="sm:hidden">${
+              <span class="hidden avatar-name sm:inline">${person.id}</span>
+              <span class="sm:hidden avatar-name-mobile">${
                 person.id.length > 8
                   ? person.id.substring(0, 8) + "..."
                   : person.id
               }</span>
             </span>
           </div>
-          `
-          : ""}
-        <div class=" bg-gray-100 relative flex items-center justify-center">
+        <div class="bg-gray-100 relative flex items-center justify-center">
           <img
             src="${avatarUrl}"
             alt="${displayName}"
@@ -142,8 +201,8 @@ class PeopleApp {
           >
             <div class="flex space-x-2">
               <button
-                class="p-1 bg-white/90 rounded-full hover:bg-white transition-colors duration-150 shadow"
-                onclick="event.stopPropagation(); window.peopleApp.viewPersonDetails('${person.id}')"
+                data-person-id="${person.id}"
+                class="p-1 person-details-btn bg-white/90 rounded-full hover:bg-white transition-colors duration-150 shadow"
               >
                 <svg
                   class="w-4 h-4 text-gray-700"
@@ -166,8 +225,8 @@ class PeopleApp {
                 </svg>
               </button>
               <button
-                class="p-1 bg-white/90 rounded-full hover:bg-white transition-colors duration-150 shadow"
-                onclick="event.stopPropagation(); window.peopleApp.editPersonName('${person.id}')"
+                class="p-1 person-edit-btn bg-white/90 rounded-full hover:bg-white transition-colors duration-150 shadow"
+                data-person-id="${person.id}"
               >
                 <svg
                   class="w-4 h-4 text-gray-700"
@@ -199,25 +258,14 @@ class PeopleApp {
 
     // If we have fewer cards than people, add more cards
     while (existingCards.length < totalCards) {
+      console.log("Adding more cards");
       const card = document.createElement("div");
       card.className = "person-card";
       grid.appendChild(card);
     }
   }
 
-  private preloadImage(src: string) {
-    return new Promise<void>((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve();
-      img.onerror = () => resolve();
-      img.src = src;
-      // Optional hints
-      (img as any).decoding = "async";
-      (img as any).loading = "eager";
-    });
-  }
-
-    private showSuccessMessage(message: string) {
+  private showSuccessMessage(message: string) {
     const successDiv = document.createElement("div");
     successDiv.className =
       "fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4 shadow-lg";
@@ -241,7 +289,7 @@ class PeopleApp {
     }, 3000);
   }
 
-    private showError(message: string) {
+  private showError(message: string) {
     const errorDiv = document.getElementById("error-message");
     const errorText = document.getElementById("error-text");
     if (errorDiv && errorText) {
@@ -255,7 +303,7 @@ class PeopleApp {
     }
   }
 
-    private showLoading(show: boolean) {
+  private showLoading(show: boolean) {
     const loadingIndicator = document.getElementById("loading-indicator");
     if (!loadingIndicator) return;
     if (show) {
@@ -270,7 +318,12 @@ class PeopleApp {
     }
   }
 
-    public editPersonName(personId: string) {
+  public editPersonName(event: Event) {
+    event.stopPropagation();
+    const target = event.target as HTMLElement;
+    const personId = (target.closest(".person-card") as HTMLElement | null)?.dataset.personId;
+    if (!personId) return;
+
     const person = this.people.find((p) => p.id === personId);
     const currentName = personId;
     const promptText =
@@ -329,22 +382,27 @@ class PeopleApp {
     }
   }
 
-    public viewPersonDetails(personId: string) {
+  public viewPersonDetails(personId: string) {
     window.location.href = `/person-photos.html?id=${encodeURIComponent(
       personId
     )}`;
   }
 
-  public handlePersonClick(personId: string) {
-    this.saveScrollPosition(window.scrollY);
-    // Pass current page in URL for back navigation
-    const urlParams = new URLSearchParams(window.location.search);
-    urlParams.set("page", (this.currentPage + 1).toString());
-    // window.location.href = `/person-photos.html?id=${encodeURIComponent(personId)}`;
-    window.location.href = `/image-search.html?person=${personId}`;
+  public handlePersonClick(event: Event) {
+    event.stopPropagation();
+    const target = event.target as HTMLElement;
+    const personId = (target.closest(".person-card") as HTMLElement | null)?.dataset.personId;
+    if (personId) {
+      this.saveScrollPosition(window.scrollY);
+      // Pass current page in URL for back navigation
+      const urlParams = new URLSearchParams(window.location.search);
+      urlParams.set("page", (this.currentPage + 1).toString());
+      // window.location.href = `/person-photos.html?id=${encodeURIComponent(personId)}`;
+      window.location.href = `/image-search.html?person=${personId}`;
+    }
   }
 
-  private renderPeople() {
+  private async renderPeople() {
     const grid = document.getElementById("people-cards");
     const noPeopleMsg = document.getElementById("no-people");
     if (!grid || !noPeopleMsg) return;
@@ -363,25 +421,43 @@ class PeopleApp {
     // First ensure if we have enough cards in the grid
     this.ensureCardsInGrid();
 
+    for (let i = 0; i < peopleToShow.length; i++) {
+      const card = grid.children[i] as HTMLElement;
+      card.classList.add("person-card"); // ensure base class
+
+      const person = peopleToShow[i];
+      const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${person.id}`;
+      // Make sure card is visible when reused
+      card.style.visibility = "visible";
+      console.log("Preloading image for", i, person.id);
+      // card.innerHTML = this.renderPersonCard(person);
+      // If the card has person data, then update else re-render
+      if (card.dataset.personId) {
+        this.updatePersonCard(card, person);
+
+      } else {
+        card.innerHTML = this.renderPersonCard(person);
+        // Add event listener for person card click
+        card.addEventListener("click", (event) => this.handlePersonClick(event));
+        // Also for person details button
+        const personDetailsBtn = card.querySelector(".person-details-btn");
+        if (personDetailsBtn) {
+          personDetailsBtn.addEventListener("click", (event) => this.handlePersonClick(event));
+        }
+        const personEditBtn = card.querySelector(".person-edit-btn");
+        if (personEditBtn) {
+          personEditBtn.addEventListener("click", (event) => this.editPersonName(event));
+        }
+      }
+      card.dataset.personId = person.id;
+      
+    }
+
     // First make extra cards invisible
     for (let i = peopleToShow.length; i < grid.children.length; i++) {
       const card = grid.children[i] as HTMLElement;
       card.style.visibility = "hidden";
       delete card.dataset.personId;
-    }
-
-    for (let i = 0; i < peopleToShow.length; i++) {
-      const card = grid.children[i] as HTMLElement;
-      card.classList.add("person-card"); // ensure base class
-
-        const person = peopleToShow[i];
-        const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${person.id}`;
-        // Make sure card is visible when reused
-        card.style.visibility = "visible";
-        this.preloadImage(avatarUrl).finally(() => {
-          card.innerHTML = this.renderPersonCard(person);
-          card.dataset.personId = person.id;
-        });
     }
     this.updatePageInUrl();
   }
@@ -422,5 +498,11 @@ class PeopleApp {
   }
 }
 
+declare global {
+  interface Window {
+    peopleApp: PeopleApp;
+  }
+}
+
 const peopleApp = new PeopleApp();
-(window as any).peopleApp = peopleApp;
+window.peopleApp = peopleApp;
