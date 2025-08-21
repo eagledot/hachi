@@ -86,7 +86,6 @@ class PeopleApp {
   private initializeApp() {
     this.findGallerySize(); // Calculate gallery size based on current viewport
     this.cacheDOMElements();
-    this.setupPaginationEventListeners();
     this.init();
   }
 
@@ -168,14 +167,6 @@ class PeopleApp {
     this.restoreScrollPosition();
   }
 
-  /**
-   * Sets up event listeners for pagination buttons (previous/next).
-   * Handles page navigation and updates the UI accordingly.
-   */
-  private setupPaginationEventListeners() {
-    // No-op: handled by PaginationComponent
-  }
-
   private setupPagination() {
     if (!this.paginationContainerElement) return;
     this.paginationContainerElement.innerHTML = "";
@@ -192,21 +183,6 @@ class PeopleApp {
         this.saveScrollPosition(0);
       },
     });
-  }
-
-  /**
-   * Updates pagination state variables based on the current filtered people list.
-   * Ensures currentPage is within valid bounds after filtering or data changes.
-   */
-
-  /**
-   * Updates the pagination state and re-renders the people grid.
-   * Scrolls to the top of the page and resets the saved scroll position.
-   * This is called after changing pages via pagination controls.
-   */
-
-  private async updatePaginationAndRender() {
-    // No-op: handled by PaginationComponent
   }
 
   // --- Rendering ---
