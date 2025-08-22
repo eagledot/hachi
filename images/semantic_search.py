@@ -351,219 +351,223 @@ def query_thread():
     flag = False
      
     while True:
-        (temp_q, query, page_size) = query_queue.get()
+        try:
+            error = None
+            (temp_q, query, page_size) = query_queue.get()
 
-        # NOTE: doesn't matter much, since we would be querying all shards in one go.. not in streaming manner, for new `pagination-pipeline`!
-        client_id = "client_{}".format(query_token_counter)
+            # NOTE: doesn't matter much, since we would be querying all shards in one go.. not in streaming manner, for new `pagination-pipeline`!
+            client_id = "client_{}".format(query_token_counter)
 
-        # except "query" all are meta-attributes ..for now!
-        image_attributes = parse_query(query)
-        meta_attributes_list = [x for x in image_attributes if x != "query"]
-        rerank_approach = len(meta_attributes_list) > 0
+            # except "query" all are meta-attributes ..for now!
+            image_attributes = parse_query(query)
+            meta_attributes_list = [x for x in image_attributes if x != "query"]
+            rerank_approach = len(meta_attributes_list) > 0
 
-        benchmarking = {}
-        if not rerank_approach:
-            # i.e only semantic query, without NO meta attributes!
-            
-            current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+            benchmarking = {}
+            if not rerank_approach:
+                # i.e only semantic query, without NO meta attributes!
+                
+                current_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
 
-            ##--------------------------------------------
-            # pagination sequence query + collect. (query part must be as fast as possible!)
-            # -------------------------------------------
-            # text_embedding = np.random.uniform(size = (1, 512)).astype(np.float32)
-            s = time.time_ns()
-            text_embedding = generate_text_embedding(current_query)
-            benchmarking["embedding"] = (time.time_ns() - s) / 1e6
-
-            s = time.time_ns()
-            image_hash2scores = imageIndex.query_all_shards(
-                text_embedding, 
-                client_key = client_id,
-                top_k_each_shard = TOP_K_EACH_SHARD
-            )
-            benchmarking["shard-querying"] = (time.time_ns() - s) / 1e6
-            
-            # Sorting, as each shard is queried independently, so GLOBAL sorting required!
-            top_keys = sorted(
-                image_hash2scores.keys(),
-                key = lambda x: max(image_hash2scores[x]),
-                reverse = True
-            )
-
-            # NOTE: For now, Q routine(s) we can estimate max possible matches as `len(top_keys)`.
-            # NOTE: since `sorted resource hashes`, we collect only corresponding `meta-data` in `collect_query_meta` for a page, hence very very fast!
-
-            # -------------------------------------
-            # Generate Pagination info..
-            # ------------------------------------
-            s = time.time_ns()
-            info:PaginationInfo = {}
-            n_pages = len(top_keys) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
-            page_meta = []
-            for i in range(n_pages):
-                # generate relevant meta-data for each page! TODO: check this logic!
-                page_meta.append(
-                    (
-                        None,        # we get corrsponding row_indices on demand for that page, based on top-keys
-                        top_keys[i*page_size: (i+1)*page_size],
-                        [float(max(image_hash2scores[k])) for k in top_keys[i*page_size: (i+1)*page_size]]  # why i am not sending `float` values in json??
-                    )
-                )
-            benchmarking["pageinfo-generation"] = (time.time_ns() - s) / 1e6
-            print(benchmarking)
-            # ----------------------------------------------
-            
-            
-            # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
-            query_token = "notRandomEnoughToken_{}".format(query_token_counter)
-            # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
-            query_token_counter += 1
-
-            info["token"] = query_token
-            info["page_meta"] = page_meta
-            del page_meta
-            pagination_cache.add(info)
-            del info
-
-            q_info:QueryInfo = {}
-            q_info["n_matches"] = len(top_keys)
-            q_info["n_pages"] = n_pages
-            q_info["query_token"] = query_token
-            temp_q.put(q_info) # read by the calling thread!
-            del temp_q
-        
-        
-        else:
-            #-----------------
-            # We generate Q (query) given meta-attribute (and semantic-attribute) info to generate Page meta-data.
-            # and return Q info back to the clien.t
-            # First we collect all the ANDed row_indices, based on multiple attributes.
-            # Then corresponding `resource_hashes` are collected if semantic query is also present 
-            # Then if semantic info/query is also provided, we re-rank/update-scores depending upon semantic information.
-            # NOTE: only semantic info is just used to re-rank/update scores. Not any any more resource-hashes!
-            # we update the pagination cache, and return the Q info back to the client, to later collect using `collectQueryMeta` on demand for a page!
-            # ---------------
-
-            and_keys = set()
-            key_score = dict()        
-            
-            # process/collect the keys/resource-hashes for all the meta-attributes.
-            s = time.time_ns()
-            for i,attribute in enumerate(meta_attributes_list):        
-                or_keys = set()  # OR operation like collection
-
-                # collect indices for each matching rows, for current attribute! 
-                assert isinstance(image_attributes[attribute], list), image_attributes[attribute]
-                # return corresponding unique row_indices
-
-                # TODO: speed up this, particulary for colArrayString types!
-                or_keys = metaIndex.query_generic(
-                        attribute = attribute,
-                        query = image_attributes[attribute],
-                        unique_only = False   # Meaning any row index, matching one of values!
-                    )
-                or_keys = set(or_keys) # TODO: remove this!
-
-                # AND operation. (among independent attributes)!
-                if i == 0:        
-                    and_keys = or_keys
-                    if len(and_keys) == 0:
-                        break  # shouldn't any more.. since one CRITERIA fully failed.. so more intersection would also be empty!
-                else:
-                    and_keys = and_keys & (or_keys)
-                del or_keys
-            benchmarking["and-keys-collection"] = (time.time_ns() - s) / 1e6
-
-            # Since we have the `desired` `row_indices`. We will need the primary-key aka resource_hash!
-            s = time.time_ns()
-            and_row_indices = list(and_keys)
-            del and_keys
-
-            n_matches = len(and_row_indices)
-            # collect only from a single column/attribute!
-            unsorted_resource_hashes =  json.loads(mBackend.collect_rows(
-                    attribute = "resource_hash",
-                    indices = and_row_indices
-                ))
-            assert n_matches == len(unsorted_resource_hashes)
-            benchmarking["resources-collection"] = (time.time_ns() - s) / 1e6
-
-            # --------------------------------------------
-            # If semantic query, get the new (sorted) scores and sort other data too!
-            has_semantic_query = "query" in image_attributes
-            if has_semantic_query:
-                # sorted!
-                scores = []
-                resource_hashes = []
-                final_row_indices = []
-
+                ##--------------------------------------------
+                # pagination sequence query + collect. (query part must be as fast as possible!)
+                # -------------------------------------------
+                # text_embedding = np.random.uniform(size = (1, 512)).astype(np.float32)
                 s = time.time_ns()
-                semantic_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
-                text_embedding = generate_text_embedding(semantic_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
-                benchmarking["text-embedding-generation"] = (time.time_ns() - s) / 1e6
+                text_embedding = generate_text_embedding(current_query)
+                benchmarking["embedding"] = (time.time_ns() - s) / 1e6
 
-                # NOTE: we get the sorted hash 2 scores mapping. (based on score!)
                 s = time.time_ns()
                 image_hash2scores = imageIndex.query_all_shards(
-                        text_embedding,
-                        client_key = client_id)
-                assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
-                benchmarking["image-index-query"] = (time.time_ns() - s) / 1e6
+                    text_embedding, 
+                    client_key = client_id,
+                    top_k_each_shard = TOP_K_EACH_SHARD
+                )
+                benchmarking["shard-querying"] = (time.time_ns() - s) / 1e6
+                
+                # Sorting, as each shard is queried independently, so GLOBAL sorting required!
+                top_keys = sorted(
+                    image_hash2scores.keys(),
+                    key = lambda x: max(image_hash2scores[x]),
+                    reverse = True
+                )
 
+                # NOTE: For now, Q routine(s) we can estimate max possible matches as `len(top_keys)`.
+                # NOTE: since `sorted resource hashes`, we collect only corresponding `meta-data` in `collect_query_meta` for a page, hence very very fast!
+
+                # -------------------------------------
+                # Generate Pagination info..
+                # ------------------------------------
                 s = time.time_ns()
-                # NOTE: we collect scores for only `and-keys/unsorted-resource-hashes`
-                unsorted_scores = [float(max(image_hash2scores[x])) for x in unsorted_resource_hashes]
-                new_indices = sorted([i for i in range(n_matches)], key = lambda x: unsorted_scores[x], reverse = True)
-                for ix in new_indices:
-                    final_row_indices.append(and_row_indices[ix])
-                    scores.append(unsorted_scores[ix])
-                    resource_hashes.append(unsorted_resource_hashes[ix])
-                benchmarking["misc"] = (time.time_ns() - s) / 1e6
+                info:PaginationInfo = {}
+                n_pages = len(top_keys) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+                page_meta = []
+                for i in range(n_pages):
+                    # generate relevant meta-data for each page! TODO: check this logic!
+                    page_meta.append(
+                        (
+                            None,        # we get corrsponding row_indices on demand for that page, based on top-keys
+                            top_keys[i*page_size: (i+1)*page_size],
+                            [float(max(image_hash2scores[k])) for k in top_keys[i*page_size: (i+1)*page_size]]  # why i am not sending `float` values in json??
+                        )
+                    )
+                benchmarking["pageinfo-generation"] = (time.time_ns() - s) / 1e6
+                print(benchmarking)
+                # ----------------------------------------------
+                
+                
+                # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
+                query_token = "notRandomEnoughToken_{}".format(query_token_counter)
+                # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
+                query_token_counter += 1
+
+                info["token"] = query_token
+                info["page_meta"] = page_meta
+                del page_meta
+                pagination_cache.add(info)
+                del info
+
+                q_info:QueryInfo = {}
+                q_info["n_matches"] = len(top_keys)
+                q_info["n_pages"] = n_pages
+                q_info["query_token"] = query_token
+                temp_q.put((q_info, error)) # read by the calling thread!
+                del temp_q
+            
             
             else:
-                final_row_indices = and_row_indices
-                scores = [1.0 for i in range(len(and_row_indices))]
-                resource_hashes = unsorted_resource_hashes
-            # ----------------------------------------------------------
-            
-            # -----------------------------------
-            # Generate Pagination Info
-            # ------------------------
-            s = time.time_ns()
-    
-            # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
-            query_token = "notRandomEnoughToken_{}".format(query_token_counter)
-            query_token_counter += 1  # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
+                #-----------------
+                # We generate Q (query) given meta-attribute (and semantic-attribute) info to generate Page meta-data.
+                # and return Q info back to the clien.t
+                # First we collect all the ANDed row_indices, based on multiple attributes.
+                # Then corresponding `resource_hashes` are collected if semantic query is also present 
+                # Then if semantic info/query is also provided, we re-rank/update-scores depending upon semantic information.
+                # NOTE: only semantic info is just used to re-rank/update scores. Not any any more resource-hashes!
+                # we update the pagination cache, and return the Q info back to the client, to later collect using `collectQueryMeta` on demand for a page!
+                # ---------------
 
-            info:PaginationInfo = {}
-            n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
-            page_meta = []
-            for i in range(n_pages):
-                # generate relevant meta-data for each page! TODO: check this logic!
-                page_meta.append(
-                    (
-                        final_row_indices[i*page_size: (i+1)*page_size],
-                        resource_hashes[i*page_size: (i+1)*page_size],
-                        scores[i*page_size: (i+1)*page_size]
+                and_keys = set()
+                key_score = dict()        
+                
+                # process/collect the keys/resource-hashes for all the meta-attributes.
+                s = time.time_ns()
+                for i,attribute in enumerate(meta_attributes_list):        
+                    or_keys = set()  # OR operation like collection
+
+                    # collect indices for each matching rows, for current attribute! 
+                    assert isinstance(image_attributes[attribute], list), image_attributes[attribute]
+                    # return corresponding unique row_indices
+
+                    # TODO: speed up this, particulary for colArrayString types!
+                    or_keys = metaIndex.query_generic(
+                            attribute = attribute,
+                            query = image_attributes[attribute],
+                            unique_only = False   # Meaning any row index, matching one of values!
+                        )
+                    or_keys = set(or_keys) # TODO: remove this!
+
+                    # AND operation. (among independent attributes)!
+                    if i == 0:        
+                        and_keys = or_keys
+                        if len(and_keys) == 0:
+                            break  # shouldn't any more.. since one CRITERIA fully failed.. so more intersection would also be empty!
+                    else:
+                        and_keys = and_keys & (or_keys)
+                    del or_keys
+                benchmarking["and-keys-collection"] = (time.time_ns() - s) / 1e6
+
+                # Since we have the `desired` `row_indices`. We will need the primary-key aka resource_hash!
+                s = time.time_ns()
+                and_row_indices = list(and_keys)
+                del and_keys
+
+                n_matches = len(and_row_indices)
+                # collect only from a single column/attribute!
+                unsorted_resource_hashes =  json.loads(mBackend.collect_rows(
+                        attribute = "resource_hash",
+                        indices = and_row_indices
+                    ))
+                assert n_matches == len(unsorted_resource_hashes)
+                benchmarking["resources-collection"] = (time.time_ns() - s) / 1e6
+
+                # --------------------------------------------
+                # If semantic query, get the new (sorted) scores and sort other data too!
+                has_semantic_query = "query" in image_attributes
+                if has_semantic_query:
+                    # sorted!
+                    scores = []
+                    resource_hashes = []
+                    final_row_indices = []
+
+                    s = time.time_ns()
+                    semantic_query = image_attributes["query"][0]  # NOTE: only a single query is allowed at one time. Enforce it on client side.
+                    text_embedding = generate_text_embedding(semantic_query) # TODO: save it some how.. if cheaper, it takes around 18 ms i guess!
+                    benchmarking["text-embedding-generation"] = (time.time_ns() - s) / 1e6
+
+                    # NOTE: we get the sorted hash 2 scores mapping. (based on score!)
+                    s = time.time_ns()
+                    image_hash2scores = imageIndex.query_all_shards(
+                            text_embedding,
+                            client_key = client_id)
+                    assert flag == False # it is weird i guess. to use False to indicate completion .. should be otherwise!
+                    benchmarking["image-index-query"] = (time.time_ns() - s) / 1e6
+
+                    s = time.time_ns()
+                    # NOTE: we collect scores for only `and-keys/unsorted-resource-hashes`
+                    unsorted_scores = [float(max(image_hash2scores[x])) for x in unsorted_resource_hashes]
+                    new_indices = sorted([i for i in range(n_matches)], key = lambda x: unsorted_scores[x], reverse = True)
+                    for ix in new_indices:
+                        final_row_indices.append(and_row_indices[ix])
+                        scores.append(unsorted_scores[ix])
+                        resource_hashes.append(unsorted_resource_hashes[ix])
+                    benchmarking["misc"] = (time.time_ns() - s) / 1e6
+                
+                else:
+                    final_row_indices = and_row_indices
+                    scores = [1.0 for i in range(len(and_row_indices))]
+                    resource_hashes = unsorted_resource_hashes
+                # ----------------------------------------------------------
+                
+                # -----------------------------------
+                # Generate Pagination Info
+                # ------------------------
+                s = time.time_ns()
+        
+                # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
+                query_token = "notRandomEnoughToken_{}".format(query_token_counter)
+                query_token_counter += 1  # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
+
+                info:PaginationInfo = {}
+                n_pages = len(final_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
+                page_meta = []
+                for i in range(n_pages):
+                    # generate relevant meta-data for each page! TODO: check this logic!
+                    page_meta.append(
+                        (
+                            final_row_indices[i*page_size: (i+1)*page_size],
+                            resource_hashes[i*page_size: (i+1)*page_size],
+                            scores[i*page_size: (i+1)*page_size]
+                        )
                     )
-                )
-            benchmarking["pageinfo-generation"] = (time.time_ns() - s)
+                benchmarking["pageinfo-generation"] = (time.time_ns() - s)
 
-            info["token"] = query_token
-            info["page_meta"] = page_meta
-            del page_meta
-            pagination_cache.add(info)
-            del info
+                info["token"] = query_token
+                info["page_meta"] = page_meta
+                del page_meta
+                pagination_cache.add(info)
+                del info
 
-            q_info:QueryInfo = {}
-            q_info["n_matches"] = len(final_row_indices)
-            q_info["n_pages"] = n_pages
-            q_info["query_token"] = query_token
-            temp_q.put(q_info) # read by the calling thread!
-            del temp_q
-            # --------------------------------------------
-            print(benchmarking)
-             
+                q_info:QueryInfo = {}
+                q_info["n_matches"] = len(final_row_indices)
+                q_info["n_pages"] = n_pages
+                q_info["query_token"] = query_token
+                temp_q.put((q_info, error)) # read by the calling thread!
+                del temp_q
+                # --------------------------------------------
+                print(benchmarking)
+        except Exception as e:
+            error = e.__traceback__
+            temp_q.put((None, error))
 
 print("[DEBUG]: Starting thread for handling query terms!")
 threading.Thread(target = query_thread, args = ()).start()
@@ -589,9 +593,16 @@ def query(page_size:int = 200):
 
     temp_q = Queue(maxsize = 1)
     query_queue.put((temp_q, query, page_size))
-    q_info:QueryInfo = temp_q.get()
+    (q_info, error)  = temp_q.get()
     del temp_q
-    return flask.jsonify(q_info)
+
+    if not(error is None):
+        return flask.Response(
+            error,
+            mimetype="text/plain",
+            status = 500)
+    else:
+        return flask.jsonify(q_info)
 
 ##############
 
