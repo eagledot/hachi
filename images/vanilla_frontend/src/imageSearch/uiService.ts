@@ -451,6 +451,9 @@ export class UIService {
       console.error("Modal image element not found");
       return;
     }
+    if (this.modal.classList.contains("hidden")) {
+      this.modal.classList.remove("hidden");
+    }
 
     this.loadImageProgressively(photo);
     this.modalImage.alt = photo.metadata?.filename || "Image";
@@ -458,9 +461,6 @@ export class UIService {
     this.updateModalMetadata(photo);
     this.updateModalNavigation(canGoPrevious, canGoNext);
     this.updateModalFilename(photo);
-
-    this.modal.classList.remove("hidden");
-    console.log(this.modal);
     document.body.style.overflow = "hidden";
   }
 
@@ -481,7 +481,6 @@ export class UIService {
     // Start with preview image (thumbnail)
     const thumbnailUrl = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
     const fullImageUrl = `${endpoints.GET_IMAGE}/${photo.id}`;
-
     this.modalImage.src = thumbnailUrl;
 
     // Start loading the full resolution image in background
@@ -489,11 +488,12 @@ export class UIService {
     this.currentFullImageLoader.decoding = "async"; // Use async decoding for better performance
     this.currentFullImageLoader.loading = "eager";
     this.currentFullImageLoader.src = fullImageUrl;
+    
 
     this.currentFullImageLoader.onload = () => {
       // Switch to full resolution while maintaining the same dimensions
       if (this.currentFullImageLoader && this.modalImage) {
-        // this.modalImage.src = fullImageUrl;
+        this.modalImage.src = fullImageUrl;
       }
       // Clear the loader reference
       this.currentFullImageLoader = null;
