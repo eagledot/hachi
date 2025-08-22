@@ -148,7 +148,7 @@ class ImageSearchApp {
   private handleFilteredPhotosUpdate(filteredPhotos: HachiImageData[]): void {
     console.log("Filtered photos updated:", filteredPhotos.length);
     this.currentPage = 0;
-    this.preloadedData = {};
+    this.clearPreloadedCache();
     if (filteredPhotos.length === 0) {
       // No filters applied, show all results
       this.filteredPhotos = [];
@@ -211,7 +211,7 @@ class ImageSearchApp {
       return;
     }
     // Clear cache
-    this.preloadedData = {};
+    this.clearPreloadedCache();
     console.log("Starting search for:", query);
     try {
       // this.handleLoadingChange(true); TODO: Deal with it later. For now removing it
@@ -341,6 +341,11 @@ class ImageSearchApp {
         this.imagePreloadCache.set(photo.id, img);
       }
     });
+  }
+
+  clearPreloadedCache(): void {
+    this.preloadedData = {};
+    this.imagePreloadCache.clear();
   }
 
   /**

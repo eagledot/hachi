@@ -59,13 +59,26 @@
 
 /* Sticky pagination container */
 
-/* Sidebar responsive padding for main content */
+/* Sidebar width variable (desktop) */
+:root {
+  --sidebar-width: 16rem;
+  --sidebar-width-collapsed: 4rem;
+}
+
+/* Toggle via body class set by Navbar */
+body.sidebar-collapsed {
+  --sidebar-width: var(--sidebar-width-collapsed);
+}
+
+/* Desktop main padding follows variable */
 @media (min-width: 768px) {
   main#main {
-    padding-left: 16rem !important; /* 64 * 0.25rem = 16rem */
+    padding-left: var(--sidebar-width) !important;
     transition: padding-left 0.3s;
   }
 }
+
+/* Mobile keeps zero regardless of state */
 @media (max-width: 767px) {
   main#main {
     padding-left: 0 !important;

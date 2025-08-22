@@ -390,50 +390,55 @@ export class FuzzySearchUI {
 
   private handleKeyDown(e: KeyboardEvent): void {
     console.log("Key down:", e.key);
-    if (this.showDropdown && this.suggestions.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        this.selectedIndex =
-          this.selectedIndex < this.suggestions.length - 1
-            ? this.selectedIndex + 1
-            : 0;
-        this.updateDropdownSelection();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        this.selectedIndex =
-          this.selectedIndex > 0
-            ? this.selectedIndex - 1
-            : this.suggestions.length - 1;
-        this.updateDropdownSelection();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
+    // if (this.showDropdown && this.suggestions.length > 0) {
+    //   if (e.key === "ArrowDown") {
+    //     e.preventDefault();
+    //     this.selectedIndex =
+    //       this.selectedIndex < this.suggestions.length - 1
+    //         ? this.selectedIndex + 1
+    //         : 0;
+    //     this.updateDropdownSelection();
+    //   } else if (e.key === "ArrowUp") {
+    //     e.preventDefault();
+    //     this.selectedIndex =
+    //       this.selectedIndex > 0
+    //         ? this.selectedIndex - 1
+    //         : this.suggestions.length - 1;
+    //     this.updateDropdownSelection();
+    //   } else if (e.key === "Enter") {
+    //     e.preventDefault();
 
-        if (
-          this.selectedIndex >= 0 &&
-          this.selectedIndex < this.suggestions.length
-        ) {
-          // Select the highlighted suggestion
-          const suggestion = this.suggestions[this.selectedIndex];
-          this.handleSuggestionClick(suggestion);
-        } else {
-          // No item selected, use default enter behavior
+    //     if (
+    //       this.selectedIndex >= 0 &&
+    //       this.selectedIndex < this.suggestions.length
+    //     ) {
+    //       // Select the highlighted suggestion
+    //       const suggestion = this.suggestions[this.selectedIndex];
+    //       this.handleSuggestionClick(suggestion);
+    //     } else {
+    //       // No item selected, use default enter behavior
 
-          // Enter: Add current input as a search query
-          this.handleAddFilter();
-        }
-      } else if (e.key === "Escape") {
-        this.selectedIndex = -1;
-        this.hideDropdown();
-        this.suggestions = [];
-      }
-    } else {
-      // Handle keys when dropdown is not shown
-      if (e.key === "Enter") {
+    //       // Enter: Add current input as a search query
+    //       this.handleAddFilter();
+    //     }
+    //   } else if (e.key === "Escape") {
+    //     this.selectedIndex = -1;
+    //     this.hideDropdown();
+    //     this.suggestions = [];
+    //   }
+    // } else {
+    //   // Handle keys when dropdown is not shown
+    //   if (e.key === "Enter") {
+    //     e.preventDefault();
+    //     // Enter: Add current input as a search query
+    //     this.handleAddFilter();
+    //   }
+    // }
+    if (e.key === "Enter") {
         e.preventDefault();
         // Enter: Add current input as a search query
         this.handleAddFilter();
       }
-    }
   }
 
   private handleInputFocus(): void {
