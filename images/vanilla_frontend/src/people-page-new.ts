@@ -212,7 +212,7 @@ class PeopleApp {
             src="${avatarUrl}"
             alt="${displayName}"
             style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
-            class="transition-transform duration-200 group-hover:scale-105"
+            class="transition-transform rounded-md duration-200 group-hover:scale-105"
             onerror="this.src='./assets/sample_place_bg.jpg'; this.classList.add('opacity-75')"
             loading="lazy"
           />

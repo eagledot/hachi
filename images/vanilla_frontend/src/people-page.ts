@@ -224,7 +224,7 @@ class PeopleApp {
     return html`
       <div
         style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
-        class="group duration-200 cursor-pointer relative active:scale-98"
+        class="group rounded-lg duration-200 cursor-pointer relative active:scale-98"
         onclick="window.peopleApp.handlePersonClick('${person.id}')"
       >
         <!-- Status badge -->
@@ -247,12 +247,12 @@ class PeopleApp {
         </div>
         `
           : ""}
-        <div class=" bg-gray-100 relative flex items-center justify-center">
+        <div class=" bg-gray-100 rounded-lg relative flex items-center justify-center">
           <img
             src="${avatarUrl}"
             alt="${displayName}"
             style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
-            class="transition-transform duration-200 group-hover:scale-105"
+            class="transition-transform rounded-lg duration-200 group-hover:scale-105"
             onerror="this.src='./assets/sample_place_bg.jpg'; this.classList.add('opacity-75')"
             loading="lazy"
           />
