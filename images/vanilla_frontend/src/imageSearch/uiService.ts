@@ -852,9 +852,10 @@ export class UIService {
 
       // Check if we're already on the person photos page
       const currentPath = window.location.pathname;
-      const targetUrl = `/person-photos.html?id=${encodeURIComponent(
-        personId
-      )}`;
+      // const targetUrl = `/person-photos.html?id=${encodeURIComponent(
+      //   personId
+      // )}`;
+      const targetUrl = `/image-search.html?person=${encodeURIComponent(personId)}`;
 
       if (currentPath.includes("person-photos.html")) {
         // We're already on person photos page, need to reload with new person ID
