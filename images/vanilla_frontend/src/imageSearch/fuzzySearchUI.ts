@@ -511,8 +511,8 @@ export class FuzzySearchUI {
     }
 
     if (!this.selectedFilters[attribute].includes(value)) {
-      // If attribute is query, replace it
-      if (attribute === "query") {
+      // If attribute is query or resource_directory replace it
+      if (attribute === "query" || attribute === "resource_directory") {
         this.selectedFilters[attribute] = [value];
       } else {
         this.selectedFilters[attribute].push(value);
