@@ -68,6 +68,16 @@ export class ImageModalComponent {
             </svg>
           </button>
           <button
+            id="modal-info-btn"
+            class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
+            title="Show Info"
+            aria-label="Show info overlay"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+            </svg>
+          </button>
+          <button
             id="modal-fullscreen-btn"
             class="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
             title="Fullscreen View"
@@ -146,35 +156,31 @@ export class ImageModalComponent {
         </div>
         <!-- Modal content -->
         <div class="flex-1 h-full">
-          <div class="flex h-full flex-row">
-          <!-- Image container -->
-          <div
-            class="flex-1 flex justify-center bg-gradient-to-br from-gray-50 to-gray-100"
-          >
-            <img
-            id="modal-image"
-            height=""
-            width=""
-            src=""
-            alt=""
-            class="h-auto w-auto max-h-full max-w-full rounded-lg object-contain"
-            style="height: 100vh;"
-            />
-          </div>
-          <!-- Metadata sidebar -->
-          <div
-            class="w-full lg:w-80 xl:w-96 border-l border-gray-200 overflow-y-auto bg-white"
-          >
-            <div class="p-6 space-y-6">
-            <div
-              id="modal-filename"
-              class="text-sm font-semibold text-gray-900 break-all bg-gray-50 p-3 rounded-lg border border-gray-200"
-            ></div>
-            <div id="modal-metadata" class="space-y-4">
-              <!-- Metadata will be populated here -->
+          <div class="flex h-full flex-row" id="modal-main-row">
+            <!-- Image container -->
+            <div id="modal-image-wrapper" class="flex-1 flex justify-center items-center bg-gradient-to-br from-gray-50 to-gray-100 transition-all duration-300">
+              <img
+                id="modal-image"
+                height=""
+                width=""
+                src=""
+                alt=""
+                class="h-auto w-auto max-h-full max-w-full object-contain"
+                style="height: 100vh;"
+              />
             </div>
-            </div>
-          </div>
+            <!-- Metadata sidebar (hidden by default) -->
+            <aside id="modal-sidebar" class="relative h-full w-0 overflow-hidden bg-white border-l border-gray-200 flex flex-col transition-all duration-300 ease-out" aria-label="Image details" aria-hidden="true">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white/70 backdrop-blur-sm">
+                <h4 class="text-sm font-semibold text-gray-700">Details</h4>
+                <button id="modal-info-close-btn" class="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition" title="Close" aria-label="Close details">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+              <div class="flex-1 p-6 overflow-y-auto" id="modal-metadata-scroll">
+                <div id="modal-metadata" class="space-y-4 pb-8"></div>
+              </div>
+            </aside>
           </div>
         </div>
         </div>
@@ -212,20 +218,29 @@ export class ImageModalComponent {
       .animate-in {
         animation: fade-in 0.3s ease-out;
       }
-      /* Custom scrollbar for metadata sidebar */
-      #modal-metadata::-webkit-scrollbar {
-        width: 6px;
+      /* Sidebar transition states */
+      #modal-sidebar { max-width: 24rem; }
+      #image-modal.info-open #modal-sidebar { width: 24rem; }
+      #image-modal.info-open #modal-sidebar[aria-hidden="true"] { aria-hidden: false; }
+      /* Content fade */
+      #modal-sidebar > * { opacity: 0; transition: opacity .2s ease .1s; }
+      #image-modal.info-open #modal-sidebar > * { opacity: 1; }
+      /* Adjust image area when sidebar open */
+      #image-modal.info-open #modal-image-wrapper { }
+      @media (max-width: 640px) {
+        /* On small screens, make sidebar overlay instead of shrinking image too small */
+        #modal-sidebar { position: absolute; right:0; top:0; bottom:0; box-shadow: -2px 0 8px rgba(0,0,0,0.08); }
+        #modal-main-row { position: relative; }
+        #image-modal.info-open #modal-sidebar { width: 80%; max-width: 24rem; }
       }
-      #modal-metadata::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      #modal-metadata::-webkit-scrollbar-thumb {
-        background: rgba(156, 163, 175, 0.5);
-        border-radius: 3px;
-      }
-      #modal-metadata::-webkit-scrollbar-thumb:hover {
-        background: rgba(156, 163, 175, 0.8);
-      }
+  #modal-metadata-overlay::-webkit-scrollbar { width: 6px; }
+  #modal-metadata-overlay::-webkit-scrollbar-thumb { background: rgba(156,163,175,0.5); border-radius: 3px; }
+  #modal-metadata-overlay::-webkit-scrollbar-thumb:hover { background: rgba(156,163,175,0.8); }
+  /* Scrollbar for metadata list */
+  #modal-metadata::-webkit-scrollbar { width: 6px; }
+  #modal-metadata::-webkit-scrollbar-track { background: transparent; }
+  #modal-metadata::-webkit-scrollbar-thumb { background: rgba(156,163,175,0.5); border-radius: 3px; }
+  #modal-metadata::-webkit-scrollbar-thumb:hover { background: rgba(156,163,175,0.8); }
     `;
   }
 
@@ -248,6 +263,37 @@ export class ImageModalComponent {
       styleEl.id = "image-modal-styles";
       styleEl.textContent = this.getStyles();
       document.head.appendChild(styleEl);
+    }
+
+    // Metadata overlay toggle logic
+    const infoBtn = document.getElementById("modal-info-btn");
+    const sidebar = document.getElementById("modal-sidebar");
+    const closeInfoBtn = document.getElementById("modal-info-close-btn");
+    const modalRoot = document.getElementById("image-modal");
+    if (infoBtn && sidebar && modalRoot) {
+      const isOpen = () => modalRoot.classList.contains("info-open");
+      const hide = () => {
+        modalRoot.classList.remove("info-open");
+        sidebar.setAttribute("aria-hidden", "true");
+        infoBtn.setAttribute("title", "Show Info");
+        infoBtn.setAttribute("aria-label", "Show info sidebar");
+      };
+      const show = () => {
+        modalRoot.classList.add("info-open");
+        sidebar.setAttribute("aria-hidden", "false");
+        infoBtn.setAttribute("title", "Hide Info");
+        infoBtn.setAttribute("aria-label", "Hide info sidebar");
+      };
+      infoBtn.addEventListener("click", () => { isOpen() ? hide() : show(); });
+      closeInfoBtn?.addEventListener("click", hide);
+      document.addEventListener("click", (e) => {
+        if (!isOpen()) return;
+        if (!(e.target instanceof Element)) return;
+        if (sidebar.contains(e.target) || infoBtn.contains(e.target)) return;
+        // Only hide on outside click for small screens where sidebar overlays
+        if (window.matchMedia('(max-width: 640px)').matches) hide();
+      });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && isOpen()) hide(); });
     }
   }
 }

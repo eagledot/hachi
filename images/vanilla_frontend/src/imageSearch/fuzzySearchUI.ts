@@ -109,7 +109,7 @@ export class FuzzySearchUI {
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
-                  class="relative border-2 border-gray-200 rounded-xl focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50 transition-all duration-300 bg-white flex items-center h-12 sm:h-14 shadow-lg hover:shadow-xl group overflow-hidden"
+                  class="relative border-2 border-gray-200 rounded-xl focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50 transition-all duration-300 bg-white flex items-center h-12 sm:h-14 group overflow-hidden"
                   style="padding-right:0;"
                 >
                   <!-- Search Icon -->
@@ -578,7 +578,7 @@ export class FuzzySearchUI {
             return `
             <div class="flex items-center px-3 py-2 rounded-2xl border-2 ${color} hover:shadow-xl cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
               <span class="mr-2 sm:mr-3 text-sm sm:text-base">${icon}</span>
-              <span class="text-sm font-bold truncate max-w-[120px] sm:max-w-none">${value}</span>
+              <span class="text-sm font-semibold truncate max-w-[120px] sm:max-w-none">${value}</span>
               <button class="ml-2 sm:ml-3 text-current opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-40 rounded-full p-1.5 transition-all duration-300 remove-filter-btn hover:scale-110 active:scale-90" data-attribute="${attribute}" data-value="${value}">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>

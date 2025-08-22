@@ -19,7 +19,7 @@ export class UIService {
   private modalFullscreenBtn!: HTMLButtonElement;
   private modalLikeBtn!: HTMLButtonElement;
   private modalFacesBtn!: HTMLButtonElement;
-  private modalFilename!: HTMLElement;
+  private modalTitleEl!: HTMLElement;
   private currentFullImageLoader: HTMLImageElement | null = null; // Track current image loader
   private showScores = false; // Flag to control score display in photo grid
   // Efficient photo grid management - optimized for pagination
@@ -97,8 +97,8 @@ export class UIService {
     this.modalFacesBtn = document.querySelector(
       "#modal-faces-btn"
     ) as HTMLButtonElement;
-    this.modalFilename = document.querySelector(
-      "#modal-filename"
+    this.modalTitleEl = document.querySelector(
+      "#modal-title"
     ) as HTMLElement;
     if (!this.photoGrid) {
       throw new Error("Required UI elements not found");
@@ -460,7 +460,7 @@ export class UIService {
 
     this.updateModalMetadata(photo);
     this.updateModalNavigation(canGoPrevious, canGoNext);
-    this.updateModalFilename(photo);
+  this.updateModalTitle(photo);
     document.body.style.overflow = "hidden";
   }
 
@@ -766,15 +766,9 @@ export class UIService {
   /**
    * Updates modal filename display
    */
-  private updateModalFilename(photo: HachiImageData): void {
-    if (!this.modalFilename) return;
-
-    if (photo.metadata?.filename) {
-      this.modalFilename.textContent = photo.metadata.filename;
-      this.modalFilename.classList.remove("hidden");
-    } else {
-      this.modalFilename.classList.add("hidden");
-    }
+  private updateModalTitle(photo: HachiImageData): void {
+    if (!this.modalTitleEl) return;
+    this.modalTitleEl.textContent = photo.metadata?.filename || "Image";
   }
 
   /**
