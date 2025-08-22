@@ -11,6 +11,7 @@ import {
 import { PaginationComponent } from "./components/pagination";
 import { fitTiles } from "./utils";
 import PhotoFilterSidebar from "./components/photoFilterSidebar";
+import { endpoints } from "./config";
 
 class ImageSearchApp {
   private searchService: SearchService;
@@ -34,6 +35,8 @@ class ImageSearchApp {
   private imageWidth = 0; // Width of each photo in the grid
   private photoFilterSidebar: PhotoFilterSidebar | null = null;
 
+  private preloadedData: Record<number, HachiImageData[]> = {};
+  private imagePreloadCache: Map<string, HTMLImageElement> = new Map();
 
   private findGallerySize() {
     // Get the window height
@@ -285,15 +288,56 @@ class ImageSearchApp {
         (this.currentPage + 1) * this.resultsPerPage
       );
     } else {
-      this.displayedPhotos = await this.searchService.fetchSearchResults(
-        this.queryToken,
-        this.currentPage
-      );
+      if (!this.preloadedData[this.currentPage]) {
+        console.log(
+          `Fetching search results for page ${this.currentPage} with token ${this.queryToken}`
+        );
+        this.displayedPhotos = await this.searchService.fetchSearchResults(
+          this.queryToken,
+          this.currentPage
+        );
+        if (!this.preloadedData[this.currentPage]) {
+          this.preloadedData[this.currentPage] = this.displayedPhotos;
+        }
+      } else {
+        this.displayedPhotos = this.preloadedData[this.currentPage];
+      }
     }
     console.log("Displayed photos updated:", this.displayedPhotos.length);
     this.toggleFilterContainer(this.displayedPhotos.length > 0);
     this.renderDisplayedPhotos();
     window.scrollTo({ top: 0 });
+    window.requestIdleCallback(() => {
+      this.preloadData();
+    });
+  }
+
+  private async preloadData() {
+    // TODO: Need a cache eviction strategy
+    const nextPageNumber = this.currentPage + 1;
+    if (nextPageNumber >= this.totalPages) return;
+    if (!this.preloadedData[nextPageNumber]) {
+      this.preloadedData[nextPageNumber] = await this.searchService.fetchSearchResults(
+        this.queryToken,
+        nextPageNumber
+      );
+    }
+    await this.preloadImagesForPage(nextPageNumber);
+  }
+
+  private async preloadImagesForPage(pageId: number): Promise<void> {
+    const imageData = this.preloadedData[pageId];
+    if (!imageData) return;
+
+    imageData.forEach((photo) => {
+      if (!this.imagePreloadCache.has(photo.id)) {
+        const img = new Image();
+        img.decoding = "async";
+        img.loading = "eager"; // Eager fetch
+        img.src = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
+        this.imagePreloadCache.set(photo.id, img);
+      }
+    });
   }
 
   /**

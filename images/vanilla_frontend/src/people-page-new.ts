@@ -17,13 +17,16 @@ interface Person {
 
 class PeopleApp {
   private people: Person[] = [];
-
+  private totalPages = 0;
   // Paginatiom
   private itemsPerPage = 10;
   private currentPage = 0;
   private paginationComponent: PaginationComponent | null = null;
   private imageHeight = 0;
   private imageWidth = 0;
+
+  // Cache of preloaded images to avoid duplicate network fetches
+  private imagePreloadCache: Map<string, HTMLImageElement> = new Map();
 
   private paginationContainerElement: HTMLElement | null = null;
 
@@ -89,6 +92,7 @@ class PeopleApp {
       const data: string[] = await response.json();
       this.people = data.map((id) => ({ id }));
       console.log(this.people);
+      this.totalPages = Math.ceil(this.people.length / this.itemsPerPage);
     } catch (error) {
       console.error("Error loading people:", error);
       // TODO: Show some error to the user
@@ -118,9 +122,10 @@ class PeopleApp {
       // Similarly for avatarNameMobile
       const avatarNameMobileEl = card.querySelector(".avatar-name-mobile");
       if (avatarNameMobileEl) {
-        avatarNameMobileEl.textContent = displayName.length > 8
-          ? displayName.substring(0, 8) + "..."
-          : displayName;
+        avatarNameMobileEl.textContent =
+          displayName.length > 8
+            ? displayName.substring(0, 8) + "..."
+            : displayName;
       }
     } else {
       // If not auto-detected, set its visibility style to "hidden"
@@ -172,21 +177,36 @@ class PeopleApp {
         class="group duration-200 cursor-pointer relative active:scale-98"
       >
         <!-- Status badge -->
-          <div style='${hasCustomName ? "visibility: visible;" : "visibility: hidden;"}' class="badge absolute top-1 sm:top-2 right-1 sm:right-2 z-10">
-            <span
-              class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+        <div
+          style="${hasCustomName
+            ? "visibility: visible;"
+            : "visibility: hidden;"}"
+          class="badge absolute top-1 sm:top-2 right-1 sm:right-2 z-10"
+        >
+          <span
+            class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+          >
+            <svg
+              class="w-2 h-2 sm:w-2.5 sm:h-2.5 mr-1"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              <svg class="w-2 h-2 sm:w-2.5 sm:h-2.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-              </svg>
-              <span class="hidden avatar-name sm:inline">${person.id}</span>
-              <span class="sm:hidden avatar-name-mobile">${
-                person.id.length > 8
-                  ? person.id.substring(0, 8) + "..."
-                  : person.id
-              }</span>
-            </span>
-          </div>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              ></path>
+            </svg>
+            <span class="hidden avatar-name sm:inline">${person.id}</span>
+            <span class="sm:hidden avatar-name-mobile"
+              >${person.id.length > 8
+                ? person.id.substring(0, 8) + "..."
+                : person.id}</span
+            >
+          </span>
+        </div>
         <div class="bg-gray-100 relative flex items-center justify-center">
           <img
             src="${avatarUrl}"
@@ -318,10 +338,12 @@ class PeopleApp {
     }
   }
 
-  public editPersonName(event: Event) {
+  // Use arrow functions so 'this' stays bound to the PeopleApp instance when used as event listeners
+  public editPersonName = (event: Event) => {
     event.stopPropagation();
     const target = event.target as HTMLElement;
-    const personId = (target.closest(".person-card") as HTMLElement | null)?.dataset.personId;
+    const personId = (target.closest(".person-card") as HTMLElement | null)
+      ?.dataset.personId;
     if (!personId) return;
 
     const person = this.people.find((p) => p.id === personId);
@@ -348,7 +370,7 @@ class PeopleApp {
           this.showError("Failed to rename person. Please try again.");
         });
     }
-  }
+  };
 
   private async renamePersonGlobally(
     oldPersonId: string,
@@ -388,19 +410,19 @@ class PeopleApp {
     )}`;
   }
 
-  public handlePersonClick(event: Event) {
+  public handlePersonClick = (event: Event) => {
     event.stopPropagation();
     const target = event.target as HTMLElement;
-    const personId = (target.closest(".person-card") as HTMLElement | null)?.dataset.personId;
+    const personId = (target.closest(".person-card") as HTMLElement | null)
+      ?.dataset.personId;
     if (personId) {
-      this.saveScrollPosition(window.scrollY);
       // Pass current page in URL for back navigation
       const urlParams = new URLSearchParams(window.location.search);
       urlParams.set("page", (this.currentPage + 1).toString());
       // window.location.href = `/person-photos.html?id=${encodeURIComponent(personId)}`;
       window.location.href = `/image-search.html?person=${personId}`;
     }
-  }
+  };
 
   private async renderPeople() {
     const grid = document.getElementById("people-cards");
@@ -434,23 +456,27 @@ class PeopleApp {
       // If the card has person data, then update else re-render
       if (card.dataset.personId) {
         this.updatePersonCard(card, person);
-
       } else {
         card.innerHTML = this.renderPersonCard(person);
         // Add event listener for person card click
-        card.addEventListener("click", (event) => this.handlePersonClick(event));
+        card.addEventListener("click", (event) =>
+          this.handlePersonClick(event)
+        );
         // Also for person details button
         const personDetailsBtn = card.querySelector(".person-details-btn");
         if (personDetailsBtn) {
-          personDetailsBtn.addEventListener("click", (event) => this.handlePersonClick(event));
+          personDetailsBtn.addEventListener("click", (event) =>
+            this.handlePersonClick(event)
+          );
         }
         const personEditBtn = card.querySelector(".person-edit-btn");
         if (personEditBtn) {
-          personEditBtn.addEventListener("click", (event) => this.editPersonName(event));
+          personEditBtn.addEventListener("click", (event) =>
+            this.editPersonName(event)
+          );
         }
       }
       card.dataset.personId = person.id;
-      
     }
 
     // First make extra cards invisible
@@ -460,6 +486,9 @@ class PeopleApp {
       delete card.dataset.personId;
     }
     this.updatePageInUrl();
+
+    // After rendering, schedule preload of adjacent pages to make navigation smoother
+    this.schedulePreloadAdjacent();
   }
 
   // --- Pagination State in URL ---
@@ -469,15 +498,39 @@ class PeopleApp {
     window.history.pushState({}, "", url.toString()); // Update the browser's URL without reloading
   }
 
-  // --- Scroll Position Persistence ---
-  private saveScrollPosition(pos: number) {
-    try {
-      // Should I use sessionStorage or localStorage?
-      sessionStorage.setItem("peoplePageScroll", String(pos));
-    } catch {
-      console.error("Failed to save scroll position:", pos);
+  // --- Image Preloading for Smooth Pagination ---
+  private preloadPage(pageIndex: number) {
+    if (pageIndex < 0 || pageIndex >= this.totalPages) return;
+    const start = pageIndex * this.itemsPerPage;
+    if (start >= this.people.length) return;
+    const end = Math.min(start + this.itemsPerPage, this.people.length);
+    const slice = this.people.slice(start, end);
+
+    for (const p of slice) {
+      const url = `${endpoints.GET_PERSON_IMAGE}/${p.id}`;
+      if (this.imagePreloadCache.has(p.id)) continue; // already preloaded. TODO: implement cache eviction strategy
+      const img = new Image();
+      img.decoding = "async";
+      img.loading = "eager";
+      img.src = url;
+      this.imagePreloadCache.set(p.id, img);
     }
   }
+
+  private schedulePreloadAdjacent() {
+    const nextPage = this.currentPage + 1;
+    const prevPage = this.currentPage - 1; // warm previous for quick back nav
+    const task = () => {
+        this.preloadPage(nextPage);
+        this.preloadPage(prevPage);
+    };
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(task, { timeout: 120 });
+    } else {
+      setTimeout(task, 120);
+    }
+  }
+
 
   private setupPagination() {
     if (!this.paginationContainerElement) return;
@@ -492,7 +545,6 @@ class PeopleApp {
         this.updatePageInUrl();
         this.renderPeople();
         window.scrollTo({ top: 0 });
-        this.saveScrollPosition(0);
       },
     });
   }
