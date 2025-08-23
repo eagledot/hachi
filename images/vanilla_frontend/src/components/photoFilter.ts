@@ -1501,7 +1501,7 @@ export class PhotoFilterComponent {
   /**
    * Apply current filters to photos
    */
-  private async applyFilters(isInitialLoad: boolean = false): Promise<void> {
+  private async applyFilters(): Promise<void> {
     console.log("Applying filters...");
 
     // If we have a query token and user has selected filters, use server-side filtering
