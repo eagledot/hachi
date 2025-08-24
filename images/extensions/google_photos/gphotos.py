@@ -54,7 +54,7 @@ def read_gClient_secret(password:Optional[str] = None) -> Dict:
 
 def write_gClient_credentials(credentials:Dict, password:Optional[str] = None):
     with open(CREDENTIALS_PATH, "w") as f:
-        assert "refresh_token" in credentials
+        # assert "refresh_token" in credentials
         credentials["expires_at"] = int(time.time() + float(credentials["expires_in"])) # add another field.
         return json.dump(credentials, f)
 
@@ -91,7 +91,7 @@ class GooglePhotos(object):
             return  # indicates dummy initialization.       
         
         self.credentials = read_gClient_credentials()
-        assert "refresh_token" in self.credentials
+        # assert "refresh_token" in self.credentials
         assert "access_token" in self.credentials
 
         temp = read_gClient_secret()
@@ -110,7 +110,7 @@ class GooglePhotos(object):
                 "client_id_available":False
             }
             if hasattr(self, "credentials"):
-                assert "refresh_token" in self.credentials
+                # assert "refresh_token" in self.credentials
                 result["client_id"] = self.credentials["client_id"]
                 result["is_activated"] = True
                 result["client_id_available"] = True

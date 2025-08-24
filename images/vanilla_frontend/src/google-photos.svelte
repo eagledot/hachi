@@ -129,7 +129,7 @@
   }
 </script>
 
-<div class="w-full flex justify-center px-4">
+<div class="w-full flex items-center h-screen justify-center px-4">
   <div class="w-full max-w-2xl space-y-6">
     {#if gClientInfo$}
       <div
