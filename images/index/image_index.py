@@ -14,7 +14,10 @@ import math
 
 import numpy as np
 
-from .sharding import CommonIndex
+try:
+    from .sharding import CommonIndex
+except:
+    from sharding import CommonIndex
 
 class ImageIndex(CommonIndex):
     def __init__(self, shard_size = IMAGE_SHARD_SIZE, embedding_size = IMAGE_EMBEDDING_SIZE, index_directory= IMAGE_INDEX_DIRECTORY, shard_prefix = SHARD_PREFIX, preload:bool = True) -> None:
