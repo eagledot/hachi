@@ -181,7 +181,7 @@ class FaceIndex(object):
         (bboxes, embeddings, landmarks, matrices) = pipeline.detect_embedding(frame, is_bgr = is_bgr, conf_threshold = self.confidence)
         
         n_bboxes = bboxes.shape[0]
-        print("N faces: {}".format(n_bboxes))
+        # print("N faces: {}".format(n_bboxes))
         for i in range(n_bboxes):
             matrix = matrices[i] # original transformation matrix(from new -> old coordinates)
             landmark =  landmarks[i]
