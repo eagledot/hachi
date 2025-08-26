@@ -150,8 +150,10 @@ class FaceIndex(object):
         
         # NOTE: eyes on disk are supposed to be shape (12, 48), collected from aligned face (112, 112) gray image.
         reference_eyes_paths = [
-                os.path.join(self.reference_data_path,"reference_eyes_alia.txt"), 
-                os.path.join(self.reference_data_path, "reference_eyes_kk.txt")
+                # os.path.join(self.reference_data_path,"reference_eyes_alia.txt"), 
+                os.path.join(self.reference_data_path, "reference_eyes_kk.txt"),
+                os.path.join(self.reference_data_path, "reference_eyes_pexels_1.txt"),
+                os.path.join(self.reference_data_path, "reference_eyes_pexels_2.txt")        
                 ]
 
         self.reference_hog_images = []
@@ -185,9 +187,11 @@ class FaceIndex(object):
         for i in range(n_bboxes):
             matrix = matrices[i] # original transformation matrix(from new -> old coordinates)
             landmark =  landmarks[i]
-                
-            new_face = collect_aligned_faces(frame = frame[:,:,::-1], matrix = matrix)
-            flag, eyes, _ = collect_eyes(new_face, matrix = matrix, landmarks = landmark, patch_height=6)
+            
+            aligned_face = collect_aligned_faces(frame = frame, matrix = matrix)
+            # aligned_face expected to be RGB # as we multiply correponding value to make it gray!
+            flag, eyes, _ = collect_eyes(aligned_face, matrix = matrix, landmarks = landmark, patch_height=6)
+            del aligned_face
 
             feasibility = False
             if flag == True:                
@@ -213,7 +217,7 @@ class FaceIndex(object):
                 absolute_path = absolute_path,
                 face_index = i,
                 face_preview = self.__get_face_preview(
-                    frame = frame,
+                    frame = frame[:,:,::-1],  # For now using open-cv, which expects BGR. TODO: do away with open-cv atleast here!
                     bboxes = bboxes,
                     face_index = i
                 ),
