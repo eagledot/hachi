@@ -15,13 +15,6 @@ var L:Lock
 {.pragma: pyfunc, cdecl, gcsafe.}
 type PyThreadState = pointer # no need to know the internal structure.. as long as we provide right pointer to the right routine, binary world though efficient is a mean and mundane world !!!
 
-proc inc_ref_count*(obj:PyObject)=
-    let func_ptr = cast[proc(o:PPyObject):void {.pyfunc.}](pyLib.module.symAddr("Py_IncRef"))
-    func_ptr(obj.privateRawPyObj)
-
-proc dec_ref_count*(obj:PyObject)= 
-    cast[proc(o:PPyObject):void {.pyfunc.}](pyLib.module.symAddr("Py_DecRef"))(obj.privateRawPyObj)
-
 var hasGilFunc: proc(): cint {.pyfunc.} = nil
 var saveThreadStateFunc: proc(): PyThreadState {.pyfunc.} = nil
 var restoreThreadStateFunc: proc(state:PyThreadState):void {.pyfunc.} = nil
