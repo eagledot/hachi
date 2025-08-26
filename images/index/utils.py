@@ -103,73 +103,95 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     image_path = "C://users/random/pictures/netflix.png"
+    image_path = "D://akshay/rotated_photos/20250809_113005.jpg"
     image = cv2.imread(image_path)
     assert not (image is None)
 
-    height, width, channels = image.shape
-    ratio = height / width
-    preview_max_width = 640
 
-    tile_size  = 8 
-    # new_width = min(width, preview_max_width)
-    new_width = preview_max_width   # to be divisible by tile_size mostly!
-    new_height = int(ratio * new_width)
-    new_height = new_height + (tile_size - (new_height % tile_size))  # For now tiling tail logic has not been written, so we make it divisible in the first place!
-    new_height = 360
-
-    resized_image = resize(
-        image,
-        new_height = new_height,
-        new_width = new_width,
-        channel_conversion_info = ChannelConversion.BGR2BGRA,
-        tile_size = tile_size
+    # Reading image data using std_image library!
+    image_buffer = np.empty((16000, 16000, 4), dtype = np.uint8).reshape(-1)
+    (flag, h, w, c) = utils_nim.imread_from_memory(
+        open(image_path, "rb").read(),
+        image_buffer,
+        flip_vertically = False
     )
-    # plt.imshow(resized_image)
-    # plt.show() 
-    print(resized_image.shape)
 
-    encoded_data = encode_image(
-        image = resized_image,
-        color_format=ColorFormat.BGRA,
-        quality=90,
-        lossless=False,
-        meth = 2
-    )
-    with open("./test.webp", "wb") as f:
-        f.write(encoded_data)
+    plt.subplot(1,2,1)
+    image_stb = image_buffer[:h*w*c].reshape(h,w,c)
+    plt.imshow(image_stb)
+    # plt.show()
     
-    def test_extension():
-        for i in range(200):
-            print(i)
-            resized_image = resize(
-            image,
-            new_height = new_height,
-            new_width = new_width,
-            channel_conversion_info = ChannelConversion.BGR2BGRA,
-            tile_size = tile_size
-            )
+    plt.subplot(1,2,2)
+    image_tp = np.transpose(image_stb, (1,0,2)).copy() # (tranpose ~ flip vertically + 90 degree clockwise ), earlier flip negates that.. we get 90 degree clockwise!
+    plt.imshow(image_tp)
+    plt.show()
 
-            encoded_data = encode_image(
-                image = resized_image,
-                color_format=ColorFormat.BGRA,
-                quality=90,
-                lossless=False,
-                meth = 2
-            )
-            time.sleep(0.1)
-        print("xxxxxxxxxxxxxxxx")
 
-    import threading 
-    import time
-    t = threading.Thread(target = test_extension, args = ())
 
-    imread_buffer =  np.empty(shape = (12000 * 12000 * 4), dtype = np.uint8)
-    print("starting thread..")
-    t.start()
+    # height, width, channels = image.shape
+    # ratio = height / width
+    # preview_max_width = 640
 
-    while True:
-        print("yyyyyyyyyyyyyy")
-        (flag, (h,w,c)) = utils_nim.imread(image_path, imread_buffer, leave_alpha = True) # RGB , no alpha
-        print("{} x {} x {}".format(h,w,c))
-        time.sleep(0.1)
+    # tile_size  = 8 
+    # # new_width = min(width, preview_max_width)
+    # new_width = preview_max_width   # to be divisible by tile_size mostly!
+    # new_height = int(ratio * new_width)
+    # new_height = new_height + (tile_size - (new_height % tile_size))  # For now tiling tail logic has not been written, so we make it divisible in the first place!
+    # new_height = 360
+
+    # resized_image = resize(
+    #     image,
+    #     new_height = new_height,
+    #     new_width = new_width,
+    #     channel_conversion_info = ChannelConversion.BGR2BGRA,
+    #     tile_size = tile_size
+    # )
+    # # plt.imshow(resized_image)
+    # # plt.show() 
+    # print(resized_image.shape)
+
+    # encoded_data = encode_image(
+    #     image = resized_image,
+    #     color_format=ColorFormat.BGRA,
+    #     quality=90,
+    #     lossless=False,
+    #     meth = 2
+    # )
+    # with open("./test.webp", "wb") as f:
+    #     f.write(encoded_data)
+    
+    # def test_extension():
+    #     for i in range(200):
+    #         print(i)
+    #         resized_image = resize(
+    #         image,
+    #         new_height = new_height,
+    #         new_width = new_width,
+    #         channel_conversion_info = ChannelConversion.BGR2BGRA,
+    #         tile_size = tile_size
+    #         )
+
+    #         encoded_data = encode_image(
+    #             image = resized_image,
+    #             color_format=ColorFormat.BGRA,
+    #             quality=90,
+    #             lossless=False,
+    #             meth = 2
+    #         )
+    #         time.sleep(0.1)
+    #     print("xxxxxxxxxxxxxxxx")
+
+    # import threading 
+    # import time
+    # t = threading.Thread(target = test_extension, args = ())
+
+    # imread_buffer =  np.empty(shape = (12000 * 12000 * 4), dtype = np.uint8)
+    # print("starting thread..")
+    # t.start()
+
+    # while True:
+    #     print("yyyyyyyyyyyyyy")
+    #     (flag, (h,w,c)) = utils_nim.imread(image_path, imread_buffer, leave_alpha = True) # RGB , no alpha
+    #     print("{} x {} x {}".format(h,w,c))
+    #     time.sleep(0.1)
     # print("thread done..")
