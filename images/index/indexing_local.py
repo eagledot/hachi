@@ -10,12 +10,21 @@ import sys
 import traceback
 from copy import deepcopy
 
-from .meta_indexV2 import MetaIndex
-from .image_index import ImageIndex
-from .face_clustering import FaceIndex
-from .metadata import extract_image_metaData, collect_resources
-from .utils import ChannelConversion, ColorFormat, encode_image, resize
+try:
+    from .meta_indexV2 import MetaIndex
+    from .image_index import ImageIndex
+    from .face_clustering import FaceIndex
+    from .metadata import extract_image_metaData, collect_resources
+    from .utils import ChannelConversion, ColorFormat, encode_image, resize
+except:
+    sys.path.insert(0, "D://hachi/images/index")
+    from meta_indexV2 import MetaIndex
+    from image_index import ImageIndex
+    from face_clustering import FaceIndex
+    from metadata import extract_image_metaData, collect_resources, ImageMetaAttributes
+    from utils import ChannelConversion, ColorFormat, encode_image, resize
 
+sys.path.insert(0, "./nim")
 import utils_nim 
 
 import cv2   # TODO: remove dependence on opencv as we have ported almost all of required functionalities!
@@ -42,6 +51,7 @@ def generate_image_embedding(image:np.ndarray, is_bgr:bool = True, center_crop =
     if simulate:
         return np.random.uniform(size = (1, IMAGE_EMBEDDING_SIZE)).astype(np.float32)
 
+    assert image.flags.c_contiguous == True
     image_features = clip.encode_image(image, is_bgr = is_bgr, center_crop = center_crop)
     assert image_features.size == IMAGE_EMBEDDING_SIZE
     return image_features
@@ -368,49 +378,10 @@ class IndexingLocal(object):
 
             # read raw-data only once.. and share it for image-clip,face and previews
             self.profile_info.add("misc") # dummy
-
-            # Our imread from stb_image!
-            # (flag, (h,w,c)) = utils_nim.imread(resource_path, self.imread_buffer, leave_alpha = True) # RGB , no alpha
-            (flag, (h,w,c)) = utils_nim.imread_from_memory(
-                image_encoded_data, 
-                self.imread_buffer,  # NOTE: must be used sequentially.. not parallel read from it.. we create a copy!
-                leave_alpha = True) # RGB , no alpha
             
-            self.profile_info.add("imread")
-            if flag == False:
-                print("[WARNING]: Invalid data for {}".format(resource_path))
-                continue
-            if c == 1:
-                print("[WARNING]: Gray Scale TO BE HANDLED, just update the imread code..!!")
-                continue
-            frame = self.imread_buffer[:h*w*c].reshape((h,w,c))
-            # Since frame itself refers to a pre-allocated memory/buffer, so DON'T SHARE IT WITH ANOTHER THREAD WITH GIL RELEASED without some sync mechanism or create an isolated copy!
-            frame = frame.copy()  # creating a copy before passing it another thread.. so write by `imread` wouldn't affect !
-            is_bgr = False  # RGB. # TODO: revisit face indexing, i think with RGB, as input, we are generating better clusters!
-
-            # opencv imread!
-            # frame = cv2.imread(resource_path)
-            # self.profile_info.add("imread")
-            # if frame is None:
-            #     print("[WARNING]: Invalid data for {}".format(resource_path))
-            #     continue
-            # is_bgr = True
-
-            # generate image embeddings
-            self.profile_info.add("misc")
-            image_embedding = generate_image_embedding(
-                image = frame, 
-                is_bgr = is_bgr, 
-                center_crop=False,
-                simulate = self.simulate_indexing
-                )
-            self.profile_info.add("image-embedding")
-            if image_embedding is None: # TODO: it cannot be None, if image-data seemed valid!
-                print("Invalid data for {}".format(resource_path))
-                continue
-            
-            self.profile_info.add("misc")
-            meta_data = extract_image_metaData(
+            # ----------------------------------------------
+            # Meta-data extraction 
+            meta_data:ImageMetaAttributes = extract_image_metaData(
                 resource_path # TODO: even though few bytes are read, get_image_size routine, we can share the 
             )
             self.profile_info.add("extract-metadata")
@@ -426,8 +397,9 @@ class IndexingLocal(object):
             meta_data["ml_attributes"]["personML"] = ["no_person_detected"]
             meta_data["user_attributes"]["person"] = ["no_person_detected"] # by default, same value for `user Person` attribute. (ML info should be copied as it is one default, later user can make changes to it!)
             meta_data["resource_hash"] = resource_hash  # presence of this field, should indicate `is_indexed` by default!
-            # -----------------------------------------------
-
+            
+            orientation_image = meta_data["exif_attributes"]["orientation"] # [1-8] or 0 (if was no information about it!)
+            
             # TODO: on downloading of remote data, append to the meta-index.
             # downloading should be equivalent to presence of new images, hence check the hash.
             # if not indexed, append it..
@@ -437,7 +409,65 @@ class IndexingLocal(object):
             #     meta_data["remote"] = remote_meta_data  
             #     meta_data["resource_directory"] = "google_photos"
             #     meta_data["absolute_path"] = "remote"
+
+            # -----------------------------------------------
             
+            self.profile_info.add("misc")
+            # ----------------------------------------------
+            # STB image based imread (minimal library, but may handle stuff like orientation by ourselves!)
+            # Our imread from stb_image!
+            # (flag, (h,w,c)) = utils_nim.imread(resource_path, self.imread_buffer, leave_alpha = True) # RGB , no alpha
+            (flag, h,w,c) = utils_nim.imread_from_memory(
+                image_encoded_data, 
+                self.imread_buffer,  # NOTE: must be used sequentially.. not parallel read from it.. we create a copy!
+                leave_alpha = True) # RGB , no alpha
+            
+            self.profile_info.add("imread")
+            if flag == False:
+                print("[WARNING]: Invalid data for {}".format(resource_path))
+                continue
+            if c == 1:
+                print("[WARNING]: Gray Scale TO BE HANDLED, just update the imread code..!!")
+                continue
+            frame = self.imread_buffer[:h*w*c].reshape((h,w,c))
+            # Since frame itself refers to a pre-allocated memory/buffer, so DON'T SHARE IT WITH ANOTHER THREAD WITH GIL RELEASED without some sync mechanism or create an isolated copy!
+            if orientation_image != 0:
+                # NOTE: OPEN-cv handles rotation part too, by parsing exif-data, before returning the frame
+                if orientation_image == 6:
+                    # NOTE: frame must be contiguous, we calling .copy anyway !
+                    frame = frame.transpose(1,0,2) # This is enough for CW 90 degress.
+                else:
+                    print("[WARNING]: Implement a basic rotation procedure. Not rotated: {}".format(resource_path))
+
+             # Since frame itself refers to a pre-allocated memory/buffer, so DON'T SHARE IT WITH ANOTHER THREAD WITH GIL RELEASED without some sync mechanism or create an isolated copy!
+            frame = frame.copy()  # creating a copy before passing it another thread.. so write by `imread` wouldn't affect !
+            is_bgr = False  # RGB. # TODO: revisit face indexing, i think with RGB, as input, we are generating better clusters!
+            # ------------------------------------------------------
+
+            # ---------------------------------------------
+            # Alternative to std_image,  opencv imread! (handles orientation/rotation also!)
+            # -----------------------------------------
+            # frame = cv2.imread(resource_path)
+            # self.profile_info.add("imread")
+            # if frame is None:
+            #     print("[WARNING]: Invalid data for {}".format(resource_path))
+            #     continue
+            # is_bgr = True
+            # -------------------------------------
+
+            # generate image embeddings
+            self.profile_info.add("misc")
+            image_embedding = generate_image_embedding(
+                image = frame, 
+                is_bgr = is_bgr, 
+                center_crop=False,
+                simulate = self.simulate_indexing
+                )
+            self.profile_info.add("image-embedding")
+            if image_embedding is None: # TODO: it cannot be None, if image-data seemed valid!
+                print("Invalid data for {}".format(resource_path))
+                continue
+                        
             # TODO: either all should complete or no one! must be in sync!
             self.profile_info.add("misc")
             self.meta_index.update(meta_data) # TODO: append instead of update for clearer semantics!
@@ -788,3 +818,34 @@ class IndexGooglePhotos(IndexingLocal):
             self.cancelDownload()
         else:
             super().cancel()
+
+if __name__ == "__main__":
+    pass
+
+    # Running it as a script for quick testing/debugging without calling server.!
+    # THIS would be main `indexing code`.
+    IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../static", "preview_image") # letting frontend proxy like caddy, serve the previews instead...
+    IMAGE_INDEX_SHARD_SIZE = 10_000    # Good default!
+    
+    # Note: this also starrs a background thread.. in case you forget (will act as daemon even after provided root directory is finished)!
+    imageIndex = ImageIndex(shard_size = IMAGE_INDEX_SHARD_SIZE, embedding_size = IMAGE_EMBEDDING_SIZE)
+    print("Created Image index")
+
+    metaIndex = MetaIndex()
+    print("Created meta Index")
+
+    faceIndex = FaceIndex(embedding_size = FACE_EMBEDDING_SIZE)
+    print("Created Face Index")
+
+    index_obj = IndexingLocal(
+                root_dir = "D://akshay/rotated_photos",
+                image_preview_data_path = IMAGE_PREVIEW_DATA_PATH,
+                meta_index = metaIndex,
+                face_index = faceIndex,
+                semantic_index = imageIndex,
+                complete_rescan = True,
+                simulate =True,
+                batch_size = 16
+            )        
+    index_obj.begin()
+

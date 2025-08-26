@@ -172,6 +172,7 @@ EXIF_PACKAGE_MAPPING = {
             "datetime_original": "taken_at",
             "gps_latitude": "gps_latitude",
             "gps_longitude": "gps_longitude",
+            "orientation": "orientation"
         }
 # --------------------------------------------------------------------------
 # NOTE: attributes, grouping is symbolic, must not have a duplicate key among all such attributes!
@@ -234,6 +235,7 @@ class ImageExifAttributes(TypedDict):
     width:int
     height:int
     place:str
+    orientation:int  # [1-8] # 0 by default initialization! 6 means rotate clock-wise 90, could be simulated by a simple transpose! 
 
 class ResourceLocation(TypedDict):
     # enough info to retrive original file/data if required.
@@ -285,13 +287,15 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> I
                     # convert to degrees.. (From degrees, minutes, seconds)
                     temp = float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600
                     result[v] = temp
+                elif "orientation" in k:
+                    result[v] = int(temp_handle[k]) # [1-8] # over-written on default 0.
                 else:
                     result[v] = str(temp_handle[k])
             result["place"] = str(geoCodeIndex.query((result["gps_latitude"], result["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.     
             result["device"] = "{}".format(result["make"].strip() + " " + result["model"].strip())  # a single field for device.
-    except Exception:
-        pass
-        # print("[WARNING Exif extraction]: {}".format(traceback.format_exc()))
+    except Exception as e:
+        print("[Error Exif extraction]: {}".format(e.__traceback__))
+    
     try:
         width,height = get_image_size.get_image_size(resource_path)
         result["width"] = int(width)

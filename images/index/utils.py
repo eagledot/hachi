@@ -3,10 +3,14 @@ import os
 import sys
 import numpy as np
 
+# ----------------------------------------------
+# Load (Nim) Extensions and initialize some routine pointers.. to not call `symAddr` for each such call!
 sys.path.append(os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "nim"))
 import utils_nim
+utils_nim.initFuncPointers()
+# -------------------------------------
 
 # Keep it in sync with Nim corresponding enums, comes from resize.nim!
 class ChannelConversion(Enum):

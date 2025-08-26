@@ -12,8 +12,12 @@ import os
 import uuid
 import json
 
-from .face_utils import collect_aligned_faces, collect_eyes, compare_hog_image, compare_face_embedding
-from .hog import get_hog_image
+try:
+    from .face_utils import collect_aligned_faces, collect_eyes, compare_hog_image, compare_face_embedding
+    from .hog import get_hog_image
+except:
+    from face_utils import collect_aligned_faces, collect_eyes, compare_hog_image, compare_face_embedding
+    from hog import get_hog_image
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ml"))
@@ -146,8 +150,10 @@ class FaceIndex(object):
         
         # NOTE: eyes on disk are supposed to be shape (12, 48), collected from aligned face (112, 112) gray image.
         reference_eyes_paths = [
-                os.path.join(self.reference_data_path,"reference_eyes_alia.txt"), 
-                os.path.join(self.reference_data_path, "reference_eyes_kk.txt")
+                # os.path.join(self.reference_data_path,"reference_eyes_alia.txt"), 
+                os.path.join(self.reference_data_path, "reference_eyes_kk.txt"),
+                os.path.join(self.reference_data_path, "reference_eyes_pexels_1.txt"),
+                os.path.join(self.reference_data_path, "reference_eyes_pexels_2.txt")        
                 ]
 
         self.reference_hog_images = []
@@ -177,12 +183,15 @@ class FaceIndex(object):
         (bboxes, embeddings, landmarks, matrices) = pipeline.detect_embedding(frame, is_bgr = is_bgr, conf_threshold = self.confidence)
         
         n_bboxes = bboxes.shape[0]
+        # print("N faces: {}".format(n_bboxes))
         for i in range(n_bboxes):
             matrix = matrices[i] # original transformation matrix(from new -> old coordinates)
             landmark =  landmarks[i]
-                
-            new_face = collect_aligned_faces(frame = frame[:,:,::-1], matrix = matrix)
-            flag, eyes, _ = collect_eyes(new_face, matrix = matrix, landmarks = landmark, patch_height=6)
+            
+            aligned_face = collect_aligned_faces(frame = frame, matrix = matrix)
+            # aligned_face expected to be RGB # as we multiply correponding value to make it gray!
+            flag, eyes, _ = collect_eyes(aligned_face, matrix = matrix, landmarks = landmark, patch_height=6)
+            del aligned_face
 
             feasibility = False
             if flag == True:                
@@ -208,7 +217,7 @@ class FaceIndex(object):
                 absolute_path = absolute_path,
                 face_index = i,
                 face_preview = self.__get_face_preview(
-                    frame = frame,
+                    frame = frame[:,:,::-1],  # For now using open-cv, which expects BGR. TODO: do away with open-cv atleast here!
                     bboxes = bboxes,
                     face_index = i
                 ),
@@ -368,16 +377,18 @@ class FaceIndex(object):
         to_delete_ids = []
         for follower_id in follower_ids:
             
-            id_scores = []
-            for i,c in enumerate(temp_clusters):
-                id_scores.append((i, compare_face_embedding(c.master_embeddings[0], self.embeddings_storage[follower_id]))) # just pick one master embedding.
-            
-            sorted_clusterId_scores = sorted(id_scores, key = lambda x: x[1], reverse = False)
-            cluster_id, lowest_score  = sorted_clusterId_scores[0][0], sorted_clusterId_scores[0][1]
-            if lowest_score <= self.max_threshold_possible:  # relaxed threshold.
-                temp_clusters[cluster_id].resource_hashes.add(self.aux_data[follower_id].resource_hash)
-                to_delete_ids.append(follower_id)
-            del follower_id, id_scores
+            if len(temp_clusters) > 0:
+                # Sometimes possible not strong master-embeddings for to generate even a single cluster!
+                id_scores = []
+                for i,c in enumerate(temp_clusters):
+                    id_scores.append((i, compare_face_embedding(c.master_embeddings[0], self.embeddings_storage[follower_id]))) # just pick one master embedding.
+                
+                sorted_clusterId_scores = sorted(id_scores, key = lambda x: x[1], reverse = False)
+                cluster_id, lowest_score  = sorted_clusterId_scores[0][0], sorted_clusterId_scores[0][1]
+                if lowest_score <= self.max_threshold_possible:  # relaxed threshold.
+                    temp_clusters[cluster_id].resource_hashes.add(self.aux_data[follower_id].resource_hash)
+                    to_delete_ids.append(follower_id)
+                del follower_id, id_scores
         
         for idx in to_delete_ids:
             follower_ids.remove(idx)
