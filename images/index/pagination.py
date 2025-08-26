@@ -53,7 +53,6 @@ class PaginationCache(object):
             self,
             token:str
     ) -> int:
-        print(self.__data.keys())
         return len(self.__data[token])
     
     def remove(
