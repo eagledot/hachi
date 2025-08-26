@@ -36,7 +36,7 @@ proc initFuncPointers*()=
     incRefCountFunc = cast[proc(o:PPyObject):void {.pyfunc.}](pyLib.module.symAddr("Py_IncRef"))
     decRefCountFunc = cast[proc(o:PPyObject):void {.pyfunc.}](pyLib.module.symAddr("Py_DecRef"))
 
-    is_initialzed = true
+    is_initialized = true
     echo "Done initing func pointers.."
 
 proc has_gil*():bool = 
