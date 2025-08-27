@@ -103,6 +103,7 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     image_path = "C://users/random/pictures/netflix.png"
+    image_path = "D://akshay/jim_6900/jim_6900.jpg"
     image_path = "D://akshay/rotated_photos/20250809_113005.jpg"
     image = cv2.imread(image_path)
     assert not (image is None)
@@ -122,7 +123,8 @@ if __name__ == "__main__":
     # plt.show()
     
     plt.subplot(1,2,2)
-    image_tp = np.transpose(image_stb, (1,0,2)).copy() # (tranpose ~ flip vertically + 90 degree clockwise ), earlier flip negates that.. we get 90 degree clockwise!
+    image_tp = np.rot90(image_stb, k = 1, axes = (1,0)).copy()
+    # image_tp = np.transpose(image_stb, (1,0,2)).copy() # (tranpose ~ flip vertically + 90 degree clockwise ), earlier flip negates that.. we get 90 degree clockwise!
     plt.imshow(image_tp)
     plt.show()
 
