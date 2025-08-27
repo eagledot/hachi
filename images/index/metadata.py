@@ -226,6 +226,8 @@ def populate_default_dict(class_typeddict, dummy_data:bool = False):
     return result
 
 class ImageExifAttributes(TypedDict):
+    # NOTE: a bit carefult that types are matched or force-match them, when finished collecting exif data!
+    # otherwise backend may complain for mismatched-column type!
     taken_at:str 
     gps_latitude:float
     gps_longitude:float
@@ -278,23 +280,46 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> I
     # NOTE: `result` is supposed to contain default values, we overwrite them if and when exif-attributes are available!
 
     # Get exif data!    
-    try:
-        # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
-        temp_handle = ImageExif(resource_path)
-        if temp_handle.has_exif:
-            for k,v in EXIF_PACKAGE_MAPPING.items():
-                if "gps" in k:
-                    # convert to degrees.. (From degrees, minutes, seconds)
-                    temp = float(temp_handle[k][0]) + float(temp_handle[k][1])/60 + float(temp_handle[k][2])/3600
-                    result[v] = temp
-                elif "orientation" in k:
-                    result[v] = int(temp_handle[k]) # [1-8] # over-written on default 0.
+    # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
+    temp_handle = ImageExif(resource_path)
+    if temp_handle.has_exif:
+        image_attributes = set(temp_handle.list_all())
+        desired_attributes = set(EXIF_PACKAGE_MAPPING.keys())
+        lifeGivesYou_attributes = image_attributes.intersection(desired_attributes)
+        for attr in lifeGivesYou_attributes:
+            corresponding_name = EXIF_PACKAGE_MAPPING[attr]
+            try:
+                attr_value = temp_handle[attr]
+                if isinstance(attr_value, Enum):
+                    result[corresponding_name] = int(attr_value.value)
                 else:
-                    result[v] = str(temp_handle[k])
-            result["place"] = str(geoCodeIndex.query((result["gps_latitude"], result["gps_longitude"]))).lower() # get nearest city/country based on the gps coordinates if available.     
-            result["device"] = "{}".format(result["make"].strip() + " " + result["model"].strip())  # a single field for device.
-    except Exception as e:
-        print("[Error Exif extraction]: {}".format(e.__traceback__))
+                    result[corresponding_name] = str(attr_value)
+            except Exception as e:
+                # It is possible, could not find corresponding data for some tags, even after initially detected or parsing error!
+                print("[Warning Exif]: {}".format(e))
+    
+        # sort out place.
+        if "gps_latitude" in lifeGivesYou_attributes and "gps_longitude" in lifeGivesYou_attributes:
+            try:
+                gps_lat = float(temp_handle["gps_latitude"][0]) + float(temp_handle["gps_latitude"][1])/60 + float(temp_handle["gps_latitude"][2])/3600
+                gps_long = float(temp_handle["gps_longitude"][0]) + float(temp_handle["gps_longitude"][1])/60 + float(temp_handle["gps_longitude"][2])/3600
+                # overwrite the place..
+                result["gps_latitude"] = float(gps_lat) # we make sure float values indeed!
+                result["gps_longitude"] = float(gps_long)
+                result["place"] = str(geoCodeIndex.query((gps_lat, gps_long))).lower() # get nearest city/country based on the gps coordinates if available.     
+            except Exception as e:
+                # It is possible, could not find corresponding data for gps tags, even after initially detected or parsing error!
+                print("[ERROR GPS coordinates extraction Exif]: {}".format(e))
+                # float is expected for gps coordinates!
+                result["gps_latitude"] = float(0)
+                result["gps_longitude"] = float(0)
+        # sort out device.
+        try:
+            if "make" or "model" in lifeGivesYou_attributes:
+                result["device"] = "{} {}".format(result["make"], result["model"]).strip().lower()
+        except Exception as e:
+            # It is possible, could not find corresponding data for make/model tags, even after initially detected or parsing error!
+            print("[ERROR Make/model extraction Exif]: {}".format(e))
     
     try:
         width,height = get_image_size.get_image_size(resource_path)
