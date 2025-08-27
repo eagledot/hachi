@@ -389,78 +389,81 @@ export class IndexingComponent {
   }
 
   // --- API/Service Calls ---
-  private async startIndexing() {
-    const { identifier, uri, location } = this.state.value;
+  private async startIndexing() { // Initiates the indexing (scan) process
+    const { identifier, uri, location } = this.state.value; // Destructure current selection state
     
-    if (!identifier || identifier === "" || identifier === "none") {
-      this.setState({ error: "Please choose a folder or connect a cloud service." });
-      return;
+    if (!identifier || identifier === "" || identifier === "none") { // Validate a selection exists
+      this.setState({ error: "Please choose a folder or connect a cloud service." }); // Set error if invalid
+      return; // Abort start
     }
 
-    this.setState({ error: null, isIndexing: true, isCancelling: false });
-    this.showNotification("Preparing to scan...", "info");
+    this.setState({ error: null, isIndexing: true, isCancelling: false }); // Clear errors and mark indexing as active
+    this.showNotification("Preparing to scan...", "info"); // Inform user that scan is starting
     try {
-      const requestData = {
-        location: location,
-        identifier: identifier,
-        uri: uri,
-        complete_rescan: this.state.value.completeRescan,
-        simulate_indexing: this.state.value.simulateIndexing,
+      const requestData = { // Build request payload for API
+        location: location, // Source location (LOCAL or cloud provider)
+        identifier: identifier, // Drive letter or provider identifier
+        uri: uri, // Folder path segments
+        complete_rescan: this.state.value.completeRescan, // Whether to force re-scan
+        simulate_indexing: this.state.value.simulateIndexing, // Whether this is a dry run
       };
-      const resp = await fetch(endpoints.INDEX_START, {
-        method: "POST",
-        body: JSON.stringify(requestData),
-        headers: { "Content-Type": "application/json" },
+      const resp = await fetch(endpoints.INDEX_START, { // Send start request to backend
+        method: "POST", // Use POST for starting job
+        body: JSON.stringify(requestData), // Serialize JSON body
+        headers: { "Content-Type": "application/json" }, // Indicate JSON payload
       });
-      const data = (await resp.json()) as IndexStartResponse;
-      if (!data.error) {
-        this.showNotification("Photo scan started successfully!", "success");
-        this.pollIndexStatus();
-      } else {
-        this.setState({ error: data.details || "Failed to start scanning photos.", isIndexing: false });
-        this.showNotification(this.state.value.error!, "error");
+      const data = (await resp.json()) as IndexStartResponse; // Parse API response as typed object
+      if (!data.error) { // If backend reports success
+        this.showNotification("Photo scan started successfully!", "success"); // Notify user
+        this.pollIndexStatus(); // Begin polling for progress updates
+      } else { // Backend reported an error
+        this.setState({ error: data.details || "Failed to start scanning photos.", isIndexing: false }); // Store error and reset indexing flag
+        this.showNotification(this.state.value.error!, "error"); // Show error notification
       }
-    } catch (e) {
-      this.setState({ error: "Could not start scanning. Please check the folder path or service.", isIndexing: false });
-      this.showNotification(this.state.value.error!, "error");
+    } catch (e) { // Network or unexpected failure
+      this.setState({ error: "Could not start scanning. Please check the folder path or service.", isIndexing: false }); // Set generic failure state
+      this.showNotification(this.state.value.error!, "error"); // Notify user of failure
     }
   }
 
-  private async pollIndexStatus(pageLoaded: boolean = false) {
-    if (!pageLoaded && !this.state.value.isIndexing) return;
+  private async pollIndexStatus(pageLoaded: boolean = false) { // Periodically fetch indexing status
+    if (!pageLoaded && !this.state.value.isIndexing) return; // If not initial load and not indexing, stop polling
     try {
-      const resp = await fetch(endpoints.GET_INDEX_STATUS);
-      const data: IndexStatusResponse = await resp.json();
-      if (data.done) {
-        if (this.state.value.isCancelling) {
-          this.showNotification("Scan stopped successfully", "warning");
+      const resp = await fetch(endpoints.GET_INDEX_STATUS); // Request current indexing status
+      const data: IndexStatusResponse = await resp.json(); // Parse JSON response
+      if (data.done) { // If backend reports job finished (or cancelled)
+        if (this.state.value.isCancelling) { // If user initiated cancel
+          this.showNotification("Scan stopped successfully", "warning"); // Notify cancel success
         }
-        this.setState({
+        if (!pageLoaded && !this.state.value.isCancelling) { // If not initial load and not cancelling
+          this.showNotification("Photo scan completed successfully!", "success"); // Notify completion
+        }
+        this.setState({ // Reset indexing related state
           isIndexing: false,
           isCancelling: false,
           indexProgress: 0,
           extraDetails: "",
           eta: 0,
         });
-        this.pollingTimeout = null;
-        this.clearAllInputs();
-        return;
+        this.pollingTimeout = null; // Clear timeout reference
+        this.clearAllInputs(); // Reset form inputs
+        return; // Exit (no more polling)
       }
-      if (this.pageLoaded) {
-        this.setState({ isIndexing: true });
+      if (this.pageLoaded) { // On very first poll after page load
+        this.setState({ isIndexing: true }); // Mark as indexing if job is active
       }
-      this.setState({
-        indexProgress: (data.processed ?? 0) / (data.total || 1),
-        eta: data.eta,
-        extraDetails: data.details || "",
-        error: null,
+      this.setState({ // Update progress metrics
+        indexProgress: (data.processed ?? 0) / (data.total || 1), // Safe division
+        eta: data.eta, // Remaining time
+        extraDetails: data.details || "", // Status message
+        error: null, // Clear transient errors
       });
-      this.pollingTimeout = window.setTimeout(() => this.pollIndexStatus(), 1000);
+      this.pollingTimeout = window.setTimeout(() => this.pollIndexStatus(), 2000); // Schedule next poll (2s)
     } catch (e) {
-      this.setState({ error: "Couldn't check scan progress. Will retry..." });
-      this.pollingTimeout = window.setTimeout(() => this.pollIndexStatus(), 5000);
+      this.setState({ error: "Couldn't check scan progress. Will retry..." }); // Record transient error
+      this.pollingTimeout = window.setTimeout(() => this.pollIndexStatus(), 5000); // Retry later (5s)
     } finally {
-      this.pageLoaded = false;
+      this.pageLoaded = false; // After first execution, no longer "page loaded" state
     }
   }
 

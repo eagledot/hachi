@@ -8,20 +8,20 @@
     <style>
         /* Modal and grid styles will be injected by components */
     </style>
-  <script type="module" crossorigin src="/assets/imageSearch-B_pDxZfT.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/config-Tz74n_gY.js">
-  <link rel="modulepreload" crossorigin href="/assets/utils-cLygY5EC.js">
-  <link rel="modulepreload" crossorigin href="/assets/photoFilter-DmxItXNa.js">
-  <link rel="modulepreload" crossorigin href="/assets/pagination-C2tzTPy9.js">
-  <link rel="stylesheet" crossorigin href="/assets/config-CPZLXtXP.css">
-  <link rel="stylesheet" crossorigin href="/assets/style-DaIIADcv.css">
+  <script type="module" crossorigin src="/assets/imageSearch-D05iy3UA.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/config-BqZhBBhP.js">
+  <link rel="modulepreload" crossorigin href="/assets/utils-DPM9xUNI.js">
+  <link rel="modulepreload" crossorigin href="/assets/photoGrid-D16qe0J1.js">
+  <link rel="modulepreload" crossorigin href="/assets/pagination-DaQXTFIt.js">
+  <link rel="stylesheet" crossorigin href="/assets/config-BMR9_SF-.css">
+  <link rel="stylesheet" crossorigin href="/assets/style-XV_afRre.css">
 </head>
 
 <body>
     <!-- Navbar will be inserted here by Layout -->
 
     <main id="main">
-        <div id="image-search-container" class="min-h-[calc(100vh-47px)] px-4 w-full">
+        <div id="image-search-container" class="min-h-[calc(100vh-47px)] px-4 w-full flex flex-col">
 
             <!-- Search Section -->
             <section>
@@ -32,14 +32,14 @@
                     </div>
                 </div>
             </section>
-            <section id="results-section" class="mb-8">
-                <div class="flex flex-col gap-6">
+            <section id="results-section" class="flex flex-col flex-1">
+                <div class="flex flex-col flex-1  gap-3">
                     <!-- Left Sidebar - Filters -->
-                    <div id="photo-filter-container" class="hidden">
+                    <div id="photo-filter-container" class="invisible">
                         <!-- Photo filters will be injected here -->
                     </div>
                     <!-- Main Content Area - Photo Grid -->
-                    <main class="flex-1 min-w-0">
+                    <main id="photo-gallery" class="flex-1 min-w-0">
                         <div id="photo-grid-container">
                             <!-- Photo grid components will be injected here -->
                         </div>

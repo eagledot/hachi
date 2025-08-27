@@ -109,12 +109,12 @@ export class FuzzySearchUI {
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
-                  class="relative border-2 border-gray-200 rounded-xl focus-within:border-blue-400 focus-within:ring-4 focus-within:ring-blue-50 transition-all duration-300 bg-white flex items-center h-12 sm:h-14 shadow-lg hover:shadow-xl group overflow-hidden"
+                  class="relative  rounded-xl  bg-white flex items-center h-12 sm:h-14 group overflow-hidden"
                   style="padding-right:0;"
                 >
                   <!-- Search Icon -->
-                  <div
-                    class="flex items-center justify-center w-12 sm:w-14 h-12 sm:h-14 text-gray-500 group-focus-within:text-blue-600 transition-colors duration-300"
+                  <!-- <div
+                    class="flex items-center justify-center w-12 sm:w-14 h-12 sm:h-14 text-gray-500 group-focus-within:text-blue-400 transition-colors duration-300"
                   >
                     <svg
                       class="w-5 sm:w-6 h-5 sm:h-6"
@@ -129,7 +129,7 @@ export class FuzzySearchUI {
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       ></path>
                     </svg>
-                  </div>
+                  </div> -->
 
                   <!-- Modern Input Field -->
                   <input
@@ -137,7 +137,7 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-3 text-sm sm:text-base bg-transparent border-0 focus:outline-none focus:ring-0 placeholder-gray-500 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
+                    class="flex-1 h-full px-3 border-2 border-gray-200 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-500 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
                     style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
 
@@ -145,7 +145,7 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed items-center justify-center w-12 h-full sm:w-14 bg-gradient-to-b from-gray-50 via-gray-100 to-gray-200 hover:from-gray-100 hover:to-gray-300 active:from-gray-200 active:to-gray-400 border-l border-gray-200 hover:border-gray-300 transition-all duration-200 group focus:outline-none shadow-sm hover:shadow-md"
+                    class="flex cursor-not-allowed bg-gray-600 items-center justify-center w-12 h-full sm:w-14  hover:border-gray-300 transition-all duration-200 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
@@ -156,6 +156,7 @@ export class FuzzySearchUI {
                       width="24px"
                     >
                       <path
+                      fill="white"
                         d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"
                       />
                     </svg>
@@ -164,7 +165,7 @@ export class FuzzySearchUI {
                   <!-- Integrated Search Button -->
                   <button
                     id="fuzzy-search-btn"
-                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-600 via-blue-700 to-blue-800 hover:from-blue-700 hover:via-blue-800 hover:to-blue-900 active:from-blue-800 active:via-blue-900 active:to-blue-950 disabled:from-blue-300 disabled:via-blue-400 disabled:to-blue-400 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-200 focus:z-10 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98]"
+                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-400 via-blue-400 to-blue-400 hover:from-blue-400 hover:via-blue-400 hover:to-blue-400 active:from-blue-400 active:via-blue-400 active:to-blue-450 disabled:from-blue-400 disabled:via-blue-400 disabled:to-blue-400 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-400 focus:z-10"
                     style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
                     <svg
@@ -390,50 +391,55 @@ export class FuzzySearchUI {
 
   private handleKeyDown(e: KeyboardEvent): void {
     console.log("Key down:", e.key);
-    if (this.showDropdown && this.suggestions.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        this.selectedIndex =
-          this.selectedIndex < this.suggestions.length - 1
-            ? this.selectedIndex + 1
-            : 0;
-        this.updateDropdownSelection();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        this.selectedIndex =
-          this.selectedIndex > 0
-            ? this.selectedIndex - 1
-            : this.suggestions.length - 1;
-        this.updateDropdownSelection();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
+    // if (this.showDropdown && this.suggestions.length > 0) {
+    //   if (e.key === "ArrowDown") {
+    //     e.preventDefault();
+    //     this.selectedIndex =
+    //       this.selectedIndex < this.suggestions.length - 1
+    //         ? this.selectedIndex + 1
+    //         : 0;
+    //     this.updateDropdownSelection();
+    //   } else if (e.key === "ArrowUp") {
+    //     e.preventDefault();
+    //     this.selectedIndex =
+    //       this.selectedIndex > 0
+    //         ? this.selectedIndex - 1
+    //         : this.suggestions.length - 1;
+    //     this.updateDropdownSelection();
+    //   } else if (e.key === "Enter") {
+    //     e.preventDefault();
 
-        if (
-          this.selectedIndex >= 0 &&
-          this.selectedIndex < this.suggestions.length
-        ) {
-          // Select the highlighted suggestion
-          const suggestion = this.suggestions[this.selectedIndex];
-          this.handleSuggestionClick(suggestion);
-        } else {
-          // No item selected, use default enter behavior
+    //     if (
+    //       this.selectedIndex >= 0 &&
+    //       this.selectedIndex < this.suggestions.length
+    //     ) {
+    //       // Select the highlighted suggestion
+    //       const suggestion = this.suggestions[this.selectedIndex];
+    //       this.handleSuggestionClick(suggestion);
+    //     } else {
+    //       // No item selected, use default enter behavior
 
-          // Enter: Add current input as a search query
-          this.handleAddFilter();
-        }
-      } else if (e.key === "Escape") {
-        this.selectedIndex = -1;
-        this.hideDropdown();
-        this.suggestions = [];
-      }
-    } else {
-      // Handle keys when dropdown is not shown
-      if (e.key === "Enter") {
+    //       // Enter: Add current input as a search query
+    //       this.handleAddFilter();
+    //     }
+    //   } else if (e.key === "Escape") {
+    //     this.selectedIndex = -1;
+    //     this.hideDropdown();
+    //     this.suggestions = [];
+    //   }
+    // } else {
+    //   // Handle keys when dropdown is not shown
+    //   if (e.key === "Enter") {
+    //     e.preventDefault();
+    //     // Enter: Add current input as a search query
+    //     this.handleAddFilter();
+    //   }
+    // }
+    if (e.key === "Enter") {
         e.preventDefault();
         // Enter: Add current input as a search query
         this.handleAddFilter();
       }
-    }
   }
 
   private handleInputFocus(): void {
@@ -511,8 +517,8 @@ export class FuzzySearchUI {
     }
 
     if (!this.selectedFilters[attribute].includes(value)) {
-      // If attribute is query, replace it
-      if (attribute === "query") {
+      // If attribute is query or resource_directory replace it
+      if (attribute === "query" || attribute === "resource_directory") {
         this.selectedFilters[attribute] = [value];
       } else {
         this.selectedFilters[attribute].push(value);
@@ -573,7 +579,7 @@ export class FuzzySearchUI {
             return `
             <div class="flex items-center px-3 py-2 rounded-2xl border-2 ${color} hover:shadow-xl cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
               <span class="mr-2 sm:mr-3 text-sm sm:text-base">${icon}</span>
-              <span class="text-sm font-bold truncate max-w-[120px] sm:max-w-none">${value}</span>
+              <span class="text-sm font-semibold truncate max-w-[120px] sm:max-w-none">${value}</span>
               <button class="ml-2 sm:ml-3 text-current opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-40 rounded-full p-1.5 transition-all duration-300 remove-filter-btn hover:scale-110 active:scale-90" data-attribute="${attribute}" data-value="${value}">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>

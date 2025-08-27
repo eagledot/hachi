@@ -84,6 +84,13 @@ export function fitTiles(
   return { rows, cols, tileWidth, tileHeight };
 }
 
+export function createElementFromString(htmlString: string): Element | null {
+  const template = document.createElement("template");
+  template.innerHTML = htmlString.trim();
+  const element = template.content.firstElementChild;
+  return element;
+}
+
 
 export async function filterQueryMeta(queryToken: string, attribute: string, value: string): Promise<any> {
   const endpoint = endpoints.FILTER_QUERY_META(queryToken, attribute, value);

@@ -36,6 +36,7 @@ export default class PhotoFilterSidebar {
   private filteredImages: HachiImageData[] = [];
   private onFilterChange: (photos: HachiImageData[]) => void;
   private toggleButtonId: string;
+  private isInitialized: boolean = false;
 
   constructor(
     onFilterChange: (photos: HachiImageData[]) => void,
@@ -76,9 +77,8 @@ export default class PhotoFilterSidebar {
   public async updateQueryToken(token: string): Promise<void> {
     console.log("Updating query token:", token);
     this.queryToken = token;
-      this.enableToggleButton(); // TODO: Should be called only once. Fix it later.
-    await this.populateAllPhotoFilters();
-    this.renderFilters();
+    this.enableToggleButton(); // TODO: Should be called only once. Fix it later.
+    this.isInitialized = false;
   }
 
   enableToggleButton(): void {
@@ -205,8 +205,12 @@ export default class PhotoFilterSidebar {
 
   addToggleListener(): void {
     const toggleButton = document.getElementById("filter-sidebar-toggle-btn");
-    toggleButton?.addEventListener("click", () => {
+    toggleButton?.addEventListener("click", async () => {
       this.toggleSidebar();
+      if (!this.isInitialized) {
+        await this.initialize();
+        this.isInitialized = true;
+      }
     });
   }
 

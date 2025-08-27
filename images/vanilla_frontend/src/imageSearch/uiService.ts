@@ -19,7 +19,7 @@ export class UIService {
   private modalFullscreenBtn!: HTMLButtonElement;
   private modalLikeBtn!: HTMLButtonElement;
   private modalFacesBtn!: HTMLButtonElement;
-  private modalFilename!: HTMLElement;
+  private modalTitleEl!: HTMLElement;
   private currentFullImageLoader: HTMLImageElement | null = null; // Track current image loader
   private showScores = false; // Flag to control score display in photo grid
   // Efficient photo grid management - optimized for pagination
@@ -45,8 +45,7 @@ export class UIService {
   ) {
     this.imageHeight = imageHeight;
     this.imageWidth = imageWidth || 0;
-    
-  
+
     const container = document.getElementById(containerId);
     if (!container) {
       throw new Error(`Container with id '${containerId}' not found`);
@@ -98,8 +97,8 @@ export class UIService {
     this.modalFacesBtn = document.querySelector(
       "#modal-faces-btn"
     ) as HTMLButtonElement;
-    this.modalFilename = document.querySelector(
-      "#modal-filename"
+    this.modalTitleEl = document.querySelector(
+      "#modal-title"
     ) as HTMLElement;
     if (!this.photoGrid) {
       throw new Error("Required UI elements not found");
@@ -347,8 +346,6 @@ export class UIService {
       }
     }
 
-    
-
     if (needsUpdate) {
       this.photoGrid.appendChild(fragment);
     }
@@ -396,7 +393,6 @@ export class UIService {
     element: HTMLElement,
     photo: HachiImageData
   ): void {
-    
     const img = element.querySelector("img") as HTMLImageElement;
     if (!img) return;
     // console.log("Updating element with photo data:", photo.id);
@@ -455,16 +451,16 @@ export class UIService {
       console.error("Modal image element not found");
       return;
     }
+    if (this.modal.classList.contains("hidden")) {
+      this.modal.classList.remove("hidden");
+    }
 
     this.loadImageProgressively(photo);
     this.modalImage.alt = photo.metadata?.filename || "Image";
 
     this.updateModalMetadata(photo);
     this.updateModalNavigation(canGoPrevious, canGoNext);
-    this.updateModalFilename(photo);
-
-    this.modal.classList.remove("hidden");
-    console.log(this.modal);
+  this.updateModalTitle(photo);
     document.body.style.overflow = "hidden";
   }
 
@@ -482,45 +478,30 @@ export class UIService {
       this.currentFullImageLoader = null;
     }
 
-    // Set image dimensions from metadata to prevent layout jumps
-    if (photo.metadata?.width && photo.metadata?.height) {
-      this.modalImage.setAttribute("width", photo.metadata.width.toString());
-      this.modalImage.setAttribute("height", photo.metadata.height.toString());
-    } else {
-      // Remove attributes if no metadata available
-      this.modalImage.removeAttribute("width");
-      this.modalImage.removeAttribute("height");
-    }
-
-    // Reset any manual styles that might interfere
-    this.modalImage.style.width = "";
-    this.modalImage.style.height = "";
-
     // Start with preview image (thumbnail)
     const thumbnailUrl = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
     const fullImageUrl = `${endpoints.GET_IMAGE}/${photo.id}`;
-
     this.modalImage.src = thumbnailUrl;
 
     // Start loading the full resolution image in background
     this.currentFullImageLoader = new Image();
-    const fullImageLoader = this.currentFullImageLoader;
-    fullImageLoader.src = fullImageUrl;
+    this.currentFullImageLoader.decoding = "async"; // Use async decoding for better performance
+    this.currentFullImageLoader.loading = "eager";
+    this.currentFullImageLoader.src = fullImageUrl;
+    
 
-    fullImageLoader.onload = () => {
+    this.currentFullImageLoader.onload = () => {
       // Switch to full resolution while maintaining the same dimensions
-      if (this.currentFullImageLoader === fullImageLoader && this.modalImage) {
+      if (this.currentFullImageLoader && this.modalImage) {
         this.modalImage.src = fullImageUrl;
       }
       // Clear the loader reference
-      if (this.currentFullImageLoader === fullImageLoader) {
-        this.currentFullImageLoader = null;
-      }
+      this.currentFullImageLoader = null;
     };
 
-    fullImageLoader.onerror = () => {
+    this.currentFullImageLoader.onerror = () => {
       console.error("Failed to load full resolution image:", fullImageUrl);
-      if (this.currentFullImageLoader === fullImageLoader) {
+      if (this.currentFullImageLoader) {
         this.currentFullImageLoader = null;
       }
     };
@@ -785,15 +766,9 @@ export class UIService {
   /**
    * Updates modal filename display
    */
-  private updateModalFilename(photo: HachiImageData): void {
-    if (!this.modalFilename) return;
-
-    if (photo.metadata?.filename) {
-      this.modalFilename.textContent = photo.metadata.filename;
-      this.modalFilename.classList.remove("hidden");
-    } else {
-      this.modalFilename.classList.add("hidden");
-    }
+  private updateModalTitle(photo: HachiImageData): void {
+    if (!this.modalTitleEl) return;
+    this.modalTitleEl.textContent = photo.metadata?.filename || "Image";
   }
 
   /**
@@ -852,7 +827,10 @@ export class UIService {
 
       // Check if we're already on the person photos page
       const currentPath = window.location.pathname;
-      const targetUrl = `/person-photos.html?id=${encodeURIComponent(
+      // const targetUrl = `/person-photos.html?id=${encodeURIComponent(
+      //   personId
+      // )}`;
+      const targetUrl = `/image-search.html?person=${encodeURIComponent(
         personId
       )}`;
 

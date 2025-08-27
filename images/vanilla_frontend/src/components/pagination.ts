@@ -23,6 +23,20 @@ export class PaginationComponent {
     this.onPageChange = props.onPageChange;
     this.totalPages = props.totalPages;
     this.render();
+    this.addKeyboardNavigation();
+  }
+
+  // Add event listener for arrow down and up for pagination
+  private addKeyboardNavigation() {
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        this.prevPage();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        this.nextPage();
+      }
+    });
   }
 
   public setPage(page: number) {
@@ -90,6 +104,11 @@ export class PaginationComponent {
           }-${endIndex} of ${this.totalItems} photos</span>
         </div>
 
+        <!-- Keyboard nav hint (visible md and up) -->
+          <span class="hidden md:inline text-xs text-gray-500 select-none" aria-hidden="true">
+            Use ↑ / ↓ to change page
+          </span>
+
         <!-- Pagination Controls -->
         <div class="flex items-center space-x-3">
           <button id="prev-page-btn"
@@ -104,6 +123,7 @@ export class PaginationComponent {
           <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
             Page ${totalPages === 0 ? 0 : this.currentPage + 1} of ${totalPages}
           </span>
+          
           <button id="next-page-btn"
             class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
             ${this.currentPage >= totalPages - 1 ? "disabled" : ""}>
