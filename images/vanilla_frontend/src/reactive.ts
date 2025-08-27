@@ -60,12 +60,12 @@ export class Signal<T> {
         }
     }
 
-    subscribe(listener: () => void): () => void {
+    subscribe(listener: (value: T) => void): () => void {
         // Add a listener to the signal
         this.listeners.add(listener);
 
         // Immediately call the listener with the current value
-        listener();
+        listener(this._value);
 
         // Return a function to unsubscribe the listener
         return () => {

@@ -61,7 +61,7 @@
 
 /* Sidebar width variable (desktop) */
 :root {
-  --sidebar-width: 16rem;
+  --sidebar-width: 14rem;
   --sidebar-width-collapsed: 4rem;
 }
 
@@ -89,7 +89,7 @@ body.sidebar-collapsed {
   position: sticky;
   bottom: 0;
   z-index: 30;
-  background: white;
+  /* background: white; */
 }
 
 @keyframes loading-gradient {

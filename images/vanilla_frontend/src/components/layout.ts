@@ -62,6 +62,7 @@ export class Layout {
     // Add any global CSS classes to body
     document.body.classList.add('bg-gray-50', 'min-h-screen');
 
+
     // Remove sidebar padding from main, since flex handles adjacency
     const mainContent = document.querySelector('main');
     if (mainContent instanceof HTMLElement) {

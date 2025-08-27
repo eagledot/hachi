@@ -122,7 +122,7 @@ export default class PhotoFilterSidebar {
     // Manually create the filter pill UI node with enhanced styling
     const pill = document.createElement("div");
     pill.className =
-      "filter-pill flex items-center px-2 py-1 rounded-xl border-0 shadow-lg";
+      "filter-pill flex items-center px-2 rounded-xl border-0 shadow-lg";
     pill.style.background = gradientBackground;
     pill.style.boxShadow = shadowStyle;
     pill.style.transition = "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
@@ -137,7 +137,7 @@ export default class PhotoFilterSidebar {
 
     // Icon span (keeping empty as in original)
     const iconSpan = document.createElement("span");
-    iconSpan.className = "mr-2 sm:mr-3 text-sm sm:text-base";
+    iconSpan.className = "mr-2 sm:mr-3 text-xs";
     iconSpan.innerHTML = Filter_On_SVG;
     // Change the fill color of the SVG
     iconSpan.querySelector("svg")?.setAttribute("fill", "#ffffff");
@@ -271,7 +271,7 @@ export default class PhotoFilterSidebar {
     sidebarElement.style.top = "0";
     sidebarElement.style.right = "0";
     sidebarElement.style.backgroundColor = "#fff";
-    sidebarElement.style.boxShadow = "-2px 0 5px rgba(0,0,0,0.5)";
+    sidebarElement.style.boxShadow = "-2px 0 5px rgba(0,0,0,0.1)";
     sidebarElement.style.zIndex = "1000";
     sidebarElement.style.display = "none";
     sidebarElement.style.flexDirection = "column";
@@ -290,7 +290,7 @@ export default class PhotoFilterSidebar {
 
     const peopleList = document.createElement("div");
     peopleList.className = "flex flex-wrap overflow-y-auto";
-    peopleList.style.height = "360px";
+    peopleList.style.maxHeight = "360px";
     peopleList.style.display = "flex";
     peopleList.style.flexWrap = "wrap";
     peopleList.style.overflowY = "auto";
@@ -299,12 +299,8 @@ export default class PhotoFilterSidebar {
     people.forEach((person) => {
       const personItem = document.createElement("div");
       personItem.className =
-        "flex flex-col items-center cursor-pointer hover:bg-blue-50 rounded transition";
-      // personItem.style.width = "48px";
+        "flex flex-col cursor-pointer hover:bg-blue-50 rounded transition";
       personItem.style.padding = "2px";
-      // personItem.style.margin = "0px";
-      personItem.style.alignItems = "center";
-      personItem.style.justifyContent = "center";
 
       const photo = document.createElement("img");
       photo.className = "w-12 h-12 bg-gray-200 rounded-full object-cover";

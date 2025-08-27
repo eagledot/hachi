@@ -73,13 +73,19 @@ export async function filterPopulateQuery(queryToken: string, attribute: string)
 export function fitTiles(
   height: number,
   width: number,
-  minSide: number
+  minSide: number,
+  gap: number = 5
 ): { rows: number; cols: number; tileWidth: number; tileHeight: number } {
-  const rows = Math.ceil(height / minSide);
-  const cols = Math.ceil(width / minSide);
+  // Compute how many tiles (ceil) we can fit if each desired tile (without scaling) takes minSide plus a gap (except last)
+  const rows = Math.max(1, Math.ceil((height + gap) / (minSide + gap)));
+  const cols = Math.max(1, Math.ceil((width + gap) / (minSide + gap)));
 
-  const tileHeight = height / rows;
-  const tileWidth = width / cols;
+  // Distribute remaining space to tiles after reserving gap space
+  const totalVerticalGap = (rows - 1) * gap;
+  const totalHorizontalGap = (cols - 1) * gap;
+
+  const tileHeight = (height - totalVerticalGap) / rows;
+  const tileWidth = (width - totalHorizontalGap) / cols;
 
   return { rows, cols, tileWidth, tileHeight };
 }

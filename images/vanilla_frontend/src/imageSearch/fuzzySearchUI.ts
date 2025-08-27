@@ -98,18 +98,18 @@ export class FuzzySearchUI {
 
   private createUI(): void {
     this.container.innerHTML = html`
-      <div class="w-full mx-auto px-2 mt-4 fuzzy-search-container">
+      <div class="w-full mx-auto mt-4 fuzzy-search-container">
         <div class="w-full relative">
           <!-- Modern Search Container -->
-          <div class="flex flex-col space-y-3">
+          <div class="flex flex-col">
             <!-- Main Search Row -->
             <div
-              class="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3 mb-3"
+              class="flex flex-col sm:flex-row sm:space-y-0 mb-2"
             >
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
-                  class="relative  rounded-xl  bg-white flex items-center h-12 sm:h-14 group overflow-hidden"
+                  class="relative  rounded-xl  bg-white flex items-center h-10 sm:h-12 group overflow-hidden"
                   style="padding-right:0;"
                 >
                   <!-- Search Icon -->
@@ -145,7 +145,7 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed bg-gray-600 items-center justify-center w-12 h-full sm:w-14  hover:border-gray-300 transition-all duration-200 group focus:outline-none "
+                    class="flex cursor-not-allowed items-center justify-center w-12 h-full sm:w-14  hover:border-yellow-200 bg-yellow-400 transition-all duration-200border-yellow-200 bg-gray-0 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
@@ -156,7 +156,7 @@ export class FuzzySearchUI {
                       width="24px"
                     >
                       <path
-                      fill="white"
+                      fill="black"
                         d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"
                       />
                     </svg>
@@ -165,7 +165,7 @@ export class FuzzySearchUI {
                   <!-- Integrated Search Button -->
                   <button
                     id="fuzzy-search-btn"
-                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-400 via-blue-400 to-blue-400 hover:from-blue-400 hover:via-blue-400 hover:to-blue-400 active:from-blue-400 active:via-blue-400 active:to-blue-450 disabled:from-blue-400 disabled:via-blue-400 disabled:to-blue-400 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-400 focus:z-10"
+                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 hover:from-blue-500 hover:via-blue-500 hover:to-blue-500 active:from-blue-500 active:via-blue-500 active:to-blue-450 disabled:from-blue-500 disabled:via-blue-500 disabled:to-blue-500 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:z-10"
                     style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
                     <svg
@@ -577,9 +577,9 @@ export class FuzzySearchUI {
             const icon = this.fuzzySearchService.getAttributeIcon(attribute);
             const color = this.fuzzySearchService.getAttributeColor(attribute);
             return `
-            <div class="flex items-center px-3 py-2 rounded-2xl border-2 ${color} hover:shadow-xl cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
+            <div class="flex items-center px-3 py-1 rounded-xl border-1 ${color} hover:shadow-xl cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
               <span class="mr-2 sm:mr-3 text-sm sm:text-base">${icon}</span>
-              <span class="text-sm font-semibold truncate max-w-[120px] sm:max-w-none">${value}</span>
+              <span class="text-xs font-semibold truncate max-w-[120px] sm:max-w-none">${value}</span>
               <button class="ml-2 sm:ml-3 text-current opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-40 rounded-full p-1.5 transition-all duration-300 remove-filter-btn hover:scale-110 active:scale-90" data-attribute="${attribute}" data-value="${value}">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>

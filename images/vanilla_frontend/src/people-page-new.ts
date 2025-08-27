@@ -117,7 +117,9 @@ class PeopleApp {
       }
       const avatarNameEl = card.querySelector(".avatar-name");
       if (avatarNameEl) {
-        avatarNameEl.textContent = displayName;
+        avatarNameEl.textContent = displayName.length > 8
+            ? displayName.substring(0, 8) + "..."
+            : displayName;
       }
       // Similarly for avatarNameMobile
       const avatarNameMobileEl = card.querySelector(".avatar-name-mobile");
@@ -199,7 +201,9 @@ class PeopleApp {
                 d="M5 13l4 4L19 7"
               ></path>
             </svg>
-            <span class="hidden avatar-name sm:inline">${person.id}</span>
+            <span title="${person.id}" class="hidden avatar-name sm:block">${person.id.length > 12
+                ? person.id.substring(0, 12) + "..."
+                : person.id}</span>
             <span class="sm:hidden avatar-name-mobile"
               >${person.id.length > 8
                 ? person.id.substring(0, 8) + "..."
