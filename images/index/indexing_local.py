@@ -412,21 +412,6 @@ class IndexingLocal(object):
 
             # -----------------------------------------------
             
-            # -------------------------------------
-            # Orientation handling would just be some composition of flip and transpose is some specific order! Can use `np.rot90` like routine which itself does.
-            # but not including any more routine i have to for now!
-            # NOTE: OPEN-cv handles rotation part too, by parsing exif-data, before returning the frame
-            # ------------------------------------
-            flip_vertically = False
-            transpose = False
-            if orientation_image != 0:
-                # NOTE: OPEN-cv handles rotation part too, by parsing exif-data, before returning the frame
-                if orientation_image == 6:
-                    flip_vertically = True # first do this during loading itself!
-                    transpose = True
-                else:
-                    print("[WARNING]: Implement a basic rotation procedure. Not rotated: {}".format(resource_path))
-            # ------------------------------------------------
 
             self.profile_info.add("misc")
             # ----------------------------------------------
@@ -435,21 +420,41 @@ class IndexingLocal(object):
             (flag, h,w,c) = utils_nim.imread_from_memory(
                 image_encoded_data, 
                 self.imread_buffer,  # NOTE: must be used sequentially.. not parallel read from it.. we create a copy!
-                leave_alpha = True,  # RGB , no alpha
-                flip_vertically = flip_vertically
+                leave_alpha = True  # RGB , no alpha
             )
             
             self.profile_info.add("imread")
             if flag == False:
                 print("[WARNING]: Invalid data for {}".format(resource_path))
                 continue
-            if c == 1:
+            if c == 1:                              
                 print("[WARNING]: Gray Scale TO BE HANDLED, just update the imread code..!!")
                 continue
             frame = self.imread_buffer[:h*w*c].reshape((h,w,c))
-            if transpose:
-                # this doesn't copy the elements, but we would be calling `copy` anyway, so we get contiguous data for following operations.
-                frame = frame.transpose(1,0,2) # This is enough for CW 90 degress.
+            
+            # -------------------------------------
+            # Orientation handling would just be some composition of flip and transpose is some specific order! Can use `np.rot90` like routine which itself does.
+            # NOTE: OPEN-cv handles rotation part too, by parsing exif-data, before returning the frame
+            # ------------------------------------
+            if orientation_image != 0:
+                # NOTE: this doesn't copy the elements, but we would be calling `copy` anyway, so we get contiguous data for following operations.
+                if orientation_image == 6:
+                    # handle 90 degree, clockwise orientation!
+                    frame = np.rot90(
+                        frame,
+                        k = 1,     # 1 90 degrees turn,
+                        axes = (1,0)  # from 1 to 0, i.e clockwise!
+                    )
+                elif orientation_image == 8:
+                    # handles 270 degrees, clockwise orientation.
+                    frame = np.rot90(
+                        frame,
+                        k = 1,
+                        axes = (0,1) # from 0 to 1, i.e counter-clockwise
+                    )
+                else:
+                    print("[WARNING]: Implement a basic rotation procedure. Not rotated: {}".format(resource_path))
+            # ------------------------------------------------
             
             # Since frame itself refers to a pre-allocated memory/buffer, so DON'T SHARE IT WITH ANOTHER THREAD WITH GIL RELEASED without some sync mechanism or create an isolated copy!
             frame = frame.copy()  # creating a copy before passing it another thread.. so write by `imread` wouldn't affect !
