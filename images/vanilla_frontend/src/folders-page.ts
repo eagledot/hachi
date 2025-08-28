@@ -196,7 +196,7 @@ class FoldersApp {
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-400 truncate max-w-full" title="${folder.fullPath}">${trimmedPath}</span>
-          <span class="text-xs text-gray-500 ml-auto">${folder.imageCount} photo${folder.imageCount !== 1 ? "s" : ""}</span>
+          <!-- <span class="text-xs text-gray-500 ml-auto">${folder.imageCount} photo${folder.imageCount !== 1 ? "s" : ""}</span> -->
         </div>
       </div>
     `;
