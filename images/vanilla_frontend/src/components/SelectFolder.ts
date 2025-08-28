@@ -10,7 +10,7 @@ interface FolderRequest {
 interface FolderResponse {
   // We are not currently getting the type from the backend, only the name
   name: string;
-  type: "folder" | "file"; 
+  type: "folder" | "file";
 }
 
 interface SelectFolderOptions {
@@ -63,7 +63,7 @@ class SelectFolder {
         const fileExtensionRegex = /\.[a-zA-Z0-9]+$/;
         return !fileExtensionRegex.test(path);
       });
-      
+
       return foldersOnly.map((path: string) => ({
         name: path,
         type: "folder" as const,
@@ -87,28 +87,71 @@ class SelectFolder {
 
   private render(): void {
     this.container.innerHTML = html`
-      <div class="bg-white border border-gray-200 rounded-xl shadow-xl max-w-3xl mx-auto flex flex-col max-h-[80vh]">
+      <div
+        class="bg-white border border-gray-200 rounded-xl shadow-xl max-w-3xl mx-auto flex flex-col max-h-[80vh]"
+      >
         <!-- Header -->
-        <div class="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-xl">
+        <div
+          class="flex items-center justify-between p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-xl"
+        >
           <div class="flex items-center space-x-3">
             <div class="p-2 bg-blue-100 rounded-lg">
-              <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"></path>
+              <svg
+                class="w-6 h-6 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"
+                ></path>
               </svg>
             </div>
-            <h3 class="text-xl font-semibold text-gray-800">${
-              this.options.title
-            }</h3>
+            <h3 class="text-xl font-semibold text-gray-800">
+              ${this.options.title}
+            </h3>
           </div>
           <div class="flex items-center space-x-2">
-            <button id="back-btn" class="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" disabled title="Go back">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            <button
+              id="back-btn"
+              class="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled
+              title="Go back"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                ></path>
               </svg>
             </button>
-            <button id="sort-btn" class="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200" title="Toggle sort order">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"></path>
+            <button
+              id="sort-btn"
+              class="p-2.5 text-gray-500 hover:text-gray-700 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200"
+              title="Toggle sort order"
+            >
+              <svg
+                class="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"
+                ></path>
               </svg>
             </button>
           </div>
@@ -117,48 +160,97 @@ class SelectFolder {
         <!-- Search bar -->
         <div class="p-5 border-b border-gray-200">
           <div class="relative">
-            <input 
-              type="text" 
-              id="search-input" 
-              placeholder="Search folders..." 
+            <input
+              id="search-input"
+              placeholder="Search folders..."
               class="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-sm"
             />
-            <svg class="absolute left-4 top-3.5 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>            </svg>
+            <svg
+              class="absolute left-4 top-3.5 w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              ></path>
+            </svg>
           </div>
-        </div>        
+        </div>
         <!-- Folder list -->
         <div class="flex-1 overflow-y-auto min-h-0">
           <div id="loading" class="hidden p-12 text-center text-gray-500">
-            <div class="inline-block animate-spin rounded-full h-10 w-10 border-3 border-blue-500 border-t-transparent"></div>
+            <div
+              class="inline-block animate-spin rounded-full h-10 w-10 border-3 border-blue-500 border-t-transparent"
+            ></div>
             <p class="mt-4 text-lg font-medium">Loading folders...</p>
           </div>
-          <div id="folder-list" class="divide-y grid grid-cols-3 divide-gray-100"></div>
+          <div
+            id="folder-list"
+            class="divide-y grid grid-cols-3 divide-gray-100"
+          ></div>
           <div id="empty-state" class="hidden p-12 text-center text-gray-500">
-            <div class="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"></path>
+            <div
+              class="mx-auto w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4"
+            >
+              <svg
+                class="w-10 h-10 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-5l-2-2H5a2 2 0 00-2 2z"
+                ></path>
               </svg>
             </div>
             <p class="text-lg font-medium text-gray-600">No folders found</p>
-            <p class="text-sm text-gray-500 mt-1">Try adjusting your search or navigate to a different location</p>
+            <p class="text-sm text-gray-500 mt-1">
+              Try adjusting your search or navigate to a different location
+            </p>
           </div>
-        </div>        
+        </div>
         <!-- Footer buttons -->
-        <div class="flex p-5 justify-between align-middle bg-gray-50 rounded-b-xl border-t border-gray-200">
+        <div
+          class="flex p-5 justify-between align-middle bg-gray-50 rounded-b-xl border-t border-gray-200"
+        >
           <div id="breadcrumb" class="flex items-center space-x-2 text-sm">
-              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-              </svg>
-              <span class="text-gray-500 font-medium">Location:</span>
-              <div class="flex items-center space-x-1">
-                <span id="current-path" class="font-mono text-gray-700 bg-white px-3 py-1.5 rounded-lg border shadow-sm">Computer</span>
-              </div>
+            <svg
+              class="w-4 h-4 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+              ></path>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+              ></path>
+            </svg>
+            <span class="text-gray-500 font-medium">Location:</span>
+            <div class="flex items-center space-x-1">
+              <span
+                id="current-path"
+                class="font-mono text-gray-700 bg-white px-3 py-1.5 rounded-lg border shadow-sm"
+                >Computer</span
+              >
             </div>
+          </div>
 
-        ${
-          this.options.showOkButton || this.options.showCancelButton
+          ${this.options.showOkButton || this.options.showCancelButton
             ? `
         <div class="flex justify-end space-x-3 flex-shrink-0">
           ${
@@ -172,7 +264,9 @@ class SelectFolder {
           }
           ${
             this.options.showOkButton
-              ? `            <button id="ok-btn" class="px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" ${this.isDriveSelectionMode ? 'disabled' : ''}>
+              ? `            <button id="ok-btn" class="px-3 py-2 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed" ${
+                  this.isDriveSelectionMode ? "disabled" : ""
+                }>
               <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
               </svg>
@@ -184,12 +278,18 @@ class SelectFolder {
         </div>
         </div>
         `
-            : ""
-        }
+            : ""}
+        </div>
       </div>
     `;
 
     this.attachEventListeners();
+    const searchInput = this.container.querySelector(
+      "#search-input"
+    ) as HTMLInputElement;
+    if (searchInput) {
+      setTimeout(() => searchInput.focus(), 0);
+    }
   }
   private attachEventListeners(): void {
     // Back button
@@ -261,6 +361,12 @@ class SelectFolder {
       this.renderFolderList(folders);
       this.updateBreadcrumb();
       this.updateOkButton();
+      setTimeout(() => {
+        const searchInput = this.container.querySelector(
+          "#search-input"
+        ) as HTMLInputElement;
+        if (searchInput) searchInput.focus();
+      }, 0);
     } catch (error) {
       console.error("Error loading folders:", error);
     } finally {
@@ -396,7 +502,7 @@ class SelectFolder {
     const breadcrumbElement = this.container.querySelector(
       "#breadcrumb"
     ) as HTMLElement;
-    
+
     let pathText = "Computer";
 
     if (this.isDriveSelectionMode) {
@@ -415,7 +521,7 @@ class SelectFolder {
         breadcrumbElement.classList.remove("invisible");
       }
     }
-    
+
     console.log(`Updating breadcrumb: ${pathText}`);
     if (currentPathElement) {
       currentPathElement.textContent = pathText;
@@ -456,7 +562,6 @@ class SelectFolder {
     }
   }
 
-
   private handleOk(): void {
     if (this.options.onFolderSelect) {
       const selectedFolder: FolderRequest = {
@@ -464,7 +569,7 @@ class SelectFolder {
         identifier: this.currentDrive || "",
         uri: this.currentPath.length > 0 ? this.currentPath : [],
       };
-      
+
       this.options.onFolderSelect(selectedFolder);
     }
   }
@@ -474,7 +579,6 @@ class SelectFolder {
       this.options.onCancel();
     }
   }
-
 
   // Public methods
   public getCurrentPath(): FolderRequest {
