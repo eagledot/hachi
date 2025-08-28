@@ -436,7 +436,7 @@ class IndexingLocal(object):
             # Orientation handling would just be some composition of flip and transpose is some specific order! Can use `np.rot90` like routine which itself does.
             # NOTE: OPEN-cv handles rotation part too, by parsing exif-data, before returning the frame
             # ------------------------------------
-            if orientation_image != 0:
+            if orientation_image != 0 and orientation_image != 1:
                 # NOTE: this doesn't copy the elements, but we would be calling `copy` anyway, so we get contiguous data for following operations.
                 if orientation_image == 6:
                     # handle 90 degree, clockwise orientation!
@@ -453,7 +453,7 @@ class IndexingLocal(object):
                         axes = (0,1) # from 0 to 1, i.e counter-clockwise
                     )
                 else:
-                    print("[WARNING]: Implement a basic rotation procedure. Not rotated: {}".format(resource_path))
+                    print("[WARNING]: Implement a basic rotation procedure. Not rotated: {} Got orientation as {}".format(resource_path, orientation_image))
             # ------------------------------------------------
             
             # Since frame itself refers to a pre-allocated memory/buffer, so DON'T SHARE IT WITH ANOTHER THREAD WITH GIL RELEASED without some sync mechanism or create an isolated copy!

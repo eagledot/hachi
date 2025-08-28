@@ -167,6 +167,7 @@ except:
 geoCodeIndex = GeocodeIndex()    
 
 EXIF_PACKAGE_MAPPING = {
+            # TODO: (force if required) `values`` Must be a subset of ImageExifAttributes dict ! 
             "make": "make",
             "model": "model",
             "datetime_original": "taken_at",
@@ -290,16 +291,15 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> I
             corresponding_name = EXIF_PACKAGE_MAPPING[attr]
             try:
                 attr_value = temp_handle[attr]
-                if isinstance(attr_value, Enum):
-                    result[corresponding_name] = int(attr_value.value)
+                if isinstance(attr_value, Enum) or  isinstance(attr_value, int):
+                    # TODO: make sure that Exif_package_mapping, values always be a subset for ImageExifAttributes.. OR MAKE THEM SAME!
+                    assert ImageExifAttributes.__annotations__[corresponding_name] is int
+                    result[corresponding_name] = int(attr_value)
                 else:
                     result[corresponding_name] = str(attr_value)
             except Exception as e:
                 # It is possible, could not find corresponding data for some tags, even after initially detected or parsing error!
                 print("[Warning Exif]: {}".format(e))
-                if attr == "orientation":
-                    print("got a weird value for orientation ??")
-                    result["orientation"] = int(0) # always expected to be int
     
         # sort out place.
         if "gps_latitude" in lifeGivesYou_attributes and "gps_longitude" in lifeGivesYou_attributes:
