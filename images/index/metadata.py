@@ -297,6 +297,9 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> I
             except Exception as e:
                 # It is possible, could not find corresponding data for some tags, even after initially detected or parsing error!
                 print("[Warning Exif]: {}".format(e))
+                if attr == "orientation":
+                    print("got a weird value for orientation ??")
+                    result["orientation"] = int(0) # always expected to be int
     
         # sort out place.
         if "gps_latitude" in lifeGivesYou_attributes and "gps_longitude" in lifeGivesYou_attributes:
