@@ -2,6 +2,7 @@
 import type { ImageSearchResponse, SearchRequestOptions } from './types';
 import { constructQueryString } from './utils';
 import { API_ENDPOINTS, API_URL_BUILDERS, CONFIG, CONTENT_TYPES } from './constants';
+import { fetchWithSession } from '../utils';
 
 export class SearchApiService {
   /**
@@ -26,7 +27,7 @@ export class SearchApiService {
     if (!isInitialSearch && clientId) {
       params.append('client_id', clientId);
     }
-    const response = await fetch(API_ENDPOINTS.QUERY, {
+    const response = await fetchWithSession(API_ENDPOINTS.QUERY, {
       method: 'POST',
       headers: {
         'Content-Type': CONTENT_TYPES.FORM_URLENCODED,

@@ -9,7 +9,7 @@ import {
 } from "./components";
 import { PaginationComponent } from "./components/pagination";
 import Config, { endpoints } from "./config";
-import { collectAttributeMeta, queryAttribute } from "./utils";
+import { collectAttributeMeta, fetchWithSession, queryAttribute } from "./utils";
 
 // API base URL
 const API_URL = Config.apiUrl;
@@ -561,7 +561,7 @@ class PersonPhotosApp {
     formData.append("new_person_id", newPersonId);
 
     try {
-      const response = await fetch(endpoints.TAG_PERSON, {
+      const response = await fetchWithSession(endpoints.TAG_PERSON, {
         method: "POST",
         body: formData,
       });

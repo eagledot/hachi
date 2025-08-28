@@ -4,6 +4,7 @@ import type {
 import { endpoints } from "../config";
 import type { ImageSearchResponse } from "./types";
 import { transformRawDataChunk } from "./utils";
+import { fetchWithSession } from "../utils";
 
 export class SearchService {
   async startSearch(searchTerm: string, resultsPerPage: number): Promise<ImageSearchResponse> {
@@ -14,7 +15,7 @@ export class SearchService {
     formData.append("page_size", String(resultsPerPage));
 
     try {
-      const response = await fetch(endpoints.IMAGE_SEARCH, {
+      const response = await fetchWithSession(endpoints.IMAGE_SEARCH, {
         method: "POST",
         body: formData,
       });
@@ -35,7 +36,7 @@ export class SearchService {
     try {
       const URL = `${endpoints.COLLECT_QUERY_META}/${queryToken}/${String(pageNumber)}`;
       console.log(URL)
-      const response = await fetch(URL);
+      const response = await fetchWithSession(URL);
       if (!response.ok) {
         throw new Error(`Query results fetch error: ${response.status}`);
       }

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { endpoints } from "./config";
   import { Layout } from "./components";
+  import { fetchWithSession } from "./utils";
 
   new Layout({
     title: "Google Photos - Hachi",
@@ -20,7 +21,7 @@
   let label$ = "Upload Client secret json";
 
   async function get_client_info() { // Fetch Google client info from the server
-    const response = await fetch(endpoints.BASE_URL + "/api/gClientInfo"); // Fetch client info
+    const response = await fetchWithSession(endpoints.BASE_URL + "/api/gClientInfo"); // Fetch client info
     const data : GClientInfo = await response.json(); // Parse the JSON response
     if (data.client_id_available) { // Check if client_id is available
       gClientInfo$ = data; // If yes, store the client info
@@ -33,7 +34,7 @@
   });
 
   async function pollActivationStatus() {
-    const response = await fetch(endpoints.BASE_URL + "/api/statusGAuthFlow"); // Check the status of the Google authentication flow
+    const response = await fetchWithSession(endpoints.BASE_URL + "/api/statusGAuthFlow"); // Check the status of the Google authentication flow
     const data = await response.json(); // Parse the JSON response
     let isFinished = data["finished"]; // Check if the authentication flow is finished
     if (!isFinished) {
@@ -52,7 +53,7 @@
     target.disabled = true; // Disable the button
     target.innerText = "activation in progress..."; // Update button text
 
-    const response = await fetch(endpoints.BASE_URL + "/api/beginGAuthFlow"); // Start the Google authentication flow
+    const response = await fetchWithSession(endpoints.BASE_URL + "/api/beginGAuthFlow"); // Start the Google authentication flow
     if (!response.ok) { // Check if the response is not ok
       alert("Some error occurred while starting authorization flow!");
       target.disabled = false; // Enable the button
@@ -97,7 +98,7 @@
           const form = new FormData(); // Create a new FormData instance
           form.append("client_data", reader.result as string); // Append the client data to the form
 
-          const response = await fetch( // Send the form data to the server
+          const response = await fetchWithSession( // Send the form data to the server
             endpoints.BASE_URL + "/api/uploadClientData",
             {
               method: "POST",

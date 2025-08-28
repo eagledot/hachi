@@ -41,7 +41,7 @@ interface IQueryAttribute {
 
 export async function queryAttribute(attribute: string, value: string, pageSize: number): Promise<IQueryAttribute> {
   const endpoint = endpoints.QUERY_ATTRIBUTE(attribute, value, pageSize);
-  const response = await fetch(endpoint);
+  const response = await fetchWithSession(endpoint);
   if (!response.ok) {
     throw new Error(`Failed to fetch data from ${endpoint}`);
   }
@@ -51,7 +51,7 @@ export async function queryAttribute(attribute: string, value: string, pageSize:
 
 export async function collectAttributeMeta(token: string, pageId: number): Promise<any> {
   const endpoint = endpoints.COLLECT_ATTRIBUTE_META(token, pageId);
-  const response = await fetch(endpoint);
+  const response = await fetchWithSession(endpoint);
   if (!response.ok) {
     throw new Error(`Failed to fetch data from ${endpoint}`);
   }
@@ -62,7 +62,7 @@ export async function collectAttributeMeta(token: string, pageId: number): Promi
 
 export async function filterPopulateQuery(queryToken: string, attribute: string): Promise<any> {
   const endpoint = endpoints.FILTER_POPULATE_QUERY(queryToken, attribute);
-  const response = await fetch(endpoint);
+  const response = await fetchWithSession(endpoint);
   if (!response.ok) {
     throw new Error(`Failed to fetch data from ${endpoint}`);
   }
@@ -100,7 +100,7 @@ export function createElementFromString(htmlString: string): Element | null {
 
 export async function filterQueryMeta(queryToken: string, attribute: string, value: string): Promise<any> {
   const endpoint = endpoints.FILTER_QUERY_META(queryToken, attribute, value);
-  const response = await fetch(endpoint);
+  const response = await fetchWithSession(endpoint);
   if (!response.ok) {
     throw new Error(`Failed to fetch data from ${endpoint}`);
   }
@@ -118,4 +118,26 @@ declare global {
   interface Window {
     html: typeof html;
   }
+}
+
+
+function generateSessionKey(): string {
+  // Generate a random session key (you can customize this logic)
+  return Math.random().toString(36).substring(2);
+}
+
+export async function fetchWithSession(input: RequestInfo, init: RequestInit = {}) {
+  let sessionKey = localStorage.getItem('sessionKey');
+  if (!sessionKey) {
+    // If there is no session key, create one and save it in localStorage
+    sessionKey = generateSessionKey();
+    localStorage.setItem('sessionKey', sessionKey);
+  }
+
+  // Add it to the request headers
+  init.headers = {
+    ...init.headers,
+    'X-Session-Key': sessionKey!
+  };
+  return fetch(input, init);
 }

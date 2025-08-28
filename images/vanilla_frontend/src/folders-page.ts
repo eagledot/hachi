@@ -1,7 +1,7 @@
 import "./style.css";
 import { Layout } from "./components/layout";
 import Config, { endpoints } from "./config";
-import { html } from "./utils";
+import { fetchWithSession, html } from "./utils";
 
 // Initialize the layout for the folders page
 new Layout({
@@ -74,7 +74,7 @@ class FoldersApp {
   }
 
   private async loadFoldersFromAPI(): Promise<void> {
-    const response = await fetch(endpoints.GET_FOLDERS);
+    const response = await fetchWithSession(endpoints.GET_FOLDERS);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch folders: ${response.status}`);

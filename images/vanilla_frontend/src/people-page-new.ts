@@ -1,7 +1,7 @@
 import "./style.css";
 import { Layout } from "./components";
 import { endpoints } from "./config";
-import { createElementFromString, fitTiles, html } from "./utils";
+import { createElementFromString, fetchWithSession, fitTiles, html } from "./utils";
 import { PaginationComponent } from "./components/pagination";
 
 // Initialize the layout
@@ -85,7 +85,7 @@ class PeopleApp {
   private async loadPeople() {
     // TODO: Show loading
     try {
-      const response = await fetch(endpoints.GET_PEOPLE);
+      const response = await fetchWithSession(endpoints.GET_PEOPLE);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -384,7 +384,7 @@ class PeopleApp {
     formData.append("old_person_id", oldPersonId);
     formData.append("new_person_id", newPersonId);
     try {
-      const response = await fetch(endpoints.TAG_PERSON, {
+      const response = await fetchWithSession(endpoints.TAG_PERSON, {
         method: "POST",
         body: formData,
       });

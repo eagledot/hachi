@@ -7,7 +7,7 @@ import type {
   IndexStatusResponse,
 } from "../types/indexing";
 
-import { html } from "../utils";
+import { fetchWithSession, html } from "../utils";
 import IndexingService from "../services/indexing";
 import type { Partition } from "../types/indexing";
 import SelectFolder from "./SelectFolder";
@@ -407,7 +407,7 @@ export class IndexingComponent {
         complete_rescan: this.state.value.completeRescan, // Whether to force re-scan
         simulate_indexing: this.state.value.simulateIndexing, // Whether this is a dry run
       };
-      const resp = await fetch(endpoints.INDEX_START, { // Send start request to backend
+      const resp = await fetchWithSession(endpoints.INDEX_START, { // Send start request to backend
         method: "POST", // Use POST for starting job
         body: JSON.stringify(requestData), // Serialize JSON body
         headers: { "Content-Type": "application/json" }, // Indicate JSON payload
@@ -429,7 +429,7 @@ export class IndexingComponent {
   private async pollIndexStatus(pageLoaded: boolean = false) { // Periodically fetch indexing status
     if (!pageLoaded && !this.state.value.isIndexing) return; // If not initial load and not indexing, stop polling
     try {
-      const resp = await fetch(endpoints.GET_INDEX_STATUS); // Request current indexing status
+      const resp = await fetchWithSession(endpoints.GET_INDEX_STATUS); // Request current indexing status
       const data: IndexStatusResponse = await resp.json(); // Parse JSON response
       if (data.done) { // If backend reports job finished (or cancelled)
         if (this.state.value.isCancelling) { // If user initiated cancel
@@ -472,7 +472,7 @@ export class IndexingComponent {
     this.setState({ isCancelling: true });
     this.showNotification("Stopping scan...", "warning");
     try {
-      await fetch(endpoints.INDEX_CANCEL);
+      await fetchWithSession(endpoints.INDEX_CANCEL);
       this.pollIndexStatus();
     } catch (e) {
       this.setState({ error: "Could not stop the scan. Please contact administrator.", isCancelling: false });

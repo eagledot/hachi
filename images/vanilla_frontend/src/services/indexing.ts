@@ -1,10 +1,11 @@
 import { endpoints } from "../config";
 import type { GetSuggestionPathRequest, Partition } from "../types/indexing";
+import { fetchWithSession } from "../utils";
 
 export default class IndexingService {
   static async getPartitions() {
     try {
-      const response = await fetch(endpoints.GET_PARTITIONS);
+      const response = await fetchWithSession(endpoints.GET_PARTITIONS);
       if (!response.ok) {
         throw new Error(`Error fetching partitions: ${response.statusText}`);
       }
@@ -19,7 +20,7 @@ export default class IndexingService {
 
   static async getSuggestionPath(data: GetSuggestionPathRequest) {
     try {
-      const response = await fetch(endpoints.GET_SUGGESTION_PATH, {
+      const response = await fetchWithSession(endpoints.GET_SUGGESTION_PATH, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

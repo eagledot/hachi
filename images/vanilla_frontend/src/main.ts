@@ -1,6 +1,7 @@
 import './style.css';
 import { Layout } from './components/layout';
 import Config, { endpoints } from './config';
+import { fetchWithSession } from './utils';
 
 // Initialize the layout for the main page
 new Layout({
@@ -74,7 +75,7 @@ function animateCounter(elementId: string, finalValue: number, duration: number 
 // Function to fetch and display statistics
 async function loadStats() {
   try {
-    const response = await fetch(GET_META_STATS_URL);
+    const response = await fetchWithSession(GET_META_STATS_URL);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
