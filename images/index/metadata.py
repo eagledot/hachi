@@ -282,8 +282,14 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> I
 
     # Get exif data!    
     # NOTE: lots of edge cases, in extracting exif data, so must be in a try-except block.
-    temp_handle = ImageExif(resource_path)
-    if temp_handle.has_exif:
+    has_exif = False
+    try:
+        temp_handle = ImageExif(resource_path)
+        has_exif = temp_handle.has_exif
+    except Exception as e:
+        print("[ERROR Exif]: while parsing exif data for {}\n{}".format(resource_path, e))
+        
+    if has_exif:
         image_attributes = set(temp_handle.list_all())
         desired_attributes = set(EXIF_PACKAGE_MAPPING.keys())
         lifeGivesYou_attributes = image_attributes.intersection(desired_attributes)
