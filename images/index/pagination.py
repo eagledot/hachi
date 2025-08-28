@@ -57,8 +57,13 @@ class PaginationCache(object):
     
     def remove(
         self,
-        token:str):
+        token:str,
+        only_if_exists:bool = False):
         # remove an entry from the cache. (it is necessary to call this if possible to keep the cache size limited!)
         # Generally some code can be sure, we won't need a particular token. so better to remove it
-        _ = self.__data.pop(token)
+        if only_if_exists:
+            if token in self.__data:
+                _ = self.__data.pop(token)
+        else:
+            _ = self.__data.pop(token)
         
