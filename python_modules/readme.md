@@ -1,10 +1,14 @@
 ## Self-contained modules.
 # Flask:
-    Version 3.0.3 (any version can be used !)
+    Version 3.0.3 is being bundled. (any version can be used !)
+    Repo: https://github.com/pallets/flask
+    License: https://github.com/pallets/flask/blob/main/LICENSE.txt
 
 # Werkzeug:
     Modified `threading` class, instead to handle request using a thread-pool and queue, rather than creating a new thread for each request. (supposed to stabIlize/smooth Os resources in case used on less-powerful hardware or on SBCS)
-
+    
+    Repo: https://github.com/pallets/werkzeug
+    License: https://github.com/pallets/werkzeug/blob/main/LICENSE.txt
 
 ## Bootstraping Pip on windows.
 
