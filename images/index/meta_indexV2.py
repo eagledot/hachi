@@ -150,7 +150,8 @@ class MetaIndex(object):
             # collect asked attribute elements only!
             result_json = mBackend.collect_rows(
                 attribute,
-                indices = final_row_indices
+                indices = final_row_indices,
+                flatten = True
             )
             if raw_json:
                 return result_json
