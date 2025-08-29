@@ -26,6 +26,6 @@ In case we are using an embedded python version, we will first need to install/b
 ## Installing packages (on any OS!)
 Now that `pip` is available, we can install required packages into an isolated directory, in this case it would be `python_modules`,  so that application becomes self-contained. This has to be done one time. 
 
-``cmd
+```cmd
 * ./python.exe -m pip -e < desired directory > < package name >
 ```
