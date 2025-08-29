@@ -4,7 +4,7 @@ import typing as t
 
 from . import json as json
 from .app import Flask as Flask
-# from .blueprints import Blueprint as Blueprint
+from .blueprints import Blueprint as Blueprint
 from .config import Config as Config
 from .ctx import after_this_request as after_this_request
 from .ctx import copy_current_request_context as copy_current_request_context
@@ -25,20 +25,20 @@ from .helpers import send_from_directory as send_from_directory
 from .helpers import stream_with_context as stream_with_context
 from .helpers import url_for as url_for
 from .json import jsonify as jsonify
-# from .signals import appcontext_popped as appcontext_popped
-# from .signals import appcontext_pushed as appcontext_pushed
-# from .signals import appcontext_tearing_down as appcontext_tearing_down
-# from .signals import before_render_template as before_render_template
-# from .signals import got_request_exception as got_request_exception
-# from .signals import message_flashed as message_flashed
-# from .signals import request_finished as request_finished
-# from .signals import request_started as request_started
-# from .signals import request_tearing_down as request_tearing_down
-# from .signals import template_rendered as template_rendered
-# from .templating import render_template as render_template
-# from .templating import render_template_string as render_template_string
-# from .templating import stream_template as stream_template
-# from .templating import stream_template_string as stream_template_string
+from .signals import appcontext_popped as appcontext_popped
+from .signals import appcontext_pushed as appcontext_pushed
+from .signals import appcontext_tearing_down as appcontext_tearing_down
+from .signals import before_render_template as before_render_template
+from .signals import got_request_exception as got_request_exception
+from .signals import message_flashed as message_flashed
+from .signals import request_finished as request_finished
+from .signals import request_started as request_started
+from .signals import request_tearing_down as request_tearing_down
+from .signals import template_rendered as template_rendered
+from .templating import render_template as render_template
+from .templating import render_template_string as render_template_string
+from .templating import stream_template as stream_template
+from .templating import stream_template_string as stream_template_string
 from .wrappers import Request as Request
 from .wrappers import Response as Response
 

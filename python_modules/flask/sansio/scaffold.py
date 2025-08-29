@@ -16,7 +16,7 @@ from werkzeug.utils import cached_property
 
 from .. import typing as ft
 from ..helpers import get_root_path
-# from ..templating import _default_template_ctx_processor
+from ..templating import _default_template_ctx_processor
 
 if t.TYPE_CHECKING:  # pragma: no cover
     from click import Group

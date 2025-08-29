@@ -6,8 +6,8 @@ from collections.abc import MutableMapping
 from datetime import datetime
 from datetime import timezone
 
-# from itsdangerous import BadSignature
-# from itsdangerous import URLSafeTimedSerializer
+from itsdangerous import BadSignature
+from itsdangerous import URLSafeTimedSerializer
 from werkzeug.datastructures import CallbackDict
 
 from .json.tag import TaggedJSONSerializer

@@ -11,7 +11,7 @@ from itertools import chain
 from types import TracebackType
 from urllib.parse import quote as _url_quote
 
-# import click
+import click
 from werkzeug.datastructures import Headers
 from werkzeug.datastructures import ImmutableDict
 from werkzeug.exceptions import BadRequestKeyError
@@ -25,7 +25,7 @@ from werkzeug.routing import Rule
 from werkzeug.serving import is_running_from_reloader
 from werkzeug.wrappers import Response as BaseResponse
 
-# from . import cli
+from . import cli
 from . import typing as ft
 from .ctx import AppContext
 from .ctx import RequestContext
@@ -49,7 +49,7 @@ from .signals import got_request_exception
 from .signals import request_finished
 from .signals import request_started
 from .signals import request_tearing_down
-# from .templating import Environment
+from .templating import Environment
 from .wrappers import Request
 from .wrappers import Response
 

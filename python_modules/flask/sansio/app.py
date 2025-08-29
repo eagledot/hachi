@@ -26,8 +26,8 @@ from ..helpers import get_debug_flag
 from ..json.provider import DefaultJSONProvider
 from ..json.provider import JSONProvider
 from ..logging import create_logger
-# from ..templating import DispatchingJinjaLoader
-# from ..templating import Environment
+from ..templating import DispatchingJinjaLoader
+from ..templating import Environment
 from .scaffold import _endpoint_from_view_func
 from .scaffold import find_package
 from .scaffold import Scaffold
