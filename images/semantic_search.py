@@ -6,16 +6,26 @@ import os
 import time
 import gzip
 
-
+# -----------------------------------------------------
+# First party modules path configuration, could be better!
+# --------------------------------------------------
 PYTHON_MODULES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "python_modules")
 IMAGE_APP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".")
-# IMAGE_APP_INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "index")
-# IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".", "ml")
-
 sys.path.insert(0, IMAGE_APP_PATH)
-# sys.path.insert(0, IMAGE_APP_INDEX_PATH)
-# sys.path.insert(0, IMAGE_APP_ML_PATH)
+# --------------------------------------------
+
+# --------------------------------
+# 3rd party Path Handling
+# -------------------------------------
 sys.path.insert(0, PYTHON_MODULES_PATH)
+# Order matters, make sure `lib/site-packages` is the first, for given executable!
+# TODO: But then don't duplicate the packages in `python_modules` only pure 3rd party, python packages should be there, independent of python versions mess! 
+executable_dir = os.path.dirname(sys.executable)
+site_packages_path = os.path.join(executable_dir, "Lib", "site-packages")
+if os.path.exists(site_packages_path):
+    print("[DEBUG]: Python packages Path Added: {}".format(site_packages_path))
+    sys.path.insert(0, site_packages_path)
+# --------------------------------------------------
 
 # imports, after setting python_modules_path, (so that self-contained)
 # import psutil
