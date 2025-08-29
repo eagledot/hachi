@@ -18,9 +18,9 @@ sys.path.insert(0, IMAGE_APP_PATH)
 sys.path.insert(0, PYTHON_MODULES_PATH)
 
 # imports, after setting python_modules_path, (so that self-contained)
-import psutil
-p = psutil.Process()
-print("[PID]: {}".format(p))
+# import psutil
+# p = psutil.Process()
+# print("[PID]: {}".format(p))
 
 from typing import Optional, Union, TypedDict, NamedTuple, Tuple, List, Iterable, Dict, Any
 from threading import RLock
