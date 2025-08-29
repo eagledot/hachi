@@ -259,7 +259,9 @@ def getIndexStatus() -> IndexingInfo:
 
 @app.route("/getSuggestion", methods = ["POST"])
 def getSuggestion() -> Dict[str, List[str]]:
-    # TODO: run suggest all over.. (client shouldn't call this route for each attribute..)
+    # NOTE: could get bit costly, for very large datasets if called on every keystore, but client only call this, after sensing a delay.
+    # Should be very useful and fast for our desired local app even for larger datasets!, but when demoing on a remote server, may get costly!!
+    # TODO: maintain a cache.. to speed up checking in that cache first.. that substring!
     allowed_attributes = [
         "person",
         "filename",
@@ -268,13 +270,12 @@ def getSuggestion() -> Dict[str, List[str]]:
     ]
 
     query = flask.request.form.get("query")
-    attribute = flask.request.form.get("attribute")
-    
+
     result = {}
-    if len(query) >= 3: # to much wasted cpus cycles otherwise. without enough info!
-        result[attribute] = metaIndex.suggest(attribute, query)
-    else:
+    for attribute in allowed_attributes:
         result[attribute] = []
+        if len(query) >= 3: # to much wasted cpus cycles otherwise. without enough info!
+            result[attribute] = metaIndex.suggest(attribute, query) # at-max 20 are being returned i guess!
     return flask.jsonify(result)
 
 ##########################################
