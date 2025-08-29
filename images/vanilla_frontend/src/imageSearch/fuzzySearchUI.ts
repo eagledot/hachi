@@ -5,7 +5,9 @@ import {
   type SearchSuggestion,
 } from "./fuzzySearchService";
 
+import { fetchWithSession } from '../utils';
 import { html } from "../utils";
+import { endpoints } from '../config';
 
 export interface FuzzySearchCallbacks {
   onSearchExecuted: (query: string) => void;
@@ -372,9 +374,43 @@ export class FuzzySearchUI {
 
     this.debounceTimeout = setTimeout(async () => {
       if (value.trim().length > 0) {
+        /* @Anubhav I made some changes to directly call the `getsuggestions` for backend supported attributes,
+        It is one request now, rather than calling multiple times for each attribute, which returns suggestions for all those attributes, you may have to modify UI a bit, 
+        each attribute, would have a list of suggestions, some very minor tweaks should be needed on your side.
+        `getSuggestionBatch` is still being called somewhere, please check 
+        This makes lots of code in `suggestion related code` ub `fuzzySearchService.ts` redundant!
+        */
+
+        // get suggestions (for backend supported attributes!)
+        const formData = new FormData();
+        formData.append("query", value);
+      
+      const response = await fetchWithSession(`${endpoints.GET_SUGGESTIONS}`, {
+        method: "POST",
+        body: formData
+      });
+        if (response.ok){
+          let data = await response.json();
+          this.suggestions = []
+
+          let attributes = Object.keys(data);
+          console.log("Suggestion attributes: ", attributes);
+          for(let i = 0; i < attributes.length; i++){
+            let curr_attribute = attributes[i];
+            this.suggestions.push(
+              {
+                text: data[curr_attribute][i],
+                attribute: curr_attribute,
+                type: 'suggestion' as const
+              }
+            );
+          }
+        }
+      
+
         // Generate suggestions for all attributes simultaneously
-        this.suggestions =
-          await this.fuzzySearchService.generateAllAttributeSuggestions(value);
+        // this.suggestions =
+        //   await this.fuzzySearchService.generateAllAttributeSuggestions(value);
         if (this.suggestions.length > 0) {
           this.showDropdown = true;
           this.renderDropdown();
