@@ -280,7 +280,7 @@ class ImageSearchApp {
   /**
    * Fetches and renders photos for the current page, handling both filtered and unfiltered states.
    */
-  private async updatePaginationAndRenderPhotos(): Promise<void> {
+  private async updatePaginationAndRenderPhotos(opts?: { skipScroll?: boolean }): Promise<void> {
     console.log(
       "Updating pagination and rendering photos for page:",
       this.currentPage
@@ -309,7 +309,9 @@ class ImageSearchApp {
     console.log("Displayed photos updated:", this.displayedPhotos.length);
     this.toggleFilterContainer(this.displayedPhotos.length > 0);
     this.renderDisplayedPhotos();
-    window.scrollTo({ top: 0 });
+    if (!opts?.skipScroll) {
+      window.scrollTo({ top: 0 });
+    }
     window.requestIdleCallback(() => {
       this.preloadData();
     });
@@ -407,41 +409,139 @@ class ImageSearchApp {
     this.uiService.hideModal();
   }
 
-  private handleModalNext(): void {
+  private async handleModalNext(): Promise<void> {
     if (!this.selectedPhoto) return;
+    const localIndex = this.displayedPhotos.findIndex(p => p.id === this.selectedPhoto!.id);
+    if (localIndex === -1) return;
 
-    // Find current photo in filtered photos
-    const currentIndex = this.displayedPhotos.findIndex(
-      (p) => p.id === this.selectedPhoto!.id
-    );
-    if (currentIndex !== -1 && currentIndex < this.displayedPhotos.length - 1) {
-      console.log("Modal next");
-      const nextPhoto = this.displayedPhotos[currentIndex + 1];
+    // Case 1: still within current page
+    if (localIndex < this.displayedPhotos.length - 1) {
+      const nextPhoto = this.displayedPhotos[localIndex + 1];
       this.selectedPhoto = nextPhoto;
-
-      const canGoPrevious = currentIndex + 1 > 0;
-      const canGoNext = currentIndex + 1 < this.displayedPhotos.length - 1;
-
+      const canGoPrevious = true;
+      const canGoNext =
+        (this.filteredPhotos.length
+          ? (this.filteredPhotos.findIndex(p => p.id === nextPhoto.id) < this.filteredPhotos.length - 1)
+          : (localIndex + 1 < this.displayedPhotos.length - 1)) ||
+        (this.currentPage < this.totalPages - 1);
       this.uiService.showModal(nextPhoto, canGoPrevious, canGoNext);
+      return;
+    }
+
+    // Case 2: end of current page – advance to next page if possible
+    if (this.filteredPhotos.length) {
+      const globalIndex = this.filteredPhotos.findIndex(p => p.id === this.selectedPhoto!.id);
+      if (globalIndex === -1) return;
+      const nextGlobalIndex = globalIndex + 1;
+      if (nextGlobalIndex >= this.filteredPhotos.length) return; // no more
+
+      const nextPage = Math.floor(nextGlobalIndex / this.resultsPerPage);
+      if (nextPage !== this.currentPage) {
+        this.currentPage = nextPage;
+        await this.updatePaginationAndRenderPhotos({ skipScroll: true });
+        // keep pagination component in sync
+        const filteredTotalPages = Math.ceil(this.filteredPhotos.length / this.resultsPerPage);
+        this.updatePaginationComponent(this.filteredPhotos.length, filteredTotalPages, this.currentPage);
+      }
+      const nextPhoto = this.displayedPhotos[nextGlobalIndex % this.resultsPerPage];
+      this.selectedPhoto = nextPhoto;
+      const canGoPrevious = nextGlobalIndex > 0;
+      const canGoNext = nextGlobalIndex < this.filteredPhotos.length - 1;
+      this.uiService.showModal(nextPhoto, canGoPrevious, canGoNext);
+    } else {
+      // Unfiltered: use totalPages / fetch
+      if (this.currentPage >= this.totalPages - 1) return; // no more pages
+      this.currentPage += 1;
+      // Load next page data (reuse cache if present)
+      if (!this.preloadedData[this.currentPage]) {
+        this.displayedPhotos = await this.searchService.fetchSearchResults(
+          this.queryToken,
+          this.currentPage
+        );
+        this.preloadedData[this.currentPage] = this.displayedPhotos;
+      } else {
+        this.displayedPhotos = this.preloadedData[this.currentPage];
+      }
+      // Update pagination UI state
+      this.updatePaginationComponent(this.totalResults, this.totalPages, this.currentPage);
+      // Render grid silently (no scroll)
+      this.renderDisplayedPhotos();
+      // Preload upcoming
+      window.requestIdleCallback(() => this.preloadData());
+
+      if (this.displayedPhotos.length > 0) {
+        const nextPhoto = this.displayedPhotos[0];
+        this.selectedPhoto = nextPhoto;
+        const canGoPrevious = !(this.currentPage === 0 && 0 === 0);
+        const canGoNext =
+          this.displayedPhotos.length > 1 ||
+          this.currentPage < this.totalPages - 1;
+        this.uiService.showModal(nextPhoto, canGoPrevious, canGoNext);
+      }
     }
   }
 
-  private handleModalPrevious(): void {
+  private async handleModalPrevious(): Promise<void> {
     if (!this.selectedPhoto) return;
+    const localIndex = this.displayedPhotos.findIndex(p => p.id === this.selectedPhoto!.id);
+    if (localIndex === -1) return;
 
-    // Find current photo in filtered photos
-    const currentIndex = this.displayedPhotos.findIndex(
-      (p) => p.id === this.selectedPhoto!.id
-    );
-    if (currentIndex !== -1 && currentIndex > 0) {
-      console.log("Modal previous");
-      const prevPhoto = this.displayedPhotos[currentIndex - 1];
+    // Case 1: still within current page
+    if (localIndex > 0) {
+      const prevPhoto = this.displayedPhotos[localIndex - 1];
       this.selectedPhoto = prevPhoto;
-
-      const canGoPrevious = currentIndex - 1 > 0;
-      const canGoNext = currentIndex - 1 < this.displayedPhotos.length - 1;
-
+      const canGoPrevious =
+        localIndex - 1 > 0 ||
+        (this.filteredPhotos.length
+          ? this.filteredPhotos.findIndex(p => p.id === prevPhoto.id) > 0
+          : (this.currentPage > 0));
+      const canGoNext = true;
       this.uiService.showModal(prevPhoto, canGoPrevious, canGoNext);
+      return;
+    }
+
+    // Case 2: start of page – load previous page
+    if (this.filteredPhotos.length) {
+      const globalIndex = this.filteredPhotos.findIndex(p => p.id === this.selectedPhoto!.id);
+      if (globalIndex <= 0) return;
+      const prevGlobalIndex = globalIndex - 1;
+      const prevPage = Math.floor(prevGlobalIndex / this.resultsPerPage);
+      if (prevPage !== this.currentPage) {
+        this.currentPage = prevPage;
+        await this.updatePaginationAndRenderPhotos({ skipScroll: true });
+        const filteredTotalPages = Math.ceil(this.filteredPhotos.length / this.resultsPerPage);
+        this.updatePaginationComponent(this.filteredPhotos.length, filteredTotalPages, this.currentPage);
+      }
+      const prevPhoto = this.displayedPhotos[prevGlobalIndex % this.resultsPerPage];
+      this.selectedPhoto = prevPhoto;
+      const canGoPrevious = prevGlobalIndex > 0;
+      const canGoNext = prevGlobalIndex < this.filteredPhotos.length - 1;
+      this.uiService.showModal(prevPhoto, canGoPrevious, canGoNext);
+    } else {
+      if (this.currentPage <= 0) return;
+      this.currentPage -= 1;
+      if (!this.preloadedData[this.currentPage]) {
+        this.displayedPhotos = await this.searchService.fetchSearchResults(
+          this.queryToken,
+          this.currentPage
+        );
+        this.preloadedData[this.currentPage] = this.displayedPhotos;
+      } else {
+        this.displayedPhotos = this.preloadedData[this.currentPage];
+      }
+      this.updatePaginationComponent(this.totalResults, this.totalPages, this.currentPage);
+      this.renderDisplayedPhotos();
+      window.requestIdleCallback(() => this.preloadData());
+
+      if (this.displayedPhotos.length > 0) {
+        const prevPhoto = this.displayedPhotos[this.displayedPhotos.length - 1];
+        this.selectedPhoto = prevPhoto;
+        const canGoPrevious =
+          this.currentPage > 0 ||
+          this.displayedPhotos.length > 1;
+        const canGoNext = true; // we came from a next page previously
+        this.uiService.showModal(prevPhoto, canGoPrevious, canGoNext);
+      }
     }
   }
 }
