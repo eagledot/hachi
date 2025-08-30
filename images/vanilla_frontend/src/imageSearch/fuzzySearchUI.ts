@@ -323,6 +323,16 @@ export class FuzzySearchUI {
     ) as HTMLElement;
   }
 
+  private handleKeyDown(e: KeyboardEvent): void {
+    console.log("Key down:", e.key);
+
+    if (e.key === "Enter") {
+        e.preventDefault();
+        // Enter: Add current input as a search query
+        this.handleAddFilter();
+      }
+  }
+
   /**
    * Sets up all necessary event listeners for the fuzzy search UI component.
    *
@@ -382,35 +392,8 @@ export class FuzzySearchUI {
         */
 
         // get suggestions (for backend supported attributes!)
-        const formData = new FormData();
-        formData.append("query", value);
-      
-      const response = await fetchWithSession(`${endpoints.GET_SUGGESTIONS}`, {
-        method: "POST",
-        body: formData
-      });
-        if (response.ok){
-          let data = await response.json();
-          this.suggestions = []
+        this.suggestions = await this.fuzzySearchService.getSuggestions(value);
 
-          let attributes = Object.keys(data);
-          console.log("Suggestion attributes: ", attributes);
-          for(let i = 0; i < attributes.length; i++){
-            let curr_attribute = attributes[i];
-            this.suggestions.push(
-              {
-                text: data[curr_attribute][i],
-                attribute: curr_attribute,
-                type: 'suggestion' as const
-              }
-            );
-          }
-        }
-      
-
-        // Generate suggestions for all attributes simultaneously
-        // this.suggestions =
-        //   await this.fuzzySearchService.generateAllAttributeSuggestions(value);
         if (this.suggestions.length > 0) {
           this.showDropdown = true;
           this.renderDropdown();
@@ -425,75 +408,18 @@ export class FuzzySearchUI {
     }, 300); // Adjust as per need
   }
 
-  private handleKeyDown(e: KeyboardEvent): void {
-    console.log("Key down:", e.key);
-    // if (this.showDropdown && this.suggestions.length > 0) {
-    //   if (e.key === "ArrowDown") {
-    //     e.preventDefault();
-    //     this.selectedIndex =
-    //       this.selectedIndex < this.suggestions.length - 1
-    //         ? this.selectedIndex + 1
-    //         : 0;
-    //     this.updateDropdownSelection();
-    //   } else if (e.key === "ArrowUp") {
-    //     e.preventDefault();
-    //     this.selectedIndex =
-    //       this.selectedIndex > 0
-    //         ? this.selectedIndex - 1
-    //         : this.suggestions.length - 1;
-    //     this.updateDropdownSelection();
-    //   } else if (e.key === "Enter") {
-    //     e.preventDefault();
-
-    //     if (
-    //       this.selectedIndex >= 0 &&
-    //       this.selectedIndex < this.suggestions.length
-    //     ) {
-    //       // Select the highlighted suggestion
-    //       const suggestion = this.suggestions[this.selectedIndex];
-    //       this.handleSuggestionClick(suggestion);
-    //     } else {
-    //       // No item selected, use default enter behavior
-
-    //       // Enter: Add current input as a search query
-    //       this.handleAddFilter();
-    //     }
-    //   } else if (e.key === "Escape") {
-    //     this.selectedIndex = -1;
-    //     this.hideDropdown();
-    //     this.suggestions = [];
-    //   }
-    // } else {
-    //   // Handle keys when dropdown is not shown
-    //   if (e.key === "Enter") {
-    //     e.preventDefault();
-    //     // Enter: Add current input as a search query
-    //     this.handleAddFilter();
-    //   }
-    // }
-    if (e.key === "Enter") {
-        e.preventDefault();
-        // Enter: Add current input as a search query
-        this.handleAddFilter();
-      }
-  }
-
-  private handleInputFocus(): void {
+  private async handleInputFocus(): Promise<void> {
     this.selectedIndex = -1; // Reset keyboard navigation
 
     if (this.searchInput.value.trim()) {
       // Generate suggestions for all attributes
-      this.fuzzySearchService
-        .generateAllAttributeSuggestions(this.searchInput.value)
-        .then((suggestions) => {
-          this.suggestions = suggestions;
-          if (this.suggestions.length > 0) {
-            this.showDropdown = true;
-            this.renderDropdown();
-          } else {
-            this.hideDropdown();
-          }
-        });
+      this.suggestions = await this.fuzzySearchService.getSuggestions(this.searchInput.value);
+      if (this.suggestions.length > 0) {
+        this.showDropdown = true;
+        this.renderDropdown();
+      } else {
+        this.hideDropdown();
+      }
     }
   }
 
@@ -783,10 +709,6 @@ export class FuzzySearchUI {
   private hideDropdown(): void {
     this.showDropdown = false;
     this.dropdown.classList.add("hidden");
-  }
-
-  public cleanup(): void {
-    this.fuzzySearchService.cleanup();
   }
 
   public clearAllFilters(): void {
