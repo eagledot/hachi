@@ -147,7 +147,7 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed items-center justify-center w-12 h-full sm:w-14  hover:border-yellow-200 bg-yellow-400 transition-all duration-200border-yellow-200 bg-gray-0 group focus:outline-none "
+                    class="flex cursor-not-allowed bg-gray-700 items-center justify-center w-12 h-full sm:w-14  hover:border-yellow-200 transition-all duration-200border-yellow-200 bg-gray-0 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
@@ -158,7 +158,7 @@ export class FuzzySearchUI {
                       width="24px"
                     >
                       <path
-                      fill="black"
+                      fill="#fff"
                         d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"
                       />
                     </svg>
@@ -167,7 +167,7 @@ export class FuzzySearchUI {
                   <!-- Integrated Search Button -->
                   <button
                     id="fuzzy-search-btn"
-                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 hover:from-blue-500 hover:via-blue-500 hover:to-blue-500 active:from-blue-500 active:via-blue-500 active:to-blue-450 disabled:from-blue-500 disabled:via-blue-500 disabled:to-blue-500 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:z-10"
+                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-600 via-blue-600 to-blue-600 hover:from-blue-600 hover:via-blue-600 hover:to-blue-600 active:from-blue-600 active:via-blue-600 active:to-blue-550 disabled:from-blue-600 disabled:via-blue-600 disabled:to-blue-600 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-600 focus:z-10"
                     style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
                     <svg
