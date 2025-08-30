@@ -608,7 +608,7 @@ export class UIService {
         "grid grid-cols-3 gap-2 py-1 border-b border-gray-800 last:border-b-0";
 
       const label = document.createElement("span");
-      label.className = "font-semibold col-span-1 text-gray-800";
+      label.className = "font-semibold col-span-1 text-gray-100";
       label.textContent = `${item.label}:`;
       div.appendChild(label);
       const valueText = item.value as string;
@@ -620,7 +620,7 @@ export class UIService {
         valueContainer.className = "col-span-2 flex gap-2";
 
         const value = document.createElement("span");
-        value.className = "text-gray-500 flex-1 min-w-0";
+        value.className = "text-gray-200 flex-1 min-w-0";
 
         const maxLength = 20; // Adjust this value as needed
         const trimmedText =
@@ -667,7 +667,7 @@ export class UIService {
       } else {
         // Standard handling for other labels
         const value = document.createElement("span");
-        value.className = "col-span-2 text-gray-500";
+        value.className = "col-span-2 text-gray-200";
         value.textContent = valueText;
         div.appendChild(value);
       }
@@ -690,7 +690,7 @@ export class UIService {
       peopleDiv.className = "py-1 border-b border-gray-800";
 
       const peopleLabel = document.createElement("span");
-      peopleLabel.className = "font-semibold text-gray-800";
+      peopleLabel.className = "font-semibold text-gray-100";
       peopleLabel.textContent = "People:";
 
       const peopleContainer = document.createElement("div");
@@ -702,7 +702,7 @@ export class UIService {
         metadata.person?.filter(
           (personId) =>
             personId !== "no_person_detected" &&
-            personId !== "no_categorical_info" &&
+            personId !== "no-categorical-info" &&
             personId.trim() !== ""
         ) || [];
 
@@ -715,13 +715,13 @@ export class UIService {
       } else {
         validPeople.forEach((personId) => {
           const personWrapper = document.createElement("div");
-          personWrapper.className = "flex flex-col items-center w-16 group";
+          personWrapper.className = "flex flex-col items-center w-24 group";
 
           const img = document.createElement("img");
           img.src = `${endpoints.GET_PERSON_IMAGE}/${personId}`;
           img.alt = personId;
           img.className =
-            "w-12 h-12 rounded-full object-cover border-2 border-gray-300 shadow-sm cursor-pointer group-hover:border-blue-500 group-hover:scale-105 transition-all duration-200 bg-gray-200";
+            "w-24 h-24 object-cover border-2 border-gray-300 shadow-sm cursor-pointer group-hover:border-blue-500 group-hover:scale-105 transition-all duration-200 bg-gray-200";
           img.title = `Click to view ${personId}'s photos`;
           img.setAttribute("data-person-id", personId);
 
@@ -739,7 +739,7 @@ export class UIService {
           // Add name label under avatar (show short version if long)
           const nameLabel = document.createElement("span");
           nameLabel.className =
-            "mt-1 text-xs text-gray-700 text-center truncate max-w-full";
+            "mt-1 text-xs text-gray-200 text-center truncate max-w-full";
           // If personId looks like a hash, show only first 8 chars, else show as is
           nameLabel.textContent =
             personId.length > 16 && /^[a-f0-9]+$/i.test(personId)

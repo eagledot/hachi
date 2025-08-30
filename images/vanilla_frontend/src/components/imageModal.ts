@@ -17,148 +17,82 @@ export class ImageModalComponent {
       >
       <div class="modal-backdrop fixed inset-0" id="modal-backdrop"></div>
       <div class="flex h-screen items-center justify-center">
-        <div
-        class="relative bg-white rounded-lg shadow-2xl w-full h-full overflow-hidden border border-gray-200"
-        >
-        <!-- Modal header -->
-        <div
-          class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white/80 backdrop-blur-sm"
-        >
-          <h3
-          class="text-lg font-semibold text-gray-900"
-          id="modal-title"
-          ></h3>
-          <div class="flex items-center space-x-1">
-          <button
-            id="modal-prev-btn"
-            class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-            disabled
-          >
-            <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+  <div
+  class="relative bg-black w-full h-full overflow-hidden"
+  >
+        <!-- Modal header overlay (buttons over image, filename removed) -->
+        <div class="modal-header-overlay">
+          <div class="flex items-center gap-1 ml-auto">
+            <button
+              id="modal-prev-btn"
+              class="modal-icon-btn"
+              disabled
             >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M15 19l-7-7 7-7"
-            ></path>
-            </svg>
-          </button>
-          <button
-            id="modal-next-btn"
-            class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-            disabled
-          >
-            <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+              </svg>
+            </button>
+            <button
+              id="modal-next-btn"
+              class="modal-icon-btn"
+              disabled
             >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 5l7 7-7 7"
-            ></path>
-            </svg>
-          </button>
-          <button
-            id="modal-info-btn"
-            class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-200"
-            title="Show Info"
-            aria-label="Show info overlay"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
-            </svg>
-          </button>
-          <button
-            id="modal-fullscreen-btn"
-            class="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-            title="Fullscreen View"
-          >
-            <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              </svg>
+            </button>
+            <button
+              id="modal-info-btn"
+              class="modal-icon-btn"
+              title="Show Info"
+              aria-label="Show info overlay"
             >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-            ></path>
-            </svg>
-          </button>
-          <button
-            id="modal-like-btn"
-            class="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all duration-200"
-            title="Like"
-          >
-            <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+              </svg>
+            </button>
+            <button
+              id="modal-fullscreen-btn"
+              class="modal-icon-btn"
+              title="Fullscreen View"
             >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-            ></path>
-            </svg>
-          </button>
-          <button
-            id="modal-faces-btn"
-            class="p-2 text-gray-500 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all duration-200"
-            title="Show Faces"
-          >
-            <svg
-            class="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+              </svg>
+            </button>
+            <button
+              id="modal-like-btn"
+              class="modal-icon-btn"
+              title="Like"
             >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            ></path>
-            </svg>
-          </button>
-          <button
-            id="modal-close-btn"
-            class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200"
-          >
-            <svg
-            class="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+              </svg>
+            </button>
+            <button
+              id="modal-faces-btn"
+              class="modal-icon-btn"
+              title="Show Faces"
             >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            ></path>
-            </svg>
-          </button>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </button>
+            <button
+              id="modal-close-btn"
+              class="modal-icon-btn"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
           </div>
         </div>
         <!-- Modal content -->
         <div class="flex-1 h-full">
           <div class="flex h-full flex-row" id="modal-main-row">
             <!-- Image container -->
-            <div id="modal-image-wrapper" class="flex-1 flex justify-center items-center bg-gradient-to-br from-gray-50 to-gray-100 transition-all duration-300">
+            <div id="modal-image-wrapper" class="flex-1 flex justify-center items-center bg-black transition-all duration-300">
               <img
                 id="modal-image"
                 height=""
@@ -170,15 +104,15 @@ export class ImageModalComponent {
               />
             </div>
             <!-- Metadata sidebar (hidden by default) -->
-            <aside id="modal-sidebar" class="relative h-full w-0 overflow-hidden bg-white border-l border-gray-200 flex flex-col transition-all duration-300 ease-out" aria-label="Image details" aria-hidden="true">
-              <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white/70 backdrop-blur-sm">
-                <h4 class="text-sm font-semibold text-gray-700">Details</h4>
-                <button id="modal-info-close-btn" class="p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition" title="Close" aria-label="Close details">
+            <aside id="modal-sidebar" class="relative h-full w-0 overflow-hidden bg-gray-900/95 border-l border-gray-800 flex flex-col transition-all duration-300 ease-out text-gray-200" aria-label="Image details" aria-hidden="true">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm">
+                <h4 class="text-sm font-semibold text-gray-100 tracking-wide">Details</h4>
+                <button id="modal-info-close-btn" class="p-1.5 rounded-md text-gray-400 hover:text-gray-100 hover:bg-white/10 transition" title="Close" aria-label="Close details">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
               <div class="flex-1 p-6 overflow-y-auto" id="modal-metadata-scroll">
-                <div id="modal-metadata" class="space-y-4 pb-8"></div>
+                <div id="modal-metadata" class="space-y-4 pb-8 text-sm leading-relaxed"></div>
               </div>
             </aside>
           </div>
@@ -195,9 +129,41 @@ export class ImageModalComponent {
    */ static getStyles(): string {
     return `
       .modal-backdrop {
-        backdrop-filter: blur(8px);
-        background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.8));
+        backdrop-filter: blur(4px);
+        background: rgba(0,0,0,0.92);
       }
+      /* Header overlay styles */
+      .modal-header-overlay {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        z-index: 20;
+        display: flex;
+        padding: .5rem .75rem;
+        background: linear-gradient(to bottom, rgba(0,0,0,.72), rgba(0,0,0,0));
+        pointer-events: none; /* allow clicks through except buttons */
+        transition: right .3s ease; /* adjust when sidebar opens */
+      }
+      #image-modal.info-open .modal-header-overlay { right: 24rem; }
+      @media (max-width: 640px) { #image-modal.info-open .modal-header-overlay { right: 0; } }
+      .modal-header-overlay .modal-icon-btn {
+        pointer-events: auto;
+        padding: .55rem;
+        border-radius: .75rem;
+        background: rgba(255,255,255,.08);
+        color: #f1f5f9; /* slate-100 */
+        backdrop-filter: blur(6px) saturate(140%);
+        box-shadow: 0 2px 4px -1px rgba(0,0,0,.5), 0 1px 2px -1px rgba(0,0,0,.4);
+        transition: background .15s, transform .15s, color .15s;
+      }
+      .modal-header-overlay .modal-icon-btn:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+      .modal-header-overlay .modal-icon-btn:active:not(:disabled) { transform: scale(.9); }
+      .modal-header-overlay .modal-icon-btn svg { filter: drop-shadow(0 1px 1px rgba(0,0,0,.6)); }
+      .modal-header-overlay .modal-icon-btn:disabled { opacity: .4; cursor: not-allowed; }
+      /* Dark scrollbar for metadata */
+      #modal-metadata-scroll::-webkit-scrollbar { width: 8px; }
+      #modal-metadata-scroll::-webkit-scrollbar-track { background: transparent; }
+      #modal-metadata-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 4px; }
+      #modal-metadata-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.25); }
       .photo-hover {
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
       }
