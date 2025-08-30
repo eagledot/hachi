@@ -148,10 +148,10 @@ class MetaIndex(object):
             final_row_indices = final_row_indices[:n_suggestions]
             
             # collect asked attribute elements only!
-            result_json = mBackend.collect_rows(
-                attribute,
-                indices = final_row_indices,
-                flatten = True
+            result_json = mBackend.get_unique_str(
+                attribute, 
+                count_only = False,
+                row_indices = final_row_indices
             )
             if raw_json:
                 return result_json
