@@ -192,7 +192,7 @@ export class FuzzySearchUI {
                 <!-- Modern Smart Dropdown -->
                 <div
                   id="fuzzy-dropdown"
-                  class="absolute top-full left-0 right-0 bg-white border-2 border-gray-200 rounded-2xl shadow-2xl mt-3 z-50 max-h-64 sm:max-h-80 overflow-y-auto hidden backdrop-blur-sm"
+                  class="absolute top-full left-0 right-0 bg-white border-2 border-gray-200 rounded-lg shadow-2xl mt-3 z-50 max-h-64 sm:max-h-80 overflow-y-auto hidden backdrop-blur-sm"
                   style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 20px -5px rgba(0, 0, 0, 0.1);"
                 >
                   <div id="dropdown-content">
@@ -628,31 +628,24 @@ export class FuzzySearchUI {
             suggestion.attribute
           );
           suggestionsHtml += `
-            <div class="suggestion-option flex items-center px-3 sm:px-4 py-2 sm:py-3 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
-              this.selectedIndex === currentIndex
-                ? "bg-blue-50 border-l-4 border-l-blue-500"
-                : ""
+            <div class="suggestion-option flex items-center px-2 sm:px-3 py-1.5 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition ${
+              this.selectedIndex === currentIndex ? "bg-blue-50 border-l-2 border-l-blue-500" : ""
             }" data-index="${currentIndex}">
-              <div class="flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-xl mr-3 sm:mr-4 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
-                <span class="text-sm sm:text-base">${icon}</span>
+              <div class="flex items-center justify-center w-7 sm:w-8 h-7 sm:h-8 rounded-lg mr-2 sm:mr-3 ${color}">
+                <span class="text-xs sm:text-sm">${icon}</span>
               </div>
               <div class="flex-grow min-w-0">
-                <div class="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 text-sm sm:text-base truncate">${
-                  suggestion.text
-                }</div>
-                <div class="text-xs sm:text-sm text-gray-500 flex items-center mt-1">
-                  <span class="capitalize">
-                    Add to ${suggestion.attribute.replace("_", " ")} search
-                  </span>
+                <div class="font-medium text-gray-900 group-hover:text-blue-700 text-xs sm:text-sm truncate">
+                  ${suggestion.text}
                 </div>
               </div>
-              <div class="flex items-center justify-center w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
-                <svg class="w-3 sm:w-4 h-3 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+              <div class="ml-2 flex items-center justify-center w-6 h-6 rounded-md bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"></path>
                 </svg>
               </div>
             </div>
-          `;
+            `;
           currentIndex++;
         });
       });
