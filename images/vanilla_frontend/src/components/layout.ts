@@ -59,25 +59,10 @@ export class Layout {
   }
 
   private setupGlobalStyles(): void {
-    // Add any global CSS classes to body
-    document.body.classList.add('bg-gray-50', 'min-h-screen');
-
-
     // Remove sidebar padding from main, since flex handles adjacency
     const mainContent = document.querySelector('main');
     if (mainContent instanceof HTMLElement) {
-      mainContent.classList.remove('pt-4', 'md:pl-64', 'transition-all', 'duration-300');
-      mainContent.classList.add('flex-1', 'min-w-0');
-    }
-  }
-
-  public getNavbar(): Navbar | null {
-    return this.navbar;
-  }
-
-  public updateCurrentPage(page: string): void {
-    if (this.navbar) {
-      this.navbar.updateCurrentPage(page);
+      mainContent.classList.add('flex-1');
     }
   }
 }

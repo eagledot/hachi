@@ -27,6 +27,20 @@ class FoldersApp {
   constructor() {
     this.setupEventListeners();
     this.loadFolders();
+    // Event delegation for folder card clicks (added once)
+    const grid = document.getElementById("folders-grid");
+    if (grid && !grid.getAttribute("data-click-delegation")) {
+      grid.addEventListener("click", (e) => {
+        const target = (e.target as HTMLElement).closest('.folder-list-item') as HTMLElement | null;
+        if (target && target.hasAttribute('data-folder-path')) {
+          const folderPath = target.getAttribute('data-folder-path');
+          if (folderPath) {
+            window.location.href = `/image-search.html?resource_directory=${folderPath}`;
+          }
+        }
+      });
+      grid.setAttribute("data-click-delegation", "true");
+    }
   }
   private setupEventListeners(): void {
     // Search functionality
@@ -54,9 +68,9 @@ class FoldersApp {
 
 
   private async loadFolders(): Promise<void> {
-    this.isLoading = true;
-    this.showLoading(true);
-    this.hideError();
+    // this.isLoading = true;
+    // this.showLoading(true);
+    // this.hideError();
 
     try {
       await this.loadFoldersFromAPI();
@@ -68,8 +82,8 @@ class FoldersApp {
         }`
       );
     } finally {
-      this.isLoading = false;
-      this.showLoading(false);
+      // this.isLoading = false;
+      // this.showLoading(false);
     }
   }
 
@@ -136,8 +150,6 @@ class FoldersApp {
           return a.name.localeCompare(b.name);
       }
     });
-
-    this.renderFolders();
   }
 
 
@@ -160,16 +172,98 @@ class FoldersApp {
     }
     noFolders.classList.add("hidden");
     grid.classList.remove("hidden");
-    grid.className =
-      "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4";
 
-    // Show all folders without pagination
-    grid.innerHTML = this.filteredFolders
-      .map((folder) => this.renderFolderCard(folder))
-      .join("");
+    this.batchUpdateFolderGrid(grid);
+  }
 
-    // Setup click handlers for folder cards
-    this.setupFolderClickHandlers();
+  // Efficiently update the grid without full innerHTML replacement
+  private batchUpdateFolderGrid(grid: HTMLElement): void {
+    const existingNodes = Array.from(grid.querySelectorAll<HTMLElement>(":scope > .folder-list-item"));
+    const existingMap = new Map<string, HTMLElement>();
+    existingNodes.forEach(node => {
+      const key = node.getAttribute('data-folder-path');
+      if (key) existingMap.set(key, node);
+    });
+
+    const fragment = document.createDocumentFragment();
+    const seen = new Set<string>();
+
+    for (const folder of this.filteredFolders) {
+      const key = encodeURIComponent(folder.fullPath);
+      seen.add(key);
+      const existing = existingMap.get(key);
+      if (existing) {
+        this.updateFolderElement(existing, folder);
+        fragment.appendChild(existing);
+      } else {
+        fragment.appendChild(this.createFolderElement(folder));
+      }
+    }
+
+    // Remove stale nodes (those not re-appended)
+    for (const [key, node] of existingMap.entries()) {
+      if (!seen.has(key)) {
+        node.remove();
+      }
+    }
+
+    // Append new order (this also reorders existing nodes without re-rendering contents)
+    grid.appendChild(fragment);
+  }
+
+  private createFolderElement(folder: Directory): HTMLElement {
+    const div = document.createElement('div');
+    div.className = "folder-list-item px-4 py-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer flex flex-col gap-1 justify-between";
+    div.setAttribute('data-folder-path', encodeURIComponent(folder.fullPath));
+    // Structure
+    div.appendChild(this.buildTopRow(folder));
+    div.appendChild(this.buildPathRow(folder));
+    return div;
+  }
+
+  private updateFolderElement(el: HTMLElement, folder: Directory): void {
+    // Update only if changed
+    const nameSpan = el.querySelector('.folder-name') as HTMLElement | null;
+    if (nameSpan && nameSpan.textContent !== folder.name) {
+      nameSpan.textContent = folder.name;
+      nameSpan.title = folder.name;
+    }
+    const pathSpan = el.querySelector('.folder-path') as HTMLElement | null;
+    if (pathSpan) {
+      const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
+      if (pathSpan.textContent !== trimmedPath) {
+        pathSpan.textContent = trimmedPath;
+      }
+      if (pathSpan.title !== folder.fullPath) pathSpan.title = folder.fullPath;
+    }
+  }
+
+  private buildTopRow(folder: Directory): HTMLElement {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-3';
+    row.innerHTML = `
+      <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+      </svg>
+      <span class="folder-name font-medium text-gray-800" title="${folder.name}">${folder.name}</span>`;
+    return row;
+  }
+
+  private buildPathRow(folder: Directory): HTMLElement {
+    const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2';
+    row.innerHTML = `<span class="folder-path text-xs text-gray-400 truncate max-w-full" title="${folder.fullPath}">${trimmedPath}</span>`;
+    return row;
+  }
+
+  private getTrimmedPath(fullPath: string): { trimmedPath: string } {
+    const maxPathLen = 32;
+    let trimmedPath = fullPath;
+    if (trimmedPath.length > maxPathLen) {
+      trimmedPath = '…' + trimmedPath.slice(-maxPathLen);
+    }
+    return { trimmedPath };
   }
 
   private renderFolderCard(folder: Directory): string {
@@ -196,7 +290,6 @@ class FoldersApp {
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-gray-400 truncate max-w-full" title="${folder.fullPath}">${trimmedPath}</span>
-          <!-- <span class="text-xs text-gray-500 ml-auto">${folder.imageCount} photo${folder.imageCount !== 1 ? "s" : ""}</span> -->
         </div>
       </div>
     `;

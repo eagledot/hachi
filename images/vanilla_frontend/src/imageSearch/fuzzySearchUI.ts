@@ -147,7 +147,7 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed items-center justify-center w-12 h-full sm:w-14  hover:border-yellow-200 bg-yellow-400 transition-all duration-200border-yellow-200 bg-gray-0 group focus:outline-none "
+                    class="flex cursor-not-allowed bg-gray-700 items-center justify-center w-12 h-full sm:w-14  hover:border-yellow-200 transition-all duration-200border-yellow-200 bg-gray-0 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
@@ -158,7 +158,7 @@ export class FuzzySearchUI {
                       width="24px"
                     >
                       <path
-                      fill="black"
+                      fill="#fff"
                         d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"
                       />
                     </svg>
@@ -167,7 +167,7 @@ export class FuzzySearchUI {
                   <!-- Integrated Search Button -->
                   <button
                     id="fuzzy-search-btn"
-                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 hover:from-blue-500 hover:via-blue-500 hover:to-blue-500 active:from-blue-500 active:via-blue-500 active:to-blue-450 disabled:from-blue-500 disabled:via-blue-500 disabled:to-blue-500 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:z-10"
+                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-600 via-blue-600 to-blue-600 hover:from-blue-600 hover:via-blue-600 hover:to-blue-600 active:from-blue-600 active:via-blue-600 active:to-blue-550 disabled:from-blue-600 disabled:via-blue-600 disabled:to-blue-600 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-600 focus:z-10"
                     style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
                     <svg
@@ -192,7 +192,7 @@ export class FuzzySearchUI {
                 <!-- Modern Smart Dropdown -->
                 <div
                   id="fuzzy-dropdown"
-                  class="absolute top-full left-0 right-0 bg-white border-2 border-gray-200 rounded-2xl shadow-2xl mt-3 z-50 max-h-64 sm:max-h-80 overflow-y-auto hidden backdrop-blur-sm"
+                  class="absolute top-full left-0 right-0 bg-white border-2 border-gray-200 rounded-lg shadow-2xl mt-3 z-50 max-h-64 sm:max-h-80 overflow-y-auto hidden backdrop-blur-sm"
                   style="box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 10px 20px -5px rgba(0, 0, 0, 0.1);"
                 >
                   <div id="dropdown-content">
@@ -628,31 +628,24 @@ export class FuzzySearchUI {
             suggestion.attribute
           );
           suggestionsHtml += `
-            <div class="suggestion-option flex items-center px-3 sm:px-4 py-2 sm:py-3 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition-all duration-200 ${
-              this.selectedIndex === currentIndex
-                ? "bg-blue-50 border-l-4 border-l-blue-500"
-                : ""
+            <div class="suggestion-option flex items-center px-2 sm:px-3 py-1.5 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition ${
+              this.selectedIndex === currentIndex ? "bg-blue-50 border-l-2 border-l-blue-500" : ""
             }" data-index="${currentIndex}">
-              <div class="flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-xl mr-3 sm:mr-4 ${color} shadow-sm group-hover:shadow-md transition-shadow duration-200">
-                <span class="text-sm sm:text-base">${icon}</span>
+              <div class="flex items-center justify-center w-7 sm:w-8 h-7 sm:h-8 rounded-lg mr-2 sm:mr-3 ${color}">
+                <span class="text-xs sm:text-sm">${icon}</span>
               </div>
               <div class="flex-grow min-w-0">
-                <div class="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors duration-200 text-sm sm:text-base truncate">${
-                  suggestion.text
-                }</div>
-                <div class="text-xs sm:text-sm text-gray-500 flex items-center mt-1">
-                  <span class="capitalize">
-                    Add to ${suggestion.attribute.replace("_", " ")} search
-                  </span>
+                <div class="font-medium text-gray-900 group-hover:text-blue-700 text-xs sm:text-sm truncate">
+                  ${suggestion.text}
                 </div>
               </div>
-              <div class="flex items-center justify-center w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-all duration-200">
-                <svg class="w-3 sm:w-4 h-3 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+              <div class="ml-2 flex items-center justify-center w-6 h-6 rounded-md bg-blue-100 text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"></path>
                 </svg>
               </div>
             </div>
-          `;
+            `;
           currentIndex++;
         });
       });
