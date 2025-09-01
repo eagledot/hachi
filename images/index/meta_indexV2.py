@@ -143,16 +143,22 @@ class MetaIndex(object):
             final_row_indices = self.query_generic(
                 attribute = attribute,
                 query = [query],
+                unique_only = True,           # 
                 exact_string_match = False   # since we suggest, we match for subtrings too..
             )
             final_row_indices = final_row_indices[:n_suggestions]
             
             # collect asked attribute elements only!
-            result_json = mBackend.get_unique_str(
-                attribute, 
-                count_only = False,
-                row_indices = final_row_indices
-            )
+            if len(final_row_indices) > 0:
+                # TODO: (better document this issue) 
+                # if empty, DO NOT CALL `get_unique_str`, it would treat it as search on all INDICES !
+                result_json = mBackend.get_unique_str(
+                    attribute, 
+                    count_only = False,
+                    row_indices = final_row_indices
+                )
+            else:
+                result_json = json.dumps([])
             if raw_json:
                 return result_json
             else:
