@@ -594,11 +594,14 @@ def query(page_size:int = 200):
         only_if_exists = True
         )
     
+    tic = time.time_ns()
     q_info = query_func(
         query = query,
         page_size = page_size,
         query_token = query_token
     )
+    toc = time.time_ns()
+    q_info["latency"] = (toc - tic / 1e6)  # in milliseconds
     return flask.jsonify(q_info)
 
 ##############
