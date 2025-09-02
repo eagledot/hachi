@@ -400,7 +400,7 @@ export default class PhotoFilterSidebar {
 
     const peopleList = document.createElement("div");
     peopleList.className = "flex flex-wrap overflow-y-auto";
-    peopleList.style.maxHeight = "100px";
+    peopleList.style.maxHeight = "360px";
     peopleList.style.display = "flex";
     peopleList.style.flexWrap = "wrap";
     peopleList.style.overflowY = "auto";
