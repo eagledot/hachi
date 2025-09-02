@@ -154,7 +154,7 @@ export default class PhotoFilterSidebar {
     // Value span with enhanced typography
     const valueSpan = document.createElement("span");
     valueSpan.className = "text-xs font-semibold truncate";
-    valueSpan.style.maxWidth = "140px";
+    valueSpan.style.maxWidth = "360px";
     valueSpan.style.textShadow = "0 1px 2px rgba(0, 0, 0, 0.1)";
     valueSpan.style.lineHeight = "1.4";
     valueSpan.textContent = value;
@@ -325,6 +325,8 @@ export default class PhotoFilterSidebar {
       people.length
     );
 
+    console.log(`Rendering people ${this.peopleRendered} to ${nextLimit}`);
+
     for (let i = this.peopleRendered; i < nextLimit; i++) {
       frag.appendChild(this.createPersonItem(people[i]));
     }
@@ -345,6 +347,20 @@ export default class PhotoFilterSidebar {
         this.peopleObserver = undefined;
       }
     }
+
+    // Autofill logic: if container still doesn't scroll (content height <= visible height)
+    // and there are more people to load, continue loading additional batches.
+    // This addresses the case where the initial sentinel intersection fires only once
+    // because the sentinel never leaves the viewport when container is tall.
+    if (
+      this.peopleListElement &&
+      this.peopleSentinel &&
+      this.peopleRendered < people.length &&
+      this.peopleListElement.scrollHeight <= this.peopleListElement.clientHeight
+    ) {
+      // Defer next batch to allow layout to update and avoid tight sync recursion.
+      setTimeout(() => this.renderNextPeopleBatch(), 0);
+    }
   }
 
   private setupPeopleInfiniteScroll(): void {
@@ -352,7 +368,8 @@ export default class PhotoFilterSidebar {
     this.peopleObserver = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
-        if(entry.isIntersecting) {
+        if (entry.isIntersecting) {
+          console.log("Loading next batch of people...");
           this.renderNextPeopleBatch();
         }
       },
@@ -383,7 +400,7 @@ export default class PhotoFilterSidebar {
 
     const peopleList = document.createElement("div");
     peopleList.className = "flex flex-wrap overflow-y-auto";
-    peopleList.style.maxHeight = "360px";
+    peopleList.style.maxHeight = "100px";
     peopleList.style.display = "flex";
     peopleList.style.flexWrap = "wrap";
     peopleList.style.overflowY = "auto";
@@ -407,6 +424,7 @@ export default class PhotoFilterSidebar {
     if (this.peopleSentinel) {
       this.setupPeopleInfiniteScroll();
     }
+
 
     filterContainer.appendChild(peopleList);
     return filterContainer;
