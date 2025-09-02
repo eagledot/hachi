@@ -47,7 +47,12 @@ class PeopleApp {
     const photoGalleryWidth = photoGallery?.clientWidth!;
 
     // Set static dimensions
-    const side = 156;
+    let side = 156;
+
+    // If we are on mobile screens, reduce side length
+    if (window.innerWidth < 768) {
+      side = 100;
+    }
 
     const { rows, cols, tileWidth, tileHeight } = fitTiles(
       photoGalleryHeight!,
@@ -183,7 +188,7 @@ class PeopleApp {
           style="${hasCustomName
             ? "visibility: visible;"
             : "visibility: hidden;"}"
-          class="badge absolute top-1 sm:top-2 right-1 sm:right-2 z-10"
+          class="badge hidden sm:block absolute top-1 sm:top-2 right-1 sm:right-2 z-10"
         >
           <span
             class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-200"
