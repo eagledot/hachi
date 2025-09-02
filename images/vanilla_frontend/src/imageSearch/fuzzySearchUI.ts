@@ -5,9 +5,9 @@ import {
   type SearchSuggestion,
 } from "./fuzzySearchService";
 
-import { fetchWithSession } from '../utils';
+import { fetchWithSession } from "../utils";
 import { html } from "../utils";
-import { endpoints } from '../config';
+import { endpoints } from "../config";
 
 export interface FuzzySearchCallbacks {
   onSearchExecuted: (query: string) => void;
@@ -85,7 +85,6 @@ export class FuzzySearchUI {
     });
   }
 
-
   private extractSearchQueryParam() {
     const urlParams = new URLSearchParams(window.location.search);
     const person = urlParams.get("person") || "";
@@ -100,14 +99,12 @@ export class FuzzySearchUI {
 
   private createUI(): void {
     this.container.innerHTML = html`
-      <div class="w-full mx-auto mt-4 fuzzy-search-container">
+      <div class="mx-auto mt-4 fuzzy-search-container">
         <div class="w-full relative">
           <!-- Modern Search Container -->
           <div class="flex flex-col">
             <!-- Main Search Row -->
-            <div
-              class="flex flex-col sm:flex-row sm:space-y-0 mb-2"
-            >
+            <div class="flex flex-col sm:flex-row sm:space-y-0 mb-2">
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
@@ -158,7 +155,7 @@ export class FuzzySearchUI {
                       width="24px"
                     >
                       <path
-                      fill="#fff"
+                        fill="#fff"
                         d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"
                       />
                     </svg>
@@ -167,11 +164,25 @@ export class FuzzySearchUI {
                   <!-- Integrated Search Button -->
                   <button
                     id="fuzzy-search-btn"
-                    class="h-12 sm:h-14 px-6 sm:px-8 bg-gradient-to-r from-blue-600 via-blue-600 to-blue-600 hover:from-blue-600 hover:via-blue-600 hover:to-blue-600 active:from-blue-600 active:via-blue-600 active:to-blue-550 disabled:from-blue-600 disabled:via-blue-600 disabled:to-blue-600 text-white font-bold rounded-r-xl rounded-l-none transition-all duration-300 flex items-center justify-center space-x-2 text-sm sm:text-base min-w-[100px] sm:min-w-[120px] border-0 focus:outline-none focus:ring-4 focus:ring-blue-600 focus:z-10"
+                    aria-label="Search"
+                    class="relative flex items-center justify-center
+                          h-10 sm:h-12
+                          px-3 sm:px-5 md:px-6
+                          bg-gradient-to-r from-blue-600 via-blue-600 to-blue-600
+                          hover:from-blue-600 hover:via-blue-600 hover:to-blue-500
+                          active:from-blue-600 active:via-blue-600 active:to-blue-500
+                          disabled:opacity-60 disabled:cursor-not-allowed
+                          text-white font-semibold
+                          rounded-r-xl rounded-l-none
+                          transition-all duration-300
+                          space-x-0 sm:space-x-2
+                          text-sm sm:text-base
+                          min-w-[52px] sm:min-w-[112px]
+         focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-600 focus:z-10"
                     style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
                     <svg
-                      class="w-5 sm:w-6 h-5 sm:h-6 drop-shadow-sm"
+                      class="w-5 h-5 sm:w-6 sm:h-6 shrink-0"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -183,7 +194,9 @@ export class FuzzySearchUI {
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       ></path>
                     </svg>
-                    <span id="search-btn-text" class="font-bold tracking-wide"
+                    <span
+                      id="search-btn-text"
+                      class="hidden sm:inline font-bold tracking-wide"
                       >Search</span
                     >
                   </button>
@@ -327,10 +340,10 @@ export class FuzzySearchUI {
     console.log("Key down:", e.key);
 
     if (e.key === "Enter") {
-        e.preventDefault();
-        // Enter: Add current input as a search query
-        this.handleAddFilter();
-      }
+      e.preventDefault();
+      // Enter: Add current input as a search query
+      this.handleAddFilter();
+    }
   }
 
   /**
@@ -413,7 +426,9 @@ export class FuzzySearchUI {
 
     if (this.searchInput.value.trim()) {
       // Generate suggestions for all attributes
-      this.suggestions = await this.fuzzySearchService.getSuggestions(this.searchInput.value);
+      this.suggestions = await this.fuzzySearchService.getSuggestions(
+        this.searchInput.value
+      );
       if (this.suggestions.length > 0) {
         this.showDropdown = true;
         this.renderDropdown();
@@ -629,7 +644,9 @@ export class FuzzySearchUI {
           );
           suggestionsHtml += `
             <div class="suggestion-option flex items-center px-2 sm:px-3 py-1.5 cursor-pointer border-b border-gray-100 last:border-b-0 group hover:bg-blue-50 transition ${
-              this.selectedIndex === currentIndex ? "bg-blue-50 border-l-2 border-l-blue-500" : ""
+              this.selectedIndex === currentIndex
+                ? "bg-blue-50 border-l-2 border-l-blue-500"
+                : ""
             }" data-index="${currentIndex}">
               <div class="flex items-center justify-center w-7 sm:w-8 h-7 sm:h-8 rounded-lg mr-2 sm:mr-3 ${color}">
                 <span class="text-xs sm:text-sm">${icon}</span>
