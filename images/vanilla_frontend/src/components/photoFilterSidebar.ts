@@ -38,6 +38,13 @@ export default class PhotoFilterSidebar {
   private toggleButtonId: string;
   private isInitialized: boolean = false;
 
+  // People
+  private peoplePageSize = 30;
+  private peopleRendered = 0;
+  private peopleListElement?: HTMLElement;
+  private peopleSentinel?: HTMLElement;
+  private peopleObserver?: IntersectionObserver;
+
   constructor(
     onFilterChange: (photos: HachiImageData[]) => void,
     toggleButtonId: string
@@ -147,7 +154,7 @@ export default class PhotoFilterSidebar {
     // Value span with enhanced typography
     const valueSpan = document.createElement("span");
     valueSpan.className = "text-xs font-semibold truncate";
-    valueSpan.style.maxWidth = "140px";
+    valueSpan.style.maxWidth = "360px";
     valueSpan.style.textShadow = "0 1px 2px rgba(0, 0, 0, 0.1)";
     valueSpan.style.lineHeight = "1.4";
     valueSpan.textContent = value;
@@ -277,6 +284,106 @@ export default class PhotoFilterSidebar {
     sidebarElement.style.flexDirection = "column";
   }
 
+  private resetPeopleInfiniteScroll(): void {
+    this.peopleRendered = 0;
+    if (this.peopleObserver) {
+      this.peopleObserver.disconnect();
+      this.peopleObserver = undefined;
+    }
+    this.peopleListElement = undefined;
+    this.peopleSentinel = undefined;
+  }
+
+  private createPersonItem(person: string): HTMLElement {
+    const personItem = document.createElement("div");
+    personItem.className =
+      "flex flex-col cursor-pointer hover:bg-blue-50 rounded transition";
+    personItem.style.padding = "2px";
+
+    const photo = document.createElement("img");
+    photo.className = "w-12 h-12 bg-gray-200 rounded-full object-cover";
+    photo.src = `${endpoints.GET_PERSON_IMAGE}/${person}`;
+    photo.alt = person;
+    photo.style.marginBottom = "2px";
+
+    photo.addEventListener("click", () => {
+      this.onImageClick(photo, person);
+    });
+
+    personItem.appendChild(photo);
+    return personItem;
+  }
+
+  private renderNextPeopleBatch(): void {
+    if (!this.peopleListElement) return;
+    const people = this.filters.people || [];
+    if (this.peopleRendered >= people.length) return;
+
+    const frag = document.createDocumentFragment();
+    const nextLimit = Math.min(
+      this.peopleRendered + this.peoplePageSize,
+      people.length
+    );
+
+    console.log(`Rendering people ${this.peopleRendered} to ${nextLimit}`);
+
+    for (let i = this.peopleRendered; i < nextLimit; i++) {
+      frag.appendChild(this.createPersonItem(people[i]));
+    }
+
+    this.peopleRendered = nextLimit;
+    if (this.peopleSentinel && this.peopleListElement.contains(this.peopleSentinel)) {
+      this.peopleListElement.insertBefore(frag, this.peopleSentinel);
+    } else {
+      this.peopleListElement.appendChild(frag);
+    }
+
+    // If we've loaded all, remove sentinel & observer
+    if (this.peopleRendered >= people.length && this.peopleSentinel) {
+      this.peopleSentinel.remove();
+      this.peopleSentinel = undefined;
+      if (this.peopleObserver) {
+        this.peopleObserver.disconnect();
+        this.peopleObserver = undefined;
+      }
+    }
+
+    // Autofill logic: if container still doesn't scroll (content height <= visible height)
+    // and there are more people to load, continue loading additional batches.
+    // This addresses the case where the initial sentinel intersection fires only once
+    // because the sentinel never leaves the viewport when container is tall.
+    if (
+      this.peopleListElement &&
+      this.peopleSentinel &&
+      this.peopleRendered < people.length &&
+      this.peopleListElement.scrollHeight <= this.peopleListElement.clientHeight
+    ) {
+      // Defer next batch to allow layout to update and avoid tight sync recursion.
+      setTimeout(() => this.renderNextPeopleBatch(), 0);
+    }
+  }
+
+  private setupPeopleInfiniteScroll(): void {
+    if (!this.peopleListElement || !this.peopleSentinel) return;
+    this.peopleObserver = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting) {
+          console.log("Loading next batch of people...");
+          this.renderNextPeopleBatch();
+        }
+      },
+      {
+        root: this.peopleListElement,
+        rootMargin: "0px 0px 200px 0px", // prefetch a bit earlier
+        threshold: 0,
+      }
+    );
+    this.peopleObserver.observe(this.peopleSentinel);
+  }
+
+
+
   createPeopleFilterUI(): HTMLElement {
     const people = this.filters.people || [];
     const filterContainer = document.createElement("div");
@@ -288,6 +395,9 @@ export default class PhotoFilterSidebar {
       "text-base font-semibold text-blue-700 mb-2 tracking-wide capitalize border-b border-blue-200 pb-0.5";
     filterContainer.appendChild(filterTitle);
 
+    // Reset previous infinite scroll state
+    this.resetPeopleInfiniteScroll();
+
     const peopleList = document.createElement("div");
     peopleList.className = "flex flex-wrap overflow-y-auto";
     peopleList.style.maxHeight = "360px";
@@ -296,25 +406,25 @@ export default class PhotoFilterSidebar {
     peopleList.style.overflowY = "auto";
     peopleList.style.padding = "2px";
 
-    people.forEach((person) => {
-      const personItem = document.createElement("div");
-      personItem.className =
-        "flex flex-col cursor-pointer hover:bg-blue-50 rounded transition";
-      personItem.style.padding = "2px";
+    this.peopleListElement = peopleList;
+    // Sentinel (only if there is more than one page)
+    if (people.length > this.peoplePageSize) {
+      const sentinel = document.createElement("div");
+      sentinel.style.width = "100%";
+      sentinel.style.height = "1px";
+      sentinel.dataset.role = "people-sentinel";
+      this.peopleSentinel = sentinel;
+      peopleList.appendChild(sentinel);
+    }
 
-      const photo = document.createElement("img");
-      photo.className = "w-12 h-12 bg-gray-200 rounded-full object-cover";
-      photo.src = `${endpoints.GET_PERSON_IMAGE}/${person}`;
-      photo.alt = person;
-      photo.style.marginBottom = "2px";
+    // Initial batch
+    this.renderNextPeopleBatch();
 
-      photo.addEventListener("click", () => {
-        this.onImageClick(photo, person);
-      });
+    // Activate observer if needed
+    if (this.peopleSentinel) {
+      this.setupPeopleInfiniteScroll();
+    }
 
-      personItem.appendChild(photo);
-      peopleList.appendChild(personItem);
-    });
 
     filterContainer.appendChild(peopleList);
     return filterContainer;

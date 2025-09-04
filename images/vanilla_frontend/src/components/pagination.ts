@@ -1,3 +1,5 @@
+import { html } from "../utils";
+
 export interface PaginationProps {
   container: HTMLElement;
   totalItems: number;
@@ -95,41 +97,63 @@ export class PaginationComponent {
     // Remove hidden class from pagination container
     this.container.classList.remove("hidden");
 
-    this.container.innerHTML = `
-      <div class="flex items-center justify-between mx-auto px-3 sm:px-4 py-2">
-        <!-- Pagination Info -->
-        <div class="text-xs text-gray-600">
-          <span id="pagination-info">Showing ${
-            this.totalItems === 0 ? 0 : startIndex + 1
-          }-${endIndex} of ${this.totalItems} photos</span>
+    this.container.innerHTML = html`
+      <div class="mx-auto w-full px-3 sm:px-4 py-2
+                  flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+        
+        <!-- Left: Info + Hint (stack) -->
+        <div class="flex flex-col md:flex-row md:items-center gap-1 xs:gap-3 min-w-0">
+          <div class="text-[11px] xs:text-xs text-gray-600 leading-snug min-w-0">
+            <span id="pagination-info" class="block truncate max-w-[220px] sm:max-w-xs">
+              Showing ${this.totalItems === 0 ? 0 : startIndex + 1}-${endIndex}
+              <span class="hidden xs:inline">of ${this.totalItems} photos</span>
+            </span>
+          </div>
+          <!-- <span class="hidden md:inline text-[11px] text-gray-500 select-none" aria-hidden="true">
+            ↑ / ↓ to change page
+          </span> -->
         </div>
 
-        <!-- Keyboard nav hint (visible md and up) -->
-          <span class="hidden md:inline text-xs text-gray-500 select-none" aria-hidden="true">
-            Use ↑ / ↓ to change page
-          </span>
-
-        <!-- Pagination Controls -->
-        <div class="flex items-center space-x-3">
+        <!-- Right: Controls -->
+        <div class="flex items-stretch gap-2 sm:gap-3 w-full sm:w-auto">
           <button id="prev-page-btn"
-            class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+            class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1
+                   px-3 sm:px-3.5 py-2 text-xs font-medium
+                   text-gray-700 bg-white border border-gray-300 rounded-md
+                   hover:bg-gray-50 hover:text-gray-900
+                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
+                   transition-colors"
             ${this.currentPage <= 0 ? "disabled" : ""}>
-            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M15 19l-7-7 7-7"></path>
             </svg>
-            Previous
+            <span class="hidden xs:inline">Previous</span>
+            <span class="xs:hidden sr-only">Previous page</span>
           </button>
-          <span id="page-info" class="px-2 py-1 text-xs font-medium text-gray-700 bg-gray-50 rounded-lg">
-            Page ${totalPages === 0 ? 0 : this.currentPage + 1} of ${totalPages}
+
+          <span id="page-info"
+            class="hidden sm:inline-flex items-center px-2.5 py-2 text-[11px] font-medium
+                   text-gray-700 bg-gray-50 border border-gray-200 rounded-md">
+            Page ${totalPages === 0 ? 0 : this.currentPage + 1}
+            <span class="ml-1">/ ${totalPages}</span>
           </span>
-          
+
           <button id="next-page-btn"
-            class="flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white transition-colors"
+            class="flex-1 sm:flex-none inline-flex items-center justify-center gap-1
+                   px-3 sm:px-3.5 py-2 text-xs font-medium
+                   text-gray-700 bg-white border border-gray-300 rounded-md
+                   hover:bg-gray-50 hover:text-gray-900
+                   disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60
+                   transition-colors"
             ${this.currentPage >= totalPages - 1 ? "disabled" : ""}>
-            Next
-            <svg class="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            <span class="hidden xs:inline">Next</span>
+            <span class="xs:hidden sr-only">Next page</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 5l7 7-7 7"></path>
             </svg>
           </button>
         </div>

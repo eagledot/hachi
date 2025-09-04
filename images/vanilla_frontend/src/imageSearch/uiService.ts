@@ -701,8 +701,8 @@ export class UIService {
       const validPeople =
         metadata.person?.filter(
           (personId) =>
-            personId !== "no_person_detected" &&
-            personId !== "no-categorical-info" &&
+            // personId !== "no_person_detected" &&
+            // personId !== "no-categorical-info" &&
             personId.trim() !== ""
         ) || [];
 

@@ -54,7 +54,12 @@ class ImageSearchApp {
     const photoGalleryWidth = photoGallery?.clientWidth!;
 
     // Set static dimensions
-    const side = 180;
+    let side = 180;
+
+    // If we are on mobile screens, reduce side length
+    if (windowWidth < 768) {
+      side = 100;
+    }
 
     const { rows, cols, tileWidth, tileHeight } = fitTiles(
       photoGalleryHeight!,
@@ -63,8 +68,8 @@ class ImageSearchApp {
     );
 
     this.resultsPerPage = rows * cols;
-    this.imageHeight = tileHeight;
-    this.imageWidth = tileWidth;
+    this.imageHeight = tileHeight - 1;
+    this.imageWidth = tileWidth - 1;
   }
 
   constructor() {
