@@ -54,12 +54,12 @@ type
     kind*:ColType
     
     # allocate enough memory for payload during metaIndex initialization!
-    payload:pointer  # packed array of int32/string/float32. (condition on the type field, we can know which) and using size to know the number of values/elements. 
+    payload:pointer = nil # packed array of int32/string/float32. (condition on the type field, we can know which) and using size to know the number of values/elements. 
     immutable:bool = false  # can be set selectively for equivalent of a primarykey or foreign key !
     label*:string
 
     # secondary Index generation.
-    secondaryIndex:pointer
+    secondaryIndex:pointer = nil
     secondaryRowPointer:Natural = 0
 
 proc `=copy`(a:var ColumnObj, b:ColumnObj) {.error.}
