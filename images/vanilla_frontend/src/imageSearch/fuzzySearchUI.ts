@@ -29,7 +29,7 @@ export class FuzzySearchUI {
   private showDropdown = false;
   private selectedIndex = -1;
   private hasSearched = false;
-  private debounceTimeout: number | null = null;
+  private debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Initializes a new instance of the fuzzy search UI component.
