@@ -136,7 +136,7 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-3 border-2 border-blue-600 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-800 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
+                    class="flex-1 h-full px-3 border-2 border-blue-400 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
                     style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
 
