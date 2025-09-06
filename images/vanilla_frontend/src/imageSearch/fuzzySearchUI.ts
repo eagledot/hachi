@@ -108,7 +108,7 @@ export class FuzzySearchUI {
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
-                  class="relative  rounded-xl  bg-white flex items-center h-10 sm:h-12 group overflow-hidden"
+                  class="relative rounded-xl bg-white flex items-center h-10 sm:h-12 group overflow-hidden"
                   style="padding-right:0;"
                 >
                   <!-- Search Icon -->
@@ -136,7 +136,7 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-3 border-2 border-gray-800 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
+                    class="flex-1 h-full px-3 border-2 border-gray-800 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-600 rounded-l-xl rounded-r-none transition-all duration-300"
                     style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
 
@@ -144,7 +144,7 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed items-center justify-center w-16 h-12 sm:w-14 transition-all duration-200 border-t-2 border-b-2 border-gray-800 group focus:outline-none "
+                    class="flex cursor-not-allowed items-center justify-center w-16 h-10 sm:h-12 sm:w-14 transition-all duration-200 border-t-2 border-b-2 border-gray-800 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
