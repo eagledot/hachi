@@ -492,6 +492,9 @@ class PeopleApp {
     for (let i = peopleToShow.length; i < grid.children.length; i++) {
       const card = grid.children[i] as HTMLElement;
       card.style.visibility = "hidden";
+      // Also any badge
+      const badge = card.querySelector(".badge");
+      if (badge) (badge as HTMLElement).style.visibility = "hidden";
       delete card.dataset.personId;
     }
     this.updatePageInUrl();
