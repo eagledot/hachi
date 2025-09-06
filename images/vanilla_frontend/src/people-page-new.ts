@@ -61,8 +61,8 @@ class PeopleApp {
     );
 
     this.itemsPerPage = rows * cols;
-    this.imageHeight = tileHeight - 4;
-    this.imageWidth = tileWidth - 4;
+    this.imageHeight = tileHeight - 1;
+    this.imageWidth = tileWidth - 1;
   }
 
   private cacheDOMElements() {

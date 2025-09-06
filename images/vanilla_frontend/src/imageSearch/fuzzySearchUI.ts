@@ -136,7 +136,7 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-3 border-2 border-blue-400 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
+                    class="flex-1 h-full px-3 border-2 border-gray-800 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-400 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
                     style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
 
@@ -144,7 +144,7 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed items-center justify-center w-16 h-12 sm:w-14 transition-all duration-200 border-t-2 border-b-2 border-blue-600 group focus:outline-none "
+                    class="flex cursor-not-allowed items-center justify-center w-16 h-12 sm:w-14 transition-all duration-200 border-t-2 border-b-2 border-gray-800 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
@@ -170,7 +170,7 @@ export class FuzzySearchUI {
                     aria-label="Search"
                     class="relative flex items-center justify-center
                           h-10 sm:h-12
-                          px-3 sm:px-5 md:px-6
+                          px-3 sm:px-5 md:px-4
                           bg-gradient-to-r from-blue-600 via-blue-600 to-blue-600
                           hover:from-blue-600 hover:via-blue-600 hover:to-blue-500
                           active:from-blue-600 active:via-blue-600 active:to-blue-500
@@ -180,7 +180,7 @@ export class FuzzySearchUI {
                           transition-all duration-300
                           space-x-0 sm:space-x-2
                           text-sm sm:text-base
-                          min-w-[52px]
+                          
          focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-600 focus:z-10"
                     style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
