@@ -38,6 +38,7 @@ IMAGE_APP_ML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..
 IMAGE_EMBEDDING_SIZE = 512  # depends on the model architecture.
 TEXT_EMBEDDING_SIZE = 512  # depends on the model architecture.
 FACE_EMBEDDING_SIZE = 512   # depends on the model architecture.
+CHECKPOINT_COUNT = 4_000      
 
 sys.path.insert(0, IMAGE_APP_ML_PATH)
 import clip_python_module as clip
@@ -343,6 +344,24 @@ class IndexingLocal(object):
         result["error"] = False
         return result
     
+    def save_checkpoint(self):
+        # It is a bit tricky, as face-index need enough data to generate "good" master-embeddings to create better clusters!
+        # Only then we will over-write the meta-index for Person info.
+
+        # Then saving all (almost) independent indices to disk in a sequential manner!
+        # TODO: introduce already written sanity check code, to be called at the finish of indexing.. to be sure!
+
+        cluster_meta_info = self.face_index.save()  
+        for resource_hash, cluster_ids in cluster_meta_info.items():
+            self.meta_index.modify_meta_ml(resource_hash, 
+                                            {"personML": list(cluster_ids)}
+                                            )
+        del cluster_meta_info
+        
+        # Write to the disk for meta-index and semantic index!
+        self.meta_index.save()
+        self.semantic_index.save()
+
     def __index_batch(
         self,
         resources_batch_queue:Queue[tuple[os.PathLike, bytes]],
@@ -550,7 +569,7 @@ class IndexingLocal(object):
         # We keep putting raw-bytes into this after reading from disk in another thread!
         resources_batch_queue:Queue[tuple[os.PathLike, bytes]] = Queue() # we create one for each such thread!
 
-        test_count = 0
+        index_count = 0
         self.profile_info.reset()
         try:
             if self.complete_rescan == True:
@@ -585,6 +604,19 @@ class IndexingLocal(object):
                     print("Finishing index on cancellation request from user")
                     break
                 
+                # -----------
+                # Save Checkpoint
+                # Note: it would be sequential, at reading images, in background is done at batch level. So no other thread would be writing to index files.
+                # Note: not recommended to `read/querying` while indexing. (It would be resolved later!)
+                # ------------
+                if index_count >= CHECKPOINT_COUNT:
+                    self.indexing_info["details"] = "Saving Checkpoint..."
+                    self.indexing_info["eta"] = None
+
+                    self.save_checkpoint()
+                    index_count = 0
+                # ----------------------------------------
+
                 with self.lock:
                     self.indexing_info["details"] = "Scanning: {}".format(current_directory),
                     self.indexing_info["done"] = False
@@ -606,7 +638,7 @@ class IndexingLocal(object):
                 eta = None # unknown!
                 while True:
                     contents_batch =  contents[count: count + self.batch_size]  # extract a batch
-                    test_count += (len(contents_batch))
+                    index_count += (len(contents_batch))
                     # contents_batch = [os.path.join(current_directory, x) for x in contents_batch]
 
                     if (len(contents_batch) == 0):    # should mean this directory has been 
@@ -663,19 +695,6 @@ class IndexingLocal(object):
                 self.indexing_info["processed"] = None
                 self.indexing_info["total"] = None
                 self.indexing_info["done"] = False
-                    
-            cluster_meta_info = self.face_index.save() # TODO: actually implement save and load on the disk..
-            with self.lock:
-                self.indexing_info["details"] = "Updating Meta Index .."
-                self.indexing_info["eta"] = None
-                self.indexing_info["processed"] = None
-                self.indexing_info["total"] = None
-                self.indexing_info["done"] = False
-            
-            for resource_hash, cluster_ids in cluster_meta_info.items():
-                self.meta_index.modify_meta_ml(resource_hash, 
-                                                {"personML": list(cluster_ids)}
-                                                )
             
         except Exception:
             error_trace = traceback.format_exc() # uses sys.exception() as the exception
@@ -694,9 +713,10 @@ class IndexingLocal(object):
                     self.indexing_info["details"] = error_trace
                 else:
                     try:
-                        self.meta_index.save()
-                        self.semantic_index.save()
-                        # imageIndex.sanity_check()
+                        self.indexing_info["details"] = "Saving Checkpoints..."
+                        self.save_checkpoint() # TODO: may be introduce a sanity_check too! 
+                        # # imageIndex.sanity_check()
+                        
                         self.meta_index.sync_secondary_index = True  # indicate to sync secondary index, at querying too!
 
                         self.indexing_info["details"] = "Indexing Completed Successfully!"
