@@ -617,6 +617,7 @@ class IndexingLocal(object):
 
                     self.save_checkpoint()
                     index_count = 0
+                    print("[DEBUG]: Indexing Count: {}".format(index_count))
                 # ----------------------------------------
 
                 with self.lock:
