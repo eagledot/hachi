@@ -448,6 +448,8 @@ class FaceIndex(object):
     def __finalize(self):
         """finalize the current clusters creation and merge process.
         And reset the temporary storage to start storing new embeddings.
+        On a high-level, finalize is about making use of all the information (Embeddings + other meta-data) collected so far from the last call to this routine, updating (create new if needed or merge) clusters. Clusters' abstraction then could be consumed as the current state of a Face-Index at this point in time!  
+        This is generally called in `update` once enough embeddings/stats are there , and on `save`! So calling `save` would also be enough if done at good enough CHUNK level!
         """
         
         new_clusters = self.__create_new_clusters()
