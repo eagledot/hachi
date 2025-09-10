@@ -351,13 +351,15 @@ class IndexingLocal(object):
         # Then saving all (almost) independent indices to disk in a sequential manner!
         # TODO: introduce already written sanity check code, to be called at the finish of indexing.. to be sure!
 
+        # TODO: all must be synced/saved or none at all
+        # call a sanity check before saving.. to detect unexpected corruptness!
         cluster_meta_info = self.face_index.save()  
         for resource_hash, cluster_ids in cluster_meta_info.items():
             self.meta_index.modify_meta_ml(resource_hash, 
                                             {"personML": list(cluster_ids)}
                                             )
         del cluster_meta_info
-        
+
         # Write to the disk for meta-index and semantic index!
         self.meta_index.save()
         self.semantic_index.save()
