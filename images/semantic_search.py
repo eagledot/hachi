@@ -601,7 +601,7 @@ def query(page_size:int = 200):
         query_token = query_token
     )
     toc = time.time_ns()
-    q_info["latency"] = (toc - tic / 1e6)  # in milliseconds
+    q_info["latency"] = int((toc - tic) / 1e6)  # in milliseconds
     return flask.jsonify(q_info)
 
 ##############
