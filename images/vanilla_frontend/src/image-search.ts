@@ -317,9 +317,12 @@ class ImageSearchApp {
     if (!opts?.skipScroll) {
       window.scrollTo({ top: 0 });
     }
-    window.requestIdleCallback(() => {
-      this.preloadData();
-    });
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(() => this.preloadData());
+    } else {
+      // Fallback if requestIdleCallback is not supported
+      setTimeout(() => this.preloadData(), 1000);
+    }
   }
 
   private async preloadData() {
@@ -472,7 +475,12 @@ class ImageSearchApp {
       // Render grid silently (no scroll)
       this.renderDisplayedPhotos();
       // Preload upcoming
-      window.requestIdleCallback(() => this.preloadData());
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(() => this.preloadData());
+      } else {
+        // Fallback if requestIdleCallback is not supported
+        setTimeout(() => this.preloadData(), 1000);
+      }
 
       if (this.displayedPhotos.length > 0) {
         const nextPhoto = this.displayedPhotos[0];
@@ -536,7 +544,12 @@ class ImageSearchApp {
       }
       this.updatePaginationComponent(this.totalResults, this.totalPages, this.currentPage);
       this.renderDisplayedPhotos();
-      window.requestIdleCallback(() => this.preloadData());
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(() => this.preloadData());
+      } else {
+        // Fallback if requestIdleCallback is not supported
+        setTimeout(() => this.preloadData(), 1000);
+      }
 
       if (this.displayedPhotos.length > 0) {
         const prevPhoto = this.displayedPhotos[this.displayedPhotos.length - 1];
