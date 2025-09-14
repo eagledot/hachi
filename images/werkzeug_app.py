@@ -39,7 +39,7 @@ def on_api(request:Request, page_id:int) -> Response:
     print(request.url)
     sample = {"fas":32}
     # no return the response.. what happens 
-    return sample
+    return Response("PP")
 
     # return Response(
     #     ["yo"],
@@ -111,6 +111,10 @@ def validate_signature(rule:str, view_function:Callable):
     assert n_nondefault_args - 1  == len(placeholders), "view function expect atleast {} non-default args, but placeholders are {}!".format(n_nondefault_args, placeholders)
     del placeholders
 
+def on_extension(r:Request):
+    print("i am extension!")
+    return Response("ok", status = 200)
+
 class SimpleApp():
     # WSGI app emulating, to be called with (Environ and start_response callable!)
     def __init__(self):
@@ -121,6 +125,10 @@ class SimpleApp():
         self.url_map = None # we will lazily initialize it!
         self.endpoint_2_uri:dict[str, tuple[Rule, list[str]]] = {}
         self.endpoint_2_viewFunction:dict[str, Callable] = {}
+
+        # registered extensions. Multiple extensions could be developed independently and can be registed through a "main/master" app in a single desired location!
+        self.extension_prefix = "ext" # as apps would be registered/available at <base_url>/ext/<app_name>/<app_rules> defined!
+        self.registered_extensions:dict[str, SimpleApp] = {}
 
     def add_url_rule(self, 
                      
@@ -166,15 +174,36 @@ class SimpleApp():
         # NOTE: can assume this environ/data a new (not-shared) instance, and we generate raw-bytes purely on environ, so should be thread-safe, even without GIL( in-case we wish to experiment) ! 
         # start_response is created by WSGI server and passed according to WSGI protocol.
 
-        request = Request(environ = environ) # just wrapping up the environ to easily query various headers and stuff!
-        print(request.url)
-        
+        # --------------------
+        # Check for extension!
+        # --------------------
+        temp_path = environ['PATH_INFO']
+        temp_split = temp_path.split("/")
+        print(temp_split)
+        print(temp_path)
+        if temp_split[1] == self.extension_prefix:
+            # We aim to strip extension specific path, before calling registered extension (wsgi app).
+            # This way extension doesn't need to worry in which context it is being called, and can be fully developed in isolation!
+            extension_name = temp_split[2]
+            assert extension_name in self.registered_extensions
+            print("[Routing to ]: {}".format(extension_name))
+            extension_path = temp_path.replace("/{}/{}".format(self.extension_prefix, extension_name), "")
+            print("extension path: {}".format(extension_path))
+
+            # NOTE: we slightly modify the environ. (good enough for us! but be-careful, in case underlying representation changes!)
+            # NOTE TODO: for now i am assuming the following 3 as equivalent !!
+            environ['PATH_INFO'] = extension_path
+            environ['REQIEST_URI'] = extension_path
+            environ['RAW_URI'] = extension_path 
+        del temp_split, temp_path
+        # -------------------------------------------
+
         # Start_response is about indicating the response start phase.
         # Mainly set the headers and status, conditioned on request being handled.
         # For example, if `streaming` is done, we can set the headers to indicate that.. main WSGI server would only need to read headers and status, without caring about what application code is doing.
         # return ["Hello World!".encode("utf8")]
 
-        # print(environ['PATH_INFO'])
+        request = Request(environ = environ) # just wrapping up the environ to easily query various headers and stuff!
         urls = self.url_map.bind_to_environ(environ) # try to match environment/url to one of endpoints defined for this app.
         endpoint, args = urls.match()
         assert not (endpoint is None)
@@ -192,7 +221,21 @@ class SimpleApp():
         # TODO: better way to enforce/check the response object is of type Response!
         assert "Response" in str(response.__class__) , "Expected the view function to return data of Response type. Wrap the return value with something like `Response(return_value, mimetype = ...)` !"
         return response(environ, start_response)
+
+    def register(self, app, name:str):
+        # some idea to register more simpleApp/ WsgiApps easily 
+        # for example this app may live at : /ext/<name>/<app_rules>
+        # we strip the prefix and app_name, before calling upon `registered app`
         
+        # register an extension/app . (app calling this can be considered main/master)!
+        name = name.strip("/")
+        assert not (name in self.registered_extensions)
+        assert not (" " in name), "Spaces are not allowed in name, but got: {}".format(name)
+        # TODO: check no `self.extension_prefix` in app rules, 
+        
+        self.registered_extensions[name] = app
+        print("Extension registered at: {}/{}".format(self.extension_prefix, name))
+
 def create_app() -> SimpleApp:
     return SimpleApp()
 
@@ -222,6 +265,19 @@ if __name__ == "__main__":
         view_function = on_api,
         methods = ["GET"]
     )
+
+    # following block could be done anywhere before calling register here or in main file!
+    gp = SimpleApp()  # an extension!  can be developed invidually!
+    app.add_url_rule(rule = "/test", view_function= on_extension)
+    # -------
+
+    app.register(
+        gp,
+        name = "googlephotos"
+    )
+
+    # now using a url to /ext/googlephotos/test should invoke
+    # the test rule for `gp`
     # ...
 
     # would like to test it though, so how are we are gonna go about that!
@@ -232,7 +288,8 @@ if __name__ == "__main__":
     c = Client(app)
 
     # # test routes !
-    result = c.get("http://localhost:8080/api/52") # let us see what happens!
+    # result = c.get("http://localhost:8080/api/52") # let us see what happens!
+    result = c.get("http://localhost:8080/ext/googlephotos/test")
     print(result)
 
     # app.initialize()
