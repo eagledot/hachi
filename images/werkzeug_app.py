@@ -117,8 +117,9 @@ def on_extension(r:Request):
 
 class SimpleApp():
     # WSGI app emulating, to be called with (Environ and start_response callable!)
-    def __init__(self):
-        pass
+    # NOTE: still experimental, idea is to make it complete enough to easily map python code to a url, with werkzeug alone.
+    # TODO: handle `options` and `cors`!
+    def __init__(self, allow_local_cors:bool = False):
         self.initialzed = False
         self.http_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
         
@@ -130,6 +131,11 @@ class SimpleApp():
         self.extension_prefix = "ext" # as apps would be registered/available at <base_url>/ext/<app_name>/<app_rules> defined!
         self.registered_extensions:dict[str, SimpleApp] = {}
 
+        # cors (experimental and never in production!!)
+        self.allow_local_origin_cors = allow_local_cors
+        # NOTE: not supposed to be turned ON, as it is supposed to be run at a local-interface only.
+        # set this manually to true, if running only behind NAT  or own the consequences!!
+        self.allow_wildcard_origin_cors = False
     def add_url_rule(self, 
                      
                      # rule to match to an endpoint, multiple rules could match to an endpoint. (TODO: properly thing over it!)
@@ -179,8 +185,6 @@ class SimpleApp():
         # --------------------
         temp_path = environ['PATH_INFO']
         temp_split = temp_path.split("/")
-        print(temp_split)
-        print(temp_path)
         if temp_split[1] == self.extension_prefix:
             # We aim to strip extension specific path, before calling registered extension (wsgi app).
             # This way extension doesn't need to worry in which context it is being called, and can be fully developed in isolation!
@@ -193,7 +197,7 @@ class SimpleApp():
             # NOTE: we slightly modify the environ. (good enough for us! but be-careful, in case underlying representation changes!)
             # NOTE TODO: for now i am assuming the following 3 as equivalent !!
             environ['PATH_INFO'] = extension_path
-            environ['REQIEST_URI'] = extension_path
+            environ['REQUEST_URI'] = extension_path
             environ['RAW_URI'] = extension_path 
         del temp_split, temp_path
         # -------------------------------------------
@@ -210,14 +214,52 @@ class SimpleApp():
         expected_methods = self.endpoint_2_uri[endpoint][1]
         print("Expected methods: {}".format(expected_methods))
 
-        if not (request.method in expected_methods):
+        if (request.method == "OPTIONS"):
+            print(request.headers)
+            # Reference: https://fetch.spec.whatwg.org/
+            # NOTE: for now CORS work at `origin` level, i.e would be allowed for all methods/resources , but in future can easily be set up for combination of origins and resources!
+            # TODO: prevent cookies submission to cross origins !
+            if self.allow_local_origin_cors or self.allow_wildcard_origin_cors:
+                # TODO: later it can be done for a specific URL/route while creating/adding a rule!
+                response = Response(status = 200)
+                h = response.headers # h is mutable reference, so updates would be reflected in response.headers too!
+                max_age = 86400
+                if self.allow_local_origin_cors and (not self.allow_wildcard_origin_cors):
+                    # TODO: since for now... decoupled from host:port our server would be running,
+                    # it should also check `server` is indeed running on local-host!!
+                    script_host = request.host.split(":")[0].lower()
+                    assert script_host == "localhost" or script_host == "127.0.0.1"
+                
+                if "Origin" in request.headers:
+                    # It is expected for a CORS/Options generally !
+                    script_origin = request.headers["Origin"]
+                    h['Access-Control-Allow-Origin'] = script_origin
+                h['Access-Control-Allow-Methods'] = ",".join(expected_methods)
+                h['Access-Control-Max-Age'] = str(max_age)
+
+                # minimal preflight requests checking, its ok, TODO: may need to extend it!
+                # 1. already set `access-control-allow-methods` to allowed methods for this resource!
+                if 'Access-Control-Request-Headers' in request.headers: 
+                    # NOTE / TODO: here can check if request headers make sense!
+                    # in case a script, is setting some custom header!
+                    print("[WARNING]: Custom headers are not expected for now, TODO: expecting that browser will set this header, in case script would setting some custom header anyway !!! ")
+                    h["Access-Control-Allow-headers"] = ",".join(["X-Session-Key"]) # an empty, TODO: fill them for only allowed headers!
+            else:
+                response = Response(status = 400) 
+            
+        elif not (request.method in expected_methods):
             print("Got: {}".format(request.method))
             # method not allowed exception! wanted to use MethodNotAllowed
             # i cannot figure out the usage of MethodNotAllowed anyway!
             response = Response("Not allowed ", status = 405)
         else:
             response = self.endpoint_2_viewFunction[endpoint](request, **args) # itself an wsgi app!  
-        
+            if "Origin" in request.headers:
+                # TODO: Even After the OPTIONS request, it still needs to be set for actual request for CORS ? Server should take control for requests from cross-origin scripts !?
+                # or may be add some mapping to get allowed origins given resource and origin value!
+                script_origin = request.headers["Origin"]
+                response.headers['Access-Control-Allow-Origin'] = script_origin
+
         # TODO: better way to enforce/check the response object is of type Response!
         assert "Response" in str(response.__class__) , "Expected the view function to return data of Response type. Wrap the return value with something like `Response(return_value, mimetype = ...)` !"
         return response(environ, start_response)
@@ -239,13 +281,21 @@ class SimpleApp():
 def create_app() -> SimpleApp:
     return SimpleApp()
 
+# CORS handling.
+# idea is to inform client (browser) about scripts' permissions, those loaded from a different origin!
+# based on the Customization by a script, browser can choose to send an OPTIONS/pre-flight request!
 
+# h['Access-Control-Allow-Origin'] = origin
+# h['Access-Control-Allow-Methods'] = get_methods()
+# h['Access-Control-Max-Age'] = str(max_age)
+# if headers is not None:
+#     h['Access-Control-Allow-Headers'] = headers
 
 if __name__ == "__main__":
     from werkzeug.serving import run_simple
     from werkzeug.test import create_environ
 
-    app = create_app()
+    app = SimpleApp(allow_local_cors = True)
     print("[DEBUG]: Main thread is: {}".format(threading.current_thread().ident))
 
     def on_query(request, page_id:int):
@@ -288,8 +338,8 @@ if __name__ == "__main__":
     c = Client(app)
 
     # # test routes !
-    # result = c.get("http://localhost:8080/api/52") # let us see what happens!
-    result = c.get("http://localhost:8080/ext/googlephotos/test")
+    result = c.get("http://localhost:8080/api/52") # let us see what happens!
+    result = c.options("http://localhost:8080/ext/googlephotos/test")
     print(result)
 
     # app.initialize()
