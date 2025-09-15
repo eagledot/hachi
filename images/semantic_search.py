@@ -4,7 +4,7 @@
 import sys
 import os
 import time
-import gzip
+import json
 
 # -----------------------------------------------------
 # First party modules path configuration, could be better!
@@ -17,14 +17,14 @@ sys.path.insert(0, IMAGE_APP_PATH)
 # --------------------------------
 # 3rd party Path Handling
 # -------------------------------------
-sys.path.insert(0, PYTHON_MODULES_PATH)
-# Order matters, make sure `lib/site-packages` is the first, for given executable!
+sys.path.insert(0, PYTHON_MODULES_PATH) # We keep it at first!
+# Order matters, make sure `lib/site-packages` is at-least appended (if exists), for given executable!
 # TODO: But then don't duplicate the packages in `python_modules` only pure 3rd party, python packages should be there, independent of python versions mess! 
 executable_dir = os.path.dirname(sys.executable)
 site_packages_path = os.path.join(executable_dir, "Lib", "site-packages")
 if os.path.exists(site_packages_path):
     print("[DEBUG]: Python packages Path Added: {}".format(site_packages_path))
-    sys.path.insert(0, site_packages_path)
+    sys.path.append(site_packages_path)
 # --------------------------------------------------
 
 # imports, after setting python_modules_path, (so that self-contained)
@@ -35,13 +35,12 @@ if os.path.exists(site_packages_path):
 from typing import Optional, Union, TypedDict, NamedTuple, Tuple, List, Iterable, Dict, Any
 from threading import RLock
 import threading
-import time
-import uuid
 import base64
 
 import cv2
-from flask import Flask
-import flask
+# from flask import Flask
+# import flask
+from werkzeug import Request, Response
 import numpy as np
 
 # --------------------------------
@@ -67,6 +66,10 @@ def get_drives() -> List[str]:
         bitmask >>= 1
 
     return drives
+
+def jsonify(data:object):
+    # generating Json and wrapping into a Response object. (something like flask.jsonify)
+    return Response(json.dumps(data), mimetype = "application/json")
 # --------------------------------
 # TODO: is there a better way to load `relative paths from a script when called from other location!`
 try:
@@ -158,14 +161,6 @@ def recreate_local_path(
 
 index_obj:None | IndexingLocal = None
 
-############
-## FLASK APP
-############
-app = Flask(__name__, static_folder = None, static_url_path= None)
-app.secret_key = "Fdfasfdasdfasfasdfas"
-from flask_cors import CORS
-CORS(app)
-
 class IndexBeginAttribute(TypedDict):
     location:str    # TODO: better constraint it to Location Enum!
     identifier:str  # C:, D: or google_photos, google_drive etc!
@@ -173,16 +168,16 @@ class IndexBeginAttribute(TypedDict):
     complete_rescan:bool
     simulate_indexing:bool     # to simulate some parts like image-embedding generation to speed up indexing !
 
-@app.route("/indexStart", methods = ["POST"])        
-def indexStart(batch_size = 1) -> ReturnInfo:
+##app.route("/indexStart", methods = ["POST"])        
+def indexStart(request:Request) -> ReturnInfo:
     global index_obj
 
     # (try to) type-match the POST data.
     post_attributes:IndexBeginAttribute
-    if isinstance(flask.request.json, str):
-        post_attributes = json.loads(flask.request.json)
+    if isinstance(request.json, str):
+        post_attributes = json.loads(request.json)
     else:
-        post_attributes = flask.request.json
+        post_attributes = request.json
     print(post_attributes)
 
     # Re-create the path. (TODO: handle for remote like googlePhotos)
@@ -193,7 +188,7 @@ def indexStart(batch_size = 1) -> ReturnInfo:
 
     # print("Root dir: {}".format(root_dir))
     if not(os.path.exists(root_dir)):
-        return flask.jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
+        return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
 
     with global_lock:
         if index_obj is None:
@@ -209,7 +204,7 @@ def indexStart(batch_size = 1) -> ReturnInfo:
             )        
             
             # start the indexing, it return after starting a background-thread!
-            return flask.jsonify(index_obj.begin())
+            return jsonify(index_obj.begin())
         else:
             temp_status = index_obj.getStatus() # we call it, in case client was not calling `getStatus` route
             if temp_status["done"] == True:
@@ -223,12 +218,12 @@ def indexStart(batch_size = 1) -> ReturnInfo:
                 complete_rescan = post_attributes["complete_rescan"],
                 simulate = post_attributes["simulate_indexing"]
                 )
-                return flask.jsonify(index_obj.begin())           
+                return jsonify(index_obj.begin())           
             else:
-                return flask.jsonify(ReturnInfo(error = True, details = "Wait for ongoing indexing to finish!"))
+                return jsonify(ReturnInfo(error = True, details = "Wait for ongoing indexing to finish!"))
 
-@app.route("/indexCancel", methods = ["GET"])
-def indexCancel() -> ReturnInfo:
+##app.route("/indexCancel", methods = ["GET"])
+def indexCancel(r:Request) -> ReturnInfo:
     """raise a cancellation request to cancel an ongoing indexing.
     Should also handle cases where indexing just finished !!
     """
@@ -249,8 +244,8 @@ def indexCancel() -> ReturnInfo:
     return result
 
 
-@app.route("/getIndexStatus", methods = ["GET"])
-def getIndexStatus() -> IndexingInfo:
+##app.route("/getIndexStatus", methods = ["GET"])
+def getIndexStatus(r:Request) -> IndexingInfo:
     global index_obj
 
     result:IndexingInfo = {}
@@ -263,12 +258,12 @@ def getIndexStatus() -> IndexingInfo:
             result["done"] = True     # Terminating response!
             result["details"] = "Either indexing finished or no ongoing indexing!"
     
-    return flask.jsonify(
+    return jsonify(
         result
     )
 
-@app.route("/getSuggestion", methods = ["POST"])
-def getSuggestion() -> Dict[str, List[str]]:
+##app.route("/getSuggestion", methods = ["POST"])
+def getSuggestion(request:Request) -> Dict[str, List[str]]:
     # NOTE: could get bit costly, for very large datasets if called on every keystore, but client only call this, after sensing a delay.
     # Should be very useful and fast for our desired local app even for larger datasets!, but when demoing on a remote server, may get costly!!
     # TODO: maintain a cache.. to speed up checking in that cache first.. that substring!
@@ -279,14 +274,15 @@ def getSuggestion() -> Dict[str, List[str]]:
         "place"
     ]
 
-    query = flask.request.form.get("query")
+    query = request.form.get("query")
 
     result = {}
     for attribute in allowed_attributes:
         result[attribute] = []
         if len(query) >= 3: # to much wasted cpus cycles otherwise. without enough info!
             result[attribute] = metaIndex.suggest(attribute, query) # at-max 20 are being returned i guess!
-    return flask.jsonify(result)
+    # return flask.jsonify(result)
+    return jsonify(result)
 
 ##########################################
 
@@ -298,8 +294,8 @@ pagination_cache = PaginationCache() # for each (new) query, certain pagination 
 # --------------------
 # Collect 
 # ----------------------
-@app.route("/collectQueryMeta/<token>/<page_id>")
-def collect_query_meta(token:str, page_id:int) -> Dict:   
+##app.route("/collectQueryMeta/<token>/<page_id>")
+def collect_query_meta(request:Request, token:str, page_id:int) -> Dict:   
     page_id = int(page_id)
     # (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
     (row_indices, resource_hashes, scores) = pagination_cache.get(token, page_id)
@@ -318,7 +314,7 @@ def collect_query_meta(token:str, page_id:int) -> Dict:
     temp["score"] = scores    
     temp["meta_data"] = metaIndex.collect_meta_rows(row_indices)
     del scores, resource_hashes
-    return flask.jsonify(temp)
+    return jsonify(temp)
 
 # ------------------
 # Querying
@@ -560,8 +556,8 @@ def query_func(
 
 
 
-@app.route("/query", methods = ["POST"])
-def query(page_size:int = 200):
+##app.route("/query", methods = ["POST"])
+def query(request:Request,page_size:int = 200) -> QueryInfo:
     """
     Main routine to return query results.
     Multiple attributes are allowed in the query to make it possible to match-and-mix queries.
@@ -577,11 +573,11 @@ def query(page_size:int = 200):
     # TODO: we don't need query_start, as scan all the shards in one Go, a bit costly, but aligned with `pagination-pipeline`.
     # also keeps complexity on the client-side low as well. (earlier we were trying to hide latency! but end results were about the same..as images were being rendered on new shard if better score!)
     # query_start = flask.request.form["query_start"].strip().lower()
-    query = flask.request.form["query"]
-    page_size = int(flask.request.form["page_size"])
+    query = request.form["query"]
+    page_size = int(request.form["page_size"])
 
-    if "X-Session-Key" in flask.request.headers:
-        query_token = flask.request.headers["X-Session-Key"]
+    if "X-Session-Key" in request.headers:
+        query_token = request.headers["X-Session-Key"]
     else:
         query_token = "notRandomEnoughToken_{}".format(query_token_counter)
         query_token_counter += 1  # don't matter the order, GIL atleast protects concurrent write atleast!
@@ -602,11 +598,11 @@ def query(page_size:int = 200):
     )
     toc = time.time_ns()
     q_info["latency"] = int((toc - tic) / 1e6)  # in milliseconds
-    return flask.jsonify(q_info)
+    return jsonify(q_info)
 
 ##############
 
-@app.route("/getRawData/<resource_hash>", methods = ["GET"])
+##app.route("/getRawData/<resource_hash>", methods = ["GET"])
 def getRawData(resource_hash:str) -> any:
     # TODO: deprecate it, use caddy/or fast static serve to serve these!
     resource_type = "image"
@@ -620,10 +616,10 @@ def getRawData(resource_hash:str) -> any:
     raw_data = dataCache.get(resource_hash, absolute_path)
     # raw_compressed_data = gzip.compress(raw_data)
     del absolute_path
-    return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
+    return Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
-@app.route("/getRawDataFull/<resource_hash>", methods = ["GET"])
-def getRawDataFull(resource_hash:str) -> flask.Response:
+##app.route("/getRawDataFull/<resource_hash>", methods = ["GET"])
+def getRawDataFull(request:Request, resource_hash:str) -> bytes:
     row_indices = metaIndex.query_generic(
         attribute = "resource_hash",
         query = [resource_hash]
@@ -647,10 +643,10 @@ def getRawDataFull(resource_hash:str) -> flask.Response:
     else:
         with open(absolute_path, "rb") as f:
             raw_data = f.read()
-    return flask.Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
+    return Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
 
-@app.route("/tagPerson", methods = ["POST"])
-def tagPerson():
+##app.route("/tagPerson", methods = ["POST"])
+def tagPerson(request:Request):
     """
     Tag a person, by replacing the old `person` attribute with newer.
     It does all the stuff for finding all resources with that `old id` and replaces correctly and save the db too!
@@ -658,11 +654,11 @@ def tagPerson():
     TODO: do a `replace` routine in backend, to speed such operations!
     
     """
-    new_person_id = flask.request.form["new_person_id"].strip().lower()
-    old_person_id = flask.request.form["old_person_id"].strip()
+    new_person_id = request.form["new_person_id"].strip().lower()
+    old_person_id = request.form["old_person_id"].strip()
 
     if "cluster" in new_person_id: 
-        return flask.jsonify({"success":False, "reason":"`cluster` is reserved, choose a different tag"})
+        return jsonify({"success":False, "reason":"`cluster` is reserved, choose a different tag"})
     
     # we make sure new tag/cluster is not already present, so there is never some ambiguity.
     persons =  mBackend.get_unique_str(
@@ -674,7 +670,7 @@ def tagPerson():
     # Also this route would relatively be very-rare!
     assert old_person_id in persons, "Expected {} to be in persons !!".format(old_person_id)
     if new_person_id in persons:
-        return flask.jsonify(
+        return jsonify(
             {"success":False, 
              "reason":"{} already present, choose a different tag".format(new_person_id)}
         )
@@ -721,10 +717,10 @@ def tagPerson():
 
     result = {"success":True, "reason":""}
     metaIndex.save() # write to disk too..
-    return flask.jsonify(result)
+    return jsonify(result)
    
-@app.route("/editMetaData", methods = ["POST"])
-def editMetaData():
+##app.route("/editMetaData", methods = ["POST"])
+def editMetaData(request:Request):
     """ 
     TODO: only user Attributes are supposed to be updated/edited.
     just call `modify_meta_user`,
@@ -732,18 +728,18 @@ def editMetaData():
     """
     
     temp_meta_data = {}
-    for k,v in flask.request.form.items():
+    for k,v in request.form.items():
         # collect key/attribute, value pairs to be updated..
         if "data_hash" not in k.lower():
             temp_meta_data[k] = v
 
-    data_hash = flask.request.form["data_hash"]
+    data_hash = request.form["data_hash"]
     metaIndex.modify_user_data(data_hash, temp_meta_data)
     metaIndex.save()
-    return flask.jsonify({"success":True})
+    return jsonify({"success":True})
 
-@app.route("/getGroup/<attribute>", methods = ["GET"])
-def getGroup(attribute:str):
+##app.route("/getGroup/<attribute>", methods = ["GET"])
+def getGroup(request:Request, attribute:str) -> list[str]:
     # get the unique/all-possible values for an attribute!
     # NOTE: CLIENT SIDE pagination is pending ..
     # NOTE: It is still quite fast, will get to it if starts to feel slow!
@@ -756,7 +752,7 @@ def getGroup(attribute:str):
         attribute, 
         count_only = False
     )
-    return flask.Response(raw_json, mimetype = "application/json")
+    return Response(raw_json, mimetype = "application/json")
 
 # --------------------------------
 # Filtering (conditioned on query token/pagination)
@@ -765,8 +761,8 @@ def getGroup(attribute:str):
 # Its convenient, as sometimes, user may not know one attribute, but using another known attribute. and then filtering can quickly get the desired result.
 # Search-engine is supposed to assist in search with whatever information use may have.
 # -------------------------
-@app.route("/filterPopulateQuery/<query_token>/<attribute>", methods = ["GET"])
-def filterPopulateQuery(query_token:str,  attribute:str) -> list[str]:
+##app.route("/filterPopulateQuery/<query_token>/<attribute>", methods = ["GET"])
+def filterPopulateQuery(request:Request, query_token:str,  attribute:str) -> list[str]:
     # first may need to populate a filter with possible values to choose a value to filter !
 
     # Handling the `year` attribute, as we store the `YYYY-mm--dd` created date!
@@ -827,10 +823,10 @@ def filterPopulateQuery(query_token:str,  attribute:str) -> list[str]:
                     count_only = False,        
                     row_indices = final_row_indices
             )
-    return flask.Response(raw_json, mimetype="application/json")
+    return Response(raw_json, mimetype="application/json")
 
-@app.route("/filterQueryMeta/<query_token>/<attribute>/<value>", methods = ["GET"])
-def filterQueryMeta(query_token:str, attribute:str, value:Any) -> list[Dict]:
+##app.route("/filterQueryMeta/<query_token>/<attribute>/<value>", methods = ["GET"])
+def filterQueryMeta(request:Request, query_token:str, attribute:str, value:Any) -> list[Dict]:
     # NOTE: filter-state must only be valid on client-side until user doesn't do a new `SEARCH`. (after that client must assume it is invalid to call the filter api with older token!)
     # TODO: add date filtering support!
 
@@ -889,148 +885,13 @@ def filterQueryMeta(query_token:str, attribute:str, value:Any) -> list[Dict]:
 
     # Now we have filtered row indices, collect all meta-rows.
     # NOTE: no pagination for now.. for filtered row_indices.. JUST 1000 for now!
-    return metaIndex.collect_meta_rows(filtered_row_indices[:1000])
+    return jsonify(metaIndex.collect_meta_rows(filtered_row_indices[:1000]))
 
-
-# ---------------------------------------------------------
-# Pagination for getting Meta-data for an attribute...
-# Replacing `getMeta` with `queryAttribute` + `collectAttribute`
-# ----------------------------------------------------------
-@app.route("/queryAttribute/<attribute>/<value>/<page_size>", methods = ["GET"])
-def queryAttribute(attribute:str, value:Any, page_size:int) -> QueryInfo:
-    # Implements Paginatation Q/query part !
-    # queries/get all the relevant `row-indices`. for an attribute-value pair.
-    # generate page-data for each possible page, which can be collected on-demand!
-    
-    page_size = int(page_size)
-    global query_token_counter
-    
-    # NOTE: we use a single `forward` slash while saving `meta-data` for paths. Should work well on `linux`, TODO: test it.
-    if attribute == "resource_directory":
-        value = value.replace("|", "/")
-        assert os.path.exists(os.path.normpath(value))
-
-    # query and collect sequence!
-    # ---------------------------------------
-    # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
-    query_token = "notRandomEnoughToken_{}".format(query_token_counter)
-    query_token_counter += 1  # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
-
-    # TODO: speed it up for colArrayString atleast!
-    matching_row_indices = metaIndex.query_generic(
-        attribute = attribute,
-        query = [value],
-        unique_only = False,   # we need any row matching this value for this attribute here!
-        exact_string_match = True
-    )
-    
-    # generation pagination info
-    n_pages = len(matching_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
-    page_meta = []
-    for i in range(n_pages):
-        # In this case, we would just need these row-indices to collect all the corresponding meta-data during collect.
-        page_meta.append(
-            matching_row_indices[i*page_size: (i+1)*page_size]
-        )
-    
-    info:PaginationInfo = {}
-    info["token"] = query_token
-    info["page_meta"] = page_meta
-    del page_meta
-    pagination_cache.add(info)
-    del info
-
-    # TO RETURN TO CLIENT ON PAGINATION
-    q_info:QueryInfo = {}
-    q_info["n_matches"] = len(matching_row_indices)
-    q_info["n_pages"] = n_pages
-    q_info["query_token"] = query_token
-
-    return flask.jsonify(q_info)
-
-@app.route("/collectAttributeMeta/<token>/<page_id>")
-def collectAttributeMeta(token:str, page_id:int) -> MetaInfo:
-    # Supposed to be called for `queryMeta`.
-    # We collect corresponding meta-data/rows, which was conditioned in the corresponding `Q` routine!
-
-    page_id = int(page_id)
-    # page_data would just be (valid) row_indices for that page, to quickly collect corresponding meta-data! 
-    page_row_indices = pagination_cache.get(
-        token,
-        page_id
-    )
-    meta_data = metaIndex.collect_meta_rows(page_row_indices)
-
-    temp:MetaInfo = {}
-    temp["data_hash"] = [row["resource_hash"] for row in meta_data]
-    temp["score"] = [1 for i in range(len(meta_data))]
-    temp["meta_data"] = meta_data
-    return temp
-# ------------------------------------------------------------
-
-@app.route("/getMeta/<attribute>/<value>", methods = ["GET"])
-def getMeta(attribute:str, value:Any):
-    # TODO: update (nim) backend to accept if exact_match is requsted or not!
-    # NOTE: We will be moving to `pagination sequence`. But for now.. we call them at there.. just to test front-end.
-    # TODO: instead return pagination info, and let client call `collect`!
-
-    global query_token_counter
-    
-    # NOTE: we use a single `forward` slash while saving `meta-data` for paths. Should work well on `linux`, TODO: test it.
-    if attribute == "resource_directory":
-        value = value.replace("|", "/")
-        assert os.path.exists(os.path.normpath(value))
-
-    # query and collect sequence!
-    # ---------------------------------------
-    # TODO: make it random enough , BUT also update the code to delete older enteries in paginationCache!
-    query_token = "notRandomEnoughToken_{}".format(query_token_counter)
-    query_token_counter += 1  # NOTE: since only this thread would be incrementing it anyway so no locking (with GIL even that shouldn't be necessary, since we are intersted in unique, order doesn't matter)
-        
-    page_size = 2000
-    matching_row_indices = metaIndex.query_generic(
-        attribute = attribute,
-        query = [value],
-        unique_only = False,   # we need any row matching this value for this attribute here!
-        exact_string_match = True
-    )
-    
-    # generation pagination info
-    n_pages = len(matching_row_indices) // page_size + 1 # should be ok, when fully divisible, as empty list should be collected!
-    page_meta = []
-    for i in range(n_pages):
-        # In this case, we would just need these row-indices to collect all the corresponding meta-data during collect.
-        page_meta.append(
-            matching_row_indices[i*page_size: (i+1)*page_size]
-        )
-    
-    info:PaginationInfo = {}
-    info["token"] = query_token
-    info["page_meta"] = page_meta
-    del page_meta
-    pagination_cache.add(info)
-    del info
-
-    # TO RETURN TO CLIENT ON PAGINATION
-    # q_info:QueryInfo = {}
-    # q_info["n_matches"] = len(final_row_indices)
-    # q_info["n_pages"] = n_pages
-    # q_info["query_token"] = query_token
-
-    # collect here too.. until client side pagination is added!
-    result = collectAttributeMeta(
-        query_token, 
-        page_id = 0
-    )
-
-    pagination_cache.remove(query_token) # for now.. as its work would be done!
-    return flask.jsonify(result)
-
-@app.route("/getMetaStats", methods = ["GET"])
-def getMetaStats():
+##app.route("/getMetaStats", methods = ["GET"])
+def getMetaStats(request:Request) -> dict:
     """Supposed to return some stats about meta-data indexed, like number of images/text etc."""
     result = metaIndex.get_stats()
-    return flask.jsonify(result)
+    return jsonify(result)
 
 def get_original_cluster_id(person_id):
     """
@@ -1081,14 +942,15 @@ def get_original_cluster_id(person_id):
     assert not(idx_i is None) and (not idx_j is None)
     return person_ml_arr[idx_i][idx_j]
       
-@app.route("/getPreviewPerson/<person_id>", methods = ["GET"])
-def getPreviewCluster(person_id):
+##app.route("/getPreviewPerson/<person_id>", methods = ["GET"])
+def getPreviewCluster(r:Request, person_id:str) -> bytes:
     # TODO: have to add a cluster for no detection too... not a priority(i think have added just to incorporate)
     if person_id.lower() == "no_person_detected":
+        # TODO: just return a fixed set of bytes like a black image.
         flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
         raw_data = poster.tobytes()
         del flag, poster
-        return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
+        return Response(raw_data, mimetype = "{}/{}".format("image", "png"))
     else:
         # Do the dance of getting original `corresponding` cluster_id, so that we can retrive the `face preview`
         with global_lock:
@@ -1109,11 +971,13 @@ def getPreviewCluster(person_id):
         png_data = c.preview_data
         del c
         raw_data= base64.b64decode(png_data)
-        return flask.Response(raw_data, mimetype = "{}/{}".format("image", "png"))
+        return Response(raw_data, mimetype = "{}/{}".format("image", "png"))
 
-@app.route("/getfaceBboxIdMapping/<resource_hash>", methods = ["POST"])
-def getfaceBboxIdMapping(resource_hash:str):
+##app.route("/getfaceBboxIdMapping/<resource_hash>", methods = ["POST"])
+def getfaceBboxIdMapping(request:Request, resource_hash:str):
     """
+    TODO: its just do much work, to get corresponding face-bbox, by generating bboxes and using the order to much info to sync!
+    # TODO map it during the face-indexing itself.. 
     generate/calculate a mapping from bbox to person_ids, for a given resource.
     Returns an array of object/dicts . (with x1,y1,x2,y2, person_id) fields to easily plot bboxes with corresponding person id.
     
@@ -1122,7 +986,7 @@ def getfaceBboxIdMapping(resource_hash:str):
     cluster_ids/person_ids:  already assigned during indexing. (client has this information already) 
     """
     
-    cluster_ids = flask.request.form.get("cluster_ids").strip("| ").split("|")
+    cluster_ids = request.form.get("cluster_ids").strip("| ").split("|")
     orig_cluster_ids = []    
     for c_id in cluster_ids:
         orig_cluster_ids.append(get_original_cluster_id(c_id))
@@ -1132,7 +996,7 @@ def getfaceBboxIdMapping(resource_hash:str):
     absolute_path = temp_meta["absolute_path"]
     frame = cv2.imread(absolute_path) # bit costly, should come from cache if possible.
     if frame is None:
-        return flask.jsonify([])
+        return jsonify([])
     else:
         # NOTE: bbox_ids preserves the order for provided cluster_ids, hence can easily to get the newest persond id in cluster_ids list provided as argument.
         bbox_ids = faceIndex.get_face_id_mapping(
@@ -1150,15 +1014,15 @@ def getfaceBboxIdMapping(resource_hash:str):
                 "y2":bbox[3],
                 "person_id": cluster_ids[ix]   # if order was same from get_face_id function.
             })
-    return flask.jsonify(result) 
+    return jsonify(result) 
 
-@app.route("/ping", methods = ["GET"])
-def ping():
-    """To check the python app/server liveness!"""
-    return "ok"
+##app.route("/ping", methods = ["GET"])
+def ping(r:Request) -> bytes:
+    """To check the python app/server liveness mainly in an app ecosystem!"""
+    return Response("ok", status=200)
 
-@app.route("/getPartitions", methods = ["GET"])
-def getPartitions() -> Dict[str, str]:
+##app.route("/getPartitions", methods = ["GET"])
+def getPartitions(r:Request) -> Dict[str, str]:
     """
     It returns a list of tuple containing `location` and an `identifier` for partitions available to index from:
     ("LOCAL", "C:"),
@@ -1177,7 +1041,7 @@ def getPartitions() -> Dict[str, str]:
         response_data = [
             {"location": "LOCAL", "identifier": "/"}
             ]
-    return flask.jsonify(response_data)
+    return jsonify(response_data)
 
 from typing import TypedDict
 class SuggestionPathAttributes(TypedDict):
@@ -1194,17 +1058,17 @@ class SuggestionPathAttributes(TypedDict):
     identifier:str # remove any `backward` slashes, not expected in identifier. For `linux` it is supposed to be `/` always!
     uri:list[str]
 
-@app.route("/getSuggestionPath", methods = ["POST"])
-def getSuggestionPath() -> List[str]:
+##app.route("/getSuggestionPath", methods = ["POST"])
+def getSuggestionPath(request:Request) -> List[str]:
     """
     To provide suggestions for `local/server`, (generally) during selection of a directory/folder to index!
     NOTE: client must set the `header` as `application/json`, as it expects json-encoded data! 
     """
     post_data:SuggestionPathAttributes
-    if isinstance(flask.request.json, str):
-        post_data = json.loads(flask.request.json)
+    if isinstance(request.json, str):
+        post_data = json.loads(request.json)
     else:
-        post_data = flask.request.json
+        post_data = request.json
 
     result:List[str] = []
     if post_data["location"].lower() == "local":
@@ -1215,96 +1079,13 @@ def getSuggestionPath() -> List[str]:
         # print("Recreated path: ", recreated_path)
         if os.path.exists(recreated_path):
             result = os.listdir(recreated_path)
-    return flask.jsonify(result)
-
-
-################
-# Extension specific routes
-##################
-import requests
-import webbrowser
-import json
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "./extensions/google_photos"))
-from gphotos import GooglePhotos, read_gClient_secret, write_gClient_credentials
-
-googlePhotos = GooglePhotos() #in case not client_secret/credentials, would be equivalent to a dummy initialization.
-GAuthFlowStatus = {
-    "status":"not active",
-    "finished":True,
-}
-
-@app.route("/gClientInfo")
-def gClientInfo():
-    return flask.jsonify(googlePhotos.get_client_info()) 
-
-@app.route("/uploadClientData", methods = ["POST"])
-def uploadClientData():
-    client_data = flask.request.form.get("client_data")
-    client_data = json.loads(client_data)
-    googlePhotos.add_new_client(client_data)
-    return flask.jsonify({"success":True})
-
-@app.route("/beginGAuthFlow")
-def beginGAuthflow():
-    # TODO: later provide password..
-
-    client_data = read_gClient_secret(password=None)
-    client_id = client_data["client_id"]
-    redirect_uri = client_data["redirect_uris"][0]
-    auth_uri = client_data["auth_uri"]
-    SCOPE = "https://www.googleapis.com/auth/photoslibrary"   # TODO: for now hard-code it.
-    webbrowser.get(using = None).open('{}?response_type=code'
-                '&client_id={}&redirect_uri={}&scope={}&access_type=offline'.format(auth_uri, client_id, redirect_uri, SCOPE), new=1, autoraise=True)
-    
-    with global_lock:
-        GAuthFlowStatus["status"] =  "in progress" 
-        GAuthFlowStatus["finished"] = False
-    
-    return "ok"
-
-@app.route("/OAuthCallback")
-def oAuthCallback():
-    # TODO: error checking, like failed or user not consent.
-    global googlePhotos
-
-    # TODO: exchange the code to by making a request to OAUTH server. 
-    client_data = read_gClient_secret()
-    token_uri = client_data["token_uri"]
-    
-    try:
-        response = requests.post(token_uri, data={
-        
-            # data to exchange code with 
-            'client_id': client_data["client_id"],
-            'client_secret': client_data["client_secret"],
-            'grant_type': 'authorization_code',
-            'redirect_uri': client_data["redirect_uris"][0],  # just provide this. and make sure match with one on google console. (not being used..)
-            'code':flask.request.args["code"]
-        })
-    except ConnectionError:
-        with global_lock:
-            GAuthFlowStatus["status"] =  "Connection Error" 
-            GAuthFlowStatus["finished"] = True
-        return "Ok"
-    
-    write_gClient_credentials(response.json(), password = None)
-
-    googlePhotos = GooglePhotos()
-    with global_lock:
-        GAuthFlowStatus["status"] =  "Success" 
-        GAuthFlowStatus["finished"] = True
-
-    return "Ok"
-
-@app.route("/statusGAuthFlow")
-def statusGAuthFlow():
-    with global_lock:
-        return flask.jsonify(GAuthFlowStatus)
+    return jsonify(result)
 
 ############################################################################
 def check_extension_status(remote_protocol:str) -> Tuple[bool, str]:
     # TODO: deprecated, would be handled with other extension code!
+    # TODO: can be handled a bit nicely, when we start registering `extensions`
+    # can then check if it is a valid protocol/extension!
     if remote_protocol not in appConfig["supported_remote_protocols"]:
         return (False, "Not a supported protocol")
     else:
@@ -1320,13 +1101,15 @@ def check_extension_status(remote_protocol:str) -> Tuple[bool, str]:
         else:
             return (False, "Not a supported protocol")
 
-#######################################
+##################################
 
 if __name__ == "__main__":
-
+    # want to able to create a sample app here..
+    from werkzeug_app import SimpleApp
+    from werkzeug.serving import run_simple
+    import argparse    
+    
     port = 8200
-
-    import argparse
     parser = argparse.ArgumentParser()# Add an argument
     parser.add_argument('--port', type=int, required=False)
     args = parser.parse_args()
@@ -1334,4 +1117,38 @@ if __name__ == "__main__":
     if not(args.port is None):
         port = args.port
     
-    app.run(host = "127.0.0.1",  port = port)
+    # Create a python Object emulating  WSGI app!
+    # NOTE: this is just a python object, can  be easily move around, flexible that `flask App` system, which require extra work to split routes into multiple files !! 
+    app = SimpleApp(allow_local_cors = True)
+
+    # Combine URL routing with view/controller routines here!
+    # NOTE: app will lazily (re)initialize the routing.MAP instance on adding new url rules!
+    app.add_url_rule(rule = "/getSuggestion", view_function= getSuggestion, methods = ["POST"])
+    app.add_url_rule(rule = "/getMetaStats", view_function=getMetaStats)
+    app.add_url_rule(rule = "/query", view_function = query, methods=["POST"])
+    app.add_url_rule(rule = "/collectQueryMeta/<token>/<int:page_id>", view_function=collect_query_meta)
+    app.add_url_rule(rule = "/getRawDataFull/<resource_hash>", view_function = getRawDataFull)
+    app.add_url_rule(rule = "/filterPopulateQuery/<query_token>/<attribute>", view_function=filterPopulateQuery)
+    app.add_url_rule(rule = "/filterQueryMeta/<query_token>/<attribute>/<any:value>", view_function=filterQueryMeta)
+    app.add_url_rule(rule = "/getGroup/<attribute>", view_function=getGroup)
+    app.add_url_rule(rule = "/getPreviewPerson/<person_id>", view_function = getPreviewCluster)
+    # Indexing..
+    app.add_url_rule(rule = "/getIndexStatus", view_function = getIndexStatus)
+    app.add_url_rule(rule = "/indexCancel", view_function= indexCancel)
+    app.add_url_rule(rule = "/indexStart", view_function = indexStart, methods = ["POST"])
+    # misc.
+    app.add_url_rule(rule = "/getPartitions", view_function=getPartitions)
+    app.add_url_rule(rule = "/getSuggestionPath", view_function=getSuggestionPath, methods=["POST"])
+    # editing (over-write existing info.)
+    app.add_url_rule(rule = "/tagPerson", view_function = tagPerson, methods = ["POST"])
+    app.add_url_rule(rule = "/editMetaData", view_function = editMetaData, methods = ["POST"])
+    # ping
+    app.add_url_rule(rule = "/ping", view_function = ping)
+    
+    # Run the WSGI server, with `app` as underlying WSGI application!
+    run_simple(
+        hostname = "127.0.0.1",
+        port = int(port),
+        application = app, # pass our app instance!,
+        threaded = True    # handle each request in a new thread or one of the pool threads!
+    )
