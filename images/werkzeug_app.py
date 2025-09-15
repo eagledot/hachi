@@ -94,11 +94,11 @@ def validate_signature(rule:str, view_function:Callable):
         # 2. <int(optional args for convertor):page_id>   # convertor followed by arg
         # TODO: there should be code in werkzeug.routes already doing this parsing.
         placeholder = temp.split(":")[-1].strip()
-        print("placeholder: {}".format(placeholder))
+        # print("placeholder: {}".format(placeholder))
         placeholders.append(placeholder)
         start_ix = rule.find("<", end_ix + 1)
 
-    print("Placeholders: {}".format(placeholders))
+    # print("Placeholders: {}".format(placeholders))
     func_input_args = inspect.getfullargspec(view_function)[0]
     for p in func_input_args:
         assert p in func_input_args, "{} argument doesn't seem to a valid arg for provided function {}. Are you sure this is the right view_function?".format(p, view_function.__name__)
@@ -151,12 +151,10 @@ class SimpleApp():
         # TODO: error should be only, (rule, methods) are different, otherwise overwrite!
         if endpoint is None:
             endpoint = view_function.__name__
-        print("Endpoint is: {}".format(endpoint))
 
         assert not (endpoint in self.endpoint_2_uri)
         for m in methods:
             assert m in self.http_methods
-        print(rule)
 
         validate_signature(rule, view_function)
 
@@ -175,7 +173,7 @@ class SimpleApp():
             print("Initializing...")
             self.initialize()
 
-        print("[DEBUG]: Being called in thread: {}".format(threading.current_thread().ident))
+        # print("[DEBUG]: Being called in thread: {}".format(threading.current_thread().ident))
         # NOTE: this environ is basically raw-bytes received on a socket. (depending upon the level in OSI model, assume for this HTTP protocol!)
         # NOTE: can assume this environ/data a new (not-shared) instance, and we generate raw-bytes purely on environ, so should be thread-safe, even without GIL( in-case we wish to experiment) ! 
         # start_response is created by WSGI server and passed according to WSGI protocol.
@@ -212,10 +210,8 @@ class SimpleApp():
         endpoint, args = urls.match()
         assert not (endpoint is None)
         expected_methods = self.endpoint_2_uri[endpoint][1]
-        print("Expected methods: {}".format(expected_methods))
 
         if (request.method == "OPTIONS"):
-            print(request.headers)
             # Reference: https://fetch.spec.whatwg.org/
             # NOTE: for now CORS work at `origin` level, i.e would be allowed for all methods/resources , but in future can easily be set up for combination of origins and resources!
             # TODO: prevent cookies submission to cross origins !
@@ -248,7 +244,6 @@ class SimpleApp():
                 response = Response(status = 400) 
             
         elif not (request.method in expected_methods):
-            print("Got: {}".format(request.method))
             # method not allowed exception! wanted to use MethodNotAllowed
             # i cannot figure out the usage of MethodNotAllowed anyway!
             response = Response("Not allowed ", status = 405)
