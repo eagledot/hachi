@@ -29,7 +29,7 @@ export class FuzzySearchUI {
   private showDropdown = false;
   private selectedIndex = -1;
   private hasSearched = false;
-  private debounceTimeout: number | null = null;
+  private debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * Initializes a new instance of the fuzzy search UI component.
@@ -108,7 +108,7 @@ export class FuzzySearchUI {
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
-                  class="relative  rounded-xl  bg-white flex items-center h-10 sm:h-12 group overflow-hidden"
+                  class="relative rounded-xl bg-white flex items-center h-10 sm:h-12 group overflow-hidden"
                   style="padding-right:0;"
                 >
                   <!-- Search Icon -->
@@ -136,7 +136,7 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-3 border-2 border-gray-200 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-500 font-medium rounded-l-xl rounded-r-none transition-all duration-300"
+                    class="flex-1 h-full px-3 border-2 border-gray-800 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-600 rounded-l-xl rounded-r-none transition-all duration-300"
                     style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
 
@@ -144,19 +144,22 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed bg-gray-700 items-center justify-center w-12 h-full sm:w-14  hover:border-yellow-200 transition-all duration-200border-yellow-200 bg-gray-0 group focus:outline-none "
+                    class="flex cursor-not-allowed items-center justify-center w-16 h-10 sm:h-12 sm:w-14 transition-all duration-200 border-t-2 border-b-2 border-gray-800 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
+                    <?xml version="1.0" encoding="utf-8"?><!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
                     <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
                       xmlns="http://www.w3.org/2000/svg"
-                      height="24px"
-                      viewBox="0 -960 960 960"
-                      width="24px"
+                      style="width:24px;height:24px;"
                     >
                       <path
-                        fill="#fff"
-                        d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Zm40-308 198-252H282l198 252Zm0 0Z"
+                        d="M4 5L10 5M10 5C10 6.10457 10.8954 7 12 7C13.1046 7 14 6.10457 14 5M10 5C10 3.89543 10.8954 3 12 3C13.1046 3 14 3.89543 14 5M14 5L20 5M4 12H16M16 12C16 13.1046 16.8954 14 18 14C19.1046 14 20 13.1046 20 12C20 10.8954 19.1046 10 18 10C16.8954 10 16 10.8954 16 12ZM8 19H20M8 19C8 17.8954 7.10457 17 6 17C4.89543 17 4 17.8954 4 19C4 20.1046 4.89543 21 6 21C7.10457 21 8 20.1046 8 19Z"
+                        stroke="#000000"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
                       />
                     </svg>
                   </button>
@@ -167,7 +170,7 @@ export class FuzzySearchUI {
                     aria-label="Search"
                     class="relative flex items-center justify-center
                           h-10 sm:h-12
-                          px-3 sm:px-5 md:px-6
+                          px-3 sm:px-5 md:px-4
                           bg-gradient-to-r from-blue-600 via-blue-600 to-blue-600
                           hover:from-blue-600 hover:via-blue-600 hover:to-blue-500
                           active:from-blue-600 active:via-blue-600 active:to-blue-500
@@ -177,7 +180,7 @@ export class FuzzySearchUI {
                           transition-all duration-300
                           space-x-0 sm:space-x-2
                           text-sm sm:text-base
-                          min-w-[52px] sm:min-w-[112px]
+                          
          focus:outline-none focus-visible:ring-4 focus-visible:ring-blue-600 focus:z-10"
                     style="border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;"
                   >
@@ -196,7 +199,7 @@ export class FuzzySearchUI {
                     </svg>
                     <span
                       id="search-btn-text"
-                      class="hidden sm:inline font-bold tracking-wide"
+                      class="hidden font-bold tracking-wide"
                       >Search</span
                     >
                   </button>

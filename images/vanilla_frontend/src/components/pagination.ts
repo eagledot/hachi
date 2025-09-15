@@ -106,7 +106,7 @@ export class PaginationComponent {
           <div class="text-[11px] xs:text-xs text-gray-600 leading-snug min-w-0">
             <span id="pagination-info" class="block truncate max-w-[220px] sm:max-w-xs">
               Showing ${this.totalItems === 0 ? 0 : startIndex + 1}-${endIndex}
-              <span class="hidden xs:inline">of ${this.totalItems} photos</span>
+              <span class="hidden md:inline">of ${this.totalItems} photos</span>
             </span>
           </div>
           <!-- <span class="hidden md:inline text-[11px] text-gray-500 select-none" aria-hidden="true">
