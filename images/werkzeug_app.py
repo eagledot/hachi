@@ -120,7 +120,7 @@ class SimpleApp():
     # NOTE: still experimental, idea is to make it complete enough to easily map python code to a url, with werkzeug alone.
     # TODO: handle `options` and `cors`!
     def __init__(self, allow_local_cors:bool = False):
-        self.initialzed = False
+        self.initialized = False
         self.http_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
         
         self.url_map = None # we will lazily initialize it!
@@ -160,18 +160,23 @@ class SimpleApp():
 
         self.endpoint_2_uri[endpoint] = (Rule(rule, endpoint = endpoint), methods)
         self.endpoint_2_viewFunction[endpoint]  = view_function
-        self.initialzed = False
+        self.initialized = False
     
     def initialize(self):
         self.url_map = Map(
                 [(v[0]) for v in self.endpoint_2_uri.values()]
             )
-        self.initialzed = True
+        self.initialized = True
 
     def __call__(self, environ, start_response) -> Iterable[bytes]:
-        if not (self.initialzed):
-            print("Initializing...")
+        if not (self.initialized):
+            print("[Initializing]: Parent")
             self.initialize()
+        # making sure all registered extension are initialized too.
+        for ext in self.registered_extensions:
+            if not (self.registered_extensions[ext].initialized):
+                print("[Initializing]: {}".format(ext))
+                self.registered_extensions[ext].initialize()
 
         # print("[DEBUG]: Being called in thread: {}".format(threading.current_thread().ident))
         # NOTE: this environ is basically raw-bytes received on a socket. (depending upon the level in OSI model, assume for this HTTP protocol!)
@@ -181,13 +186,15 @@ class SimpleApp():
         # --------------------
         # Check for extension!
         # --------------------
+        active_app = self
+        extension_name = None
         temp_path = environ['PATH_INFO']
         temp_split = temp_path.split("/")
         if temp_split[1] == self.extension_prefix:
             # We aim to strip extension specific path, before calling registered extension (wsgi app).
             # This way extension doesn't need to worry in which context it is being called, and can be fully developed in isolation!
             extension_name = temp_split[2]
-            assert extension_name in self.registered_extensions
+            assert extension_name in self.registered_extensions, self.registered_extensions.keys()
             print("[Routing to ]: {}".format(extension_name))
             extension_path = temp_path.replace("/{}/{}".format(self.extension_prefix, extension_name), "")
             print("extension path: {}".format(extension_path))
@@ -196,7 +203,9 @@ class SimpleApp():
             # NOTE TODO: for now i am assuming the following 3 as equivalent !!
             environ['PATH_INFO'] = extension_path
             environ['REQUEST_URI'] = extension_path
-            environ['RAW_URI'] = extension_path 
+            environ['RAW_URI'] = extension_path
+
+            active_app = self.registered_extensions[extension_name]
         del temp_split, temp_path
         # -------------------------------------------
 
@@ -206,10 +215,11 @@ class SimpleApp():
         # return ["Hello World!".encode("utf8")]
 
         request = Request(environ = environ) # just wrapping up the environ to easily query various headers and stuff!
-        urls = self.url_map.bind_to_environ(environ) # try to match environment/url to one of endpoints defined for this app.
+        urls = active_app.url_map.bind_to_environ(environ) # try to match environment/url to one of endpoints defined for this app.
+        
         endpoint, args = urls.match()
         assert not (endpoint is None)
-        expected_methods = self.endpoint_2_uri[endpoint][1]
+        expected_methods = active_app.endpoint_2_uri[endpoint][1]
 
         if (request.method == "OPTIONS"):
             # Reference: https://fetch.spec.whatwg.org/
@@ -220,12 +230,17 @@ class SimpleApp():
                 response = Response(status = 200)
                 h = response.headers # h is mutable reference, so updates would be reflected in response.headers too!
                 max_age = 86400
-                if self.allow_local_origin_cors and (not self.allow_wildcard_origin_cors):
-                    # TODO: since for now... decoupled from host:port our server would be running,
-                    # it should also check `server` is indeed running on local-host!!
-                    script_host = request.host.split(":")[0].lower()
-                    assert script_host == "localhost" or script_host == "127.0.0.1"
                 
+                if self.allow_local_origin_cors and (not self.allow_wildcard_origin_cors):
+                    # Cors request to interfaces like http://192.168.xxx.xxx, should be blocked too, if server was running on multiple interfaces in case of a CORS request!!
+                    # As in it is possible that script originate from questionable origin, may try to request a local-source in case such a server is running!
+                    # origin and destination both must be local!
+                    assert environ['SERVER_NAME'] == "localhost" or environ['SERVER_NAME'] == "127.0.0.1", "Please run server on `local` interface only, or set `local_origin_cors` to False, at your own risk!!"
+                    if "Origin" in request.headers: # browser would pass this in any cross-origin request!
+                        script_origin_host = request.headers["origin"].split(":")[0].lower()
+                        print("Origin host: {}".format(script_origin_host))
+                        assert  "127.0.0.1" in script_origin_host or "localhost" in script_origin_host, "Cannot allow scripts from origins other than `local`"
+
                 if "Origin" in request.headers:
                     # It is expected for a CORS/Options generally !
                     script_origin = request.headers["Origin"]
@@ -248,7 +263,7 @@ class SimpleApp():
             # i cannot figure out the usage of MethodNotAllowed anyway!
             response = Response("Not allowed ", status = 405)
         else:
-            response = self.endpoint_2_viewFunction[endpoint](request, **args) # itself an wsgi app!  
+            response = active_app.endpoint_2_viewFunction[endpoint](request, **args) # itself an wsgi app!  
             if "Origin" in request.headers:
                 # TODO: Even After the OPTIONS request, it still needs to be set for actual request for CORS ? Server should take control for requests from cross-origin scripts !?
                 # or may be add some mapping to get allowed origins given resource and origin value!
@@ -313,12 +328,12 @@ if __name__ == "__main__":
 
     # following block could be done anywhere before calling register here or in main file!
     gp = SimpleApp()  # an extension!  can be developed invidually!
-    app.add_url_rule(rule = "/test", view_function= on_extension)
+    gp.add_url_rule(rule = "/test", view_function= on_extension)
     # -------
 
     app.register(
         gp,
-        name = "googlephotos"
+        name = "gp"
     )
 
     # now using a url to /ext/googlephotos/test should invoke
@@ -334,7 +349,7 @@ if __name__ == "__main__":
 
     # # test routes !
     result = c.get("http://localhost:8080/api/52") # let us see what happens!
-    result = c.options("http://localhost:8080/ext/googlephotos/test")
+    result = c.options("http://localhost:8080/ext/gp/test")
     print(result)
 
     # app.initialize()
