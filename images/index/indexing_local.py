@@ -261,27 +261,111 @@ class ProfileInfoNaive(object):
     
 from queue import Queue
 NEW_THREAD_PREVIEW  = True
-class QueueData(NamedTuple):
+class QueueData(NamedTuple):  # For preview thread, generating previews!
     resource_hash:str
     image:np.ndarray
     is_batch_done:bool
     is_thread_done:bool
 
-# Can keep reading data from disk in a separate thread!
-image_bytes_queue = Queue() # make it local to IndexingLocal class!
-def read_from_disk_bg(
-        resources_batch_queue:Queue[tuple[os.PathLike, bytes]],  # queue being filled by this routine!
-        resource_path_batch:list[os.PathLike]
-):  
-    for resource_path in resource_path_batch:
-        if (os.path.exists(resource_path)):  # NOTE: shouldn't happen, as generator would be calling `os.listDir`!
-            with open(resource_path, "rb") as f:
-                image_encoded_data = f.read()
-        else:
-            image_encoded_data = None # Note we still send it .. as reading thread will be expecting SOME data for each resource_path in the queue, to not get a blocked queue!
-        resources_batch_queue.put((resource_path, image_encoded_data))
-        del image_encoded_data
+# ------------------------
+# Read data from background, as some I/O is involved threading makes sense upto a point, optimal values could be factor of batch_size, selected, but good enough for our use case!
+# ---------------------------------------
+# Data being put into resource_queue, by background Thread, which is then read by Indexing thread.
+# Idea is to define/get such a type from remote extensions too, by asking, keep it a bit cleaner!
+class ResourceInfo(TypedDict):
+    path:os.PathLike
+    raw_data:bytes
 
+# To be returned by `downloading` (read_from_disk_bg) thread, to indexing_thread!
+class DownloadingStats(NamedTuple):
+    current_directory:str
+    eta_seconds:int
+    progress:int   # [0-100]
+
+# Would be run in a thread for each Batch, and then terminated!
+def read_from_disk_bg(
+        root_dir:os.PathLike,
+        include_subdirectories:bool,
+
+        # generally would have a maxsize of `batch_size`, to block, if indexing code turns out to be slow!
+        resources_batch_queue:Queue[ResourceInfo],  # queue being filled by this routine!
+        resources_signal_queue:Queue[bool], # can be used to signal some commands, for now just letting us know, if batch done , if false, we return!
+        resource_type = "Image",
+        batch_size = 36
+):  
+    
+    """
+    Based on the provided `root_dir`, we scan all the directories(recursive if indicated) to collect all the `Paths`. This seems to be fast-enough with even if a directory have thousands of files.
+    Then We read actual raw-data in chunks (batch_size).
+    
+    We intend to fill a `queue` with a file's raw-data to be later retrieved by `indexing code`, to actually index.
+    But it is bit difficult to settle on an abstraction, which works for remote extensions too!
+    
+    """
+
+    # Supposed to be used inside a thread, to start reading `raw-data` and producing corresponding `Resource-info`, once given a `root-dir` to index!
+    resource_mapping_generator = collect_resources(root_dir, include_subdirectories)
+    while True:
+        try:
+            # NOTE: understand that `directory` is a nice-abstraction, we return/yield all `filepaths` for some directory inside `root_dir` at each call.
+            # This way we can know `which directory` is being indexed too, but data-reading is costly,  
+            resource_mapping = next(resource_mapping_generator)
+            contents = resource_mapping[resource_type] # we select desired resource_tye!
+            if len(contents) == 0:
+                # meaning didn't have any `resources` for desired resource_type in some directory!
+                continue
+            current_directory = resource_mapping["directory_processed"]
+
+            # READ raw-data and/or required info and keep putting into the queue to be consumed by main Thread!
+            n_batches = (len(contents) - 1) // batch_size + 1 
+            print("n batches : {}".format(n_batches))
+
+            remains = len(contents)
+            eta_in_seconds = 12 * 3600  # keep it high enough!
+            for i in range(n_batches):
+                temp_container:list[ResourceInfo] = []
+                for resource_path in contents[i*batch_size : (i+1)*batch_size]:
+                    if (os.path.exists(resource_path)):  # NOTE: shouldn't happen, as generator would be calling `os.listDir`!
+                        with open(resource_path, "rb") as f:
+                            image_raw_data = f.read()
+                    else:
+                        image_raw_data = None # We still send it, as indicated above!
+                    
+                    # fill the queue!
+                    temp:ResourceInfo = {}
+                    temp["path"] = resource_path
+                    temp["raw_data"] = image_raw_data
+                    temp_container.append(temp)
+                    del temp
+                    del image_raw_data
+
+                temp_stats = DownloadingStats(
+                    current_directory = current_directory,
+                    eta_seconds = eta_in_seconds,
+                    progress = int((len(contents) - remains) / len(contents) * 100)
+                )
+
+                assert resources_batch_queue.maxsize == 1, "It should be expecting 1 batch at a time"
+                resources_batch_queue.put((True, temp_stats, temp_container))
+                curr_batch_size = len(temp_container)
+                del temp_container, temp_stats
+
+                # Eta calculation!
+                tic = time.time()
+                signal = resources_signal_queue.get()
+                if signal == False:
+                    return
+                # Based on the time after we get signal a batch has been indexed, we can estimate eta!
+                dt_dc = (time.time() - tic) / (curr_batch_size + 1e-5)
+                remains = remains - curr_batch_size
+                eta_in_seconds = dt_dc * (remains) # eta (rate * remaining images to be indexed.)
+        
+        except StopIteration:
+            del resource_mapping_generator
+            resources_batch_queue.put((False, None, [])) # false should indicate to stop reading from the `queue` and no more data to index!!
+            break
+# -----------------------------------------------------
+        
 class IndexingLocal(object):
     def __init__(self,
                  root_dir:os.PathLike,
@@ -366,8 +450,9 @@ class IndexingLocal(object):
 
     def __index_batch(
         self,
-        resources_batch_queue:Queue[tuple[os.PathLike, bytes]],
-        batch_size:int
+        resources_info:List[ResourceInfo]
+        # resources_batch_queue:Queue[tuple[os.PathLike, bytes]],
+        # batch_size:int
     ):
         """Actual logic for indexing. This would need to be speed up or benchmarked if ever!
         Batching mainly provides `breakpoints` to collect the `current state/info` for ongoing indexing. (mainly to send back to client).
@@ -376,41 +461,73 @@ class IndexingLocal(object):
         
         counter = 0
         # for resource_path in resources_batch:
-        for _ in range(batch_size): # NOTE: batch_size is used to make sure `queue.get` doesn't get blocked, we would have put that number of data into queue. before calling `__index_batch` routine! 
+        batch_size = len(resources_info)
+        for i in range(batch_size): # NOTE: batch_size is used to make sure `queue.get` doesn't get blocked, we would have put that number of data into queue. before calling `__index_batch` routine! 
             self.profile_info.add("misc")
 
-            # read from the queue, being fulfilled in another thread!
-            (resource_path, image_encoded_data) = resources_batch_queue.get()
-            if image_encoded_data is None:
-                print("[WARNING]: Read from disk failed due to Non existent Path for {} . Shouldn't have happened.".format(resource_path))
-                continue
+            resource_info = resources_info[i]
+            # print(resource_info)
+            if resource_info["raw_data"] is None:
+                print("[WARNING]: Read from disk failed due to Non existent Path for {} . Shouldn't have happened.".format(resource_info["resource_path"]))
             
-            resource_hash = generate_resource_hash(
-                image_encoded_data
-            )
-            self.profile_info.add("hash-generation")
-            if resource_hash is None:
-                print("Possibly Invalid data for: {}".format(resource_path))
-                continue
+            # resource_hash = generate_resource_hash(
+            #    image_raw_data
+            # )
+            # self.profile_info.add("hash-generation")
+            # if resource_hash is None:
+            #     print("Possibly Invalid data for: {}".format(resource_path))
+            #     continue
             
-            if self.meta_index.is_indexed(resource_hash):
-                print("[Already indexed]: {}".format(resource_path))
-                continue
+            # if self.meta_index.is_indexed(resource_hash):
+            #     print("[Already indexed]: {}".format(resource_path))
+            #     continue
 
-            # read raw-data only once.. and share it for image-clip,face and previews
-            self.profile_info.add("misc") # dummy
+            # # read raw-data only once.. and share it for image-clip,face and previews
+            # self.profile_info.add("misc") # dummy
             
             # ----------------------------------------------
             # Meta-data extraction 
-            meta_data:ImageMetaAttributes = extract_image_metaData(
-                resource_path # TODO: even though few bytes are read, get_image_size routine, we can share the 
-            )
+            if True:
+                image_raw_data = resource_info["raw_data"]
+                resource_path = resource_info["path"]
+                resource_hash = generate_resource_hash(
+                    image_raw_data
+                )
+                self.profile_info.add("hash-generation")
+                if resource_hash is None:
+                    print("Possibly Invalid data for: {}".format(resource_path))
+                    continue
+                
+                if self.meta_index.is_indexed(resource_hash):
+                    print("[Already indexed]: {}".format(resource_path))
+                    continue
+
+                # read raw-data only once.. and share it for image-clip,face and previews
+                self.profile_info.add("misc") # dummy
+
+                meta_data:ImageMetaAttributes = extract_image_metaData(
+                resource_path
+                )
+            else: # if indexing remote-data !
+                image_raw_data = resource_info["raw_data"]
+                resource_path = resource_info["path"]
+
+                meta_data:ImageMetaAttributes = extract_image_metaData(
+                image_raw_data
+                )
+                # manually update Main attributes.
+                meta_data["main_attributes"]["absolute_path"] = resource_path
+                meta_data["main_attributes"]["filename"] = resource_info["name"]
+                meta_data["main_attributes"]["resource_created"] = resource_info["created_at"]
+                
+
             self.profile_info.add("extract-metadata")
             if meta_data is None:
                 print("skipping..... because of meta-data ....")
                 continue  # TO investigate, get_image_size, sometimes, not able to parse?
             # --------------------------------------------
             # Do manual updates, as necessary here.
+            # could replace the identifier with app.get_name() # like device name or googlePhotos!
             meta_data["location"]["identifier"] = "Drive" # TODO: C:, D:
             meta_data["location"]["location"]  = "L"  # local/remote
 
@@ -439,7 +556,7 @@ class IndexingLocal(object):
             # STB image based imread (minimal library, but may handle stuff like orientation by ourselves!)
             # Our imread from stb_image!
             (flag, h,w,c) = utils_nim.imread_from_memory(
-                image_encoded_data, 
+                image_raw_data, 
                 self.imread_buffer,  # NOTE: must be used sequentially.. not parallel read from it.. we create a copy!
                 leave_alpha = True  # RGB , no alpha
             )
@@ -569,7 +686,12 @@ class IndexingLocal(object):
             ):
         
         # We keep putting raw-bytes into this after reading from disk in another thread!
-        resources_batch_queue:Queue[tuple[os.PathLike, bytes]] = Queue() # we create one for each such thread!
+        # resources_batch_queue:Queue[tuple[os.PathLike, bytes]] = Queue() # we create one for each such thread!
+        # then use this directly. self.extension must be set!
+        # if self.extension is not None!
+        # then we can do away with local resource generator!
+        # resources_batch_queue = self.extension.get_resource_queue()
+
 
         index_count = 0
         self.profile_info.reset()
@@ -590,14 +712,15 @@ class IndexingLocal(object):
                 self.meta_index.reset()
 
             error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.            
-            exit_parent_loop = False
-            resource_mapping_generator = collect_resources(self.root_dir, self.include_subdirectories)
-            
+            # exit_parent_loop = False
+            # resource_mapping_generator = collect_resources(self.root_dir, self.include_subdirectories)
+
+            # Start downloading (in the background prefer-ably)
+            (resources_queue, signal_queue) = self.start_download()
+            print("Downloading started!!!")
+
+            count = 0
             while True:
-                current_directory = self.root_dir
-                if exit_parent_loop:
-                    break
-                
                 exit_thread = False
                 with self.lock:
                     exit_thread = (self.indexing_status == IndexingStatus.REQUESTED)
@@ -606,11 +729,38 @@ class IndexingLocal(object):
                     print("Finishing index on cancellation request from user")
                     break
                 
-                # -----------
-                # Save Checkpoint
-                # Note: it would be sequential, at reading images, in background is done at batch level. So no other thread would be writing to index files.
-                # Note: not recommended to `read/querying` while indexing. (It would be resolved later!)
-                # ------------
+                # Get downloading Stats, and resources info conditioned on a directory! 
+                (flag, downloading_stats, resources_info) = resources_queue.get()
+                if flag == False:
+                    # No more data to index !
+                    print("Breaking...")
+                    break
+                current_directory, eta_seconds, progress_percentage = downloading_stats
+                assert progress_percentage <= 100
+                # Based on progress, we can convert it to normalized (count, total stats!)
+                count = progress_percentage
+                total = 100
+
+                # Process/Index the batch!
+                self.__index_batch(
+                    resources_info
+                )
+                signal_queue.put(True) # Signal that batch is done, helps generate ETA!
+
+                eta_hrs = eta_seconds // 3600
+                eta_minutes = ((eta_seconds) - (eta_hrs)*3600 ) // 60
+                eta_seconds = (eta_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
+                eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
+
+                # update the info.. client could read it!
+                with self.lock:
+                    self.indexing_info["details"] = "Indexing {}".format(current_directory)
+                    self.indexing_info["done"] = False
+                    self.indexing_info["eta"] = eta
+                    self.indexing_info["processed"] = count
+                    self.indexing_info["total"] = total
+                
+                # Save checkpoints, if makes sense!
                 if index_count >= CHECKPOINT_COUNT:
                     self.indexing_info["details"] = "Saving Checkpoint..."
                     self.indexing_info["eta"] = None
@@ -619,78 +769,106 @@ class IndexingLocal(object):
                     index_count = 0
                     print("[DEBUG]: Indexing Count: {}".format(index_count))
                 # ----------------------------------------
+                
+                
+                # current_directory = self.root_dir
+                # if exit_parent_loop:
+                #     break
+                
+                # exit_thread = False
+                # with self.lock:
+                #     exit_thread = (self.indexing_status == IndexingStatus.REQUESTED)
 
-                with self.lock:
-                    self.indexing_info["details"] = "Scanning: {}".format(current_directory),
-                    self.indexing_info["done"] = False
-                    self.indexing_info["eta"] = None
-                    self.indexing_info["processed"] = None
-                    self.indexing_info["total"] = None
+                # if exit_thread:
+                #     print("Finishing index on cancellation request from user")
+                #     break
+                
+                # -----------
+                # Save Checkpoint
+                # Note: it would be sequential, at reading images, in background is done at batch level. So no other thread would be writing to index files.
+                # Note: not recommended to `read/querying` while indexing. (It would be resolved later!)
+                # ------------
+                # if index_count >= CHECKPOINT_COUNT:
+                #     self.indexing_info["details"] = "Saving Checkpoint..."
+                #     self.indexing_info["eta"] = None
 
-                try:
-                    resource_mapping = next(resource_mapping_generator)
-                    contents = resource_mapping["Image"]
-                    if len(contents) == 0:
-                        continue
-                    current_directory = resource_mapping["directory_processed"]
-                except StopIteration:
-                    del resource_mapping_generator
-                    break
+                #     self.save_checkpoint()
+                #     index_count = 0
+                #     print("[DEBUG]: Indexing Count: {}".format(index_count))
+                # # ----------------------------------------
 
-                count = 0
-                eta = None # unknown!
-                while True:
-                    contents_batch =  contents[count: count + self.batch_size]  # extract a batch
-                    index_count += (len(contents_batch))
-                    # contents_batch = [os.path.join(current_directory, x) for x in contents_batch]
+                # with self.lock:
+                #     self.indexing_info["details"] = "Scanning: {}".format(current_directory),
+                #     self.indexing_info["done"] = False
+                #     self.indexing_info["eta"] = None
+                #     self.indexing_info["processed"] = None
+                #     self.indexing_info["total"] = None
 
-                    if (len(contents_batch) == 0):    # should mean this directory has been 
-                        break
+                # try:
+                #     resource_mapping = next(resource_mapping_generator)
+                #     contents = resource_mapping["Image"]
+                #     if len(contents) == 0:
+                #         continue
+                #     current_directory = resource_mapping["directory_processed"]
+                # except StopIteration:
+                #     del resource_mapping_generator
+                #     break
+
+                # count = 0
+                # eta = None # unknown!
+                # while True:
+                #     contents_batch =  contents[count: count + self.batch_size]  # extract a batch
+                #     index_count += (len(contents_batch))
+                #     # contents_batch = [os.path.join(current_directory, x) for x in contents_batch]
+
+                #     if (len(contents_batch) == 0):    # should mean this directory has been 
+                #         break
                     
-                    exit_thread = False
-                    with self.lock:
-                        exit_thread = (self.indexing_status == IndexingStatus.REQUESTED)
+                #     exit_thread = False
+                #     with self.lock:
+                #         exit_thread = (self.indexing_status == IndexingStatus.REQUESTED)
                     
-                    if exit_thread:
-                        # print("yes cancel request is active...")
-                        exit_parent_loop = True
-                        break
+                #     if exit_thread:
+                #         # print("yes cancel request is active...")
+                #         exit_parent_loop = True
+                #         break
 
-                    # before each batch send the status to client
-                    with self.lock:
-                        self.indexing_info["details"] = "Indexing {}".format(current_directory)
-                        self.indexing_info["done"] = False
-                        self.indexing_info["eta"] = eta
-                        self.indexing_info["processed"] = count
-                        self.indexing_info["total"] = len(contents)
+                #     # before each batch send the status to client
+                #     with self.lock:
+                #         self.indexing_info["details"] = "Indexing {}".format(current_directory)
+                #         self.indexing_info["done"] = False
+                #         self.indexing_info["eta"] = eta
+                #         self.indexing_info["processed"] = count
+                #         self.indexing_info["total"] = len(contents)
                         
-                    tic = time.time()         # start timing for this batch.
+                #     tic = time.time()         # start timing for this batch.
                     
-                    # create a new thread to
-                    # print("[DEBUG]: Starting background thread to read from disk!!") 
-                    read_bg_thread = threading.Thread(
-                        target = read_from_disk_bg,
-                        args = (resources_batch_queue, contents_batch,)
-                    )
-                    read_bg_thread.start()
-                    observed_counter = self.__index_batch(
-                        resources_batch_queue,
-                        batch_size = len(contents_batch) # Passing 
-                        )
-                    read_bg_thread.join() # We do away with this thread!
-                    # NOTE: observed_counter difference with `len(content_batch)` may not match for each batch due to corrupt data or something. (but not too great which may mean bug!)
+                #     # ---------------------------------------------------
+                #     # # Run a thread to read raw-data from disk in background, once finished, terminate it
+                #     # read_bg_thread = threading.Thread(
+                #     #     target = read_from_disk_bg,
+                #     #     args = (resources_batch_queue, contents_batch,)
+                #     # )
+                #     # read_bg_thread.start()
+                #     flag = self.__index_batch(
+                #         resources_batch_queue,
+                #         batch_size = len(contents_batch) # Passing 
+                #         )
+                #     # read_bg_thread.join() # We do away with this thread!
+                #     # ------------------------------------------------------------------------
 
-                    count += len(contents_batch)
+                #     # NOTE: observed_counter difference with `len(content_batch)` may not match for each batch due to corrupt data or something. (but not too great which may mean bug!)
+                #     count += len(contents_batch)
 
-                    # calculate eta..
-                    dt_dc = (time.time() - tic) / (len(contents_batch) + 1e-5)    # dt/dc
-                    eta_in_seconds = dt_dc * (len(contents) - count)                  # eta (rate * remaining images to be indexed.)
-                    eta_hrs = eta_in_seconds // 3600
-                    eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
-                    eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
-                    eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
+                #     # calculate eta..
+                #     dt_dc = (time.time() - tic) / (len(contents_batch) + 1e-5)    # dt/dc
+                #     eta_in_seconds = dt_dc * (len(contents) - count)                  # eta (rate * remaining images to be indexed.)
+                #     eta_hrs = eta_in_seconds // 3600
+                #     eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
+                #     eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
+                #     eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
 
-            # Since info is available on finalizing..we now update this info in meta-index!
+            # # Since info is available on finalizing..we now update this info in meta-index!
             with self.lock:
                 # TODO: may be use replace to update required fields only!
                 self.indexing_info["details"] = "Finalizing Clusters.."
@@ -702,10 +880,17 @@ class IndexingLocal(object):
         except Exception:
             error_trace = traceback.format_exc() # uses sys.exception() as the exception
             print("Error: {}".format(error_trace))
+            if not (signal_queue is None):
+                signal_queue.put(False) # supposed to be read, if bg disk read is running!
+
         finally:
             with self.lock:
-                del resources_batch_queue
-
+                # Free resources if have to..
+                if signal_queue:
+                    signal_queue = None
+                if resources_queue:
+                    resources_queue = None
+                
                 # indicate error first, so as client can read that.. before trying to save
                 self.indexing_info["eta"] = None
                 self.indexing_info["processed"] = None
@@ -749,7 +934,7 @@ class IndexingLocal(object):
                         time.sleep(0.01)
                 # -------------------------------
             self.profile_info.add("prev-generate-wait")
-
+            
             print("All done..")
             self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
             self.indexing_status = IndexingStatus.INACTIVE #(global, so lock) this can/will be read by callee.. to get `indexing status`!
@@ -781,7 +966,28 @@ class IndexingLocal(object):
                     output_folder = self.image_preview_data_path
                 )
         self.preview_done.put(True)
+    
+    def start_download(self) -> tuple[Queue, Queue]:
+        # Supposed to return 2 Queue like interface to `indexing thread/code`!
+        # 1. To request new data to index!
+        # 2. To communicate with thread by `putting` data from the `indexing thread` and `reading` it in the `downloading` thread!
+        
+        # Represents Info about a batch of `resources` to be indexed!
+        q1:Queue[tuple[bool, DownloadingStats, list[ResourceInfo]]] = Queue(maxsize = 1) # 1 meaning 1 batch at max, batch_size could be set during start!
+        # maxsize = 1, this helps us to predict ETA, as `reading` would be blocked!
+        q2:Queue[bool] = Queue(maxsize = 1)
 
+        threading.Thread(target = read_from_disk_bg,
+            args = (
+            self.root_dir,
+            self.include_subdirectories,
+            q1,
+            q2,
+            "Image",
+            self.batch_size
+        )).start()
+        return (q1, q2)
+    
     def begin(self) -> ReturnInfo:
         """
         Begin the indexing..
@@ -789,13 +995,30 @@ class IndexingLocal(object):
         
         with self.lock:
             assert (self.indexing_status == IndexingStatus.INACTIVE), "Must have been inactive, callee must make sure!"
-        
+            
+            # self.resources_batch_queue: Queue[list[ResourceInfo]]  = Queue(maxsize = 1) # idea with 1 is that only 1 batch at a time
+            # self.resources_signal_queue: Queue[bool]  = Queue(maxsize = 1) # to signal following thread, for now signals true when batch is indexed, helps calculate ETA!
+            # threading.Thread(
+            #     target = read_from_disk_bg, 
+            #     args = (
+            #         self.root_dir,
+            #         self.include_subdirectories,
+            #         self.resources_batch_queue,
+            #         self.resources_signal_queue,
+            #         "Image",
+            #         self.batch_size)
+            #         ).start()
+            # print("background reading started!!")
+
             threading.Thread(target = self.indexing_thread).start()            
             self.indexing_status = IndexingStatus.ACTIVE
 
             if NEW_THREAD_PREVIEW:
                 threading.Thread(target = self.preview_generation_thread).start()
             
+                
+
+
         result:ReturnInfo = {}
         result["error"] = False
         result["details"] =  "Indexing started successfully!"
