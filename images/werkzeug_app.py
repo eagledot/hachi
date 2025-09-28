@@ -107,8 +107,13 @@ def validate_signature(rule:str, view_function:Callable):
     # We also can check, if no placeholders in rule, there must be either defaults in the callable or no args at all.
     n_default_args = 0 if view_function.__defaults__ is None else len(view_function.__defaults__)
     n_nondefault_args = len(func_input_args) - n_default_args
-    assert n_nondefault_args >= 1, "Make sure you view_function expects foremost argument of type Request, as `(r:Request, ...) , r would be generated based on the http environment!"
-    assert n_nondefault_args - 1  == len(placeholders), "view function expect atleast {} non-default args, but placeholders are {}!".format(n_nondefault_args, placeholders)
+    if "self" in func_input_args: # ignore `self`
+        # TODO: `self` is reserved,right, so self should not mean anyother thing?
+        n_nondefault_args -= 1
+    
+    assert n_nondefault_args >= 1, "Make sure you view_function expects foremost argument of type Request, as `(r:Request, ...) after ignoring `self` if any, r would be generated based on the http environment!"
+    for p in placeholders:
+        assert p in func_input_args, "Expected {} to be an `input` argument for callable!".format(p)
     del placeholders
 
 def on_extension(r:Request):
@@ -214,7 +219,7 @@ class SimpleApp():
         # For example, if `streaming` is done, we can set the headers to indicate that.. main WSGI server would only need to read headers and status, without caring about what application code is doing.
         # return ["Hello World!".encode("utf8")]
 
-        request = Request(environ = environ) # just wrapping up the environ to easily query various headers and stuff!
+        request = Request(environ = environ) # just wrapping up the environ to easily query various headers and stuff!        
         urls = active_app.url_map.bind_to_environ(environ) # try to match environment/url to one of endpoints defined for this app.
         
         endpoint, args = urls.match()
