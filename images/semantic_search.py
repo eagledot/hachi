@@ -186,14 +186,14 @@ def indexStart(request:Request) -> ReturnInfo:
     # ---------------------------------------------------
     root_dir = None
     remote_extension = None
-    # if post_attributes["location"] == "local":
-    if False: # TODO:
+    if post_attributes["location"] == "LOCAL":
+    # if False: # TODO:
         # Re-create the path.
         root_dir = recreate_local_path(
             post_attributes["identifier"], 
             uri = post_attributes["uri"]
         )
-        # print("Root dir: {}".format(root_dir))
+        print("Root dir: {}".format(root_dir))
         if not(os.path.exists(root_dir)):
             return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
     else:
@@ -204,11 +204,11 @@ def indexStart(request:Request) -> ReturnInfo:
         else:
             return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(post_attributes["identifier"])))
 
-    print("[Indexing]: {}".format(remote_extension.get_name()))    
-    # For now manually set device for testing.
-    # later client will provide inputs to select a device and finish setup!
-    remote_extension.set_device(0)
-    remote_extension.is_ready = True
+        print("[Indexing]: {}".format(remote_extension.get_name()))    
+        # TODO: For now manually set device for testing.
+        # later client will provide inputs to select a device and finish setup!
+        # remote_extension.beginSetup(r = None)
+        # remote_extension.finishSetup(r = None, chosen_device_index = 0)
     #  -----------------------------------------------------------------------
     
     with global_lock:
