@@ -10,8 +10,9 @@ grouped by `resource-type`. It does it so recursively, once provided a root-dire
 """
 
 
-from typing import TypedDict, List, Generator, Iterable, Any
+from typing import TypedDict, List, Generator, BinaryIO, Union, Any
 import os, datetime
+from io import BytesIO
 
 from exif import Image as ImageExif
 
@@ -99,6 +100,7 @@ def collect_resources(root_path:os.PathLike, include_subdirectories:bool = True)
     For each `file` (not a directory), we map it to the correspoding `parent type` of `allowed_resources`,
     So this could be consumed universally depending on the `type` of content we would be indexing, for now `images` only.
     For each output, corresponding `resource_type` can be queried to get Absolute path to index!
+    # main thread would be dividing into batches anyway, Even with large number of files, reading just path `os.listdir` is fast enough..otherwise lot of code for batching inside `collect_resources`!
     """
 
     resources_queue:List[os.PathLike] = []
@@ -246,8 +248,9 @@ class ResourceLocation(TypedDict):
     identifier: str # like C: D: or dropbox, googlePhotos.. etc . combination should be enough to dispatch a corresponding routine to retrive original data!
 
 class MainAttributes(TypedDict):
-    filename:str          # could even include name from a remote directory!
-    absolute_path:os.PathLike   # in case on a remote server or something, then custom path should be allowed!
+    # NOTE: Even in case of remote-data/extensions, fill them manually, depending  upon extension.
+    filename:str          # local filename only or whatever name extension gave to that resource without other path components!
+    resource_path:os.PathLike   # NOTE: keep the case-sensitive, except may Be if local file on Windows! Expected Absolute path !
     resource_extension:str
     resource_directory:os.PathLike
     # resource_type:Audio | Video | Text | Image
@@ -270,6 +273,7 @@ class UserAttributes(TypedDict):
     person:list[str]  # in case user tags them, TODO: if ML predicted, make sure mapping/order matches!       
 
 class ImageMetaAttributes(TypedDict):
+    # NOTE: only at-max a single level of nesting is expected, value could a Dict/iterable for one of the keys, but no more!
     resource_hash:str                # Unique id/hash for each resource. Not supposed to be collided for few-millions atleast!
     location:ResourceLocation
     main_attributes:MainAttributes
@@ -277,7 +281,7 @@ class ImageMetaAttributes(TypedDict):
     user_attributes:UserAttributes
     exif_attributes:ImageExifAttributes
 # ---------------------------------------------------------------------
-def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> ImageExifAttributes:
+def populate_image_exif_data(result:ImageExifAttributes, resource_path:Union[str, BinaryIO, bytes]) -> ImageExifAttributes:
     # NOTE: `result` is supposed to contain default values, we overwrite them if and when exif-attributes are available!
 
     # Get exif data!    
@@ -287,7 +291,7 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> I
         temp_handle = ImageExif(resource_path)
         has_exif = temp_handle.has_exif
     except Exception as e:
-        print("[ERROR Exif]: while parsing exif data for {}\n{}".format(resource_path, e))
+        print("[ERROR Exif]: while parsing exif data as {}".format(e))
         
     if has_exif:
         image_attributes = set(temp_handle.list_all())
@@ -331,11 +335,15 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:str) -> I
             print("[ERROR Make/model extraction Exif]: {}".format(e))
     
     try:
-        width,height = get_image_size.get_image_size(resource_path)
+        if isinstance(resource_path, str):
+            width,height = get_image_size.get_image_size(resource_path)
+        else:
+            assert isinstance(resource_path,  bytes)
+            width,height = get_image_size.get_image_size_from_bytesio(BytesIO(resource_path), len(resource_path))
         result["width"] = int(width)
         result["height"] = int(height)
-    except:
-        print("Image size error for: {}".format(resource_path))
+    except Exception as e:
+        print("Image size error as: {}".format(e))
         # TODO: why 1 , was getting error somewhere, don't remember ?
         result["width"] = 1
         result["height"] = 1
@@ -350,42 +358,53 @@ def normalize_path(resource_path:os.PathLike) -> os.PathLike:
     else:
         return result
 
-def extract_image_metaData(resource_path:os.PathLike, dummy_data:bool = False) -> ImageMetaAttributes:
+def extract_image_metaData(resource_path: Union[os.PathLike, BinaryIO, bytes], dummy_data:bool = False) -> ImageMetaAttributes:
         """
         Extract necessary meta-data for a (local) image file.
         It would be on `callee` to decide when to call this, like if some image is already indexed, avoid calling this.
         Note: no data-hash/id, we just concern ourselves with meta-data assoicated with Image itself!
+        
+        NOTE: Always fill the default values though, even though depending upon extension/remote-data, we may not have expected attributes available!        
         """
 
         # NOTE: fromkeys will share the `value` for all keys, so provide None, or primtive value, not an object like list!!
         result_meta:ImageMetaAttributes = {}.fromkeys(ImageMetaAttributes.__annotations__.keys(), None)
 
         if dummy_data == False:
-            assert os.path.isfile(resource_path), "{} ".format(resource_path)
-            try:
-                (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
-            except:
-                print("Invalid data possibly for {}".format(resource_path))
-                return None
+            if isinstance(resource_path, str):
+                assert os.path.isfile(resource_path), "{} ".format(resource_path)
+                try:
+                    # TODO: I think we can do away with this opening `file` in get_image_metadata, because we already have raw-data!
+                    (_, type, file_size, width, height) = get_image_size.get_image_metadata(resource_path)
+                except:
+                    print("Invalid data possibly for {}".format(resource_path))
+                    return None
 
         # This gets updated, in the main indexing code! depending on location of data being indexed!        
         l:ResourceLocation = populate_default_dict(ResourceLocation, dummy_data = dummy_data)
 
         main_attributes:MainAttributes = populate_default_dict(MainAttributes, dummy_data = dummy_data)
         if dummy_data == False:
-            main_attributes["resource_path"] = normalize_path(resource_path)
-            main_attributes["resource_extension"] = os.path.splitext(resource_path)[1]
-            main_attributes["resource_directory"] = normalize_path(os.path.dirname(resource_path))
-            main_attributes["filename"] = os.path.basename(resource_path)
+            if isinstance(resource_path, str):
+                # NOTE: We skip these File-System attributes, if not a path on disk, i.e pure bytes or some BinaryData, these would be overwritten in the main app!
+                main_attributes["resource_path"] = normalize_path(resource_path)
+                # Except `full path`, save all attributes in lower form, as conditioned on such attributes would work as expected!
+                # Only when need to get `raw-data` should matter!
+                main_attributes["resource_extension"] = os.path.splitext(resource_path)[1].lower()
+                main_attributes["resource_directory"] = normalize_path(os.path.dirname(resource_path)).lower()
+                main_attributes["filename"] = os.path.basename(resource_path)
 
-            # We populate yy/mm/dd information based on the created time, TODO: merge with `taken_at` from exif attributes later!
-            created_time = os.stat(resource_path).st_ctime
-            yyyy_mm_dd = datetime.datetime.fromtimestamp(created_time)
-            year = yyyy_mm_dd.year
-            month = yyyy_mm_dd.month
-            day = yyyy_mm_dd.day
-            main_attributes["resource_created"] = "{}-{}-{}".format(year, month, day)
-            del created_time, yyyy_mm_dd, month, year, day
+                # We populate yy/mm/dd information based on the created time, TODO: merge with `taken_at` from exif attributes later!
+                created_time = os.stat(resource_path).st_ctime
+                yyyy_mm_dd = datetime.datetime.fromtimestamp(created_time)
+                year = yyyy_mm_dd.year
+                month = yyyy_mm_dd.month
+                day = yyyy_mm_dd.day
+                main_attributes["resource_created"] = "{}-{}-{}".format(year, month, day)
+                del created_time, yyyy_mm_dd, month, year, day
+            else:
+                # NOTE: For extension/remote data, we may not have Compatible FS attributes, so we will do it manually in parent Code!
+                print("[WARNING]: Not updating Main/FS attributes as Got Bytes! only!")
 
         user_attributes:UserAttributes = populate_default_dict(UserAttributes, dummy_data = dummy_data)
         
