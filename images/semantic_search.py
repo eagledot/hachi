@@ -232,20 +232,6 @@ def indexStart(request:Request) -> ReturnInfo:
             
             # start the indexing, it return after starting a background-thread!
             return jsonify(index_obj.begin())
-        # else:
-        #     temp_status = index_obj.getStatus() # we call it, in case client was not calling `getStatus` route
-        #     if temp_status["done"] == True:
-        #         # Client may not have read the `done` status. (shouldn't happen though, but we will schedule next one!)
-        #         index_obj = IndexingLocal(
-        #         root_dir = root_dir,
-        #         image_preview_data_path = IMAGE_PREVIEW_DATA_PATH,
-        #         meta_index = metaIndex,
-        #         face_index = faceIndex,
-        #         semantic_index = imageIndex,
-        #         complete_rescan = post_attributes["complete_rescan"],
-        #         simulate = post_attributes["simulate_indexing"]
-        #         )
-        #         return jsonify(index_obj.begin())           
         else:
             return jsonify(ReturnInfo(error = True, details = "Wait for ongoing indexing to finish!"))
 
