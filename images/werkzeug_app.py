@@ -141,6 +141,10 @@ class SimpleApp():
         # NOTE: not supposed to be turned ON, as it is supposed to be run at a local-interface only.
         # set this manually to true, if running only behind NAT  or own the consequences!!
         self.allow_wildcard_origin_cors = False
+
+        # to sync/serialize some code, like initialization, as we would lazily initialize..!
+        self.r_lock = threading.RLock()
+
     def add_url_rule(self, 
                      
                      # rule to match to an endpoint, multiple rules could match to an endpoint. (TODO: properly thing over it!)
@@ -174,14 +178,16 @@ class SimpleApp():
         self.initialized = True
 
     def __call__(self, environ, start_response) -> Iterable[bytes]:
-        if not (self.initialized):
-            print("[Initializing]: Parent")
-            self.initialize()
-        # making sure all registered extension are initialized too.
-        for ext in self.registered_extensions:
-            if not (self.registered_extensions[ext].initialized):
-                print("[Initializing]: {}".format(ext))
-                self.registered_extensions[ext].initialize()
+        with self.r_lock:
+            # Since lazy/dynamic, we protect initialization, through lock, as could be interrupted, as ours is a threaded server!
+            if not (self.initialized):
+                print("[Initializing]: Parent")
+                self.initialize()
+            # making sure all registered extension are initialized too.
+            for ext in self.registered_extensions:
+                if not (self.registered_extensions[ext].initialized):
+                    print("[Initializing]: {}".format(ext))
+                    self.registered_extensions[ext].initialize()
 
         # print("[DEBUG]: Being called in thread: {}".format(threading.current_thread().ident))
         # NOTE: this environ is basically raw-bytes received on a socket. (depending upon the level in OSI model, assume for this HTTP protocol!)
