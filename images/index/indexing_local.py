@@ -488,12 +488,11 @@ class IndexingLocal(object):
 
             resource_info = resources_info[i]
             if resource_info["raw_data"] is None:
-                print("fdas")
-                # print("[WARNING]: Read from disk failed due to Non existent Path for {} . Shouldn't have happened.".format(resource_info["resource_path"]))
+                print("[WARNING]: Read from disk failed due to Non existent Path for {} . Shouldn't have happened.".format(resource_info["resource_path"]))
             
             # ----------------------------------------------
             # Meta-data extraction 
-            if False:
+            if not(self.root_dir is None):
                 image_raw_data = resource_info["raw_data"]
                 resource_path = resource_info["path"]
                 resource_hash = generate_resource_hash(
@@ -521,7 +520,7 @@ class IndexingLocal(object):
             else: # if indexing remote-data !                
                 # TODO: collect/overwrite Main Attributes being produced by Extension!
                 image_raw_data = resource_info["raw_data"]
-                resource_name = resource_info["name"].lower()
+                resource_name = resource_info["name"]
                 resource_hash = generate_resource_hash(
                     image_raw_data
                 )
@@ -534,7 +533,7 @@ class IndexingLocal(object):
                     image_raw_data, dummy_data = False
                 )
                 # TODO: Properly manually update Main attributes.
-                meta_data["main_attributes"]["filename"] = resource_name
+                meta_data["main_attributes"]["filename"] = resource_name.lower()
                 meta_data["main_attributes"]["resource_directory"] = resource_info["directory"].lower()
                 meta_data["main_attributes"]["resource_path"] = resource_info["path"] # Donot lower it, as Full Path, and we generally don't search for full path anyway.
                 meta_data["main_attributes"]["resource_created"] = resource_info["created_at"]
@@ -648,7 +647,7 @@ class IndexingLocal(object):
             self.profile_info.add("semantic-index-update")
             self.face_index.update(
                 frame = frame,
-                absolute_path = "{}/{}".format(resource_info["directory"], resource_name),
+                absolute_path = "{}/{}".format(meta_data["main_attributes"]["resource_directory"], meta_data["main_attributes"]["filename"]),
                 resource_hash = resource_hash,
                 is_bgr = is_bgr)
             self.profile_info.add("face-index-update")
@@ -728,21 +727,17 @@ class IndexingLocal(object):
                 self.semantic_index.reset()
                 self.meta_index.reset()
 
+            # -------------------------
+            # Start downloading (in the background prefer-ably)
+            # ---------------
             error_trace = None              # To indicate an un-recoverable or un-assumed error during indexing.            
             resources_queue = None
             signal_queue = None
-            # exit_parent_loop = False
-            # resource_mapping_generator = collect_resources(self.root_dir, self.include_subdirectories)
-
-            # Start downloading (in the background prefer-ably)
             if not (self.root_dir is None):
                 (resources_queue, signal_queue) = self.start_download()
-                print("Downloading started!!!")
             else:
                 (resources_queue, signal_queue) = self.remote_extension.start_download()
-                print("got queues...")
             
-
             count = 0
             while True:
                 exit_thread = False
@@ -757,16 +752,13 @@ class IndexingLocal(object):
                 (flag, downloading_stats, resources_info) = resources_queue.get()
                 if flag == False:
                     # No more data to index !
-                    print("Breaking...")
                     break
-                print(downloading_stats)
                 current_directory, eta_seconds, progress_percentage = downloading_stats
                 assert progress_percentage <= 100
                 # Based on progress, we can convert it to normalized (count, total stats!)
                 count = progress_percentage
                 total = 100
 
-                print("yo.....")
                 # Process/Index the batch!
                 self.__index_batch(
                     resources_info
