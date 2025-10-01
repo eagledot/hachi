@@ -47,7 +47,7 @@ import numpy as np
 # configuration:
 IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index","preview_image")
 IMAGE_INDEX_SHARD_SIZE = 10_000    # Good default!
-TOP_K_EACH_SHARD =  5      # iN PERCENT!
+TOP_K_EACH_SHARD =  5      # iN PERCENT !
 IMAGE_PREVIEW_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./static", "preview_image") # letting frontend proxy like caddy, serve the previews instead...
 if not os.path.exists(IMAGE_PREVIEW_DATA_PATH):
     os.mkdir(IMAGE_PREVIEW_DATA_PATH)
@@ -106,7 +106,7 @@ def parse_query(query:str) -> Dict[str, List[str]]:
     and_character = "&"    # assuming mutliple attributes are separated by this character.
     separator_character = "="
 
-    temp_query = query.strip().lower().split(and_character) # TODO: may be make decision for lowering.. in the app config. later.. for now case insenstive meta-data is stored!
+    temp_query = query.lower().strip().split(and_character) # TODO: may be make decision for lowering.. in the app config. later.. for now case insenstive meta-data is stored!
     imageAttributes_2_values = {}
     for x in temp_query:
         temp_x = x.strip().split(separator_character)
@@ -159,7 +159,9 @@ def recreate_local_path(
         *uri
     )
 
+# Globals
 index_obj:None | IndexingLocal = None
+REGISTERED_EXTENSIONS = {}     # can be populated, if extensions' code is available
 
 class IndexBeginAttribute(TypedDict):
     location:str    # TODO: better constraint it to Location Enum!
@@ -170,7 +172,7 @@ class IndexBeginAttribute(TypedDict):
 
 ##app.route("/indexStart", methods = ["POST"])        
 def indexStart(request:Request) -> ReturnInfo:
-    global index_obj
+    global index_obj, REGISTERED_EXTENSIONS
 
     # (try to) type-match the POST data.
     post_attributes:IndexBeginAttribute
@@ -179,20 +181,44 @@ def indexStart(request:Request) -> ReturnInfo:
     else:
         post_attributes = request.json
     print(post_attributes)
+    
 
-    # Re-create the path. (TODO: handle for remote like googlePhotos)
-    root_dir = recreate_local_path(
-        post_attributes["identifier"], 
-        uri = post_attributes["uri"]
-    )
+    # ---------------------------------------------------
+    root_dir = None
+    remote_extension = None
+    # if post_attributes["location"] == "local":
+    if False: # TODO:
+        # Re-create the path.
+        root_dir = recreate_local_path(
+            post_attributes["identifier"], 
+            uri = post_attributes["uri"]
+        )
+        # print("Root dir: {}".format(root_dir))
+        if not(os.path.exists(root_dir)):
+            return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
+    else:
+        # Handle Extensions. (i.e data not available on this device/host)
+        post_attributes["identifier"] = "mtp" # TODO: just for testing!
+        if (post_attributes["identifier"] in REGISTERED_EXTENSIONS):
+            remote_extension = REGISTERED_EXTENSIONS[post_attributes["identifier"]]
+        else:
+            return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(post_attributes["identifier"])))
 
-    # print("Root dir: {}".format(root_dir))
-    if not(os.path.exists(root_dir)):
-        return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
-
+    print("[Indexing]: {}".format(remote_extension.get_name()))    
+    # For now manually set device for testing.
+    # later client will provide inputs to select a device and finish setup!
+    remote_extension.set_device(0)
+    remote_extension.is_ready = True
+    #  -----------------------------------------------------------------------
+    
     with global_lock:
-        if index_obj is None:
-            # TODO: leverage the `location` attribute to select appropriate Class!
+        # Either index_obj is None (client knows Done ) or if client didn't read, and was done!
+        prev_index_status = False
+        if not(index_obj is None):
+            # Read `getStatus` comments, if we get Done as true, we start a new indexing!
+            prev_index_status = index_obj.getStatus()["done"]
+
+        if index_obj is None or prev_index_status == True:
             index_obj = IndexingLocal(
                 root_dir = root_dir,
                 image_preview_data_path = IMAGE_PREVIEW_DATA_PATH,
@@ -200,27 +226,28 @@ def indexStart(request:Request) -> ReturnInfo:
                 face_index = faceIndex,
                 semantic_index = imageIndex,
                 complete_rescan = post_attributes["complete_rescan"],
-                simulate = post_attributes["simulate_indexing"]
+                simulate = post_attributes["simulate_indexing"],
+                remote_extension = remote_extension
             )        
             
             # start the indexing, it return after starting a background-thread!
             return jsonify(index_obj.begin())
+        # else:
+        #     temp_status = index_obj.getStatus() # we call it, in case client was not calling `getStatus` route
+        #     if temp_status["done"] == True:
+        #         # Client may not have read the `done` status. (shouldn't happen though, but we will schedule next one!)
+        #         index_obj = IndexingLocal(
+        #         root_dir = root_dir,
+        #         image_preview_data_path = IMAGE_PREVIEW_DATA_PATH,
+        #         meta_index = metaIndex,
+        #         face_index = faceIndex,
+        #         semantic_index = imageIndex,
+        #         complete_rescan = post_attributes["complete_rescan"],
+        #         simulate = post_attributes["simulate_indexing"]
+        #         )
+        #         return jsonify(index_obj.begin())           
         else:
-            temp_status = index_obj.getStatus() # we call it, in case client was not calling `getStatus` route
-            if temp_status["done"] == True:
-                # Client may not have read the `done` status. (shouldn't happen though, but we will schedule next one!)
-                index_obj = IndexingLocal(
-                root_dir = root_dir,
-                image_preview_data_path = IMAGE_PREVIEW_DATA_PATH,
-                meta_index = metaIndex,
-                face_index = faceIndex,
-                semantic_index = imageIndex,
-                complete_rescan = post_attributes["complete_rescan"],
-                simulate = post_attributes["simulate_indexing"]
-                )
-                return jsonify(index_obj.begin())           
-            else:
-                return jsonify(ReturnInfo(error = True, details = "Wait for ongoing indexing to finish!"))
+            return jsonify(ReturnInfo(error = True, details = "Wait for ongoing indexing to finish!"))
 
 ##app.route("/indexCancel", methods = ["GET"])
 def indexCancel(r:Request) -> ReturnInfo:
@@ -237,11 +264,11 @@ def indexCancel(r:Request) -> ReturnInfo:
                 result["error"] = False # client next call to `getIndexStatus` will suggest this!
                 index_obj = None       # it is ok.. on first confirmation of `done`, anywhere we do this.
             else:
-                return index_obj.cancel()
+                return jsonify(index_obj.cancel())
         else:
             result["details"] = "No ongoing indexing..."
             result["error"] = True # terminating response !
-    return result
+    return jsonify(result)
 
 
 ##app.route("/getIndexStatus", methods = ["GET"])
@@ -251,6 +278,8 @@ def getIndexStatus(r:Request) -> IndexingInfo:
     result:IndexingInfo = {}
     with global_lock:
         if not (index_obj is None):
+            # NOTE: it is conditioned on being called by client, if client dies (very rare), then in `indexBegin` by another client,  may return True for `getStatus`!
+            # In that case, if True, then we assume client died, and schedule/start a new indexing for newer client!
             result = index_obj.getStatus()
             if (result["done"] == True): # client must not request any more status for this indexing!
                 index_obj = None
@@ -460,6 +489,7 @@ def query_func(
                     query = image_attributes[attribute],
                     unique_only = False   # Meaning any row index, matching one of values!
                 )
+            print("For query: image_attributes")
             or_keys = set(or_keys) # TODO: remove this!
 
             # AND operation. (among independent attributes)!
@@ -478,6 +508,7 @@ def query_func(
         del and_keys
 
         n_matches = len(and_row_indices)
+        print("Got matches !!")
         # collect only from a single column/attribute!
         unsorted_resource_hashes =  json.loads(mBackend.collect_rows(
                 attribute = "resource_hash",
@@ -629,6 +660,7 @@ def getRawDataFull(request:Request, resource_hash:str) -> bytes:
         row_indices
     )[0]
 
+    # TODO: directly read from `absolute_path`, to do-away with case sensitive path on *Nix !
     absolute_path = os.path.join(meta_data["resource_directory"], meta_data["filename"])
     resource_type = "image" # TODO: get it from meta-data?
     resource_extension = meta_data["resource_extension"]
@@ -832,6 +864,8 @@ def filterQueryMeta(request:Request, query_token:str, attribute:str, value:Any) 
 
     # Returns a list of filtered Dict/meta-data. Each element would be a dict representing meta-data!
     # No scores or resource_hashes key. (Client can extract `resource_hash` as needed!)
+
+    print("Got request {} {}".format(attribute, value))
 
     if attribute == "year":
         attribute = "resource_created"
@@ -1081,27 +1115,17 @@ def getSuggestionPath(request:Request) -> List[str]:
             result = os.listdir(recreated_path)
     return jsonify(result)
 
-############################################################################
-def check_extension_status(remote_protocol:str) -> Tuple[bool, str]:
-    # TODO: deprecated, would be handled with other extension code!
-    # TODO: can be handled a bit nicely, when we start registering `extensions`
-    # can then check if it is a valid protocol/extension!
-    if remote_protocol not in appConfig["supported_remote_protocols"]:
-        return (False, "Not a supported protocol")
-    else:
-        if remote_protocol == "google_photos":
-            status = googlePhotos.get_client_info()
-            if "is_activated" in status:
-                if status["is_activated"] == True:
-                    return (True, "")
-                else:
-                    return (False, "Not activated yet. Please link a google account first.")
-            else:
-                return (False, "Not activated yet. Please link a google account first.")
-        else:
-            return (False, "Not a supported protocol")
+# -----------------------------
+# Extension specific routes/functions!
+# ---------------------------
+def get_available_extensions():
+    return REGISTERED_EXTENSIONS.keys() # set-up durin start-up!
 
-##################################
+# for calls like /ext/mtp/beginSetup app should be able to route that.
+# 
+# ---------------------------------------------
+
+############################################################################
 
 if __name__ == "__main__":
     # want to able to create a sample app here..
@@ -1129,7 +1153,7 @@ if __name__ == "__main__":
     app.add_url_rule(rule = "/collectQueryMeta/<token>/<int:page_id>", view_function=collect_query_meta)
     app.add_url_rule(rule = "/getRawDataFull/<resource_hash>", view_function = getRawDataFull)
     app.add_url_rule(rule = "/filterPopulateQuery/<query_token>/<attribute>", view_function=filterPopulateQuery)
-    app.add_url_rule(rule = "/filterQueryMeta/<query_token>/<attribute>/<any:value>", view_function=filterQueryMeta)
+    app.add_url_rule(rule = "/filterQueryMeta/<query_token>/<attribute>/<value>", view_function=filterQueryMeta)
     app.add_url_rule(rule = "/getGroup/<attribute>", view_function=getGroup)
     app.add_url_rule(rule = "/getPreviewPerson/<person_id>", view_function = getPreviewCluster)
     # Indexing..
@@ -1144,7 +1168,35 @@ if __name__ == "__main__":
     app.add_url_rule(rule = "/editMetaData", view_function = editMetaData, methods = ["POST"])
     # ping
     app.add_url_rule(rule = "/ping", view_function = ping)
+
+    # -----------------
+    # Register Extensions:
+    # -------------------
+    # Instead may be we can get the `mapping` directly from some parent class!
+    sys.path.insert(0,"D://hachi_extensions/images")
+    from mtp_windows.mtp_code import MtpExtension
     
+    # collect extension instances!
+    mtp_extension = MtpExtension()
+
+    # Register extension's WSGI app instance.
+    # All routes would be mounted at `/ext/<extension_name/...` 
+    # Following routes should be exposed by each such extension.
+    # beginSetup() # begin the setup!
+    # continueSetup(step:int) (optional,if multiple inputs required from user)
+    # finishSetup()
+    app.register(
+        mtp_extension.get_wsgi_app(),
+        name = mtp_extension.get_name()
+    )
+
+    # Create a mapping!
+    REGISTERED_EXTENSIONS = {
+        mtp_extension.get_name(): mtp_extension
+    }
+    print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
+    # ---------------
+
     # Run the WSGI server, with `app` as underlying WSGI application!
     run_simple(
         hostname = "127.0.0.1",
@@ -1152,3 +1204,11 @@ if __name__ == "__main__":
         application = app, # pass our app instance!,
         threaded = True    # handle each request in a new thread or one of the pool threads!
     )
+
+    # How to register..
+    # client should get a page..
+    # user do some action.
+    # either fail/pass
+    # registered extensions could be requested by client for indexing interface.
+    # if registered successfully, would be visible
+    # 
