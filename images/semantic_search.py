@@ -475,7 +475,6 @@ def query_func(
                     query = image_attributes[attribute],
                     unique_only = False   # Meaning any row index, matching one of values!
                 )
-            print("For query: image_attributes")
             or_keys = set(or_keys) # TODO: remove this!
 
             # AND operation. (among independent attributes)!
@@ -494,7 +493,6 @@ def query_func(
         del and_keys
 
         n_matches = len(and_row_indices)
-        print("Got matches !!")
         # collect only from a single column/attribute!
         unsorted_resource_hashes =  json.loads(mBackend.collect_rows(
                 attribute = "resource_hash",
