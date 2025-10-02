@@ -264,7 +264,6 @@ NEW_THREAD_PREVIEW  = True
 class QueueData(NamedTuple):  # For preview thread, generating previews!
     resource_hash:str
     image:np.ndarray
-    is_batch_done:bool
     is_thread_done:bool
 
 # ------------------------
@@ -656,7 +655,6 @@ class IndexingLocal(object):
                 temp_data = QueueData(
                     resource_hash = resource_hash,
                     image = frame,
-                    is_batch_done = False,
                     is_thread_done= False
                 )
                 self.preview_queue.put(temp_data)
@@ -673,42 +671,12 @@ class IndexingLocal(object):
                 self.profile_info.add("image-preview-generate")
             counter += 1
 
-        return counter           
-        
-        # --------------------------------------------------------
-        # since batch done, we wait for preview generation to be completed!
-        
-        # Ok, even if batch is Done.. let's not wait.. to see if preview generation is done or what..
-        # instead, just go to the next batch..
-        
-        # if NEW_THREAD_PREVIEW:
-        #     temp_data = QueueData(
-        #         resource_hash = None,
-        #         image = None,
-        #         is_batch_done = True,
-        #         is_thread_done= False
-        #         )
-        #     self.preview_queue.put(temp_data)
-        #     del temp_data
-        #     while True:
-        #         if self.preview_done.get() == True: # we get the signal that previews for this batch are completed!
-        #             break
-        #         else:
-        #             time.sleep(0.02) # 20 ms wait!
-        # -------------------------------------------
-        
+        return counter
+
     def indexing_thread(
             self,
             ):
         
-        # We keep putting raw-bytes into this after reading from disk in another thread!
-        # resources_batch_queue:Queue[tuple[os.PathLike, bytes]] = Queue() # we create one for each such thread!
-        # then use this directly. self.extension must be set!
-        # if self.extension is not None!
-        # then we can do away with local resource generator!
-        # resources_batch_queue = self.extension.get_resource_queue()
-
-
         index_count = 0
         self.profile_info.reset()
         try:
@@ -790,104 +758,8 @@ class IndexingLocal(object):
                 # ----------------------------------------
                 
                 
-                # current_directory = self.root_dir
-                # if exit_parent_loop:
-                #     break
                 
-                # exit_thread = False
-                # with self.lock:
-                #     exit_thread = (self.indexing_status == IndexingStatus.REQUESTED)
-
-                # if exit_thread:
-                #     print("Finishing index on cancellation request from user")
-                #     break
-                
-                # -----------
-                # Save Checkpoint
-                # Note: it would be sequential, at reading images, in background is done at batch level. So no other thread would be writing to index files.
-                # Note: not recommended to `read/querying` while indexing. (It would be resolved later!)
-                # ------------
-                # if index_count >= CHECKPOINT_COUNT:
-                #     self.indexing_info["details"] = "Saving Checkpoint..."
-                #     self.indexing_info["eta"] = None
-
-                #     self.save_checkpoint()
-                #     index_count = 0
-                #     print("[DEBUG]: Indexing Count: {}".format(index_count))
-                # # ----------------------------------------
-
-                # with self.lock:
-                #     self.indexing_info["details"] = "Scanning: {}".format(current_directory),
-                #     self.indexing_info["done"] = False
-                #     self.indexing_info["eta"] = None
-                #     self.indexing_info["processed"] = None
-                #     self.indexing_info["total"] = None
-
-                # try:
-                #     resource_mapping = next(resource_mapping_generator)
-                #     contents = resource_mapping["Image"]
-                #     if len(contents) == 0:
-                #         continue
-                #     current_directory = resource_mapping["directory_processed"]
-                # except StopIteration:
-                #     del resource_mapping_generator
-                #     break
-
-                # count = 0
-                # eta = None # unknown!
-                # while True:
-                #     contents_batch =  contents[count: count + self.batch_size]  # extract a batch
-                #     index_count += (len(contents_batch))
-                #     # contents_batch = [os.path.join(current_directory, x) for x in contents_batch]
-
-                #     if (len(contents_batch) == 0):    # should mean this directory has been 
-                #         break
-                    
-                #     exit_thread = False
-                #     with self.lock:
-                #         exit_thread = (self.indexing_status == IndexingStatus.REQUESTED)
-                    
-                #     if exit_thread:
-                #         # print("yes cancel request is active...")
-                #         exit_parent_loop = True
-                #         break
-
-                #     # before each batch send the status to client
-                #     with self.lock:
-                #         self.indexing_info["details"] = "Indexing {}".format(current_directory)
-                #         self.indexing_info["done"] = False
-                #         self.indexing_info["eta"] = eta
-                #         self.indexing_info["processed"] = count
-                #         self.indexing_info["total"] = len(contents)
-                        
-                #     tic = time.time()         # start timing for this batch.
-                    
-                #     # ---------------------------------------------------
-                #     # # Run a thread to read raw-data from disk in background, once finished, terminate it
-                #     # read_bg_thread = threading.Thread(
-                #     #     target = read_from_disk_bg,
-                #     #     args = (resources_batch_queue, contents_batch,)
-                #     # )
-                #     # read_bg_thread.start()
-                #     flag = self.__index_batch(
-                #         resources_batch_queue,
-                #         batch_size = len(contents_batch) # Passing 
-                #         )
-                #     # read_bg_thread.join() # We do away with this thread!
-                #     # ------------------------------------------------------------------------
-
-                #     # NOTE: observed_counter difference with `len(content_batch)` may not match for each batch due to corrupt data or something. (but not too great which may mean bug!)
-                #     count += len(contents_batch)
-
-                #     # calculate eta..
-                #     dt_dc = (time.time() - tic) / (len(contents_batch) + 1e-5)    # dt/dc
-                #     eta_in_seconds = dt_dc * (len(contents) - count)                  # eta (rate * remaining images to be indexed.)
-                #     eta_hrs = eta_in_seconds // 3600
-                #     eta_minutes = ((eta_in_seconds) - (eta_hrs)*3600 ) // 60
-                #     eta_seconds = (eta_in_seconds) - (eta_hrs)*3600 - (eta_minutes)*60
-                #     eta = "{}:{:02}:{:02}".format(int(eta_hrs), int(eta_minutes), int(eta_seconds))
-
-            # # Since info is available on finalizing..we now update this info in meta-index!
+            # Since info is available on finalizing..we now update this info in meta-index!
             with self.lock:
                 # TODO: may be use replace to update required fields only!
                 self.indexing_info["details"] = "Finalizing Clusters.."
@@ -897,6 +769,8 @@ class IndexingLocal(object):
                 self.indexing_info["done"] = False
             
         except Exception:
+            # TODO: to send signal to terminate preview-thread too,
+            # may be a dedicated function to finish cleaning up!
             error_trace = traceback.format_exc() # uses sys.exception() as the exception
             print("Error: {}".format(error_trace))
             if not (signal_queue is None):
@@ -908,11 +782,44 @@ class IndexingLocal(object):
                     pass
         finally:
             with self.lock:
-                # Free resources if have to..
+                # Clean/close up pending resources.
+
+                # ------------------------------------
+                # CLean/free up `downloading thread`
                 if signal_queue:
+                    try:
+                        # TODO: more throughly test it, should work, since maxsize == 1, if somewhere bug, may block!
+                        signal_queue.put(False, timeout = 10) # supposed to be read, if bg disk read is running!
+                    except:
+                        print("Signal queue didn't respond, Don't care!")
+                        pass
                     signal_queue = None
                 if resources_queue:
-                    resources_queue = None
+                    resources_queue = None # Since being used in downloading thread, we send a signal above, here just decreasing ref-count!
+                # -------------------------------------------------------------
+                    
+                # ------------------------------------------------------------------
+                # Clean up `preview generation thread`
+                if NEW_THREAD_PREVIEW:
+                    # signal, that indexing thread is done.. so exit from preview thread.. we wouldn't want zombie thread!
+                    print("terminating preview generation thread..")
+                    self.profile_info.add("misc")
+                    temp_data = QueueData(
+                        resource_hash = None,
+                        image = None,
+                        is_thread_done= True
+                    )
+                    # send signal to the `preview-generation` thread to terminate after generating remaining previews!
+                    self.preview_queue.put(
+                        temp_data
+                    )
+                    while True:
+                        if self.preview_done.get() == True: # it can only be true!
+                            break
+                        else:
+                            time.sleep(0.01)
+                self.profile_info.add("prev-generate-wait")
+                # ----------------------------------------------
                 
                 # indicate error first, so as client can read that.. before trying to save
                 self.indexing_info["eta"] = None
@@ -935,29 +842,6 @@ class IndexingLocal(object):
                         print(traceback.format_exc())
                         self.indexing_info["details"] = traceback.format_exc
             
-            # -------------
-            if NEW_THREAD_PREVIEW:
-                # signal, that indexing thread is done.. so exit from preview thread.. we wouldn't want zombie thread!
-                print("terminating preview generation thread..")
-                self.profile_info.add("misc")
-                temp_data = QueueData(
-                    resource_hash = None,
-                    image = None,
-                    is_batch_done = True, # don't matter true/false!, thread flag would be read first!
-                    is_thread_done= True
-                )
-                # send signal, to exit the thread, whenever remaining resource-hashes are done!
-                self.preview_queue.put(
-                    temp_data
-                )
-                while True:
-                    if self.preview_done.get() == True: # it can only be true!
-                        break
-                    else:
-                        time.sleep(0.01)
-                # -------------------------------
-            self.profile_info.add("prev-generate-wait")
-            
             print("All done..")
             self.indexing_info["done"] = True  # terminating response, Client should just display the `details` and stop asking status updates!
             self.indexing_status = IndexingStatus.INACTIVE #(global, so lock) this can/will be read by callee.. to get `indexing status`!
@@ -968,20 +852,12 @@ class IndexingLocal(object):
         A thread to generate image previews, (generally batch-by-batch basis!)
         """
         while True:
-            (resource_hash, frame, is_batch_done, is_indexing_thread_done) = self.preview_queue.get()
+            (resource_hash, frame, is_indexing_thread_done) = self.preview_queue.get()
             if is_indexing_thread_done == True:
-                # When parent indexing thread is done.. we will exit out of this thread too!
+                # This mean indexing thread is done, no more data would be there to generate previews!
                 assert resource_hash is None
                 break
-            # elif is_batch_done == True:
-            #     assert resource_hash is None
-            #     self.preview_done.put(True)  # indicate previews are finished..
             else:
-                # generate_image_preview(
-                #     data_hash = resource_hash,
-                #     image = frame,
-                #     output_folder = self.image_preview_data_path
-                # )
                 assert not (resource_hash is None)
                 generate_image_preview_new(
                     data_hash = resource_hash,
@@ -993,7 +869,7 @@ class IndexingLocal(object):
     def start_download(self) -> tuple[Queue, Queue]:
         # Supposed to return 2 Queue like interface to `indexing thread/code`!
         # 1. To request new data to index!
-        # 2. To communicate with thread by `putting` data from the `indexing thread` and `reading` it in the `downloading` thread!
+        # 2. To communicate with thread by `putting` `commands` from the `indexing thread` and `reading` it in the `downloading` thread!
         
         # Represents Info about a batch of `resources` to be indexed!
         q1:Queue[tuple[bool, DownloadingStats, list[ResourceInfo]]] = Queue(maxsize = 1) # 1 meaning 1 batch at max, batch_size could be set during start!
@@ -1006,42 +882,27 @@ class IndexingLocal(object):
             self.include_subdirectories,
             q1,
             q2,
-            "Image",
+            "Image",  # resource-type
             self.batch_size
         )).start()
         return (q1, q2)
     
     def begin(self) -> ReturnInfo:
         """
-        Begin the indexing..
+        Begin the indexing.
+        We Start an `indexing thread` and `preview generation thread`.
         """
         
         with self.lock:
             assert (self.indexing_status == IndexingStatus.INACTIVE), "Must have been inactive, callee must make sure!"
             
-            # self.resources_batch_queue: Queue[list[ResourceInfo]]  = Queue(maxsize = 1) # idea with 1 is that only 1 batch at a time
-            # self.resources_signal_queue: Queue[bool]  = Queue(maxsize = 1) # to signal following thread, for now signals true when batch is indexed, helps calculate ETA!
-            # threading.Thread(
-            #     target = read_from_disk_bg, 
-            #     args = (
-            #         self.root_dir,
-            #         self.include_subdirectories,
-            #         self.resources_batch_queue,
-            #         self.resources_signal_queue,
-            #         "Image",
-            #         self.batch_size)
-            #         ).start()
-            # print("background reading started!!")
-
             threading.Thread(target = self.indexing_thread).start()            
             self.indexing_status = IndexingStatus.ACTIVE
 
+            # TODO: may be let the `indexing_thread` should start it!
             if NEW_THREAD_PREVIEW:
                 threading.Thread(target = self.preview_generation_thread).start()
-            
-                
-
-
+        
         result:ReturnInfo = {}
         result["error"] = False
         result["details"] =  "Indexing started successfully!"
