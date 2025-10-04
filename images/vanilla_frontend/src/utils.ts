@@ -141,3 +141,16 @@ export async function fetchWithSession(input: RequestInfo, init: RequestInit = {
   };
   return fetch(input, init);
 }
+
+export function turnHTMLToElement(rawHTML: string): Element | null {
+    const template = document.createElement("template");
+    template.innerHTML = rawHTML.trim();
+    // Raise a warning if there's no firstElementChild or multiple root elements
+    if (!template.content.firstElementChild) {
+        console.warn("No root element found in the provided HTML.");
+    }
+    if (template.content.childElementCount > 1) {
+        console.warn("Multiple root elements found. Only the first will be returned.");
+    }
+    return template.content.firstElementChild;
+}

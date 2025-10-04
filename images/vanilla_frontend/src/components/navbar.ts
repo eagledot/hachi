@@ -14,6 +14,7 @@ export class Navbar {
     { label: 'People', href: '/people.html', icon: '👥' },
     { label: 'Folders', href: '/folders.html', icon: '📁' },
     { label: 'Add Photos', href: '/indexing.html', icon: '🖼️' },
+    { label: "Extensions", href: "/extensions.html", icon: "🧩" },
     // { label: "Google Photos", href: "/google-photos.html", icon: "🖼️" }
   ];
 

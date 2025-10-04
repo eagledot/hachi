@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script> try { if (localStorage.getItem('hachi_nav_collapsed') === '1') { documentElement.classList.add(''); } } catch (e) { } </script>
+    <meta charset="UTF-8" />
+
+    <link rel="icon" type="image/svg+xml" href="/src/typescript.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hachi - Photo Management System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navbar will be inserted here by Layout -->
+    <main id="main">
+        <!-- Header -->
+        <header class="">
+            <div class="max-w-4xl mx-auto px-4 py-6">
+                <div class="flex items-center space-x-3">
+                    <div
+                        class="w-12 h-12 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                        <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4">
+                            </path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Extensions Manager</h1>
+                        <p class="text-sm text-gray-600">Configure and manage your device connections</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-4xl mx-auto px-4 py-8">
+            <!-- Info Card -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex items-start space-x-3">
+                <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd"
+                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                        clip-rule="evenodd"></path>
+                </svg>
+                <div>
+                    <h3 class="font-semibold text-blue-900 mb-1">Welcome to Extensions Manager</h3>
+                    <p class="text-sm text-blue-800">Set up connections to access your devices. Click "Setup" to
+                        configure an extension.</p>
+                </div>
+            </div>
+
+            <!-- Extensions Section -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-semibold text-gray-900">Available Extensions</h2>
+                    <span class="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm font-medium">
+                        <span id="extension-count">0</span> Extensions
+                    </span>
+                </div>
+
+                <!-- Extensions List Container -->
+                <div id="extensions" class="space-y-3">
+                    <!-- Extensions will be rendered here -->
+                </div>
+
+                <!-- Empty State (hidden by default) -->
+                <div id="empty-state" class="text-center py-12 hidden">
+                    <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4">
+                        </path>
+                    </svg>
+                    <p class="text-gray-500 font-medium">No extensions available</p>
+                    <p class="text-gray-400 text-sm mt-1">Extensions will appear here when added</p>
+                </div>
+            </div>
+        </main>
+    </main>
+
+    <script type="module" src="./src/extensions.js"></script>
+</body>
+
+</html>
