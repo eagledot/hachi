@@ -155,8 +155,9 @@ export class IndexingComponent {
               id="protocol-select"
               class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm appearance-none bg-white shadow-sm transition-colors"
             >
-              <option value="none" selected>None (Use folder on computer)</option>
-              <option value="google_photos">🌟 Google Photos</option>
+              <option value="none" selected>None (Choose a LOCAL directory/folder)</option>
+              <option value="mtp"> Devices like Androids, Tablets which support MTP protocol!</option>
+              <option value="gdr"> Google Drive</option>
             </select>
             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
               <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -363,7 +364,12 @@ export class IndexingComponent {
           this.setState({ identifier: "", uri: [], location: "" });
           this.updateSelectedPathDisplay("");
         } else {
-          this.setState({ identifier: value, uri: [], location: value });
+          console.log("Clicked: ", target);
+          console.log("value Seems to be: ", value);
+
+          // this.setState({ identifier: value, uri: [], location: value });
+          this.setState({ identifier: value, uri: [], location: "REMOTE" });
+          console.log(this.state);
           this.updateSelectedPathDisplay(this.getDisplayPath());
         }
       } else if (target.id === "complete-rescan") {
