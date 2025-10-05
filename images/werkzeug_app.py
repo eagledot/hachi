@@ -248,7 +248,7 @@ class SimpleApp():
                     # origin and destination both must be local!
                     assert environ['SERVER_NAME'] == "localhost" or environ['SERVER_NAME'] == "127.0.0.1", "Please run server on `local` interface only, or set `local_origin_cors` to False, at your own risk!!"
                     if "Origin" in request.headers: # browser would pass this in any cross-origin request!
-                        script_origin_host = request.headers["origin"].split(":")[0].lower()
+                        script_origin_host = request.headers["origin"].lower()
                         print("Origin host: {}".format(script_origin_host))
                         assert  "127.0.0.1" in script_origin_host or "localhost" in script_origin_host, "Cannot allow scripts from origins other than `local`"
 
@@ -262,10 +262,11 @@ class SimpleApp():
                 # minimal preflight requests checking, its ok, TODO: may need to extend it!
                 # 1. already set `access-control-allow-methods` to allowed methods for this resource!
                 if 'Access-Control-Request-Headers' in request.headers: 
-                    # NOTE / TODO: here can check if request headers make sense!
                     # in case a script, is setting some custom header!
                     print("[WARNING]: Custom headers are not expected for now, TODO: expecting that browser will set this header, in case script would setting some custom header anyway !!! ")
-                    h["Access-Control-Allow-headers"] = ",".join(["X-Session-Key"]) # an empty, TODO: fill them for only allowed headers!
+                    # TODO: provide a white-list during app start-up to allow Specific headers, otherwise indicate [WARNING].
+                    # Shouldn't be security issue, as we only allow `local-originated` CORs sharing !!
+                    h["Access-Control-Allow-headers"] = request.headers['Access-Control-Request-Headers']                
             else:
                 response = Response(status = 400) 
             
