@@ -197,10 +197,15 @@ def indexStart(request:Request) -> ReturnInfo:
         if not(os.path.exists(root_dir)):
             return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
     else:
-        # Handle Extensions. (i.e data not available on this device/host)
-        post_attributes["identifier"] = "mtp" # TODO: just for testing!
-        if (post_attributes["identifier"] in REGISTERED_EXTENSIONS):
+        # Indexing for data not available on `local` host.
+        # It could be referrring to an extension which stored data in Cloud like google drive, or some connected MTP device, all are considered REMOTE!
+        # and will require dedicated code to support each of such device.
+        assert post_attributes["location"] == "REMOTE"
+        extension_identifier = post_attributes["identifier"]
+        if (extension_identifier in REGISTERED_EXTENSIONS):
             remote_extension = REGISTERED_EXTENSIONS[post_attributes["identifier"]]
+            if remote_extension.is_ready == False:
+                return jsonify(ReturnInfo(error = True, details = "{} has not setup yet!\nVisit Extensions Interface to configure the {}".format(extension_identifier, extension_identifier)))
         else:
             return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(post_attributes["identifier"])))
 
