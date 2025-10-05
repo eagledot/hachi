@@ -11,7 +11,8 @@ new Layout({
 });
 
 class Extensions {
-    BASE_URL = "http://127.0.0.1:5500/images/mtp_windows/static"; // Change to your server URL
+    // During Production) /api/ext should also be enough!
+    BASE_URL = "http://localhost:5000/api/ext" 
     rootId = "extensions";
     root = document.getElementById(this.rootId);
     constructor() {
@@ -49,8 +50,8 @@ class Extensions {
             // const availableExtensions = await response.json();
             // this.extensions = availableExtensions;
             this.extensions = [
-                { id: "android", name: "Android", isSetup: false, classname: "MTPScanner", filename: "mtp.js" },
-                { id: "google_drive", name: "Google Drive", isSetup: false, classname: "DriveScanner", filename: "drive.js" }
+                { id: "mtp", name: "Android", isSetup: false, classname: "MTPScanner", filename: "mtp.js" },
+                { id: "gdr", name: "Google Drive", isSetup: false, classname: "DriveScanner", filename: "drive.js" }
             ];
             this.render();
         } catch (error) {
@@ -108,7 +109,8 @@ class Extensions {
             // Create script element and load from the server
             const script = document.createElement('script');
             script.type = "module";
-            script.src = `${this.BASE_URL}/${extension.filename}` // or filepath
+            // Actually served from extension specific folder! So an extension would be self-contained!
+            script.src = `${this.BASE_URL}/${extension.id}/static/${extension.filename}` // or filepath
 
             // Wait for the script to load
             await new Promise((resolve, reject) => {
