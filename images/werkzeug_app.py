@@ -205,7 +205,7 @@ class SimpleApp():
             # We aim to strip extension specific path, before calling registered extension (wsgi app).
             # This way extension doesn't need to worry in which context it is being called, and can be fully developed in isolation!
             extension_name = temp_split[2]
-            assert extension_name in self.registered_extensions, self.registered_extensions.keys()
+            assert extension_name in self.registered_extensions, "If you are using a route `/ext/<extension_name` it is expected this is an extension and has been registered, if testing , don't use /ext/ prefix !"
             print("[Routing to ]: {}".format(extension_name))
             extension_path = temp_path.replace("/{}/{}".format(self.extension_prefix, extension_name), "")
             print("extension path: {}".format(extension_path))
