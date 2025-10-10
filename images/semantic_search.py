@@ -172,51 +172,52 @@ class IndexBeginAttribute(TypedDict):
 
 ##app.route("/indexStart", methods = ["POST"])        
 def indexStart(request:Request) -> ReturnInfo:
-    global index_obj, REGISTERED_EXTENSIONS
+    with global_lock: # To serialize access in case of multiple-users. (For future scenarios!)
+        global index_obj, REGISTERED_EXTENSIONS
 
-    # (try to) type-match the POST data.
-    post_attributes:IndexBeginAttribute
-    if isinstance(request.json, str):
-        post_attributes = json.loads(request.json)
-    else:
-        post_attributes = request.json
-    print(post_attributes)
-    
-
-    # ---------------------------------------------------
-    root_dir = None
-    remote_extension = None
-    if post_attributes["location"] == "LOCAL":
-    # if False: # TODO:
-        # Re-create the path.
-        root_dir = recreate_local_path(
-            post_attributes["identifier"], 
-            uri = post_attributes["uri"]
-        )
-        print("Root dir: {}".format(root_dir))
-        if not(os.path.exists(root_dir)):
-            return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
-    else:
-        # Indexing for data not available on `local` host.
-        # It could be referrring to an extension which stored data in Cloud like google drive, or some connected MTP device, all are considered REMOTE!
-        # and will require dedicated code to support each of such device.
-        assert post_attributes["location"] == "REMOTE"
-        extension_identifier = post_attributes["identifier"]
-        if (extension_identifier in REGISTERED_EXTENSIONS):
-            remote_extension = REGISTERED_EXTENSIONS[post_attributes["identifier"]]
-            if remote_extension.is_ready == False:
-                return jsonify(ReturnInfo(error = True, details = "{} has not setup yet!\nVisit Extensions Interface to configure the {}".format(extension_identifier, extension_identifier)))
+        # (try to) type-match the POST data.
+        post_attributes:IndexBeginAttribute
+        if isinstance(request.json, str):
+            post_attributes = json.loads(request.json)
         else:
-            return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(post_attributes["identifier"])))
+            post_attributes = request.json
+        print(post_attributes)
+        
 
-        print("[Indexing]: {}".format(remote_extension.get_name()))    
-        # TODO: For now manually set device for testing.
-        # later client will provide inputs to select a device and finish setup!
-        # remote_extension.beginSetup(r = None)
-        # remote_extension.finishSetup(r = None, chosen_device_index = 0)
-    #  -----------------------------------------------------------------------
+        # ---------------------------------------------------
+        root_dir = None
+        remote_extension = None
+        if post_attributes["location"] == "LOCAL":
+        # if False: # TODO:
+            # Re-create the path.
+            root_dir = recreate_local_path(
+                post_attributes["identifier"], 
+                uri = post_attributes["uri"]
+            )
+            print("Root dir: {}".format(root_dir))
+            if not(os.path.exists(root_dir)):
+                return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(root_dir)))
+        else:
+            # Indexing for data not available on `local` host.
+            # It could be referrring to an extension which stored data in Cloud like google drive, or some connected MTP device, all are considered REMOTE!
+            # and will require dedicated code to support each of such device.
+            assert post_attributes["location"] == "REMOTE"
+            extension_identifier = post_attributes["identifier"]
+            if (extension_identifier in REGISTERED_EXTENSIONS):
+                remote_extension = REGISTERED_EXTENSIONS[post_attributes["identifier"]]
+                if remote_extension.is_ready == False:
+                    return jsonify(ReturnInfo(error = True, details = "{} has not setup yet!\nVisit Extensions Interface to configure the {}".format(extension_identifier, extension_identifier)))
+            else:
+                return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(post_attributes["identifier"])))
+
+            print("[Indexing]: {}".format(remote_extension.get_name()))    
+            # TODO: For now manually set device for testing.
+            # later client will provide inputs to select a device and finish setup!
+            # remote_extension.beginSetup(r = None)
+            # remote_extension.finishSetup(r = None, chosen_device_index = 0)
+        #  -----------------------------------------------------------------------
     
-    with global_lock:
+    
         # Either index_obj is None (client knows Done ) or if client didn't read, and was done!
         prev_index_status = False
         if not(index_obj is None):
@@ -233,8 +234,8 @@ def indexStart(request:Request) -> ReturnInfo:
                 complete_rescan = post_attributes["complete_rescan"],
                 simulate = post_attributes["simulate_indexing"],
                 remote_extension = remote_extension
-            )        
-            
+            )
+
             # start the indexing, it return after starting a background-thread!
             return jsonify(index_obj.begin())
         else:
@@ -1164,9 +1165,21 @@ if __name__ == "__main__":
     # Instead may be we can get the `mapping` directly from some parent class!
     sys.path.insert(0,"D://hachi_extensions/images")
     from mtp_windows.mtp_code import MtpExtension
+    from google_drive.drive import GoogleDrive
     
     # collect extension instances!
     mtp_extension = MtpExtension()
+    gdr_extension = GoogleDrive()
+    # For now do it manually!
+    gdr_extension.begin_setup(r = None) # We already have a `token.json`, so it will not start consent process!
+    gdr_extension.finish_setup(r = None)
+
+    # UPDATE THE GLOBAL MAPPING!
+    REGISTERED_EXTENSIONS = {
+        mtp_extension.get_name(): mtp_extension,
+        gdr_extension.get_name(): gdr_extension,
+    }
+    print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
 
     # Register extension's WSGI app instance.
     # All routes would be mounted at `/ext/<extension_name/...` 
@@ -1178,13 +1191,10 @@ if __name__ == "__main__":
         mtp_extension.get_wsgi_app(),
         name = mtp_extension.get_name()
     )
-
-    # Create a mapping!
-    REGISTERED_EXTENSIONS = {
-        mtp_extension.get_name(): mtp_extension
-    }
-    print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
-    # ---------------
+    app.register(
+        gdr_extension.get_wsgi_app(),
+        name = gdr_extension.get_name()
+    )
 
     # Run the WSGI server, with `app` as underlying WSGI application!
     run_simple(
