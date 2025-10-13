@@ -277,7 +277,9 @@ class ResourceInfo(TypedDict):
 
 # To be returned by `downloading` (read_from_disk_bg) thread, to indexing_thread!
 class DownloadingStats(NamedTuple):
-    current_directory:str
+    # It should be named as Info instead.
+    details:str   # 
+    # current_directory:str
     eta_seconds:int
     progress:int   # [0-100]
 
@@ -350,7 +352,8 @@ def read_from_disk_bg(
                     eta_in_seconds = dt_dc * (remains) # eta (rate * remaining images to be indexed.)
                 
                 temp_stats = DownloadingStats(
-                    current_directory = current_directory,
+                    # current_directory = current_directory,
+                    details = "Scanning: {}".format(current_directory),
                     eta_seconds = eta_in_seconds,
                     progress = int((len(contents) - remains) / len(contents) * 100)
                 )
@@ -713,15 +716,21 @@ class IndexingLocal(object):
                     exit_thread = (self.indexing_status == IndexingStatus.REQUESTED)
 
                 if exit_thread:
+                    try:
+                        signal_queue.put(False, timeout = 10)
+                    except:
+                        print("[ERROR]: Timeout occured on signal queue, either busy or some bug!")
+                        signal_queue = None
                     print("Finishing index on cancellation request from user")
                     break
                 
                 # Get downloading Stats, and resources info conditioned on a directory! 
+                # print("[DEBUG]: waitiing...")
                 (flag, downloading_stats, resources_info) = resources_queue.get()
                 if flag == False:
-                    # No more data to index !
+                    # No more data to index, here we assume `downloading thread` exited cleanly, so no more communication should be required with that thread!!
                     break
-                current_directory, eta_seconds, progress_percentage = downloading_stats
+                some_info, eta_seconds, progress_percentage = downloading_stats
                 assert progress_percentage <= 100
                 # Based on progress, we can convert it to normalized (count, total stats!)
                 count = progress_percentage
@@ -732,7 +741,9 @@ class IndexingLocal(object):
                     resources_info
                 )
 
+                # print("[DEBUG]: recent info: {}".format(some_info))
                 signal_queue.put(True) # Signal that batch is done, helps generate ETA!
+                # print("[DEBUG]: sent signal ")
 
                 eta_hrs = eta_seconds // 3600
                 eta_minutes = ((eta_seconds) - (eta_hrs)*3600 ) // 60
@@ -741,11 +752,13 @@ class IndexingLocal(object):
 
                 # update the info.. client could read it!
                 with self.lock:
-                    self.indexing_info["details"] = "Indexing {}".format(current_directory)
+                    # self.indexing_info["details"] = "Indexing {}".format(current_directory)
+                    self.indexing_info["details"] = some_info
                     self.indexing_info["done"] = False
                     self.indexing_info["eta"] = eta
                     self.indexing_info["processed"] = count
                     self.indexing_info["total"] = total
+                    del some_info
                 
                 # Save checkpoints, if makes sense!
                 if index_count >= CHECKPOINT_COUNT:
@@ -779,23 +792,19 @@ class IndexingLocal(object):
                     signal_queue.put(False, timeout = 10) # supposed to be read, if bg disk read is running!
                 except:
                     print("Signal queue didn't respond, Don't care!")
-                    pass
+                finally:
+                    signal_queue = None
         finally:
             with self.lock:
                 # Clean/close up pending resources.
 
                 # ------------------------------------
-                # CLean/free up `downloading thread`
+                # IF exception occured, we would have send the signal to `downloading thread`,
+                # else we assume `downloading thread` exited cleanly, and freed/finished the resources!
                 if signal_queue:
-                    try:
-                        # TODO: more throughly test it, should work, since maxsize == 1, if somewhere bug, may block!
-                        signal_queue.put(False, timeout = 10) # supposed to be read, if bg disk read is running!
-                    except:
-                        print("Signal queue didn't respond, Don't care!")
-                        pass
                     signal_queue = None
                 if resources_queue:
-                    resources_queue = None # Since being used in downloading thread, we send a signal above, here just decreasing ref-count!
+                    resources_queue = None 
                 # -------------------------------------------------------------
                     
                 # ------------------------------------------------------------------
