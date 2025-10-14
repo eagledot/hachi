@@ -1163,7 +1163,7 @@ if __name__ == "__main__":
     # Register Extensions:
     # -------------------
     # Instead may be we can get the `mapping` directly from some parent class!
-    sys.path.insert(0,"D://hachi_extensions/images")
+    sys.path.insert(0,"D://hachi-extensions-2/hachi_extensions/images")
     from mtp_windows.mtp_code import MtpExtension
     from google_drive.drive import GoogleDrive
     

@@ -104,31 +104,21 @@ export class FuzzySearchUI {
           <!-- Modern Search Container -->
           <div class="flex flex-col">
             <!-- Main Search Row -->
-            <div class="flex flex-col sm:flex-row sm:space-y-0 mb-2">
+            <div class="flex flex-col rounded-xl sm:flex-row shadow bg-gray-50 sm:space-y-0 mb-2">
               <div id="input-container" class="relative flex-grow">
                 <!-- Integrated Input and Button Container -->
                 <div
-                  class="relative rounded-xl bg-white flex items-center h-10 sm:h-12 group overflow-hidden"
+                  class="relative px-3  rounded-xl  flex items-center h-10 sm:h-12 group overflow-hidden"
                   style="padding-right:0;"
                 >
-                  <!-- Search Icon -->
-                  <!-- <div
-                    class="flex items-center justify-center w-12 sm:w-14 h-12 sm:h-14 text-gray-500 group-focus-within:text-blue-400 transition-colors duration-300"
+
+                  <!-- Active Filters Display (moved below input) -->
+                  <div
+                    id="filters-container"
+                    class="flex items-center flex-wrap gap-1 sm:gap-1 invisible transition-all duration-300"
                   >
-                    <svg
-                      class="w-5 sm:w-6 h-5 sm:h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      stroke-width="2.5"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      ></path>
-                    </svg>
-                  </div> -->
+                    <!-- Filters will be rendered here -->
+                  </div>
 
                   <!-- Modern Input Field -->
                   <input
@@ -136,7 +126,7 @@ export class FuzzySearchUI {
                     type="text"
                     autocomplete="off"
                     placeholder="Search by people, folders, or keywords..."
-                    class="flex-1 h-full px-3 border-2 border-gray-800 text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-600 rounded-l-xl rounded-r-none transition-all duration-300"
+                    class="flex-1 h-full ml-2  text-sm sm:text-base bg-transparent border-r-0 focus:outline-none focus:ring-0 placeholder-gray-600 rounded-l-xl rounded-r-none transition-all duration-300"
                     style="border-top-right-radius:0;border-bottom-right-radius:0;"
                   />
 
@@ -144,7 +134,7 @@ export class FuzzySearchUI {
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
-                    class="flex cursor-not-allowed items-center justify-center w-16 h-10 sm:h-12 sm:w-14 transition-all duration-200 border-t-2 border-b-2 border-gray-800 group focus:outline-none "
+                    class="flex cursor-not-allowed items-center justify-center w-16 h-10 sm:h-12 sm:w-14 group focus:outline-none "
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
@@ -216,14 +206,6 @@ export class FuzzySearchUI {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Active Filters Display (moved below input) -->
-            <div
-              id="filters-container"
-              class="flex w-full items-center flex-wrap gap-2 sm:gap-3 invisible transition-all duration-300"
-            >
-              <!-- Filters will be rendered here -->
             </div>
 
             <!-- Search Tips (shown only before first search) -->
@@ -557,7 +539,7 @@ export class FuzzySearchUI {
             const icon = this.fuzzySearchService.getAttributeIcon(attribute);
             const color = this.fuzzySearchService.getAttributeColor(attribute);
             return `
-            <div class="flex items-center px-3 py-1 rounded-xl border-1 ${color} hover:shadow-xl cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
+            <div class="flex items-center rounded-sm px-1 py-1 ${color} cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
               <span class="mr-2 sm:mr-3 text-sm sm:text-base">${icon}</span>
               <span class="text-xs font-semibold truncate max-w-[120px] sm:max-w-none">${value}</span>
               <button class="ml-2 sm:ml-3 text-current opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-40 rounded-full p-1.5 transition-all duration-300 remove-filter-btn hover:scale-110 active:scale-90" data-attribute="${attribute}" data-value="${value}">

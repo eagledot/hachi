@@ -355,13 +355,17 @@ export class UIService {
    * Creates an empty photo element template for reuse
    */
   private createEmptyPhotoElement(): HTMLElement {
-    const div = document.createElement("div");
-    div.className =
-      "group relative bg-gray-100 overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer mobile-photo-height invisible";
+    const card = document.createElement("div");
+    card.className =
+      "group relative bg-gray-100 overflow-hidden cursor-pointer";
+    
+    // Image wrapper - apply the responsive height here so caption sits below the image
+    const imgWrapper = document.createElement("div");
+    imgWrapper.className = "mobile-photo-height w-full overflow-hidden";
 
     const img = document.createElement("img");
     img.className =
-      "w-full h-full rounded-sm object-cover group-hover:scale-105 transition-transform duration-200";
+      "w-full h-full object-cover group-hover:scale-105 transition-transform duration-200";
     img.loading = "lazy";
 
     // Error handling
@@ -380,10 +384,25 @@ export class UIService {
     viewIcon.innerHTML = UIService.VIEW_ICON_SVG;
 
     hoverOverlay.appendChild(viewIcon);
-    div.appendChild(img);
-    div.appendChild(hoverOverlay);
 
-    return div;
+    // Bottom caption overlay (semi-transparent background)
+    const captionOverlay = document.createElement("div");
+    captionOverlay.className =
+      "absolute left-0 right-0 bottom-0 px-2 py-1 bg-black/40 backdrop-blur-sm text-xs text-gray-100 truncate";
+    captionOverlay.setAttribute("data-photo-caption", "true");
+    captionOverlay.style.pointerEvents = "none"; // let clicks pass through to card (click handled on card)
+
+
+
+    // Make overlay positioned relative to the wrapper
+    imgWrapper.appendChild(img);
+    imgWrapper.appendChild(hoverOverlay);
+    imgWrapper.appendChild(captionOverlay);
+
+    card.appendChild(imgWrapper);
+
+    card.style.visibility = "hidden"; // Start hidden
+    return card;
   }
 
   /**
@@ -400,6 +419,23 @@ export class UIService {
     img.src = `${endpoints.GET_PREVIEW_IMAGE}/${photo.id}.webp`;
     img.alt = photo.metadata?.filename || "";
     element.setAttribute("data-photo-id", photo.id);
+
+    // Update caption
+    const caption = element.querySelector('[data-photo-caption="true"]') as HTMLElement | null;
+    if (caption) {
+      const fullname = photo.metadata?.filename || "";
+      // Get the width of the element to determine how much text can fit
+      const elementWidth = element.clientWidth;
+      // Approximate max characters based on width (assuming avg char width ~8px)
+      // 8px is a rough average, adjust as needed based on font and styling
+      const maxLength = Math.floor(elementWidth / 8); // Adjust as needed
+      const trimmedName =
+        fullname.length > maxLength
+          ? fullname.substring(0, maxLength) + "..."
+          : fullname;
+      caption.textContent = trimmedName; // Show full name for now
+      caption.title = fullname; // Full name in tooltip
+    }
 
     // Update score badge
     const existingScoreBadge = element.querySelector(".score-badge");
