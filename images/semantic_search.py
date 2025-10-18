@@ -1108,11 +1108,16 @@ def getSuggestionPath(request:Request) -> List[str]:
 # -----------------------------
 # Extension specific routes/functions!
 # ---------------------------
-def get_available_extensions():
-    return REGISTERED_EXTENSIONS.keys() # set-up durin start-up!
+def get_remote_clients(request:Request) -> list[dict]:
+    # Get registered clients info for each of the Protocol from corresponding Extension!
+    # Should be called to get updated info by the frontend!
+    result = []
+    for ext in REGISTERED_EXTENSIONS.values():
+        result.extend(
+            ext.get_registered_clients()
+        )
+    return jsonify(result)
 
-# for calls like /ext/mtp/beginSetup app should be able to route that.
-# 
 # ---------------------------------------------
 
 ############################################################################
@@ -1163,38 +1168,45 @@ if __name__ == "__main__":
     # Register Extensions:
     # -------------------
     # Instead may be we can get the `mapping` directly from some parent class!
-    sys.path.insert(0,"D://hachi_extensions/images")
-    from mtp_windows.mtp_code import MtpExtension
-    from google_drive.drive import GoogleDrive
-    
-    # collect extension instances!
-    mtp_extension = MtpExtension()
-    gdr_extension = GoogleDrive()
-    # For now do it manually!
-    gdr_extension.begin_setup(r = None) # We already have a `token.json`, so it will not start consent process!
-    gdr_extension.finish_setup(r = None)
+    EXTENSIONS_CODE_PATH = "D://hachi_extensions/images"
+    if os.path.exists(EXTENSIONS_CODE_PATH):
+        sys.path.insert(0,EXTENSIONS_CODE_PATH)
+        from mtp_windows.mtp_code import MtpExtension
+        from google_drive.drive import GoogleDrive
+        
+        # collect extension instances!
+        mtp_extension = MtpExtension()
+        gdr_extension = GoogleDrive()
 
-    # UPDATE THE GLOBAL MAPPING!
-    REGISTERED_EXTENSIONS = {
-        mtp_extension.get_name(): mtp_extension,
-        gdr_extension.get_name(): gdr_extension,
-    }
-    print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
+        # UPDATE THE GLOBAL MAPPING!
+        REGISTERED_EXTENSIONS = {
+            mtp_extension.get_name(): mtp_extension,
+            gdr_extension.get_name(): gdr_extension,
+        }
+        print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
 
-    # Register extension's WSGI app instance.
-    # All routes would be mounted at `/ext/<extension_name/...` 
-    # Following routes should be exposed by each such extension.
-    # beginSetup() # begin the setup!
-    # continueSetup(step:int) (optional,if multiple inputs required from user)
-    # finishSetup()
-    app.register(
-        mtp_extension.get_wsgi_app(),
-        name = mtp_extension.get_name()
-    )
-    app.register(
-        gdr_extension.get_wsgi_app(),
-        name = gdr_extension.get_name()
-    )
+        # Collect remote clients info , for all protocols!
+        app.add_url_rule(
+            rule = "/getRemoteClients", 
+            view_function = get_remote_clients
+        )
+        
+
+
+        # Register extension's WSGI app instance.
+        # All routes would be mounted at `/ext/<extension_name/...` 
+        # Following routes should be exposed by each such extension.
+        # beginSetup() # begin the setup!
+        # continueSetup(step:int) (optional,if multiple inputs required from user)
+        # finishSetup()
+        app.register(
+            mtp_extension.get_wsgi_app(),
+            name = mtp_extension.get_name()
+        )
+        app.register(
+            gdr_extension.get_wsgi_app(),
+            name = gdr_extension.get_name()
+        )
 
     # Run the WSGI server, with `app` as underlying WSGI application!
     run_simple(
