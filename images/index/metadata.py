@@ -291,16 +291,18 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:Union[str
         temp_handle = ImageExif(resource_path)
         has_exif = temp_handle.has_exif
     except Exception as e:
-        print("[ERROR Exif]: while parsing exif data as {}".format(e))
+        print("[WARNING Exif]: while parsing exif data as {}".format(e))
         
     if has_exif:
         image_attributes = set(temp_handle.list_all())
         desired_attributes = set(EXIF_PACKAGE_MAPPING.keys())
         lifeGivesYou_attributes = image_attributes.intersection(desired_attributes)
+
         for attr in lifeGivesYou_attributes:
             corresponding_name = EXIF_PACKAGE_MAPPING[attr]
             try:
                 attr_value = temp_handle[attr]
+
                 if isinstance(attr_value, Enum) or  isinstance(attr_value, int):
                     # TODO: make sure that Exif_package_mapping, values always be a subset for ImageExifAttributes.. OR MAKE THEM SAME!
                     assert ImageExifAttributes.__annotations__[corresponding_name] is int
@@ -312,7 +314,7 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:Union[str
                 print("[Warning Exif]: {}".format(e))
     
         # sort out place.
-        if "gps_latitude" in lifeGivesYou_attributes and "gps_longitude" in lifeGivesYou_attributes:
+        if "gps_latitude" in lifeGivesYou_attributes or "gps_longitude" in lifeGivesYou_attributes:
             try:
                 gps_lat = float(temp_handle["gps_latitude"][0]) + float(temp_handle["gps_latitude"][1])/60 + float(temp_handle["gps_latitude"][2])/3600
                 gps_long = float(temp_handle["gps_longitude"][0]) + float(temp_handle["gps_longitude"][1])/60 + float(temp_handle["gps_longitude"][2])/3600
@@ -322,7 +324,7 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:Union[str
                 result["place"] = str(geoCodeIndex.query((gps_lat, gps_long))).lower() # get nearest city/country based on the gps coordinates if available.     
             except Exception as e:
                 # It is possible, could not find corresponding data for gps tags, even after initially detected or parsing error!
-                print("[ERROR GPS coordinates extraction Exif]: {}".format(e))
+                print("[WARNING GPS coordinates extraction Exif]: {}".format(e))
                 # float is expected for gps coordinates!
                 result["gps_latitude"] = float(0)
                 result["gps_longitude"] = float(0)
@@ -332,7 +334,7 @@ def populate_image_exif_data(result:ImageExifAttributes, resource_path:Union[str
                 result["device"] = "{} {}".format(result["make"], result["model"]).strip().lower()
         except Exception as e:
             # It is possible, could not find corresponding data for make/model tags, even after initially detected or parsing error!
-            print("[ERROR Make/model extraction Exif]: {}".format(e))
+            print("[WARNING Make/model extraction Exif]: {}".format(e))
     
     try:
         if isinstance(resource_path, str):
