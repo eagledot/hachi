@@ -1190,15 +1190,6 @@ if __name__ == "__main__":
             rule = "/getRemoteClients", 
             view_function = get_remote_clients
         )
-        
-
-
-        # Register extension's WSGI app instance.
-        # All routes would be mounted at `/ext/<extension_name/...` 
-        # Following routes should be exposed by each such extension.
-        # beginSetup() # begin the setup!
-        # continueSetup(step:int) (optional,if multiple inputs required from user)
-        # finishSetup()
         app.register(
             mtp_extension.get_wsgi_app(),
             name = mtp_extension.get_name()
@@ -1215,11 +1206,3 @@ if __name__ == "__main__":
         application = app, # pass our app instance!,
         threaded = True    # handle each request in a new thread or one of the pool threads!
     )
-
-    # How to register..
-    # client should get a page..
-    # user do some action.
-    # either fail/pass
-    # registered extensions could be requested by client for indexing interface.
-    # if registered successfully, would be visible
-    # 
