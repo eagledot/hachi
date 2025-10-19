@@ -41,8 +41,8 @@ class Extensions {
             // this.extensions = availableExtensions;
             this.extensions = [
                 //  TODO: update ids to 3letter ids, mtp, gdr!
-                { id: "android", name: "Android", isSetup: false, classname: "MTPScanner", filename: "mtp.js" },
-                { id: "google_drive", name: "Google Drive", isSetup: false, classname: "DriveScanner", filename: "drive.js" }
+                { id: "mtp", name: "Android", isSetup: false, classname: "MTPScanner", filename: "mtp.js" },
+                { id: "gdr", name: "Google Drive", isSetup: false, classname: "DriveScanner", filename: "drive.js" }
             ];
             this.render();
         } catch (error) {
@@ -101,7 +101,7 @@ class Extensions {
             const script = document.createElement('script');
             script.type = "module";
             // script.src = `./${extension.filename}` // or filepath
-            script.src  = "http://localhost:5000/api/ext/gdr/static/" + `${extension.filename}`
+            script.src  = "http://localhost:5000/api/ext/" + extension.id +"/static/" + `${extension.filename}`
             // Wait for the script to load
             await new Promise((resolve, reject) => {
                 script.onload = () => {
