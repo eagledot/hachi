@@ -396,16 +396,19 @@ class IndexingLocal(object):
                  complete_rescan:bool = False,
                  simulate:bool = False,   # For now it just speed-up image-embedding generation, by generating random embeddings!
                  
-                 remote_extension:Any = None # expects root_dir to be None, if it is valid reference!
+                 remote_extension:Any = None, # expects root_dir to be None, if it is valid reference!
+                 remote_client_id:str = None # to differentiate among clients! 
     ) -> None:
         
         # Local vs Remote
         self.root_dir = root_dir
         self.remote_extension = remote_extension
+        self.remote_client_id = remote_client_id
         if not (self.root_dir is None):
             assert os.path.exists(root_dir)
         else:
             assert not (self.remote_extension is None)
+            assert not (self.remote_client_id is None)
                 
         self.image_preview_data_path = image_preview_data_path
         self.meta_index:MetaIndex = meta_index
@@ -707,7 +710,7 @@ class IndexingLocal(object):
             if not (self.root_dir is None):
                 (resources_queue, signal_queue) = self.start_download()
             else:
-                (resources_queue, signal_queue) = self.remote_extension.start_download()
+                (resources_queue, signal_queue) = self.remote_extension.start_download(self.remote_client_id)
             
             count = 0
             while True:
