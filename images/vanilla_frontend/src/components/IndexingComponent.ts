@@ -5,7 +5,6 @@
 import type {
   IndexStartResponse,
   IndexStatusResponse,
-  RemoteClientInfo,
 } from "../types/indexing";
 
 import { fetchWithSession, html } from "../utils";
@@ -34,6 +33,7 @@ interface IndexingState {
   selectedProtocol: string;
   error: string | null;
   simulateIndexing: boolean;
+  remote_client_id: string | null; // to differentiate device/client for a given protocol/identifier, on the backend!
 }
 
 const initialState: IndexingState = {
@@ -49,6 +49,7 @@ const initialState: IndexingState = {
   selectedProtocol: "none",
   error: null,
   simulateIndexing: false,
+  remote_client_id: null
 };
 
 export class IndexingComponent {
@@ -83,6 +84,7 @@ export class IndexingComponent {
             for(let i = 0; i < clients.length; i = i + 1){
               let option_temp = document.createElement("option");
               option_temp.value = clients[i]["protocol"];
+              option_temp.id = clients[i]["id"];
               
               // TODO: span `logo` for corresponding protocol! render corresponding svgs here!
               // option_temp.innerHTML = '<span><img src = ' + clients[i]["logo"] + '>' + clients[i]["name"] + " " + clients[i]["id"] + '</span>';
@@ -383,18 +385,16 @@ export class IndexingComponent {
       if (target.id === "simulate-indexing") {
         this.setState({ simulateIndexing: (target as HTMLInputElement).checked });
       } else if (target.id === "protocol-select") {
-        const value = (target as HTMLSelectElement).value;
+        let e = (target as HTMLSelectElement);
+        const value = e.value;
+        let remote_client_id = e.options[e.selectedIndex].id;
+        console.log(remote_client_id);
         this.setState({ selectedProtocol: value });
         if (value === "none") {
           this.setState({ identifier: "", uri: [], location: "" });
           this.updateSelectedPathDisplay("");
         } else {
-          console.log("Clicked: ", target);
-          console.log("value Seems to be: ", value);
-
-          // this.setState({ identifier: value, uri: [], location: value });
-          this.setState({ identifier: value, uri: [], location: "REMOTE" });
-          console.log(this.state);
+          this.setState({ identifier: value, uri: [], location: "REMOTE", remote_client_id: remote_client_id});
           this.updateSelectedPathDisplay(this.getDisplayPath());
         }
       } else if (target.id === "complete-rescan") {
@@ -421,7 +421,7 @@ export class IndexingComponent {
 
   // --- API/Service Calls ---
   private async startIndexing() { // Initiates the indexing (scan) process
-    const { identifier, uri, location } = this.state.value; // Destructure current selection state
+    const { identifier, uri, location, remote_client_id } = this.state.value; // Destructure current selection state
     
     if (!identifier || identifier === "" || identifier === "none") { // Validate a selection exists
       this.setState({ error: "Please choose a folder or connect a cloud service." }); // Set error if invalid
@@ -437,6 +437,7 @@ export class IndexingComponent {
         uri: uri, // Folder path segments
         complete_rescan: this.state.value.completeRescan, // Whether to force re-scan
         simulate_indexing: this.state.value.simulateIndexing, // Whether this is a dry run
+        remote_client_id: remote_client_id
       };
       const resp = await fetchWithSession(endpoints.INDEX_START, { // Send start request to backend
         method: "POST", // Use POST for starting job
