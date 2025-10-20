@@ -33,24 +33,26 @@ class Extensions {
     // Method to load extensions from server/API
     async loadAvailableExtensions() {
         try {
-            // const response = await fetch("/api/available-extensions");
-            // if (!response.ok) {
-            //     throw new Error("Failed to fetch available extensions");
-            // }
-            // const availableExtensions = await response.json();
-            // this.extensions = availableExtensions;
+            // Possible Supported Protocols by Backend!
+            // NOTE: idea is to allow multiple-devices/clients for each protocol though, condition on some unique Id for each such device!
+            // For now Hard-coded. Just Extend it when required!
             this.extensions = [
-                //  TODO: update ids to 3letter ids, mtp, gdr!
-                { id: "mtp", name: "Android", isSetup: false, classname: "MTPScanner", filename: "mtp.js" },
-                { id: "gdr", name: "Google Drive", isSetup: false, classname: "DriveScanner", filename: "drive.js" }
+                { id: "mtp", 
+                    name: "Android", 
+                    classname: "MTPScanner", 
+                    filename: "mtp.js" 
+                },
+                { id: "gdr", 
+                    name: "Google Drive",
+                    classname: "DriveScanner", 
+                    filename: "drive.js" 
+                }
             ];
             this.render();
         } catch (error) {
             console.error("Failed to load available extensions:", error);
         }
     }
-
-
 
     render() {
         if (!this.root) {
@@ -76,6 +78,50 @@ class Extensions {
                 }
             }
         });
+
+        // On a new render request, (generally on reload and on finishSetup), we can get the info about configured devices so far.
+        // May need minor changes, like when add option to unlink/unregister a device in the future.
+        fetch("http://localhost:5000/api/getRemoteClients")
+        .then((response) => {
+            if (response.ok){
+                response.json()
+                // append info for each configured devices/clients as a new child!
+                .then((data) => {
+                    let parent = document.getElementById("configured-extensions");
+                    // RemoteClientInfo type!
+                    let n = data.length;
+                    for(let i = 0; i< n;i++){
+                        let temp = turnHTMLToElement(
+                           ` <div
+                           class="bg-white p-2 rounded-lg border border-gray-200 flex items-center justify-between hover:border-gray-300 transition-colors">
+                           <div class="flex items-center space-x-3">
+                               <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                   <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                       <path
+                                           d="M7.71 3.5L1.15 15l3.85 6.5L11.56 10zM22.85 15l-3.85 6.5L12.44 10l6.56-6.5z" />
+                                   </svg>
+                               </div>
+                               <div>
+                                   <p class="text-sm font-medium text-gray-900">${data[i]["name"]}</p>
+                                   <p class="text-xs text-gray-500">${data[i]["id"]}</p>
+                               </div>
+                           </div>
+                            <button type="button" class="bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center text-sm">Unlink</button>
+                           <span class="text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded-full">${data[i]["protocol"]}</span>
+                       </div>` 
+                        )
+                        parent.appendChild(temp);
+                    }
+            })
+            }
+        else
+        {
+           console.error("Error while requesting Remote Clients!")
+        }
+        })
+        
+        let temp = document.getElementById("configured-extensions");
+        
     }
 
     onFinishSetup(index) {
