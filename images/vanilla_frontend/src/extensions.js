@@ -1,18 +1,8 @@
 
 import Modal from "./components/Modal.js";
 import { turnHTMLToElement } from "./utils.js";
-import {Layout} from "./components/Layout.js";
-
-// Initialize the layout for the main page
-new Layout({
-  title: 'Hachi - Photo Management System',
-  currentPage: '/extensions.html',
-  showNavbar: true
-});
 
 class Extensions {
-    // During Production) /api/ext should also be enough!
-    BASE_URL = "http://localhost:5000/api/ext" 
     rootId = "extensions";
     root = document.getElementById(this.rootId);
     constructor() {
@@ -43,23 +33,26 @@ class Extensions {
     // Method to load extensions from server/API
     async loadAvailableExtensions() {
         try {
-            // const response = await fetch("/api/available-extensions");
-            // if (!response.ok) {
-            //     throw new Error("Failed to fetch available extensions");
-            // }
-            // const availableExtensions = await response.json();
-            // this.extensions = availableExtensions;
+            // Possible Supported Protocols by Backend!
+            // NOTE: idea is to allow multiple-devices/clients for each protocol though, condition on some unique Id for each such device!
+            // For now Hard-coded. Just Extend it when required!
             this.extensions = [
-                { id: "mtp", name: "Android", isSetup: false, classname: "MTPScanner", filename: "mtp.js" },
-                { id: "gdr", name: "Google Drive", isSetup: false, classname: "DriveScanner", filename: "drive.js" }
+                { id: "mtp", 
+                    name: "Android", 
+                    classname: "MTPScanner", 
+                    filename: "mtp.js" 
+                },
+                { id: "gdr", 
+                    name: "Google Drive",
+                    classname: "DriveScanner", 
+                    filename: "drive.js" 
+                }
             ];
             this.render();
         } catch (error) {
             console.error("Failed to load available extensions:", error);
         }
     }
-
-
 
     render() {
         if (!this.root) {
@@ -85,6 +78,50 @@ class Extensions {
                 }
             }
         });
+
+        // On a new render request, (generally on reload and on finishSetup), we can get the info about configured devices so far.
+        // May need minor changes, like when add option to unlink/unregister a device in the future.
+        fetch("http://localhost:5000/api/getRemoteClients")
+        .then((response) => {
+            if (response.ok){
+                response.json()
+                // append info for each configured devices/clients as a new child!
+                .then((data) => {
+                    let parent = document.getElementById("configured-extensions");
+                    // RemoteClientInfo type!
+                    let n = data.length;
+                    for(let i = 0; i< n;i++){
+                        let temp = turnHTMLToElement(
+                           ` <div
+                           class="bg-white p-2 rounded-lg border border-gray-200 flex items-center justify-between hover:border-gray-300 transition-colors">
+                           <div class="flex items-center space-x-3">
+                               <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                   <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                       <path
+                                           d="M7.71 3.5L1.15 15l3.85 6.5L11.56 10zM22.85 15l-3.85 6.5L12.44 10l6.56-6.5z" />
+                                   </svg>
+                               </div>
+                               <div>
+                                   <p class="text-sm font-medium text-gray-900">${data[i]["name"]}</p>
+                                   <p class="text-xs text-gray-500">${data[i]["id"]}</p>
+                               </div>
+                           </div>
+                            <button type="button" class="bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center text-sm">Unlink</button>
+                           <span class="text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded-full">${data[i]["protocol"]}</span>
+                       </div>` 
+                        )
+                        parent.appendChild(temp);
+                    }
+            })
+            }
+        else
+        {
+           console.error("Error while requesting Remote Clients!")
+        }
+        })
+        
+        let temp = document.getElementById("configured-extensions");
+        
     }
 
     onFinishSetup(index) {
@@ -109,9 +146,8 @@ class Extensions {
             // Create script element and load from the server
             const script = document.createElement('script');
             script.type = "module";
-            // Actually served from extension specific folder! So an extension would be self-contained!
-            script.src = `${this.BASE_URL}/${extension.id}/static/${extension.filename}` // or filepath
-
+            // script.src = `./${extension.filename}` // or filepath
+            script.src  = "http://localhost:5000/api/ext/" + extension.id +"/static/" + `${extension.filename}`
             // Wait for the script to load
             await new Promise((resolve, reject) => {
                 script.onload = () => {
@@ -221,9 +257,9 @@ class UI {
     static extensionsList(extensions) {
         const fragment = document.createDocumentFragment();
         extensions.forEach((extension) => {
-            const row = this.extensionRow(extension);
-            if (row) {
-                fragment.append(row);
+            const button = this.extensionButton(extension);
+            if (button) {
+                fragment.append(button);
             }
         });
         return fragment;
@@ -236,29 +272,12 @@ class UI {
         }
     }
 
-    static extensionRow(extension) {
+    static extensionButton(extension) {
         return turnHTMLToElement(`
-            <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg mb-3">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                        <span class="text-white font-semibold text-lg">${extension.name.charAt(0)}</span>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-800">${extension.name}</h3>
-                        <p class="text-sm text-gray-500">${extension.isSetup ? "Ready to use" : "Setup required"}</p>
-                    </div>
-                </div>
+                <button type="button" class="bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center text-sm cursor-pointer space-x-2 disabled:opacity-75">
 
-                <button type="button" class="${extension.isSetup ? 'bg-green-100 text-green-700 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'} px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center text-sm cursor-pointer space-x-2 disabled:opacity-75"
-                ${extension.isSetup ? "diabled" : ""}>
-
-                ${extension.isSetup
-                ? '<svg class="w-5 h-5 inline mr-1" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>Configured'
-                : '<svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>Setup'}
-
+                <svg class="w-5 h-5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg> ${extension.name}
                 </button>
-
-            </div>
         `);
     }
 }

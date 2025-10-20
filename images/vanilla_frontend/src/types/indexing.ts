@@ -12,6 +12,13 @@ export interface IndexStartRequest {
   complete_rescan?: boolean;
 }
 
+export interface RemoteClientInfo {
+  protocol:string; // generally a 3 letter protocol identifier like MTP, GDR (google drive)
+  name:string;    // descriptive name
+  last_scan:string;     // (iso-format) last successful scan information!
+  id:string;            // unique Id like an email or device-serial number!
+  logo:string;          // supposed to be  base64 encoded, but still be sent from backend!
+}
 export interface Partition {
   location: string;
   identifier: string;
