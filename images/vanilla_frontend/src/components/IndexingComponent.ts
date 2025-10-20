@@ -5,6 +5,7 @@
 import type {
   IndexStartResponse,
   IndexStatusResponse,
+  RemoteClientInfo,
 } from "../types/indexing";
 
 import { fetchWithSession, html } from "../utils";
@@ -72,6 +73,29 @@ export class IndexingComponent {
     this.setupReactiveSystem();
     this.updateSelectedPathDisplay(""); // Initialize display
     this.pollIndexStatus(this.pageLoaded);
+
+    IndexingService.getRemoteClients()
+    // Get the (remote) extensions info ! and update it in the DOM.
+    // For now done on a page-reload only!
+      .then((clients) => {
+          let temp = document.getElementById("protocol-select");
+          if (temp){
+            for(let i = 0; i < clients.length; i = i + 1){
+              let option_temp = document.createElement("option");
+              option_temp.value = clients[i]["protocol"];
+              
+              // TODO: span `logo` for corresponding protocol! render corresponding svgs here!
+              // option_temp.innerHTML = '<span><img src = ' + clients[i]["logo"] + '>' + clients[i]["name"] + " " + clients[i]["id"] + '</span>';
+              option_temp.innerText = '☁️' + clients[i]["name"] + " " + clients[i]["id"];
+              temp.appendChild(option_temp);
+            }
+          }
+          else{
+            console.error("I guess not rendered yet Document!!");
+          }
+          
+      })
+  
     IndexingService.getPartitions()
       .then((partitions) => {
         this.partitions = partitions;
@@ -154,10 +178,11 @@ export class IndexingComponent {
             <select
               id="protocol-select"
               class="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed text-sm appearance-none bg-white shadow-sm transition-colors"
-            >
+              style="font-family:monospace"
+              >
               <option value="none" selected>None (Choose a LOCAL directory/folder)</option>
-              <option value="mtp"> Devices like Androids, Tablets which support MTP protocol!</option>
-              <option value="gdr"> Google Drive</option>
+              <!-- <option value="mtp"> Devices like Androids, Tablets which support MTP protocol!</option>
+              // <option value="gdr"> Google Drive</option> --!>
             </select>
             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
               <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
