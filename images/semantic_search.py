@@ -110,7 +110,7 @@ def parse_query(query:str) -> Dict[str, List[str]]:
     imageAttributes_2_values = {}
     for x in temp_query:
         temp_x = x.strip().split(separator_character)
-        attribute = temp_x[0].strip()
+        attribute = temp_x[0]
 
         values = []
         for v in temp_x[1].strip().split(or_character):
@@ -1108,6 +1108,72 @@ def getSuggestionPath(request:Request) -> List[str]:
             result = os.listdir(recreated_path)
     return jsonify(result)
 
+# WARNING - THIS CODE IS AI WRITTEN AND MAY NEED FURTHER TESTING
+# @app.route("/getAllPhotos/<page_size>", methods = ["GET"])
+def getAllPhotos(request: Request, page_size: int) -> QueryInfo:
+    """
+    Get all photos in the system with pagination.
+    This is the Q (query) part of the pagination pipeline.
+    """
+    page_size = int(page_size)
+    global query_token_counter
+    
+    # Generate a unique token for this pagination session
+    query_token = "getAllPhotos_{}".format(query_token_counter)
+    query_token_counter += 1
+    
+    if not metaIndex.backend_is_initialized:
+        return jsonify({
+            "error": True, 
+            "details": "Meta index not initialized"
+        })
+    
+    # Get all row indices (all photos in the system)
+    all_row_indices = list(range(metaIndex.rows_count))
+    
+    # For getAllPhotos, we need to get all resource_hashes upfront
+    # since we're getting ALL photos, not filtering
+    s = time.time_ns()
+    all_resource_hashes = json.loads(mBackend.collect_rows(
+        attribute = "resource_hash",
+        indices = all_row_indices
+    ))
+    print(f"[getAllPhotos] Resource hash collection: {(time.time_ns() - s) / 1e6} ms")
+    
+    # Generate pagination info with the correct tuple structure
+    n_pages = len(all_row_indices) // page_size + (1 if len(all_row_indices) % page_size > 0 else 0)
+    page_meta = []
+    
+    for i in range(n_pages):
+        start_idx = i * page_size
+        end_idx = (i + 1) * page_size
+        
+        # Follow the same tuple pattern as query_func:
+        # (row_indices, resource_hashes, scores)
+        page_meta.append(
+            (
+                all_row_indices[start_idx:end_idx],      # row_indices for this page
+                all_resource_hashes[start_idx:end_idx],  # resource_hashes for this page  
+                [1.0] * len(all_row_indices[start_idx:end_idx])  # scores (all 1.0 since no ranking)
+            )
+        )
+    
+    # Store pagination info in cache
+    info: PaginationInfo = {
+        "token": query_token,
+        "page_meta": page_meta
+    }
+    pagination_cache.add(info)
+    
+    # Return query info to client
+    q_info: QueryInfo = {
+        "n_matches": len(all_row_indices),
+        "n_pages": n_pages,
+        "query_token": query_token
+    }
+    
+    return jsonify(q_info)
+
 # -----------------------------
 # Extension specific routes/functions!
 # ---------------------------
@@ -1166,6 +1232,7 @@ if __name__ == "__main__":
     app.add_url_rule(rule = "/editMetaData", view_function = editMetaData, methods = ["POST"])
     # ping
     app.add_url_rule(rule = "/ping", view_function = ping)
+    app.add_url_rule(rule = "/getAllPhotos/<page_size>", view_function = getAllPhotos)
 
     # -----------------
     # Register Extensions:

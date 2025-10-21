@@ -1,24 +1,35 @@
-import type {
-  HachiImageData,
-} from "./types";
+import type { HachiImageData } from "./types";
 import { endpoints } from "../config";
 import type { ImageSearchResponse } from "./types";
 import { transformRawDataChunk } from "./utils";
 import { fetchWithSession } from "../utils";
 
 export class SearchService {
-  async startSearch(searchTerm: string, resultsPerPage: number): Promise<ImageSearchResponse> {
+  async startSearch(
+    searchTerm: string,
+    resultsPerPage: number
+  ): Promise<ImageSearchResponse> {
     console.log("Starting search:", searchTerm);
     let formData = new FormData();
-    formData.append("query_start", String(true));
-    formData.append("query", searchTerm);
-    formData.append("page_size", String(resultsPerPage));
+    let url = endpoints.COLLECT_ALL_PHOTOS(resultsPerPage);
+    if (searchTerm && searchTerm.length > 0) {
+      formData.append("query_start", String(true));
+      formData.append("query", searchTerm);
+      formData.append("page_size", String(resultsPerPage));
+      url = endpoints.IMAGE_SEARCH;
+    }
 
     try {
-      const response = await fetchWithSession(endpoints.IMAGE_SEARCH, {
-        method: "POST",
-        body: formData,
-      });
+      let response;
+      if (searchTerm && searchTerm.length > 0) {
+        response = await fetchWithSession(url, {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        response = await fetchWithSession(url);
+      }
+      
 
       if (!response.ok) {
         throw new Error(`Image search error: ${response.status}`);
@@ -31,11 +42,21 @@ export class SearchService {
     }
   }
 
-  async fetchSearchResults(queryToken: string, pageNumber: Number): Promise<HachiImageData[]> {
-    console.log("Fetching search results for token:", queryToken, "page:", pageNumber);
+  async fetchSearchResults(
+    queryToken: string,
+    pageNumber: Number
+  ): Promise<HachiImageData[]> {
+    console.log(
+      "Fetching search results for token:",
+      queryToken,
+      "page:",
+      pageNumber
+    );
     try {
-      const URL = `${endpoints.COLLECT_QUERY_META}/${queryToken}/${String(pageNumber)}`;
-      console.log(URL)
+      const URL = `${endpoints.COLLECT_QUERY_META}/${queryToken}/${String(
+        pageNumber
+      )}`;
+      console.log(URL);
       const response = await fetchWithSession(URL);
       if (!response.ok) {
         throw new Error(`Query results fetch error: ${response.status}`);

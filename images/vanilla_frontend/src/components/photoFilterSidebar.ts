@@ -120,6 +120,9 @@ export default class PhotoFilterSidebar {
     const filterPillsContainer = document.getElementById("filters-container");
     if (!filterPillsContainer) return;
 
+    // If the filter container is invisible, make it visible
+    filterPillsContainer.classList.remove("invisible");
+
     const icon = "";
     // Enhanced gradient and styling
 

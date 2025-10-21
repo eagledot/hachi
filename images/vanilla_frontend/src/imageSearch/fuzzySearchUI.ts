@@ -59,8 +59,8 @@ export class FuzzySearchUI {
       console.log("Extracted query params:", { attribute, value });
       if (attribute && value) {
         this.addFilter(attribute, value);
-        this.executeSearch();
       }
+      this.executeSearch();
 
       // Check if last search query exists in local storage TODO: delete it later
       // const lastSearchQuery = localStorage.getItem("lastSearchQuery");
@@ -558,7 +558,8 @@ export class FuzzySearchUI {
     this.filtersContainer.innerHTML = filtersHtml;
 
     // Show or hide the filters container based on whether any filters are selected
-    if (filtersHtml.length > 0) {
+    // Do not check this but rather if it has any child elements
+    if (this.filtersContainer.children.length > 0) {
       this.filtersContainer.classList.remove("invisible");
     } else {
       this.filtersContainer.classList.add("invisible");
@@ -576,6 +577,11 @@ export class FuzzySearchUI {
         this.removeFilter(attribute, value);
       });
     });
+
+    // If there were no filters or the container has no children, execute a search with empty search
+    if (filtersHtml.length === 0 || this.filtersContainer.children.length === 0) {
+      this.executeSearch();
+    }
   }
 
   private renderDropdown(): void {
