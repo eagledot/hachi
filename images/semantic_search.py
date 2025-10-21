@@ -1140,8 +1140,65 @@ def getAllPhotos(request: Request, page_size: int) -> QueryInfo:
     ))
     print(f"[getAllPhotos] Resource hash collection: {(time.time_ns() - s) / 1e6} ms")
     
+    # Get date fields for sorting
+    taken_at_data = json.loads(mBackend.collect_rows(
+        attribute = "taken_at",
+        indices = all_row_indices
+    ))
+    
+    resource_created_data = json.loads(mBackend.collect_rows(
+        attribute = "resource_created", 
+        indices = all_row_indices
+    ))
+    
+    # Create sortable tuples: (datetime_obj, row_index, resource_hash)
+    sortable_items = []
+    for i, (row_idx, hash_val, taken_at, created) in enumerate(
+        zip(all_row_indices, all_resource_hashes, taken_at_data, resource_created_data)
+    ):
+        # Try to parse taken_at first (EXIF datetime)
+        photo_date = None
+        # Both taken_at and resource_created are simply strings. taken_at is in format "YYYY:MM:DD HH:MM:SS" and resource_created is "YYYY-MM-DD"
+        # We can select whichever is available and try to sort by string. We might not need to convert to datetime object.
+        if taken_at and taken_at != "null":
+            # Get only the date part
+            photo_date = taken_at.split(" ")[0]
+            time_part = taken_at.split(" ")[1]
+            photo_date = photo_date.replace(":", "-", 2)  # Convert "YYYY:MM:DD" to "YYYY-MM-DD"
+        elif created and created != "null":
+            photo_date = created
+        else:
+            photo_date = "0000-00-00"  # Fallback for missing dates
+            
+        # Now change from YYYY-MM-DD to DD-MM-YYYY for correct lexicographical sorting
+        y, m, d = photo_date.split("-")
+        # Also, let's make sure they are zero-padded
+        d = d.zfill(2)
+        m = m.zfill(2)
+        # photo_date = f"{d}-{m}-{y}"
+        photo_date = f"{y}-{m}-{d}"  # Keep in YYYY-MM-DD for correct sorting
+        # Let's print for debugging
+        # print(f"Photo date for hash {hash_val}: {photo_date}")
+        # Let's add time part to ensure correct ordering within the same day
+        if taken_at and taken_at != "null":
+            photo_date += " " + time_part
+        else:
+            photo_date += " 00:00:00"
+            
+        sortable_items.append((photo_date, row_idx, hash_val))
+        
+    # Sort by date descending (newest first)
+    s = time.time_ns()
+    sortable_items.sort(key=lambda x: x[0], reverse=True)
+    print(f"[getAllPhotos] Sorting: {(time.time_ns() - s) / 1e6} ms")
+    
+    # Extract sorted data
+    sorted_row_indices = [item[1] for item in sortable_items]
+    sorted_resource_hashes = [item[2] for item in sortable_items]
+    
+    
     # Generate pagination info with the correct tuple structure
-    n_pages = len(all_row_indices) // page_size + (1 if len(all_row_indices) % page_size > 0 else 0)
+    n_pages = len(sorted_row_indices) // page_size + (1 if len(sorted_row_indices) % page_size > 0 else 0)
     page_meta = []
     
     for i in range(n_pages):
@@ -1152,9 +1209,9 @@ def getAllPhotos(request: Request, page_size: int) -> QueryInfo:
         # (row_indices, resource_hashes, scores)
         page_meta.append(
             (
-                all_row_indices[start_idx:end_idx],      # row_indices for this page
-                all_resource_hashes[start_idx:end_idx],  # resource_hashes for this page  
-                [1.0] * len(all_row_indices[start_idx:end_idx])  # scores (all 1.0 since no ranking)
+                sorted_row_indices[start_idx:end_idx],      # row_indices for this page
+                sorted_resource_hashes[start_idx:end_idx],  # resource_hashes for this page
+                [1.0] * len(sorted_row_indices[start_idx:end_idx])  # scores (all 1.0 since no ranking)
             )
         )
     
@@ -1167,7 +1224,7 @@ def getAllPhotos(request: Request, page_size: int) -> QueryInfo:
     
     # Return query info to client
     q_info: QueryInfo = {
-        "n_matches": len(all_row_indices),
+        "n_matches": len(sorted_row_indices),
         "n_pages": n_pages,
         "query_token": query_token
     }
