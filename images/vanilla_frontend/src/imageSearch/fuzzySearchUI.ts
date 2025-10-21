@@ -541,7 +541,7 @@ export class FuzzySearchUI {
             return `
             <div class="flex items-center rounded-sm px-1 py-1 ${color} cursor-pointer group filter-tag" data-attribute="${attribute}" data-value="${value}">
               <span class="mr-2 sm:mr-3 text-sm sm:text-base">${icon}</span>
-              <span class="text-xs font-semibold truncate max-w-[120px] sm:max-w-none">${value}</span>
+              <span title="${value}" class="text-xs font-semibold truncate max-w-[120px] sm:max-w-none">${value.length > 20 ? value.slice(0, 20) + "..." : value}</span>
               <button class="ml-2 sm:ml-3 text-current opacity-70 hover:opacity-100 hover:bg-white hover:bg-opacity-40 rounded-full p-1.5 transition-all duration-300 remove-filter-btn hover:scale-110 active:scale-90" data-attribute="${attribute}" data-value="${value}">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
