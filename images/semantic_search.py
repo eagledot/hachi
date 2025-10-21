@@ -169,6 +169,7 @@ class IndexBeginAttribute(TypedDict):
     uri:list[str]   # could be empty too!
     complete_rescan:bool
     simulate_indexing:bool     # to simulate some parts like image-embedding generation to speed up indexing !
+    remote_client_id:str       # in case `identifier` referes to an extension/remote protocol!
 
 ##app.route("/indexStart", methods = ["POST"])        
 def indexStart(request:Request) -> ReturnInfo:
@@ -205,7 +206,8 @@ def indexStart(request:Request) -> ReturnInfo:
             extension_identifier = post_attributes["identifier"]
             if (extension_identifier in REGISTERED_EXTENSIONS):
                 remote_extension = REGISTERED_EXTENSIONS[post_attributes["identifier"]]
-                if remote_extension.is_ready == False:
+                remote_client_id = post_attributes["remote_client_id"]
+                if remote_extension.ping(r = None, id = remote_client_id) != "ok":
                     return jsonify(ReturnInfo(error = True, details = "{} has not setup yet!\nVisit Extensions Interface to configure the {}".format(extension_identifier, extension_identifier)))
             else:
                 return jsonify(ReturnInfo(error = True, details = "{} Doesn't exist on the server side!".format(post_attributes["identifier"])))
@@ -233,7 +235,8 @@ def indexStart(request:Request) -> ReturnInfo:
                 semantic_index = imageIndex,
                 complete_rescan = post_attributes["complete_rescan"],
                 simulate = post_attributes["simulate_indexing"],
-                remote_extension = remote_extension
+                remote_extension = remote_extension,
+                remote_client_id = post_attributes.get("remote_client_id",None)
             )
 
             # start the indexing, it return after starting a background-thread!
