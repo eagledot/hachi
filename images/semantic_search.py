@@ -1179,29 +1179,29 @@ if __name__ == "__main__":
     mtp_extension = MtpExtension()
     gdr_extension = GoogleDrive()
     # For now do it manually!
-    gdr_extension.begin_setup(r = None) # We already have a `token.json`, so it will not start consent process!
-    gdr_extension.finish_setup(r = None)
+    # gdr_extension.begin_setup(r = None) # We already have a `token.json`, so it will not start consent process!
+    # gdr_extension.finish_setup(r = None)
 
-        # UPDATE THE GLOBAL MAPPING!
-        REGISTERED_EXTENSIONS = {
-            mtp_extension.get_name(): mtp_extension,
-            gdr_extension.get_name(): gdr_extension,
-        }
-        print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
+    # UPDATE THE GLOBAL MAPPING!
+    REGISTERED_EXTENSIONS = {
+        mtp_extension.get_name(): mtp_extension,
+        gdr_extension.get_name(): gdr_extension,
+    }
+    print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
 
-        # Collect remote clients info , for all protocols!
-        app.add_url_rule(
-            rule = "/getRemoteClients", 
-            view_function = get_remote_clients
-        )
-        app.register(
-            mtp_extension.get_wsgi_app(),
-            name = mtp_extension.get_name()
-        )
-        app.register(
-            gdr_extension.get_wsgi_app(),
-            name = gdr_extension.get_name()
-        )
+    # Collect remote clients info , for all protocols!
+    app.add_url_rule(
+        rule = "/getRemoteClients", 
+        view_function = get_remote_clients
+    )
+    app.register(
+        mtp_extension.get_wsgi_app(),
+        name = mtp_extension.get_name()
+    )
+    app.register(
+        gdr_extension.get_wsgi_app(),
+        name = gdr_extension.get_name()
+    )
 
     # Run the WSGI server, with `app` as underlying WSGI application!
     run_simple(

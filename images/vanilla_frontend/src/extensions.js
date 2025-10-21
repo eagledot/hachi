@@ -74,6 +74,13 @@ class Extensions {
                 throw new Error("Network response was not ok");
             }
             const data = await response.json();
+
+            // If no configured clients, show a message
+            if (data.length === 0) {
+                let parent = document.getElementById("configured-extensions");
+                parent.replaceChildren(UI.noRemoveClientsMessage());
+                return;
+            }
             let parent = document.getElementById("configured-extensions");
             for (let i = 0; i < data.length; i++) {
                 let temp = UI.configuredExtensionRow(data[i]);
@@ -235,6 +242,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 class UI {
+
+    static noRemoveClientsMessage() {
+        return turnHTMLToElement(`
+            <div class="text-center text-gray-500 mt-10">
+                <p class="text-lg">No remote clients configured.</p>
+                <p class="text-sm">Please add a remote client to manage photos from other devices.</p>
+                <button onclick="location.reload()" type="button" class="mt-4 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-lg font-medium transition-colors duration-200">Refresh</button>
+            </div>
+        `);
+    }
 
     static configuredExtensionRow(data) {
         return turnHTMLToElement(

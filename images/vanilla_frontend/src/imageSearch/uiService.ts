@@ -352,6 +352,44 @@ export class UIService {
   }
 
   /**
+   * Formats date string for display in photo cards
+   * Handles format like "2024:01:26 18:12:46" and returns just the date part
+   */
+  private formatDateForDisplay(dateString: string): string {
+    try {
+      // Handles the specific format "YYYY:MM:DD HH:MM:SS"
+      if (dateString.includes(":") && dateString.includes(" ")) {
+        // SPlit by space to seperate date and time
+        const [datePart] = dateString.split(" ");
+
+        // Replace colons with dashes to make it ISO compatible
+        const isoDateString = datePart.replace(/:/g, "-");
+
+        // Parse the date
+        const date = new Date(isoDateString);
+
+        // Check if the date is valid
+        if (isNaN(date.getTime())) {
+          return dateString; // Return original if invalid
+        }
+
+        // Format as a readable date (e.g., "Jan 26, 2024")
+        const options: Intl.DateTimeFormatOptions = {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        };
+        return date.toLocaleDateString(undefined, options);
+      }
+      return dateString; // Return original if format not matched
+    }
+    catch (err) {
+      console.error("Error formatting date:", err);
+      return dateString;
+    }
+  }
+
+  /**
    * Creates an empty photo element template for reuse
    */
   private createEmptyPhotoElement(): HTMLElement {
@@ -423,7 +461,7 @@ export class UIService {
     // Update caption
     const caption = element.querySelector('[data-photo-caption="true"]') as HTMLElement | null;
     if (caption) {
-      const fullname = photo.metadata?.filename || "";
+      const fullname = this.formatDateForDisplay(photo.metadata?.taken_at!) || photo.metadata?.filename || "";
       // Get the width of the element to determine how much text can fit
       const elementWidth = element.clientWidth;
       // Approximate max characters based on width (assuming avg char width ~8px)
