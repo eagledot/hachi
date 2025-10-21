@@ -353,11 +353,11 @@ export class UIService {
 
   /**
    * Formats date string for display in photo cards
-   * Handles format like "2024:01:26 18:12:46" and returns just the date part
+   * Handles format like "2024:01:26 18:12:46" or "2024-01-23" and returns just the date part
    */
   private formatDateForDisplay(dateString: string): string {
     try {
-      // Handles the specific format "YYYY:MM:DD HH:MM:SS"
+      // Handles the specific format "YYYY:MM:DD HH:MM:SS" 
       if (dateString.includes(":") && dateString.includes(" ")) {
         // SPlit by space to seperate date and time
         const [datePart] = dateString.split(" ");
@@ -380,10 +380,23 @@ export class UIService {
           day: "numeric",
         };
         return date.toLocaleDateString(undefined, options);
-      }
-      return dateString; // Return original if format not matched
-    }
-    catch (err) {
+      } else if (dateString.includes("-")) {
+        // Handle standard ISO format "YYYY-MM-DD"
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) {
+          return dateString; // Return original if invalid
+        }
+
+        // Format as a readable date (e.g., "Jan 26, 2024")
+        const options: Intl.DateTimeFormatOptions = {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        };
+        return date.toLocaleDateString(undefined, options);
+      } 
+      return dateString;
+    } catch (err) {
       console.error("Error formatting date:", err);
       return dateString;
     }
@@ -461,7 +474,7 @@ export class UIService {
     // Update caption
     const caption = element.querySelector('[data-photo-caption="true"]') as HTMLElement | null;
     if (caption) {
-      const fullname = this.formatDateForDisplay(photo.metadata?.taken_at!) || photo.metadata?.filename || "";
+      const fullname = this.formatDateForDisplay(photo.metadata?.taken_at! || photo.metadata?.resource_created!) || photo.metadata?.filename || "";
       // Get the width of the element to determine how much text can fit
       const elementWidth = element.clientWidth;
       // Approximate max characters based on width (assuming avg char width ~8px)
@@ -525,6 +538,10 @@ export class UIService {
       console.error("Modal image element not found");
       return;
     }
+
+    // Console the photo being shown
+    console.log("Showing modal for photo:", photo.metadata);
+
     if (this.modal.classList.contains("hidden")) {
       this.modal.classList.remove("hidden");
     }
@@ -646,109 +663,21 @@ export class UIService {
             ? `${metadata.width} × ${metadata.height}`
             : null,
       },
-      {
-        label: "Date Taken",
-        value:
-          metadata.taken_at && metadata.taken_at.toLowerCase() !== "unk"
-            ? metadata.taken_at
-            : null,
-      },
-      {
-        label: "Location",
-        value:
-          metadata.place && metadata.place.toLowerCase() !== "unk"
-            ? metadata.place
-            : null,
-      },
-      { label: "Description", value: metadata.description },
-      {
-        label: "Device",
-        value:
-          metadata.device && metadata.device.toLowerCase() !== "unk"
-            ? metadata.device
-            : null,
-      },
+      
       { label: "Path", value: metadata.resource_path },
     ].filter((item) => item.value && item.value.toString().trim() !== "");
 
+    // Rather than manually showing metadata fields, let's show all of them dynamically
+    for (const [key, value] of Object.entries(metadata)) {
+      if (value && value.toString().trim() !== "") {
+        // Let's format the label to be more user-friendly
+        const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
+        metadataItems.push({ label: formattedKey, value });
+      }
+    }
+
     // Use DocumentFragment for efficient DOM building
     const fragment = document.createDocumentFragment();
-
-    // Create standard metadata items
-    // Create standard metadata items
-    metadataItems.forEach((item) => {
-      const div = document.createElement("div");
-      div.className =
-        "grid grid-cols-3 gap-2 py-1 border-b border-gray-800 last:border-b-0";
-
-      const label = document.createElement("span");
-      label.className = "font-semibold col-span-1 text-gray-100";
-      label.textContent = `${item.label}:`;
-      div.appendChild(label);
-      const valueText = item.value as string;
-
-      // Special handling for Path label
-      if (item.label === "Path") {
-        // Create container for value and copy button
-        const valueContainer = document.createElement("div");
-        valueContainer.className = "col-span-2 flex gap-2";
-
-        const value = document.createElement("span");
-        value.className = "text-gray-200 flex-1 min-w-0";
-
-        const maxLength = 20; // Adjust this value as needed
-        const trimmedText =
-          valueText.length > maxLength
-            ? valueText.substring(0, maxLength) + "..."
-            : valueText;
-        value.textContent = trimmedText;
-        value.title = valueText; // Full path in tooltip
-
-        // Create copy button
-        const copyButton = document.createElement("button");
-        copyButton.className =
-          "text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded transition-colors";
-        copyButton.innerHTML = "📋"; // You can replace with an icon
-        copyButton.title = "Copy full path";
-
-        // Copy functionality
-        copyButton.addEventListener("click", async () => {
-          try {
-            await navigator.clipboard.writeText(valueText);
-            copyButton.innerHTML = "✅";
-            setTimeout(() => {
-              copyButton.innerHTML = "📋";
-            }, 1000);
-          } catch (err) {
-            // Fallback for older browsers
-            const textArea = document.createElement("textarea");
-            textArea.value = valueText;
-            document.body.appendChild(textArea);
-            textArea.select();
-            document.execCommand("copy");
-            document.body.removeChild(textArea);
-
-            copyButton.innerHTML = "✅";
-            setTimeout(() => {
-              copyButton.innerHTML = "📋";
-            }, 1000);
-          }
-        });
-
-        valueContainer.appendChild(value);
-        valueContainer.appendChild(copyButton);
-        div.appendChild(valueContainer);
-      } else {
-        // Standard handling for other labels
-        const value = document.createElement("span");
-        value.className = "col-span-2 text-gray-200";
-        value.textContent = valueText;
-        div.appendChild(value);
-      }
-
-      // Value handling is now inside the conditional above
-      fragment.appendChild(div);
-    });
 
     // Add people section if available
     const hasPeople =
@@ -831,6 +760,86 @@ export class UIService {
       peopleDiv.appendChild(peopleContainer);
       fragment.appendChild(peopleDiv);
     }
+
+    // Create standard metadata items
+    // Create standard metadata items
+    metadataItems.forEach((item) => {
+      const div = document.createElement("div");
+      div.className =
+        "grid grid-cols-3 gap-2 py-1 border-b border-gray-800 last:border-b-0";
+
+      const label = document.createElement("span");
+      label.className = "font-semibold col-span-1 text-gray-100";
+      label.textContent = `${item.label}:`;
+      div.appendChild(label);
+  
+
+      const valueText = typeof item.value === "string" ? item.value : String(item.value);
+
+      // Special handling any label that is more than certain length
+      if (valueText.length >= 20) {
+        // Create container for value and copy button
+        const valueContainer = document.createElement("div");
+        valueContainer.className = "col-span-2 flex gap-2";
+
+        const value = document.createElement("span");
+        value.className = "text-gray-200 flex-1 min-w-0";
+
+        const maxLength = 20; // Adjust this value as needed
+        const trimmedText =
+          valueText.length > maxLength
+            ? valueText.substring(0, maxLength) + "..."
+            : valueText;
+        value.textContent = trimmedText;
+        value.title = valueText; // Full path in tooltip
+
+        // Create copy button
+        const copyButton = document.createElement("button");
+        copyButton.className =
+          "text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded transition-colors";
+        copyButton.innerHTML = "📋"; // You can replace with an icon
+        copyButton.title = "Copy full path";
+
+        // Copy functionality
+        copyButton.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(valueText);
+            copyButton.innerHTML = "✅";
+            setTimeout(() => {
+              copyButton.innerHTML = "📋";
+            }, 1000);
+          } catch (err) {
+            // Fallback for older browsers
+            const textArea = document.createElement("textarea");
+            textArea.value = valueText;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+
+            copyButton.innerHTML = "✅";
+            setTimeout(() => {
+              copyButton.innerHTML = "📋";
+            }, 1000);
+          }
+        });
+
+        valueContainer.appendChild(value);
+        valueContainer.appendChild(copyButton);
+        div.appendChild(valueContainer);
+      } else {
+        // Standard handling for other labels
+        const value = document.createElement("span");
+        value.className = "col-span-2 text-gray-200";
+        value.textContent = valueText;
+        div.appendChild(value);
+      }
+
+      // Value handling is now inside the conditional above
+      fragment.appendChild(div);
+    });
+
+    
 
     // Clear and append all at once for efficiency
     this.modalMetadata.innerHTML = "";
