@@ -10,6 +10,7 @@ interface PhotoFilters {
   cameraModels?: string[];
   places?: string[];
   tags?: string[];
+  years?: string[];
 }
 
 const Filter_UI_Mapping = {
@@ -18,6 +19,7 @@ const Filter_UI_Mapping = {
   cameraModels: "Camera Models",
   places: "Places",
   tags: "Tags",
+  years: "Years",
 };
 
 const Filter_Request_Mapping = {
@@ -26,6 +28,7 @@ const Filter_Request_Mapping = {
   cameraModels: "model",
   places: "place",
   tags: "tags",
+  years: "year",
 };
 
 export default class PhotoFilterSidebar {
@@ -154,7 +157,16 @@ export default class PhotoFilterSidebar {
     valueSpan.style.maxWidth = "360px";
     valueSpan.style.textShadow = "0 1px 2px rgba(0, 0, 0, 0.1)";
     valueSpan.style.lineHeight = "1.4";
-    valueSpan.textContent = value;
+    // If value is of format yyyy-mm, convert to Month YYYY
+    if (attribute === "years" && /^\d{4}-\d{1,2}$/.test(value)) {
+      const [year, month] = value.split("-");
+      const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString(
+        "default", { month: "long" }
+      );
+      valueSpan.textContent = `${monthName} ${year}`;
+    } else {
+      valueSpan.textContent = value;
+    }
     pill.appendChild(valueSpan);
 
     // Enhanced remove button
@@ -523,8 +535,24 @@ export default class PhotoFilterSidebar {
     if (filterName === "people") {
       return this.createPeopleFilterUI();
     }
+
+    // If filterName is years, sort options in descending order but pad month values
+    if (filterName === "years") {
+      options.sort((a, b) => {
+        const [yearA, monthA] = a.split("-");
+        const [yearB, monthB] = b.split("-");
+        const dateA = new Date(parseInt(yearA), parseInt(monthA) - 1);
+        const dateB = new Date(parseInt(yearB), parseInt(monthB) - 1);
+        return dateB.getTime() - dateA.getTime();
+      });
+    }
+
     const filterContainer = document.createElement("div");
     filterContainer.className = "filter-container mb-4";
+
+    // Every filter should have a max height with scroll
+    filterContainer.style.maxHeight = "600px";
+    filterContainer.style.overflowY = "auto";
 
     const filterTitle = document.createElement("h4");
     filterTitle.textContent =
@@ -545,6 +573,9 @@ export default class PhotoFilterSidebar {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.name = filterName;
+
+      
+
       checkbox.value = option;
       checkbox.className =
         "mr-2 accent-blue-600 w-4 h-4 rounded border-gray-300";
@@ -565,7 +596,18 @@ export default class PhotoFilterSidebar {
       });
 
       label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(option));
+      // when filterName is year, the value will be 2023-4 for April 2023
+      // So, we need to display it as April 2023
+      if (filterName === "years") {
+        const [year, month] = option.split("-");
+        const monthName = new Date(parseInt(year), parseInt(month) - 1).toLocaleString(
+          "default",
+          { month: "long" }
+        );
+        label.appendChild(document.createTextNode(`${monthName} ${year}`));
+      } else {
+        label.appendChild(document.createTextNode(option));
+      }
       optionItem.appendChild(label);
 
       optionsList.appendChild(optionItem);

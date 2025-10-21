@@ -834,7 +834,7 @@ def filterPopulateQuery(request:Request, query_token:str,  attribute:str) -> lis
         year_set = set()
         for x in json.loads(raw_json):
             # x would be in format "yyyy-mm-dd"
-            year_set.add(x.split("-")[0])
+            year_set.add(x.split("-")[0] + "-" + x.split("-")[1])
         
         # create a json repr from set TOdO:
         # temp_str = str(year_set)
@@ -900,6 +900,7 @@ def filterQueryMeta(request:Request, query_token:str, attribute:str, value:Any) 
     else:
         if attribute == "resource_created":
             # For now just comparing `year` (client is providing this)
+            # @Akshay, Let's also compare year-month for better filtering!
             for ix, x in enumerate(results):
                 if value in x: # year in string of format "yyyy-mm-dd" 
                     row_idx = final_row_indices[ix]
