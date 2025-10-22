@@ -47,7 +47,7 @@ class ImageSearchApp {
     const photoGallery = document.getElementById("photo-gallery");
 
     // Get the photo gallery height
-    const photoGalleryHeight = windowHeight - 172; // Based on header and footer heights
+    const photoGalleryHeight = windowHeight - 140; // Based on header and footer heights
     console.log(`Photo gallery height: ${photoGalleryHeight}px`);
 
     // Get photo-gallery width
@@ -211,10 +211,12 @@ class ImageSearchApp {
    * Validates, starts search, updates pagination, filter, and UI state.
    */
   private async handleSearch(query: string): Promise<void> {
-    if (!query.trim()) {
-      this.uiService.updateError("Please enter a search term");
-      return;
-    }
+    // if (!query.trim()) {
+    //   this.uiService.updateError("Please enter a search term");
+    //   return;
+    // }
+    // We have commented the above code. But this is not the best solution. TODO: Need to handle empty search better
+    
     // Clear cache
     this.clearPreloadedCache();
     console.log("Starting search for:", query);

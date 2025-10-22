@@ -1,6 +1,14 @@
 
 import Modal from "./components/Modal.js";
 import { turnHTMLToElement } from "./utils.js";
+import { Layout } from "./components/Layout.js";
+
+// Initialize the layout for the main page
+new Layout({
+    title: 'Hachi - Photo Management System',
+    currentPage: '/extensions',
+    showNavbar: true
+});
 
 class Extensions {
     rootId = "extensions";
@@ -37,20 +45,49 @@ class Extensions {
             // NOTE: idea is to allow multiple-devices/clients for each protocol though, condition on some unique Id for each such device!
             // For now Hard-coded. Just Extend it when required!
             this.extensions = [
-                { id: "mtp", 
-                    name: "Android", 
-                    classname: "MTPScanner", 
-                    filename: "mtp.js" 
+                {
+                    id: "mtp",
+                    name: "Android",
+                    classname: "MTPScanner",
+                    filename: "mtp.js"
                 },
-                { id: "gdr", 
+                {
+                    id: "gdr",
                     name: "Google Drive",
-                    classname: "DriveScanner", 
-                    filename: "drive.js" 
+                    classname: "DriveScanner",
+                    filename: "drive.js"
                 }
             ];
             this.render();
         } catch (error) {
             console.error("Failed to load available extensions:", error);
+        }
+    }
+
+    async getRemoteClients() {
+        // Fetch the list of remote clients from the server
+        // On a new render request, (generally on reload and on finishSetup), we can get the info about configured devices so far.
+        // May need minor changes, like when add option to unlink/unregister a device in the future.
+        try {
+            const response = await fetch("http://localhost:5000/api/getRemoteClients");
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+            const data = await response.json();
+
+            // If no configured clients, show a message
+            if (data.length === 0) {
+                let parent = document.getElementById("configured-extensions");
+                parent.replaceChildren(UI.noRemoveClientsMessage());
+                return;
+            }
+            let parent = document.getElementById("configured-extensions");
+            for (let i = 0; i < data.length; i++) {
+                let temp = UI.configuredExtensionRow(data[i]);
+                parent.appendChild(temp);
+            }
+        } catch (error) {
+            console.error("Failed to fetch configured extensions:", error);
         }
     }
 
@@ -79,49 +116,10 @@ class Extensions {
             }
         });
 
-        // On a new render request, (generally on reload and on finishSetup), we can get the info about configured devices so far.
-        // May need minor changes, like when add option to unlink/unregister a device in the future.
-        fetch("http://localhost:5000/api/getRemoteClients")
-        .then((response) => {
-            if (response.ok){
-                response.json()
-                // append info for each configured devices/clients as a new child!
-                .then((data) => {
-                    let parent = document.getElementById("configured-extensions");
-                    // RemoteClientInfo type!
-                    let n = data.length;
-                    for(let i = 0; i< n;i++){
-                        let temp = turnHTMLToElement(
-                           ` <div
-                           class="bg-white p-2 rounded-lg border border-gray-200 flex items-center justify-between hover:border-gray-300 transition-colors">
-                           <div class="flex items-center space-x-3">
-                               <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                   <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-                                       <path
-                                           d="M7.71 3.5L1.15 15l3.85 6.5L11.56 10zM22.85 15l-3.85 6.5L12.44 10l6.56-6.5z" />
-                                   </svg>
-                               </div>
-                               <div>
-                                   <p class="text-sm font-medium text-gray-900">${data[i]["name"]}</p>
-                                   <p class="text-xs text-gray-500">${data[i]["id"]}</p>
-                               </div>
-                           </div>
-                            <button type="button" class="bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center text-sm">Unlink</button>
-                           <span class="text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded-full">${data[i]["protocol"]}</span>
-                       </div>` 
-                        )
-                        parent.appendChild(temp);
-                    }
-            })
-            }
-        else
-        {
-           console.error("Error while requesting Remote Clients!")
-        }
-        })
         
-        let temp = document.getElementById("configured-extensions");
-        
+        // Also fetch and render the configured remote clients/devices
+        this.getRemoteClients();
+
     }
 
     onFinishSetup(index) {
@@ -147,7 +145,7 @@ class Extensions {
             const script = document.createElement('script');
             script.type = "module";
             // script.src = `./${extension.filename}` // or filepath
-            script.src  = "http://localhost:5000/api/ext/" + extension.id +"/static/" + `${extension.filename}`
+            script.src = "http://localhost:5000/api/ext/" + extension.id + "/static/" + `${extension.filename}`
             // Wait for the script to load
             await new Promise((resolve, reject) => {
                 script.onload = () => {
@@ -244,6 +242,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 class UI {
+
+    static noRemoveClientsMessage() {
+        return turnHTMLToElement(`
+            <div class="text-center text-gray-500 mt-10">
+                <p class="text-lg">No remote clients configured.</p>
+                <p class="text-sm">Please add a remote client to manage photos from other devices.</p>
+                <button onclick="location.reload()" type="button" class="mt-4 bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-lg font-medium transition-colors duration-200">Refresh</button>
+            </div>
+        `);
+    }
+
+    static configuredExtensionRow(data) {
+        return turnHTMLToElement(
+            ` <div
+                           class="bg-white p-2 rounded-lg border border-gray-200 flex items-center justify-between hover:border-gray-300 transition-colors">
+                           <div class="flex items-center space-x-3">
+                               <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                   <svg class="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+                                       <path
+                                           d="M7.71 3.5L1.15 15l3.85 6.5L11.56 10zM22.85 15l-3.85 6.5L12.44 10l6.56-6.5z" />
+                                   </svg>
+                               </div>
+                               <div>
+                                   <p class="text-sm font-medium text-gray-900">${data["name"]}</p>
+                                   <p class="text-xs text-gray-500">${data["id"]}</p>
+                               </div>
+                           </div>
+                            <button type="button" class="bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 px-3 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center text-sm">Unlink</button>
+                           <span class="text-xs text-gray-500 bg-gray-50 px-3 py-1 rounded-full">${data["protocol"]}</span>
+                       </div>`
+
+        );
+    }
 
     static noExtensions() {
         return turnHTMLToElement(`

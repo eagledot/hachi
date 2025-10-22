@@ -26,7 +26,7 @@ export const ATTRIBUTE_PATTERNS: Record<string, AttributePattern> = {
   person: {
     // keywords: ['person:', 'people:', 'face:', '@'],
     icon: "👤",
-    color: "bg-green-100 text-green-800 border-green-200",
+    color: "text-green-800",
     examples: ["john", "sarah", "mike"],
     description: "Search for people in your photos",
     displayName: "People",
@@ -42,7 +42,7 @@ export const ATTRIBUTE_PATTERNS: Record<string, AttributePattern> = {
   query: {
     // keywords: ['query:', 'search:', 'text:', '#'],
     icon: "🔍",
-    color: "bg-purple-100 text-purple-800 border-purple-200",
+    color: "text-purple-800",
     examples: ["sunset", "birthday party", "vacation"],
     description: "Search photo descriptions and content",
     displayName: "Keywords",
@@ -58,7 +58,7 @@ export const ATTRIBUTE_PATTERNS: Record<string, AttributePattern> = {
   resource_directory: {
     // keywords: ['folder:', 'dir:', 'path:'],
     icon: "📁",
-    color: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    color: "text-yellow-800",
     examples: ["vacation", "photos", "2023"],
     description: "Browse photos by folder or album",
     displayName: "Folders",

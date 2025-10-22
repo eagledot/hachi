@@ -251,6 +251,8 @@ export class ImageModalComponent {
         infoBtn.setAttribute("aria-label", "Hide info sidebar");
       };
       infoBtn.addEventListener("click", () => { isOpen() ? hide() : show(); });
+      // Show the sidebar by default
+      show();
       closeInfoBtn?.addEventListener("click", hide);
       document.addEventListener("click", (e) => {
         if (!isOpen()) return;

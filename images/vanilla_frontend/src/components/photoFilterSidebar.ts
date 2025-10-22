@@ -120,25 +120,22 @@ export default class PhotoFilterSidebar {
     const filterPillsContainer = document.getElementById("filters-container");
     if (!filterPillsContainer) return;
 
+    // If the filter container is invisible, make it visible
+    filterPillsContainer.classList.remove("invisible");
+
     const icon = "";
     // Enhanced gradient and styling
-    const gradientBackground =
-      "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
-    const shadowStyle = "0 4px 15px rgba(102, 126, 234, 0.3)";
+
 
     // Manually create the filter pill UI node with enhanced styling
     const pill = document.createElement("div");
     pill.className =
-      "filter-pill flex items-center px-2 rounded-xl border-0 shadow-lg";
-    pill.style.background = gradientBackground;
-    pill.style.boxShadow = shadowStyle;
+      "filter-pill flex items-center px-1 rounded-xl";
     pill.style.transition = "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
     pill.style.cursor = "pointer";
-    pill.style.color = "#ffffff";
+    pill.style.color = "#1f2937"; // Teal text color
     pill.style.fontWeight = "500";
     pill.style.letterSpacing = "0.025em";
-    pill.style.backdropFilter = "blur(10px)";
-    pill.style.border = "1px solid rgba(255, 255, 255, 0.2)";
     pill.setAttribute("data-attribute", attribute);
     pill.setAttribute("data-value", value);
 
@@ -147,13 +144,13 @@ export default class PhotoFilterSidebar {
     iconSpan.className = "mr-2 sm:mr-3 text-xs";
     iconSpan.innerHTML = Filter_On_SVG;
     // Change the fill color of the SVG
-    iconSpan.querySelector("svg")?.setAttribute("fill", "#ffffff");
+    iconSpan.querySelector("svg")?.setAttribute("fill", "#2563eb");
 
     pill.appendChild(iconSpan);
 
     // Value span with enhanced typography
     const valueSpan = document.createElement("span");
-    valueSpan.className = "text-xs font-semibold truncate";
+    valueSpan.className = "text-xs text-blue-800 font-semibold truncate";
     valueSpan.style.maxWidth = "360px";
     valueSpan.style.textShadow = "0 1px 2px rgba(0, 0, 0, 0.1)";
     valueSpan.style.lineHeight = "1.4";
@@ -163,7 +160,7 @@ export default class PhotoFilterSidebar {
     // Enhanced remove button
     const removeBtn = document.createElement("button");
     removeBtn.className =
-      "ml-3 sm:ml-4 text-white opacity-80 hover:opacity-100 cursor-pointer hover:bg-gray-100 hover:text-black hover:bg-opacity-20 rounded-full p-2 transition-all duration-300 remove-filter-btn";
+      "ml-3 sm:ml-4 opacity-80 hover:opacity-100 cursor-pointer text-blue-800 hover:bg-opacity-20 rounded-full p-2 transition-all duration-300 remove-filter-btn";
     removeBtn.style.display = "flex";
     removeBtn.style.alignItems = "center";
     removeBtn.style.justifyContent = "center";
@@ -635,6 +632,8 @@ export default class PhotoFilterSidebar {
     this.uncheckAllImages();
     // Uncheck all checkboxes
     this.uncheckEveryCheckbox();
+    // Remove all filter pills
+    this.removeAllFilterPills();
       // Clear filtered images
       // TODO: Should be called only when filters are applied
       // TODO: Need to keep a state to track which filters are on

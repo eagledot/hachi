@@ -23,6 +23,7 @@ export interface ImageMetaData {
   taken_at?: string;
   width?: number;
   resource_path?: string;
+  resource_created?: string;
   // [key: string]: any; // Allow other fields not explicitly defined
 }
 
