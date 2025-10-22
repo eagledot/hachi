@@ -7,7 +7,8 @@ export interface NavItem {
 
 export class Navbar {
   private container: HTMLElement;
-  private currentPage: string;    
+  private currentPage: string;
+  private showOnlyIcons: boolean = true;
   private navItems: NavItem[] = [
     { label: 'Home', href: '/', icon: '🏠' },
     { label: 'Image Search', href: '/image-search.html', icon: '🔍' },
@@ -29,7 +30,7 @@ export class Navbar {
   }
   private render(): void {
   // Narrow width on small screens (icon-only), full width with labels on md+
-  const navWidthClass = 'w-16 md:w-[14rem]';
+  const navWidthClass = this.showOnlyIcons ? "w-16" : 'w-16 md:w-[14rem]';
     const atRoot = window.location.pathname === '/' || window.location.pathname === '/index.html';
     // Determine if we should show a back button.
     // Cases:
@@ -79,6 +80,7 @@ export class Navbar {
   const baseClasses = "flex items-center justify-center md:justify-start px-2 py-2 rounded-md text-base font-medium transition-colors duration-200 md:space-x-3";
     const activeClasses = "bg-blue-100 text-blue-700 font-semibold";
     const inactiveClasses = "text-gray-600 text-sm hover:bg-gray-100 hover:text-blue-700";
+    // Let's show labels only if this.showOnlyIcons is false
     return `
       <a href="${item.href}"
      class="${baseClasses} ${isActive ? activeClasses : inactiveClasses}"
@@ -86,7 +88,7 @@ export class Navbar {
      aria-label="${item.label}"
      aria-current="${isActive ? 'page' : 'false'}">
         ${item.icon ? `<span class='text-xl flex-shrink-0 text-center w-6'>${item.icon}</span>` : ''}
-    <span class="hidden md:inline">${item.label}</span>
+      <span class="${this.showOnlyIcons ? 'hidden' : 'md:inline'}">${item.label}</span>
       </a>
     `;
   }

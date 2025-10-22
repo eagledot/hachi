@@ -61,7 +61,7 @@
 
 /* Sidebar width variable (desktop) */
 :root {
-  --sidebar-width: 14rem;
+  --sidebar-width: 4rem;
   --sidebar-width-collapsed: 4rem;
 }
 
