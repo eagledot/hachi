@@ -48,11 +48,7 @@
 
 /* Enhanced image loading skeleton */
 .image-skeleton {
-  background: linear-gradient(90deg, 
-    #f3f4f6 25%, 
-    #e5e7eb 50%, 
-    #f3f4f6 75%
-  );
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
   background-size: 200% 100%;
   animation: loading-gradient 1.5s ease-in-out infinite;
 }

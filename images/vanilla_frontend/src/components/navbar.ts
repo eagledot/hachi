@@ -56,12 +56,12 @@ export class Navbar {
           <div class="flex items-center space-x-2 text-lg font-bold text-gray-900">
             ${canGoBack
               ? `<button id="nav-back-btn" type="button" class="flex cursor-pointer items-center space-x-2 text-gray-800 hover:text-blue-600 transition-colors" aria-label="Go Back">
-                   <span class="text-sm text-gray-700">←</span>
+                   <span class="text-sm md:hidden text-gray-700">←</span>
                    <span class="hidden md:inline text-gray-600 text-sm">Back</span>
                  </button>`
               : `<a href="/" class="flex items-center space-x-2 hover:text-blue-600 transition-colors" aria-label="Home">
                    <span class="text-2xl">📸</span>
-                   <span class="hidden md:inline">Hachi</span>
+                   <span class="hidden">Hachi</span>
                  </a>`}
           </div>
         </div>

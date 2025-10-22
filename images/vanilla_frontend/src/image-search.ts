@@ -44,22 +44,27 @@ class ImageSearchApp {
     const windowWidth = window.innerWidth;
 
     // Get photo-gallery element
-    const photoGallery = document.getElementById("photo-gallery");
+    const photoGallery = document.getElementById("results-section");
 
     // Get the photo gallery height
     const photoGalleryHeight = windowHeight - 140; // Based on header and footer heights
     console.log(`Photo gallery height: ${photoGalleryHeight}px`);
 
     // Get photo-gallery width
-    const photoGalleryWidth = photoGallery?.clientWidth!;
+    const photoGalleryWidth = photoGallery?.clientWidth! + 63;
 
     // Set static dimensions
-    let side = 180;
+    let side = 150;
 
     // If we are on mobile screens, reduce side length
     if (windowWidth < 768) {
       side = 100;
     }
+
+    // Print the photo gallery width and height
+    console.log(`Photo gallery width: ${photoGalleryWidth}px`);
+    console.log(`Photo gallery height: ${photoGalleryHeight}px`);
+
 
     const { rows, cols, tileWidth, tileHeight } = fitTiles(
       photoGalleryHeight!,

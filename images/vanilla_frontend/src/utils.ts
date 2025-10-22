@@ -76,16 +76,17 @@ export function fitTiles(
   minSide: number,
   gap: number = 5
 ): { rows: number; cols: number; tileWidth: number; tileHeight: number } {
-  // Compute how many tiles (ceil) we can fit if each desired tile (without scaling) takes minSide plus a gap (except last)
-  const rows = Math.max(1, Math.ceil((height + gap) / (minSide + gap)));
-  const cols = Math.max(1, Math.ceil((width + gap) / (minSide + gap)));
 
-  // Distribute remaining space to tiles after reserving gap space
-  const totalVerticalGap = (rows - 1) * gap;
-  const totalHorizontalGap = (cols - 1) * gap;
+  const rows = Math.floor((height) / (minSide + gap));
+  const cols = Math.floor((width) / (minSide + gap));
 
-  const tileHeight = (height - totalVerticalGap) / rows;
-  const tileWidth = (width - totalHorizontalGap) / cols;
+  // Check the remaining space after placing the tiles
+  const remainingHeight = height - (rows * (minSide + gap)) + gap;
+  const remainingWidth = width - (cols * (minSide + gap)) + gap;
+
+  // Now add the remaining space evenly to each tile
+  const tileHeight = minSide + (remainingHeight / rows);
+  const tileWidth = minSide + (remainingWidth / cols);
 
   return { rows, cols, tileWidth, tileHeight };
 }
