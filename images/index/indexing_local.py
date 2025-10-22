@@ -537,13 +537,14 @@ class IndexingLocal(object):
                 meta_data:ImageMetaAttributes = extract_image_metaData(
                     image_raw_data, dummy_data = False
                 )
-                # TODO: Properly manually update Main attributes.
-                meta_data["main_attributes"]["filename"] = resource_name.lower()
-                meta_data["main_attributes"]["resource_directory"] = resource_info["directory"].lower()
+                # NOTE: Manually updating Main attributes.
+                meta_data["main_attributes"]["filename"] = resource_name.strip().lower()
+                # NOTE: resource_directory/path are assumed to be unique enough from the Extension Code itself, i.e we won't modify/update it here!
+                meta_data["main_attributes"]["resource_directory"] = resource_info["directory"].strip().lower()
                 meta_data["main_attributes"]["resource_path"] = resource_info["path"] # Donot lower it, as Full Path, and we generally don't search for full path anyway.
                 meta_data["main_attributes"]["resource_created"] = resource_info["created_at"]
 
-                meta_data["location"]["identifier"] = "mtp" # TODO: get name from extension! 
+                meta_data["location"]["identifier"] = self.remote_extension.get_name()
                 meta_data["location"]["location"]  = "R"  # local/remote
 
             self.profile_info.add("extract-metadata")
