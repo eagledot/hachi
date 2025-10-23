@@ -1,4 +1,6 @@
+import { endpoints } from '../config';
 import { Navbar } from './navbar';
+import { fetchWithSession } from '../utils';
 
 export interface PageConfig {
   title: string;
@@ -8,9 +10,112 @@ export interface PageConfig {
 
 export class Layout {
   private navbar: Navbar | null = null;
+  private serverCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: PageConfig) {
-    this.setupPage(config);
+    this.checkServerAndSetup(config);
+  }
+
+  private async checkServerAndSetup(config: PageConfig): Promise<void> {
+    const isServerRunning = await this.checkServerStatus();
+    if (isServerRunning) {
+      this.setupPage(config);
+      this.hideServerErrorOverlay();
+    } else {
+      this.showServerErrorOverlay();
+      this.startServerStatusPolling(config);
+    }
+  }
+
+  private showServerErrorOverlay(): void {
+    // Remove existing overlay if present
+    this.hideServerErrorOverlay();
+
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'server-error-overlay';
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+
+    // Create overlay content
+    const content = document.createElement('div');
+    content.className = 'bg-white rounded-lg p-8 max-w-md mx-4 text-center';
+
+    // Title
+    const title = document.createElement('h2');
+    title.className = 'text-2xl font-bold text-red-600 mb-4';
+    title.textContent = 'Server Not Started';
+
+    // Message
+    const message = document.createElement('p');
+    message.className = 'text-gray-700 mb-6';
+    message.textContent = 'The server has not started yet. Please wait while we check for server availability...';
+
+    // Loading indicator
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'flex items-center justify-center space-x-2';
+
+    const spinner = document.createElement('div');
+    spinner.className = 'animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600';
+
+    const loadingText = document.createElement('span');
+    loadingText.className = 'text-blue-600';
+    loadingText.textContent = 'Checking server status...';
+
+    loadingContainer.appendChild(spinner);
+    loadingContainer.appendChild(loadingText);
+
+    // Assemble content
+    content.appendChild(title);
+    content.appendChild(message);
+    content.appendChild(loadingContainer);
+    overlay.appendChild(content);
+
+    // Add to document
+    document.body.appendChild(overlay);
+  }
+
+  private hideServerErrorOverlay(): void {
+    const existingOverlay = document.getElementById('server-error-overlay');
+    if (existingOverlay) {
+      existingOverlay.remove();
+    }
+  }
+
+  private startServerStatusPolling(config: PageConfig): void {
+    // Clear any existing interval
+    if (this.serverCheckInterval) {
+      clearInterval(this.serverCheckInterval);
+    }
+
+    // Poll server status every 2 seconds
+    this.serverCheckInterval = setInterval(async () => {
+      const isServerRunning = await this.checkServerStatus();
+
+      if (isServerRunning) {
+        this.hideServerErrorOverlay();
+        this.setupPage(config);
+
+        // Clear the polling interval
+        if (this.serverCheckInterval) {
+          clearInterval(this.serverCheckInterval);
+          this.serverCheckInterval = null;
+        }
+      }
+    }, 2000);
+  }
+
+  private async checkServerStatus(): Promise<boolean> {
+    try {
+      const response = await fetchWithSession(endpoints.PING)
+      if (response.ok) {
+        const text = await response.text();
+        return text.trim() === "ok";
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking server status:", error);
+      return false;
+    }
   }
 
   private setupPage(config: PageConfig): void {

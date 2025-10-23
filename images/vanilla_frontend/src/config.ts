@@ -10,6 +10,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || "";
 
 class Endpoints {
   BASE_URL = BASE_URL;
+  PING = BASE_URL + "/api/ping";
   GET_REMOTE_CLIENTS = BASE_URL + "/api/getRemoteClients";
   GET_PARTITIONS = BASE_URL + "/api/getPartitions";
   GET_SUGGESTION_PATH = BASE_URL + "/api/getSuggestionPath";
