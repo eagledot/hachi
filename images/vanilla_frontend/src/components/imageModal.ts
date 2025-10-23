@@ -13,7 +13,7 @@ export class ImageModalComponent {
       <!-- Image Modal (reusable component) -->
       <div
       id="image-modal"
-      class="hidden fixed inset-0 z-50 overflow-y-auto animate-in fade-in duration-300"
+      class="hidden fixed inset-0 z-50 overflow-y-auto  fade-in duration-300"
       >
       <div class="modal-backdrop fixed inset-0" id="modal-backdrop"></div>
       <div class="flex h-screen items-center justify-center">
@@ -92,7 +92,7 @@ export class ImageModalComponent {
         <div class="flex-1 h-full">
           <div class="flex h-full flex-row" id="modal-main-row">
             <!-- Image container -->
-            <div id="modal-image-wrapper" class="flex-1 flex justify-center items-center bg-black transition-all duration-300">
+            <div id="modal-image-wrapper" class="flex-1 flex justify-center items-center bg-black transition-all duration-100">
               <img
                 id="modal-image"
                 height=""
@@ -104,7 +104,7 @@ export class ImageModalComponent {
               />
             </div>
             <!-- Metadata sidebar (hidden by default) -->
-            <aside id="modal-sidebar" class="relative h-full w-0 overflow-hidden bg-gray-900/95 border-l border-gray-800 flex flex-col transition-all duration-300 ease-out text-gray-200" aria-label="Image details" aria-hidden="true">
+            <aside id="modal-sidebar" class="relative h-full w-0 overflow-hidden bg-gray-900/95 border-l border-gray-800 flex flex-col transition-all duration-100 text-gray-200" aria-label="Image details" aria-hidden="true">
               <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900/80 backdrop-blur-sm">
                 <h4 class="text-sm font-semibold text-gray-100 tracking-wide">Details</h4>
                 <button id="modal-info-close-btn" class="p-1.5 rounded-md text-gray-400 hover:text-gray-100 hover:bg-white/10 transition" title="Close" aria-label="Close details">
