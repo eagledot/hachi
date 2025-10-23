@@ -1,6 +1,8 @@
 import { endpoints } from '../config';
 import { Navbar } from './navbar';
 import { fetchWithSession } from '../utils';
+import { IndexingOverlay } from './IndexingOverlay';
+import type { IndexStatusResponse } from '../types/indexing';
 
 export interface PageConfig {
   title: string;
@@ -10,7 +12,9 @@ export interface PageConfig {
 
 export class Layout {
   private navbar: Navbar | null = null;
+  private indexingOverlay: IndexingOverlay | null = null;
   private serverCheckInterval: ReturnType<typeof setInterval> | null = null;
+  private indexingCheckInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(config: PageConfig) {
     this.checkServerAndSetup(config);
@@ -21,9 +25,51 @@ export class Layout {
     if (isServerRunning) {
       this.setupPage(config);
       this.hideServerErrorOverlay();
+      this.initializeIndexingOverlay();
+      this.startIndexingStatusPolling();
     } else {
       this.showServerErrorOverlay();
       this.startServerStatusPolling(config);
+    }
+  }
+
+  private initializeIndexingOverlay(): void {
+    if (this.indexingOverlay) {
+      this.indexingOverlay.destroy();
+    }
+    
+    this.indexingOverlay = new IndexingOverlay();
+    
+
+  }
+
+  private startIndexingStatusPolling(): void {
+    // Clear any existing interval
+    if (this.indexingCheckInterval) {
+      clearInterval(this.indexingCheckInterval);
+    }
+
+    // Initial check
+    this.checkIndexingStatus();
+
+    // Poll indexing status every 3 seconds
+    this.indexingCheckInterval = setInterval(() => {
+      this.checkIndexingStatus();
+    }, 3000);
+  }
+
+  private async checkIndexingStatus(): Promise<void> {
+    if (!this.indexingOverlay) return;
+
+    try {
+      const response = await fetchWithSession(endpoints.GET_INDEX_STATUS);
+      if (response.ok) {
+        const data: IndexStatusResponse = await response.json();
+        this.indexingOverlay.updateStatus(data);
+      }
+    } catch (error) {
+      // Silently fail - indexing status is not critical for app functionality
+      console.debug("Could not fetch indexing status:", error);
     }
   }
 

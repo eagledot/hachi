@@ -74,7 +74,7 @@ export function fitTiles(
   height: number,
   width: number,
   minSide: number,
-  gap: number = 3
+  gap: number = 1
 ): { rows: number; cols: number; tileWidth: number; tileHeight: number } {
 
   const rows = Math.floor((height) / (minSide + gap));

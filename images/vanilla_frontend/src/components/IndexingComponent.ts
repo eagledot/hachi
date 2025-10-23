@@ -183,8 +183,7 @@ export class IndexingComponent {
               style="font-family:monospace"
               >
               <option value="none" selected>None (Choose a LOCAL directory/folder)</option>
-              <!-- <option value="mtp"> Devices like Androids, Tablets which support MTP protocol!</option>
-              // <option value="gdr"> Google Drive</option> --!>
+              
             </select>
             <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
               <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
