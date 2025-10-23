@@ -54,7 +54,7 @@ class ImageSearchApp {
     const photoGalleryWidth = photoGallery?.clientWidth! - 248; // Subtract sidebar width
 
     // Set static dimensions
-    let side = 150;
+    let side = 120;
 
     // If we are on mobile screens, reduce side length
     if (windowWidth < 768) {
@@ -73,8 +73,8 @@ class ImageSearchApp {
     );
 
     this.resultsPerPage = rows * cols;
-    this.imageHeight = tileHeight - 2;
-    this.imageWidth = tileWidth - 1;
+    this.imageHeight = tileHeight - 3;
+    this.imageWidth = tileWidth - 0.439;
   }
 
   constructor() {
