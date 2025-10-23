@@ -27,6 +27,7 @@ export default defineConfig({
         folderPhotos: "./folder-photos.html",
         personPhotos: "./person-photos.html",
         googlePhotos: "./google-photos.html",
+        extensions: "./extensions.html" // remote/non-native protocol support!
       },
     },
   },
