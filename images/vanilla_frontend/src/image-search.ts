@@ -73,7 +73,7 @@ class ImageSearchApp {
     );
 
     this.resultsPerPage = rows * cols;
-    this.imageHeight = tileHeight - 2;
+    this.imageHeight = tileHeight;
     this.imageWidth = tileWidth - 0.442;
   }
 
