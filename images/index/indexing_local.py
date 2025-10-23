@@ -14,7 +14,7 @@ try:
     from .meta_indexV2 import MetaIndex
     from .image_index import ImageIndex
     from .face_clustering import FaceIndex
-    from .metadata import extract_image_metaData, collect_resources
+    from .metadata import extract_image_metaData, collect_resources, ImageMetaAttributes
     from .utils import ChannelConversion, ColorFormat, encode_image, resize
 except:
     sys.path.insert(0, "D://hachi/images/index")
@@ -271,6 +271,7 @@ class QueueData(NamedTuple):  # For preview thread, generating previews!
 # ---------------------------------------
 # Data being put into resource_queue, by background Thread, which is then read by Indexing thread.
 # Idea is to define/get such a type from remote extensions too, by asking, keep it a bit cleaner!
+# TODO: sync the fields with as being done in extensions' code!
 class ResourceInfo(TypedDict):
     path:os.PathLike
     raw_data:bytes
@@ -477,8 +478,6 @@ class IndexingLocal(object):
     def __index_batch(
         self,
         resources_info:List[ResourceInfo]
-        # resources_batch_queue:Queue[tuple[os.PathLike, bytes]],
-        # batch_size:int
     ):
         """Actual logic for indexing. This would need to be speed up or benchmarked if ever!
         Batching mainly provides `breakpoints` to collect the `current state/info` for ongoing indexing. (mainly to send back to client).
@@ -497,48 +496,38 @@ class IndexingLocal(object):
             
             # ----------------------------------------------
             # Meta-data extraction 
-            if not(self.root_dir is None):
-                image_raw_data = resource_info["raw_data"]
-                resource_path = resource_info["path"]
-                resource_hash = generate_resource_hash(
+            # -----------------------------------
+            image_raw_data = resource_info["raw_data"]
+            resource_path = resource_info["path"]
+            resource_hash = generate_resource_hash(
                     image_raw_data
                 )
-                self.profile_info.add("hash-generation")
-                if resource_hash is None:
-                    print("Possibly Invalid data for: {}".format(resource_path))
-                    continue
-                
-                if self.meta_index.is_indexed(resource_hash):
-                    print("[Already indexed]: {}".format(resource_path))
-                    continue
+            self.profile_info.add("hash-generation")
+            if resource_hash is None:
+                print("Possibly Invalid data for: {}".format(resource_path))
+                continue
+            
+            if self.meta_index.is_indexed(resource_hash):
+                print("[Already indexed]: {}".format(resource_path))
+                continue
+            self.profile_info.add("misc") # dummy
 
-                # read raw-data only once.. and share it for image-clip,face and previews
-                self.profile_info.add("misc") # dummy
+            if not(self.root_dir is None):
 
+                # TODO: Just pass the raw-data here, after we simplify the `extract_image_metadata` routine!
                 meta_data:ImageMetaAttributes = extract_image_metaData(
                     resource_path
                 )
-
                 meta_data["location"]["identifier"] = "Drive" # TODO: C:, D:
                 meta_data["location"]["location"]  = "L"  # local/remote
                 
             else: # if indexing remote-data !                
-                # TODO: collect/overwrite Main Attributes being produced by Extension!
-                image_raw_data = resource_info["raw_data"]
-                resource_name = resource_info["name"]
-                resource_hash = generate_resource_hash(
-                    image_raw_data
-                )
-                self.profile_info.add("hash-generation")
-                if resource_hash is None:
-                    print("Possibly Invalid data for: {}".format(resource_name))
-                    continue
-                
+
                 meta_data:ImageMetaAttributes = extract_image_metaData(
                     image_raw_data, dummy_data = False
                 )
                 # NOTE: Manually updating Main attributes.
-                meta_data["main_attributes"]["filename"] = resource_name.strip().lower()
+                meta_data["main_attributes"]["filename"] = resource_info["name"].strip().lower()
                 # NOTE: resource_directory/path are assumed to be unique enough from the Extension Code itself, i.e we won't modify/update it here!
                 meta_data["main_attributes"]["resource_directory"] = resource_info["directory"].strip().lower()
                 meta_data["main_attributes"]["resource_path"] = resource_info["path"] # Donot lower it, as Full Path, and we generally don't search for full path anyway.
@@ -560,19 +549,7 @@ class IndexingLocal(object):
             
             orientation_image = meta_data["exif_attributes"]["orientation"] # [1-8] or 0 (if was no information about it!)
             
-            # TODO: on downloading of remote data, append to the meta-index.
-            # downloading should be equivalent to presence of new images, hence check the hash.
-            # if not indexed, append it..
-            # # merge remote meta-data too if allowed remoted protocol.
-            # if remote_protocol == "google_photos":
-            #     remote_meta_data = googlePhotos.get_remote_meta(data_hash)
-            #     meta_data["remote"] = remote_meta_data  
-            #     meta_data["resource_directory"] = "google_photos"
-            #     meta_data["absolute_path"] = "remote"
-
             # -----------------------------------------------
-            
-
             self.profile_info.add("misc")
             # ----------------------------------------------
             # STB image based imread (minimal library, but may handle stuff like orientation by ourselves!)
@@ -585,7 +562,7 @@ class IndexingLocal(object):
             
             self.profile_info.add("imread")
             if flag == False:
-                print("[WARNING]: Invalid data for {}".format("{}/{}".format(resource_info["directory"], resource_name)))
+                print("[WARNING]: Invalid data for {}".format("{}".format(resource_path)))
                 continue
             if c == 1:                              
                 print("[WARNING]: Gray Scale TO BE HANDLED, just update the imread code..!!")
@@ -613,7 +590,7 @@ class IndexingLocal(object):
                         axes = (0,1) # from 0 to 1, i.e counter-clockwise
                     )
                 else:
-                    print("[WARNING]: Implement a basic rotation procedure. Not rotated: {} Got orientation as {}".format(resource_name, orientation_image))
+                    print("[WARNING]: Implement a basic rotation procedure. Not rotated: {} Got orientation as {}".format(resource_path, orientation_image))
             # ------------------------------------------------
             
             # Since frame itself refers to a pre-allocated memory/buffer, so DON'T SHARE IT WITH ANOTHER THREAD WITH GIL RELEASED without some sync mechanism or create an isolated copy!
@@ -642,7 +619,7 @@ class IndexingLocal(object):
                 )
             self.profile_info.add("image-embedding")
             if image_embedding is None: # TODO: it cannot be None, if image-data seemed valid!
-                print("Invalid data for {}".format(resource_name))
+                print("Invalid data for {}".format(resource_path))
                 continue
                         
             # TODO: either all should complete or no one! must be in sync!
