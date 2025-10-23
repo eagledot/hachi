@@ -1108,20 +1108,35 @@ def getSuggestionPath(request:Request) -> List[str]:
             result = os.listdir(recreated_path)
     return jsonify(result)
 
-# WARNING - THIS CODE IS AI WRITTEN AND MAY NEED FURTHER TESTING
-# @app.route("/getAllPhotos/<page_size>", methods = ["GET"])
 def getAllPhotos(request: Request, page_size: int) -> QueryInfo:
     """
     Get all photos in the system with pagination.
     This is the Q (query) part of the pagination pipeline.
+
+    # NOTE: This could be better modelled as a function of `page id`, during `collection/ T ` part of pagination pipeline.
+    # But may minor add some `code` in `collect_query_meta` or client should call a different route/function later on!
+    # As we would just be sequentially, getting coresponding row_hashes, (i.e no query to condition on!).
+    # have to write a minimal T function like `collect_query_meta` which could serve `resource_hashes` and `scores` sequentially through the whole database give a page_id.
+    @Akshay finds it cool to be cruising through all the photos, It indeed it cool but it is not yet optimal , but wouldn't matter for local host!
+
     """
     page_size = int(page_size)
     global query_token_counter
     
-    # Generate a unique token for this pagination session
-    query_token = "getAllPhotos_{}".format(query_token_counter)
-    query_token_counter += 1
-    
+    if "X-Session-Key" in request.headers:
+        query_token = request.headers["X-Session-Key"]
+    else:
+        query_token = "notRandomEnoughToken_{}".format(query_token_counter)
+        query_token_counter += 1  # don't matter the order, GIL atleast protects concurrent write atleast!
+        print("[WARNING]: Pagination Cache will keep growing, need a way to distinguish client to discard older pagination infos! ")
+
+    # remove older pagination data for this client.
+    # NOTE: it will invalidate all filter-routines too, as fresh query is assumed. It is in accordance all filter-data is conditioned on the original query!
+    pagination_cache.remove(
+        query_token,
+        only_if_exists = True
+        )
+       
     if not metaIndex.backend_is_initialized:
         return jsonify({
             "error": True, 
@@ -1129,21 +1144,23 @@ def getAllPhotos(request: Request, page_size: int) -> QueryInfo:
         })
     
     # Get all row indices (all photos in the system)
+    # TODO: NOTE: (it is not a solid assumption, as i have to still write a routine to handle wild-card, to return all valid hashes!)
     all_row_indices = list(range(metaIndex.rows_count))
     
-    # For getAllPhotos, we need to get all resource_hashes upfront
-    # since we're getting ALL photos, not filtering
+    # NOTE: This could be better modelled as a function of `page id`, during `collection/ T ` part of pagination pipeline.
+    # As we would just be sequentially, getting coresponding row_hashes, (i.e no query to condition on!).
     s = time.time_ns()
     all_resource_hashes = json.loads(mBackend.collect_rows(
         attribute = "resource_hash",
         indices = all_row_indices
     ))
-    print(f"[getAllPhotos] Resource hash collection: {(time.time_ns() - s) / 1e6} ms")
+    print("[getAllPhotos]: Resource hash collection: {} ms".format((time.time_ns() - s) / 1e6))
     
     # Generate pagination info with the correct tuple structure
     n_pages = len(all_row_indices) // page_size + (1 if len(all_row_indices) % page_size > 0 else 0)
     page_meta = []
     
+    # TODO: read description, no need to add resource_hashes in one go for page_meta!!
     for i in range(n_pages):
         start_idx = i * page_size
         end_idx = (i + 1) * page_size
@@ -1238,7 +1255,7 @@ if __name__ == "__main__":
     # Register Extensions:
     # -------------------
     # Instead may be we can get the `mapping` directly from some parent class!
-    sys.path.insert(0,"D://hachi-extensions-2/hachi_extensions/images")
+    sys.path.insert(0,"D://hachi_extensions/images")
     from mtp_windows.mtp_code import MtpExtension
     from google_drive.drive import GoogleDrive
     
