@@ -424,7 +424,8 @@ def extract_image_metaData(resource_path: Union[os.PathLike, BinaryIO, bytes], d
             temp_taken = exif_attributes["taken_at"]
             if len(temp_taken.split(":")) >= 3:  # we assume YYYY:MM:DD: <time optional> for taken_at!
                 yyyy, mm, dd = temp_taken.split(":")[:3]
-                main_attributes["resource_created"] = "{}-{}-{}".format(yyyy.strip(), mm.strip(), dd.strip())
+                if (int(mm.strip()) <= 12) and (int(dd.strip()) <= 31):
+                    main_attributes["resource_created"] = "{}-{}-{}".format(yyyy.strip(), mm.strip(), dd.strip())
             
 
         result_meta["location"] = l
