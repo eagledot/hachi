@@ -47,7 +47,7 @@ class PeopleApp {
     const photoGalleryWidth = photoGallery?.clientWidth!;
 
     // Set static dimensions
-    let side = 156;
+    let side = 120;
 
     // If we are on mobile screens, reduce side length
     if (window.innerWidth < 768) {
