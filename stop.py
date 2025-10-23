@@ -30,13 +30,13 @@ def kill_processes():
         # Kill Node.js dev server more selectively
         print("Stopping npm dev server...")
         try:
-            # Target npm processes with "dev" in command line
+            # Kill the all node processes. with the kill command. Use taskKill to target node
             result = subprocess.run([
-                'wmic', 'process', 'where', 
-                'CommandLine like "%npm%" and CommandLine like "%dev%" and Name="node.exe"', 
-                'delete'
+                'taskkill', '/F', '/IM', 'node.exe'
             ], shell=True, capture_output=True, text=True)
             print(f"npm dev server kill result: {result.returncode}")
+            if result.stdout:
+                print(f"Output: {result.stdout}")
         except Exception as e:
             print(f"Error stopping npm dev server: {e}")
         
