@@ -1,3 +1,5 @@
+// Updated folders-page.ts with improved UI design
+
 import "./style.css";
 import { Layout } from "./components/layout";
 import Config, { endpoints } from "./config";
@@ -28,18 +30,18 @@ class FoldersApp {
   private folders: Directory[] = [];
   private filteredFolders: Directory[] = [];
   private searchTerm: string = "";
-  private sortBy: string = "name";
+  private sortBy: string = "photos";
   private isLoading: boolean = false;
 
   constructor() {
     this.setupEventListeners();
     this.loadFolders();
-    // Event delegation for folder card clicks (added once)
+    // Event delegation for folder card clicks
     const grid = document.getElementById("folders-grid");
     if (grid && !grid.getAttribute("data-click-delegation")) {
       grid.addEventListener("click", (e) => {
         const target = (e.target as HTMLElement).closest(
-          ".folder-list-item"
+          ".folder-card"
         ) as HTMLElement | null;
         if (target && target.hasAttribute("data-folder-path")) {
           const folderPath = target.getAttribute("data-folder-path");
@@ -51,6 +53,7 @@ class FoldersApp {
       grid.setAttribute("data-click-delegation", "true");
     }
   }
+
   private setupEventListeners(): void {
     // Search functionality
     const searchInput = document.getElementById(
@@ -76,9 +79,9 @@ class FoldersApp {
   }
 
   private async loadFolders(): Promise<void> {
-    // this.isLoading = true;
-    // this.showLoading(true);
-    // this.hideError();
+    this.isLoading = true;
+    this.showLoading(true);
+    this.hideError();
 
     try {
       await this.loadFoldersFromAPI();
@@ -90,8 +93,8 @@ class FoldersApp {
         }`
       );
     } finally {
-      // this.isLoading = false;
-      // this.showLoading(false);
+      this.isLoading = false;
+      this.showLoading(false);
     }
   }
 
@@ -104,8 +107,6 @@ class FoldersApp {
 
     const data = await response.json();
 
-    // Transform the data to match our interface
-    // The API returns an array of directory names
     if (Array.isArray(data)) {
       this.folders = data.map((folder: FolderResponse) => ({
         name: this.getDisplayName(folder.directory),
@@ -118,7 +119,7 @@ class FoldersApp {
       this.folders.sort((a, b) => b.imageCount - a.imageCount);
 
       this.filteredFolders = [...this.folders];
-      // this.sortFolders(this.sortBy);
+      this.sortFolders(this.sortBy);
       this.renderFolders();
     } else {
       throw new Error("Invalid response format");
@@ -126,7 +127,6 @@ class FoldersApp {
   }
 
   private getDisplayName(fullPath: string): string {
-    // Extract the folder name from the full path
     const pathParts = fullPath.split(/[/\\]/);
     return pathParts[pathParts.length - 1] || fullPath;
   }
@@ -158,10 +158,13 @@ class FoldersApp {
         case "photos":
           return b.imageCount - a.imageCount;
         case "name":
-        default:
           return a.name.localeCompare(b.name);
+        default:
+          return b.imageCount - a.imageCount;
       }
     });
+
+    this.renderFolders();
   }
 
   private renderFolders(): void {
@@ -170,27 +173,25 @@ class FoldersApp {
 
     if (!grid || !noFolders) return;
 
-    // Don't show "no folders" message while loading
     if (this.filteredFolders.length === 0 && !this.isLoading) {
       grid.classList.add("hidden");
       noFolders.classList.remove("hidden");
       return;
     } else if (this.filteredFolders.length === 0 && this.isLoading) {
-      // Hide both grid and "no folders" while loading
       grid.classList.add("hidden");
       noFolders.classList.add("hidden");
       return;
     }
+
     noFolders.classList.add("hidden");
     grid.classList.remove("hidden");
 
     this.batchUpdateFolderGrid(grid);
   }
 
-  // Efficiently update the grid without full innerHTML replacement
   private batchUpdateFolderGrid(grid: HTMLElement): void {
     const existingNodes = Array.from(
-      grid.querySelectorAll<HTMLElement>(":scope > .folder-list-item")
+      grid.querySelectorAll<HTMLElement>(":scope > .folder-card")
     );
     const existingMap = new Map<string, HTMLElement>();
     existingNodes.forEach((node) => {
@@ -213,220 +214,124 @@ class FoldersApp {
       }
     }
 
-    // Remove stale nodes (those not re-appended)
+    // Remove stale nodes
     for (const [key, node] of existingMap.entries()) {
       if (!seen.has(key)) {
         node.remove();
       }
     }
 
-    // Append new order (this also reorders existing nodes without re-rendering contents)
     grid.appendChild(fragment);
   }
 
   private createFolderElement(folder: Directory): HTMLElement {
-    const div = document.createElement("div");
-    div.className =
-      "folder-list-item flex items-center p-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer gap-4";
-    div.setAttribute("data-folder-path", encodeURIComponent(folder.fullPath));
+    const card = document.createElement("div");
+    card.className = "folder-card shadow-sm bg-white rounded-lg border border-gray-200 overflow-hidden cursor-pointer";
+    card.setAttribute("data-folder-path", encodeURIComponent(folder.fullPath));
 
-    // Thumbnail or Icon
+    // Thumbnail section
     const thumbnailContainer = document.createElement("div");
-    thumbnailContainer.className =
-      "w-12 h-12 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center";
+    thumbnailContainer.className = "aspect-video bg-gray-100 relative";
 
     if (folder.thumbnailHash) {
-      thumbnailContainer.innerHTML = `
-        <img 
-          src="${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp" 
-          alt="${folder.name}" 
-          class="w-full h-full object-cover rounded-md"
-          onerror="this.parentElement.innerHTML = '<div class=\\'flex items-center justify-center w-full h-full\\'><svg class=\\'w-6 h-6 text-gray-400\\'><use href=\\'#folder-icon\\'/></svg></div>';"
-        />
-      `;
+      const img = document.createElement("img");
+      img.src = `${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp`;
+      img.alt = folder.name;
+      img.className = "w-full h-full object-cover";
+      img.onerror = () => {
+        img.style.display = "none";
+        const placeholder = this.createPlaceholderIcon();
+        thumbnailContainer.appendChild(placeholder);
+      };
+      thumbnailContainer.appendChild(img);
     } else {
-      thumbnailContainer.innerHTML = `
-        <div class="flex items-center justify-center w-full h-full">
-          <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-          </svg>
-        </div>
-      `;
+      const placeholder = this.createPlaceholderIcon();
+      thumbnailContainer.appendChild(placeholder);
     }
-    div.appendChild(thumbnailContainer);
 
-    // Folder Info (Name and Path)
-    const infoDiv = document.createElement("div");
-    infoDiv.className = "flex-grow min-w-0"; // min-w-0 is crucial for truncation
-    const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
-    infoDiv.innerHTML = `
-      <div class="folder-name font-medium text-gray-800 truncate" title="${folder.name}">${folder.name}</div>
-      <div class="folder-path text-sm text-gray-500 truncate" title="${folder.fullPath}">${trimmedPath}</div>
+    card.appendChild(thumbnailContainer);
+
+    // Content section
+    const content = document.createElement("div");
+    content.className = "p-4";
+
+    // Folder name
+    const nameElement = document.createElement("h3");
+    nameElement.className = "folder-name text-base font-semibold text-gray-900 mb-2 truncate";
+    nameElement.textContent = folder.name;
+    nameElement.title = folder.name;
+
+    // Photo count
+    const countElement = document.createElement("p");
+    countElement.className = "photo-count text-sm text-gray-600";
+    countElement.textContent = `${folder.imageCount.toLocaleString()} ${folder.imageCount === 1 ? "photo" : "photos"}`;
+
+    // Full path (shown on hover via title)
+    const pathElement = document.createElement("p");
+    pathElement.className = "folder-path text-xs text-gray-400 mt-1 truncate";
+    pathElement.textContent = this.getTrimmedPath(folder.fullPath);
+    pathElement.title = folder.fullPath;
+
+    content.appendChild(nameElement);
+    content.appendChild(countElement);
+    content.appendChild(pathElement);
+
+    card.appendChild(content);
+
+    return card;
+  }
+
+  private createPlaceholderIcon(): HTMLElement {
+    const placeholder = document.createElement("div");
+    placeholder.className = "flex items-center justify-center w-full h-full";
+    placeholder.innerHTML = `
+      <svg class="w-16 h-16 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" 
+          d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
+        </path>
+      </svg>
     `;
-    div.appendChild(infoDiv);
-
-    // Photo Count
-    const countDiv = document.createElement("div");
-    countDiv.className = "photo-count text-sm text-gray-600 font-medium whitespace-nowrap";
-    countDiv.textContent = `${folder.imageCount} ${folder.imageCount === 1 ? "photo" : "photos"}`;
-    div.appendChild(countDiv);
-
-    return div;
+    return placeholder;
   }
 
   private updateFolderElement(el: HTMLElement, folder: Directory): void {
-    // Thumbnail
+    // Update thumbnail
     const img = el.querySelector("img");
-    if (img && !img.src.includes(folder.thumbnailHash)) {
-        img.src = `${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp`;
+    if (img && folder.thumbnailHash && !img.src.includes(folder.thumbnailHash)) {
+      img.src = `${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp`;
     }
 
-    // Name
+    // Update name
     const nameDiv = el.querySelector(".folder-name") as HTMLElement | null;
     if (nameDiv && nameDiv.textContent !== folder.name) {
       nameDiv.textContent = folder.name;
       nameDiv.title = folder.name;
     }
 
-    // Path
+    // Update path
     const pathDiv = el.querySelector(".folder-path") as HTMLElement | null;
     if (pathDiv) {
-        const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
-        if (pathDiv.textContent !== trimmedPath) {
-            pathDiv.textContent = trimmedPath;
-        }
-        if (pathDiv.title !== folder.fullPath) {
-            pathDiv.title = folder.fullPath;
-        }
+      const trimmedPath = this.getTrimmedPath(folder.fullPath);
+      if (pathDiv.textContent !== trimmedPath) {
+        pathDiv.textContent = trimmedPath;
+        pathDiv.title = folder.fullPath;
+      }
     }
 
-    // Count
+    // Update count
     const countDiv = el.querySelector(".photo-count") as HTMLElement | null;
-    const newCountText = `${folder.imageCount} ${folder.imageCount === 1 ? "photo" : "photos"}`;
+    const newCountText = `${folder.imageCount.toLocaleString()} ${folder.imageCount === 1 ? "photo" : "photos"}`;
     if (countDiv && countDiv.textContent !== newCountText) {
       countDiv.textContent = newCountText;
     }
   }
 
-  private buildTopRow(folder: Directory): HTMLElement {
-    const row = document.createElement("div");
-    row.className = "flex items-center gap-4";
-
-    // Thumbnail or Icon
-    const thumbnailContainer = document.createElement("div");
-    thumbnailContainer.className =
-      "w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center";
-
-    if (folder.thumbnailHash) {
-      thumbnailContainer.innerHTML = `
-        <img 
-          src="${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp" 
-          alt="${folder.name}" 
-          class="w-full h-full object-cover rounded-lg"
-          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-        />
-        <div class="hidden w-full h-full items-center justify-center">
-          <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-          </svg>
-        </div>
-      `;
-    } else {
-      thumbnailContainer.innerHTML = `
-        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-        </svg>
-      `;
+  private getTrimmedPath(fullPath: string): string {
+    const maxPathLen = 40;
+    if (fullPath.length > maxPathLen) {
+      return "…" + fullPath.slice(-maxPathLen);
     }
-    row.appendChild(thumbnailContainer);
-
-    // Folder Name and Photo Count
-    const infoDiv = document.createElement("div");
-    infoDiv.className = "flex flex-col justify-center";
-    infoDiv.innerHTML = `
-      <span class="folder-name font-semibold text-gray-800 text-base" title="${folder.name}">${folder.name}</span>
-      <span class="text-sm text-gray-500">${folder.imageCount} ${folder.imageCount === 1 ? "photo" : "photos"}</span>
-    `;
-    row.appendChild(infoDiv);
-
-    return row;
-  }
-
-  private buildPathRow(folder: Directory): HTMLElement {
-    const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
-    const row = document.createElement("div");
-    row.className = "pl-20"; // Indent to align with folder name
-    row.innerHTML = `
-      <span class="folder-path text-sm text-gray-500 truncate" title="${folder.fullPath}">${trimmedPath}</span>
-    `;
-    return row;
-  }
-
-  private getTrimmedPath(fullPath: string): { trimmedPath: string } {
-    const maxPathLen = 32;
-    let trimmedPath = fullPath;
-    if (trimmedPath.length > maxPathLen) {
-      trimmedPath = "…" + trimmedPath.slice(-maxPathLen);
-    }
-    return { trimmedPath };
-  }
-
-  private renderFolderCard(folder: Directory): string {
-    return this.renderGridViewCard(folder);
-  }
-
-  private renderGridViewCard(folder: Directory): string {
-    // Show folder name, trimmed full path (left-ellipsis), and photo count
-    const maxPathLen = 32;
-    let trimmedPath = folder.fullPath;
-    if (trimmedPath.length > maxPathLen) {
-      trimmedPath = "…" + trimmedPath.slice(-maxPathLen);
-    }
-    return html`
-      <div
-        class="folder-list-item px-4 py-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer flex flex-col gap-1 justify-between"
-        data-folder-path="${encodeURIComponent(folder.fullPath)}"
-      >
-        <div class="flex items-center gap-3">
-          <svg
-            class="w-6 h-6 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-            ></path>
-          </svg>
-          <span class="font-medium text-gray-800" title="${folder.name}"
-            >${folder.name}</span
-          >
-        </div>
-        <div class="flex items-center gap-2">
-          <span
-            class="text-xs text-gray-400 truncate max-w-full"
-            title="${folder.fullPath}"
-            >${trimmedPath}</span
-          >
-        </div>
-      </div>
-    `;
-  }
-
-  private setupFolderClickHandlers(): void {
-    const folderItems = document.querySelectorAll(".folder-list-item");
-    folderItems.forEach((item) => {
-      item.addEventListener("click", () => {
-        const folderPath = item.getAttribute("data-folder-path");
-        if (folderPath) {
-          // window.location.href = `/folder-photos.html?path=${folderPath}`;
-          window.location.href = `/image-search.html?resource_directory=${folderPath}`;
-        }
-      });
-    });
+    return fullPath;
   }
 
   private showLoading(show: boolean): void {

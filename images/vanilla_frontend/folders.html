@@ -7,303 +7,115 @@
     <title>Folders - Hachi</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Enhanced animations and modern UI styles */
+        /* Clean, simple folder card styles without animations */
         .folder-card {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
-            overflow: hidden;
         }
 
         .folder-card:hover {
-            transform: translateY(-4px) scale(1.02);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
-        .folder-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-            transition: left 0.5s;
-        }
-
-        .folder-card:hover::before {
-            left: 100%;
-        }
-
+        /* Loading skeleton */
         .skeleton {
-            animation: skeleton-loading 1.5s infinite linear;
             background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
             background-size: 200% 100%;
         }
 
-        @keyframes skeleton-loading {
-            0% {
-                background-position: 200% 0;
-            }
-
-            100% {
-                background-position: -200% 0;
-            }
-        }
-
-        /* Refresh button animations */
-        .animate-spin {
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .skeleton-card {
-            animation: fadeInUp 0.6s ease-out forwards;
-            opacity: 0;
-            transform: translateY(20px);
-        }
-
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        .glass-effect {
-            backdrop-filter: blur(10px);
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .progress-bar {
-            transition: width 0.3s ease-in-out;
-        }
-
-        /* Enhanced search input with focus effects */
-        #folder-search:focus {
-            transform: scale(1.01);
-            box-shadow: 0 20px 40px -10px rgba(59, 130, 246, 0.15);
-        }
-
-
-        /* Floating animation for decorative elements */
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translateY(0px) rotate(0deg);
-            }
-
-            50% {
-                transform: translateY(-10px) rotate(1deg);
-            }
-        }
-
-        .floating {
-            animation: float 3s ease-in-out infinite;
-        }
-
-        /* Enhanced folder card with progress indicator */
-        .folder-progress {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-            border-radius: 0 0 0.5rem 0.5rem;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .folder-card:hover .folder-progress {
-            opacity: 1;
-        }
-
-        /* Mobile responsiveness enhancements */
+        /* Remove iOS zoom on input focus */
         @media (max-width: 768px) {
-            .folder-card:hover {
-                transform: translateY(-2px) scale(1.01);
-            }
-
-            #folder-search {
+            input[type="text"] {
                 font-size: 16px;
-                /* Prevents zoom on iOS */
             }
-        }
-
-        /* Custom scrollbar */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #2563eb, #7c3aed);
         }
     </style>
 </head>
 
-<body class="min-h-screen ">
+<body class="min-h-screen bg-gray-50">
     <!-- Navbar will be inserted here by Layout -->
 
     <main id="main">
-        <div class="container mx-auto px-4 py-8 max-w-7xl"> 
-            <!-- Header -->
-            <header class="text-center mb-6 relative hidden">
-                <div class="relative z-10 py-3">
-                    <!-- Logo and Title -->
-                    <div class="inline-flex items-center space-x-3 group">
-                        <div
-                            class="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-purple-600 via-purple-700 to-blue-600 rounded-lg shadow-md relative">
-                            <!-- Subtle glow effect -->
-                            <div
-                                class="absolute inset-0 bg-gradient-to-br from-purple-400 to-blue-400 rounded-lg blur-md opacity-25 group-hover:opacity-40 transition-opacity duration-300">
-                            </div>
-                            <svg class="w-5 h-5 text-white relative z-10" fill="none" stroke="currentColor"
-                                viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z">
-                                </path>
-                            </svg>
-                        </div>
-                        <div class="text-left">
-                            <h1
-                                class="text-2xl font-bold text-transparent bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text leading-tight tracking-tight">
-                                Folders</h1>
-                            <p class="text-gray-600 text-xs mt-0.5 font-medium">Browse and organize your photos by
-                                folder structure</p>
-                        </div>
-                    </div>
-                </div>
-            </header>
-            <!-- Simplified Search Section -->
+        <div class="container mx-auto px-4 py-8 max-w-7xl">
+
+            <!-- Search and Filter Section -->
             <section class="mb-8">
-                <div class="max-w-4xl mx-auto">
-                    <div class="bg-white rounded-lg shadow-md border border-gray-100 p-4">
-                        <div class="flex flex-col sm:flex-row gap-3">
-                            <!-- Search input -->
-                            <div class="relative group flex-1">
-                                <!-- Search icon -->
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg class="h-4 w-4 text-gray-400 group-focus-within:text-purple-500 transition-colors"
-                                        fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                                    </svg>
-                                </div> <input type="text" id="folder-search"
-                                    placeholder="Search folders by name or path..."
-                                    class="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all duration-200 text-gray-700 placeholder-gray-400 bg-gray-50 focus:bg-white hover:bg-white text-sm">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <!-- Search input -->
+                        <div class="relative flex-1">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
                             </div>
-                            <!-- Sort filter -->
-                            <div class="relative sm:w-48 hidden">
-                                <select id="sort-filter"
-                                    class="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all duration-200 text-gray-700 bg-gray-50 focus:bg-white hover:bg-white appearance-none cursor-pointer text-sm">
-                                    <option value="name">📝 Sort by Name</option>
-                                    <option value="photos">📸 Sort by Photo Count</option>
-                                </select>
-                                <div class="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none">
-                                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor"
-                                        viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M19 9l-7 7-7-7"></path>
-                                    </svg>
-                                </div>
+                            <input type="text" id="folder-search"
+                                placeholder="Search folders..."
+                                class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900">
+                        </div>
+
+                        <!-- Sort filter -->
+                        <div class="relative sm:w-48">
+                            <select id="sort-filter"
+                                class="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 bg-white appearance-none cursor-pointer pr-10">
+                                <option value="photos">Most Photos</option>
+                                <option value="name">Name (A-Z)</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 9l-7 7-7-7"></path>
+                                </svg>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
-            <!-- Enhanced Loading indicator with skeleton cards matching new design -->
-            <div id="loading-indicator" class="hidden">
-                
-               
+
+            <!-- Loading indicator -->
+            <div id="loading-indicator" class="hidden justify-center items-center py-16">
+                <div class="flex flex-col items-center gap-4">
+                    <div class="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full"></div>
+                    <p class="text-gray-600">Loading folders...</p>
+                </div>
             </div>
 
             <!-- Error message -->
             <div id="error-message" class="hidden bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0">
-                        <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm text-red-800" id="error-text"></p>
-                    </div>
+                <div class="flex items-center gap-3">
+                    <svg class="h-5 w-5 text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd"
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                            clip-rule="evenodd" />
+                    </svg>
+                    <p class="text-sm text-red-800" id="error-text"></p>
                 </div>
-            </div> 
-            <!-- Enhanced No results message with call-to-action -->
+            </div>
+
+            <!-- No folders message -->
             <div id="no-folders" class="hidden text-center py-16">
                 <div class="mx-auto max-w-md">
-                    <div class="relative mb-8">
-                        <div class="text-gray-300 text-8xl mb-4 animate-bounce">📁</div>
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <div
-                                class="w-20 h-20 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full opacity-20 animate-pulse">
-                            </div>
-                        </div>
-                    </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-3">No folders found</h3>
-                    <p class="text-gray-600 mb-8 leading-relaxed">Start organizing your photos by adding your first
-                        collection to Hachi</p> <a href="/indexing.html"
-                        class="inline-flex items-center px-5 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5 space-x-2 text-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="text-gray-300 text-6xl mb-6">📁</div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">No folders found</h3>
+                    <p class="text-gray-600 mb-6">
+                        {{ searchTerm ? 'Try adjusting your search terms' : 'Start by adding your photo collections to Hachi' }}
+                    </p>
+                    <a href="/indexing.html"
+                        class="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
-                        <span>Add Your Photos</span>
+                        <span>Add Photos</span>
                     </a>
                 </div>
-            </div> <!-- Folders Grid with improved layout for photo-focused cards -->
-            <section id="folders-grid"
-                class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-4 gap-4">
-                <!-- Folder cards will be dynamically inserted here -->
-            </section> <!-- Enhanced Load More Button -->
-            <div id="load-more-container" class="hidden text-center mt-12">
-                <div class="relative inline-block">
-                    <button id="load-more-btn"
-                        class="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 overflow-hidden">
-                        <div
-                            class="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity duration-300">
-                        </div>
-                        <div class="relative flex items-center space-x-2">
-                            <span>Load More Folders</span>
-                            <svg class="w-5 h-5 transform group-hover:translate-x-1 transition-transform duration-200"
-                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                            </svg>
-                        </div>
-                    </button>
-                    <div
-                        class="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 blur opacity-30 -z-10 group-hover:opacity-50 transition-opacity duration-300">
-                    </div>
-                </div>
             </div>
+
+            <!-- Folders Grid -->
+            <section id="folders-grid"
+                class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                <!-- Folder cards will be dynamically inserted here -->
+            </section>
         </div>
     </main>
 
