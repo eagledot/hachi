@@ -10,10 +10,17 @@ new Layout({
   showNavbar: true,
 });
 
+interface FolderResponse {
+  count: number;
+  directory: string;
+  thumbnail_hash: string;
+}
+
 interface Directory {
   name: string;
   imageCount: number;
   fullPath: string;
+  thumbnailHash: string;
 }
 
 // Folders page functionality
@@ -31,9 +38,11 @@ class FoldersApp {
     const grid = document.getElementById("folders-grid");
     if (grid && !grid.getAttribute("data-click-delegation")) {
       grid.addEventListener("click", (e) => {
-        const target = (e.target as HTMLElement).closest('.folder-list-item') as HTMLElement | null;
-        if (target && target.hasAttribute('data-folder-path')) {
-          const folderPath = target.getAttribute('data-folder-path');
+        const target = (e.target as HTMLElement).closest(
+          ".folder-list-item"
+        ) as HTMLElement | null;
+        if (target && target.hasAttribute("data-folder-path")) {
+          const folderPath = target.getAttribute("data-folder-path");
           if (folderPath) {
             window.location.href = `/image-search.html?resource_directory=${folderPath}`;
           }
@@ -65,7 +74,6 @@ class FoldersApp {
       });
     }
   }
-
 
   private async loadFolders(): Promise<void> {
     // this.isLoading = true;
@@ -99,14 +107,18 @@ class FoldersApp {
     // Transform the data to match our interface
     // The API returns an array of directory names
     if (Array.isArray(data)) {
-      this.folders = data.map((dirName: string) => ({
-        name: this.getDisplayName(dirName),
-        fullPath: dirName,
-        imageCount: 0,
+      this.folders = data.map((folder: FolderResponse) => ({
+        name: this.getDisplayName(folder.directory),
+        fullPath: folder.directory,
+        imageCount: folder.count,
+        thumbnailHash: folder.thumbnail_hash,
       }));
 
+      // Sort based on image count descending by default
+      this.folders.sort((a, b) => b.imageCount - a.imageCount);
+
       this.filteredFolders = [...this.folders];
-      this.sortFolders(this.sortBy);
+      // this.sortFolders(this.sortBy);
       this.renderFolders();
     } else {
       throw new Error("Invalid response format");
@@ -152,7 +164,6 @@ class FoldersApp {
     });
   }
 
-
   private renderFolders(): void {
     const grid = document.getElementById("folders-grid");
     const noFolders = document.getElementById("no-folders");
@@ -178,10 +189,12 @@ class FoldersApp {
 
   // Efficiently update the grid without full innerHTML replacement
   private batchUpdateFolderGrid(grid: HTMLElement): void {
-    const existingNodes = Array.from(grid.querySelectorAll<HTMLElement>(":scope > .folder-list-item"));
+    const existingNodes = Array.from(
+      grid.querySelectorAll<HTMLElement>(":scope > .folder-list-item")
+    );
     const existingMap = new Map<string, HTMLElement>();
-    existingNodes.forEach(node => {
-      const key = node.getAttribute('data-folder-path');
+    existingNodes.forEach((node) => {
+      const key = node.getAttribute("data-folder-path");
       if (key) existingMap.set(key, node);
     });
 
@@ -212,9 +225,10 @@ class FoldersApp {
   }
 
   private createFolderElement(folder: Directory): HTMLElement {
-    const div = document.createElement('div');
-    div.className = "folder-list-item px-4 py-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer flex flex-col gap-1 justify-between";
-    div.setAttribute('data-folder-path', encodeURIComponent(folder.fullPath));
+    const div = document.createElement("div");
+    div.className =
+      "folder-list-item px-4 py-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer flex flex-col gap-1 justify-between";
+    div.setAttribute("data-folder-path", encodeURIComponent(folder.fullPath));
     // Structure
     div.appendChild(this.buildTopRow(folder));
     div.appendChild(this.buildPathRow(folder));
@@ -223,12 +237,12 @@ class FoldersApp {
 
   private updateFolderElement(el: HTMLElement, folder: Directory): void {
     // Update only if changed
-    const nameSpan = el.querySelector('.folder-name') as HTMLElement | null;
+    const nameSpan = el.querySelector(".folder-name") as HTMLElement | null;
     if (nameSpan && nameSpan.textContent !== folder.name) {
       nameSpan.textContent = folder.name;
       nameSpan.title = folder.name;
     }
-    const pathSpan = el.querySelector('.folder-path') as HTMLElement | null;
+    const pathSpan = el.querySelector(".folder-path") as HTMLElement | null;
     if (pathSpan) {
       const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
       if (pathSpan.textContent !== trimmedPath) {
@@ -239,21 +253,46 @@ class FoldersApp {
   }
 
   private buildTopRow(folder: Directory): HTMLElement {
-    const row = document.createElement('div');
-    row.className = 'flex items-center gap-3';
-    row.innerHTML = `
+    const row = document.createElement("div");
+    row.className = "flex items-center gap-3";
+
+    // Use thumbnail if available, otherwise show folder icon
+    if (folder.thumbnailHash) {
+      row.innerHTML = `
+      <img 
+        src="${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp" 
+        alt="${folder.name}" 
+        class="w-12 h-12 object-cover rounded"
+        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
+      />
+      <svg class="w-6 h-6 text-gray-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+      </svg>
+      <span class="folder-name font-medium text-gray-800" title="${folder.name}">${folder.name}</span>
+    `;
+    } else {
+      row.innerHTML = `
       <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
       </svg>
-      <span class="folder-name font-medium text-gray-800" title="${folder.name}">${folder.name}</span>`;
+      <span class="folder-name font-medium text-gray-800" title="${folder.name}">${folder.name}</span>
+    `;
+    }
     return row;
   }
 
   private buildPathRow(folder: Directory): HTMLElement {
     const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
-    const row = document.createElement('div');
-    row.className = 'flex items-center gap-2';
-    row.innerHTML = `<span class="folder-path text-xs text-gray-400 truncate max-w-full" title="${folder.fullPath}">${trimmedPath}</span>`;
+    const row = document.createElement("div");
+    row.className = "flex items-center gap-2 justify-between";
+    row.innerHTML = `
+    <span class="folder-path text-xs text-gray-400 truncate max-w-full" title="${
+      folder.fullPath
+    }">${trimmedPath}</span>
+    <span class="text-xs text-gray-500 font-medium whitespace-nowrap ml-2">${
+      folder.imageCount
+    } ${folder.imageCount === 1 ? "photo" : "photos"}</span>
+  `;
     return row;
   }
 
@@ -261,7 +300,7 @@ class FoldersApp {
     const maxPathLen = 32;
     let trimmedPath = fullPath;
     if (trimmedPath.length > maxPathLen) {
-      trimmedPath = '…' + trimmedPath.slice(-maxPathLen);
+      trimmedPath = "…" + trimmedPath.slice(-maxPathLen);
     }
     return { trimmedPath };
   }
@@ -275,7 +314,7 @@ class FoldersApp {
     const maxPathLen = 32;
     let trimmedPath = folder.fullPath;
     if (trimmedPath.length > maxPathLen) {
-      trimmedPath = '…' + trimmedPath.slice(-maxPathLen);
+      trimmedPath = "…" + trimmedPath.slice(-maxPathLen);
     }
     return html`
       <div
@@ -283,13 +322,29 @@ class FoldersApp {
         data-folder-path="${encodeURIComponent(folder.fullPath)}"
       >
         <div class="flex items-center gap-3">
-          <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+          <svg
+            class="w-6 h-6 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+            ></path>
           </svg>
-          <span class="font-medium text-gray-800" title="${folder.name}">${folder.name}</span>
+          <span class="font-medium text-gray-800" title="${folder.name}"
+            >${folder.name}</span
+          >
         </div>
         <div class="flex items-center gap-2">
-          <span class="text-xs text-gray-400 truncate max-w-full" title="${folder.fullPath}">${trimmedPath}</span>
+          <span
+            class="text-xs text-gray-400 truncate max-w-full"
+            title="${folder.fullPath}"
+            >${trimmedPath}</span
+          >
         </div>
       </div>
     `;

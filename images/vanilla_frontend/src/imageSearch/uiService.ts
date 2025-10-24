@@ -412,7 +412,7 @@ export class UIService {
   private createEmptyPhotoElement(): HTMLElement {
     const card = document.createElement("div");
     card.className =
-      "group relative bg-gray-100 rounded-xl shadow-sm overflow-hidden cursor-pointer";
+      "group relative bg-gray-100 rounded-lg shadow-sm overflow-hidden cursor-pointer";
 
     // Image wrapper - apply the responsive height here so caption sits below the image
     const imgWrapper = document.createElement("div");

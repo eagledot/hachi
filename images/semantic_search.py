@@ -764,19 +764,46 @@ def editMetaData(request:Request):
     return jsonify({"success":True})
 
 ##app.route("/getGroup/<attribute>", methods = ["GET"])
-def getGroup(request:Request, attribute:str) -> list[str]:
-    # get the unique/all-possible values for an attribute!
-    # NOTE: CLIENT SIDE pagination is pending ..
-    # NOTE: It is still quite fast, will get to it if starts to feel slow!
-    # LATER in the end, pagination would be added for this too
-        
+def getGroup(request:Request, attribute:str) -> list[str] | list[dict]:
     attribute_py_type = metaIndex.get_attribute_type(attribute) 
-    assert attribute_py_type == "string" or attribute_py_type == "arrayString" , "For now.. TODO..."
-    # TODO: extend this for every type when get some free time or required!
+    assert attribute_py_type == "string" or attribute_py_type == "arrayString", "For now.. TODO..."
+    
     raw_json = mBackend.get_unique_str(
         attribute, 
         count_only = False
     )
+    
+    # Special handling for resource_directory
+    if attribute == "resource_directory":
+        directories = json.loads(raw_json)
+        enriched_data = []
+        
+        for directory in directories:
+            # Count photos in this directory
+            row_indices = metaIndex.query_generic(
+                attribute = "resource_directory",
+                query = [directory],
+                unique_only = False
+            )
+            
+            # Get a thumbnail (first image's hash in this directory)
+            thumbnail_hash = None
+            if len(row_indices) > 0:
+                resource_hashes = json.loads(mBackend.collect_rows(
+                    attribute = "resource_hash",
+                    indices = [row_indices[0]]  # Just first one for thumbnail
+                ))
+                thumbnail_hash = resource_hashes[0] if resource_hashes else None
+            
+            enriched_data.append({
+                "directory": directory,
+                "count": len(row_indices),
+                "thumbnail_hash": thumbnail_hash
+            })
+        
+        return Response(json.dumps(enriched_data), mimetype = "application/json")
+    
+    # Default behavior for other attributes
     return Response(raw_json, mimetype = "application/json")
 
 # --------------------------------

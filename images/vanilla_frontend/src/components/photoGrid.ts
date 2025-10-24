@@ -65,7 +65,7 @@ export class PhotoGridComponent {
         </div>
 
         <!-- Photo grid -->
-        <div id="${gridId}" class="flex  flex-wrap gap-1">
+        <div id="${gridId}" class="flex  flex-wrap gap-2">
           <!-- Photos will be dynamically inserted here -->
         </div>
       </div>

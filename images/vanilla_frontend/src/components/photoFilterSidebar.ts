@@ -161,13 +161,13 @@ export default class PhotoFilterSidebar {
     valueSpan.style.textShadow = "0 1px 2px rgba(0, 0, 0, 0.1)";
     valueSpan.style.lineHeight = "1.4";
     // If value is of format yyyy-mm, convert to Month YYYY
-    if (attribute === "years" && /^\d{4}-\d{1,2}$/.test(value)) {
-      const [year, month] = value.split("-");
-      const monthName = new Date(
-        parseInt(year),
-        parseInt(month) - 1
-      ).toLocaleString("default", { month: "long" });
-      valueSpan.textContent = `${monthName} ${year}`;
+    if (attribute === "months") {
+      // It will be of "-mm-" or "-m-"
+      // Remove leading and trailing hyphens
+      value = value.replace(/^-/, "").replace(/-$/, "");
+      const monthNumber = parseInt(value, 10);
+      const monthName = new Date(0, monthNumber - 1).toLocaleString("default", { month: "long" });
+      valueSpan.textContent = `${monthName}`;
     } else {
       valueSpan.textContent = value;
     }
@@ -324,7 +324,7 @@ export default class PhotoFilterSidebar {
     personItem.style.margin = "1px";
 
     const photo = document.createElement("img");
-    photo.className = "w-13 h-13 bg-gray-200";
+    photo.className = "w-12 h-12 bg-gray-200";
     photo.src = `${endpoints.GET_PERSON_IMAGE}/${person}`;
     photo.alt = person;
     // photo.style.marginBottom = "2px";
@@ -411,7 +411,7 @@ export default class PhotoFilterSidebar {
   createPeopleFilterUI(): HTMLElement {
     const people = this.filters.people || [];
     const filterContainer = document.createElement("div");
-    filterContainer.className = "filter-container mb-4 shadow-sm p-2 rounded-lg";
+    filterContainer.className = "filter-container mb-4 shadow-sm p-4 rounded-lg";
 
     const filterTitle = document.createElement("h4");
     filterTitle.textContent = "People";
@@ -574,7 +574,7 @@ export default class PhotoFilterSidebar {
     }
 
     const filterContainer = document.createElement("div");
-    filterContainer.className = "filter-container mb-4 shadow-sm rounded-2xl bg-white p-2";
+    filterContainer.className = "filter-container mb-4 shadow-sm rounded-2xl bg-white p-4";
 
 
 

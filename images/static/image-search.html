@@ -4,24 +4,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Search - Hachi</title>
-
+    <title>Image Search - Hachi</title>
     <style>
         /* Modal and grid styles will be injected by components */
     </style>
-  <script type="module" crossorigin src="/assets/imageSearch-C3liNr_Y.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/utils-2RDbpbPS.js">
-  <link rel="modulepreload" crossorigin href="/assets/photoGrid-PWCVL9rA.js">
-  <link rel="modulepreload" crossorigin href="/assets/pagination-DW-fXOPg.js">
-  <link rel="stylesheet" crossorigin href="/assets/utils-G9w_-P7Y.css">
-  <link rel="stylesheet" crossorigin href="/assets/style-Di8Xr9b5.css">
+  <script type="module" crossorigin src="/assets/imageSearch-DjbJVZNF.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/layout-BImXdik9.js">
+  <link rel="modulepreload" crossorigin href="/assets/photoGrid-CJS7zh0f.js">
+  <link rel="modulepreload" crossorigin href="/assets/pagination-BjtaXUKu.js">
+  <link rel="stylesheet" crossorigin href="/assets/layout-CfA8x4f7.css">
+  <link rel="stylesheet" crossorigin href="/assets/style-CgOlGJQ1.css">
 </head>
 
 <body class="">
     <!-- Navbar will be inserted here by Layout -->
 
     <main id="main">
-        <div id="image-search-container" class="px-4 w-full flex flex-col">
+        <div id="image-search-container" class="h-[calc(100vh-51px)] px-4 w-full flex flex-col">
 
             <!-- Search Section -->
             <section>
@@ -33,13 +32,13 @@
                 </div>
             </section>
             <section id="results-section" class="flex flex-col flex-1">
-                <div class="flex flex-col flex-1  gap-3">
+                <div class="flex flex-col flex-1  gap-1">
                     <!-- Left Sidebar - Filters -->
                     <div id="photo-filter-container" class="invisible">
                         <!-- Photo filters will be injected here -->
                     </div>
                     <!-- Main Content Area - Photo Grid -->
-                    <main id="photo-gallery" class="flex-1 min-w-0">
+                    <main id="photo-gallery" class="flex-1 min-w-0 overflow-y-auto max-h-[calc(100vh-130px)]">
                         <div id="photo-grid-container">
                             <!-- Photo grid components will be injected here -->
                         </div>
@@ -49,13 +48,16 @@
             </section>
         </div>
         <!-- Pagination Controls -->
-        <div id="pagination-container" class="w-full sticky bottom-0 z-30 bg-white border-t border-gray-100 hidden">
+        <div id="pagination-container" class="w-full sticky bottom-0 z-30 hidden">
 
         </div>
     </main>
     <!-- Modal will be injected here by ImageModalComponent -->
-
-
+    <!-- Right Sidebar - Filters (PhotoFilterSidebar will be injected here) -->
+    <div id="photo-filter-sidebar" class="w-92 flex flex-shrink-0 bg-gray-50">
+        <!-- Photo filter sidebar will be injected here -->
+    </div>
+
 </body>
 
 </html>

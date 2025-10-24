@@ -69,7 +69,8 @@ class ImageSearchApp {
     const { rows, cols, tileWidth, tileHeight } = fitTiles(
       photoGalleryHeight!,
       photoGalleryWidth,
-      side
+      side,
+      9
     );
 
     this.resultsPerPage = rows * cols;
