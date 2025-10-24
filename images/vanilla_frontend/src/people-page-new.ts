@@ -1,7 +1,12 @@
 import "./style.css";
 import { Layout } from "./components";
 import { endpoints } from "./config";
-import { createElementFromString, fetchWithSession, fitTiles, html } from "./utils";
+import {
+  createElementFromString,
+  fetchWithSession,
+  fitTiles,
+  html,
+} from "./utils";
 import { PaginationComponent } from "./components/pagination";
 
 // Initialize the layout
@@ -13,6 +18,7 @@ new Layout({
 
 interface Person {
   id: string;
+  count: number;
 }
 
 class PeopleApp {
@@ -94,9 +100,11 @@ class PeopleApp {
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      const data: string[] = await response.json();
-      this.people = data.map((id) => ({ id }));
+      const data: { person: string; count: number }[] = await response.json();
+      this.people = data.map(({ person, count }) => ({ id: person, count }));
       console.log(this.people);
+      // Sort people by count descending
+      this.people.sort((a, b) => b.count - a.count);
       this.totalPages = Math.ceil(this.people.length / this.itemsPerPage);
     } catch (error) {
       console.error("Error loading people:", error);
@@ -116,13 +124,25 @@ class PeopleApp {
     // First update the badge
     const badge = card.querySelector(".badge");
     // If not auto-detected, set its visibility style to "hidden"
+
+    // Update count badge
+    const countBadge = card.querySelector(
+      "div.count-badge"
+    ) as HTMLElement;
+    if (countBadge) {
+      countBadge.textContent = `${person.count} ${
+        person.count === 1 ? "photo" : "photos"
+      }`;
+    }
+
     if (hasCustomName) {
       if (badge) {
         (badge as HTMLElement).style.visibility = "visible";
       }
       const avatarNameEl = card.querySelector(".avatar-name");
       if (avatarNameEl) {
-        avatarNameEl.textContent = displayName.length > 8
+        avatarNameEl.textContent =
+          displayName.length > 8
             ? displayName.substring(0, 8) + "..."
             : displayName;
       }
@@ -183,15 +203,21 @@ class PeopleApp {
         style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
         class="group duration-200 cursor-pointer relative active:scale-98"
       >
+        <!-- Count badge at top-left -->
+        <div
+          class="count-badge absolute bottom-0 left-0 z-10 bg-gray-200 text-black text-xs font-semibold px-1.5 py-0.5 rounded-sm"
+        >
+          ${person.count} ${person.count === 1 ? "photo" : "photos"}
+        </div>
         <!-- Status badge -->
         <div
           style="${hasCustomName
             ? "visibility: visible;"
             : "visibility: hidden;"}"
-          class="badge hidden sm:block absolute top-1 sm:top-2 right-1 sm:right-2 z-10"
+          class="badge hidden m-0 sm:block absolute -top-1 right-0 z-10"
         >
           <span
-            class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 border border-green-200"
+            class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-gray-200 text-black rounded-sm"
           >
             <svg
               class="w-2 h-2 sm:w-2.5 sm:h-2.5 mr-1"
@@ -206,9 +232,11 @@ class PeopleApp {
                 d="M5 13l4 4L19 7"
               ></path>
             </svg>
-            <span title="${person.id}" class="hidden avatar-name sm:block">${person.id.length > 12
+            <span title="${person.id}" class="hidden avatar-name sm:block"
+              >${person.id.length > 12
                 ? person.id.substring(0, 12) + "..."
-                : person.id}</span>
+                : person.id}</span
+            >
             <span class="sm:hidden avatar-name-mobile"
               >${person.id.length > 8
                 ? person.id.substring(0, 8) + "..."
@@ -533,8 +561,8 @@ class PeopleApp {
     const nextPage = this.currentPage + 1;
     const prevPage = this.currentPage - 1; // warm previous for quick back nav
     const task = () => {
-        this.preloadPage(nextPage);
-        this.preloadPage(prevPage);
+      this.preloadPage(nextPage);
+      this.preloadPage(prevPage);
     };
     if ("requestIdleCallback" in window) {
       window.requestIdleCallback(task, { timeout: 120 });
@@ -542,7 +570,6 @@ class PeopleApp {
       setTimeout(task, 120);
     }
   }
-
 
   private setupPagination() {
     if (!this.paginationContainerElement) return;

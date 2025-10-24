@@ -773,6 +773,25 @@ def getGroup(request:Request, attribute:str) -> list[str] | list[dict]:
         count_only = False
     )
     
+    # When the attribute is "person", we want to enrich the data with counts
+    if attribute == "person":
+        persons = json.loads(raw_json)
+        enriched_data = []
+        
+        for person in persons:
+            # Count photos for this person
+            row_indices = metaIndex.query_generic(
+                attribute = "person",
+                query = [person],
+                unique_only = False
+            )
+            enriched_data.append({
+                "person": person,
+                "count": len(row_indices)
+            })
+        
+        return Response(json.dumps(enriched_data), mimetype = "application/json")
+    
     # Special handling for resource_directory
     if attribute == "resource_directory":
         directories = json.loads(raw_json)
