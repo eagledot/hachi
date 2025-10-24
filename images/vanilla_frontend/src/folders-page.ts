@@ -227,72 +227,138 @@ class FoldersApp {
   private createFolderElement(folder: Directory): HTMLElement {
     const div = document.createElement("div");
     div.className =
-      "folder-list-item px-4 py-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer flex flex-col gap-1 justify-between";
+      "folder-list-item flex items-center p-3 border-b border-gray-200 hover:bg-gray-50 cursor-pointer gap-4";
     div.setAttribute("data-folder-path", encodeURIComponent(folder.fullPath));
-    // Structure
-    div.appendChild(this.buildTopRow(folder));
-    div.appendChild(this.buildPathRow(folder));
+
+    // Thumbnail or Icon
+    const thumbnailContainer = document.createElement("div");
+    thumbnailContainer.className =
+      "w-12 h-12 flex-shrink-0 bg-gray-100 rounded-md flex items-center justify-center";
+
+    if (folder.thumbnailHash) {
+      thumbnailContainer.innerHTML = `
+        <img 
+          src="${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp" 
+          alt="${folder.name}" 
+          class="w-full h-full object-cover rounded-md"
+          onerror="this.parentElement.innerHTML = '<div class=\\'flex items-center justify-center w-full h-full\\'><svg class=\\'w-6 h-6 text-gray-400\\'><use href=\\'#folder-icon\\'/></svg></div>';"
+        />
+      `;
+    } else {
+      thumbnailContainer.innerHTML = `
+        <div class="flex items-center justify-center w-full h-full">
+          <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+          </svg>
+        </div>
+      `;
+    }
+    div.appendChild(thumbnailContainer);
+
+    // Folder Info (Name and Path)
+    const infoDiv = document.createElement("div");
+    infoDiv.className = "flex-grow min-w-0"; // min-w-0 is crucial for truncation
+    const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
+    infoDiv.innerHTML = `
+      <div class="folder-name font-medium text-gray-800 truncate" title="${folder.name}">${folder.name}</div>
+      <div class="folder-path text-sm text-gray-500 truncate" title="${folder.fullPath}">${trimmedPath}</div>
+    `;
+    div.appendChild(infoDiv);
+
+    // Photo Count
+    const countDiv = document.createElement("div");
+    countDiv.className = "photo-count text-sm text-gray-600 font-medium whitespace-nowrap";
+    countDiv.textContent = `${folder.imageCount} ${folder.imageCount === 1 ? "photo" : "photos"}`;
+    div.appendChild(countDiv);
+
     return div;
   }
 
   private updateFolderElement(el: HTMLElement, folder: Directory): void {
-    // Update only if changed
-    const nameSpan = el.querySelector(".folder-name") as HTMLElement | null;
-    if (nameSpan && nameSpan.textContent !== folder.name) {
-      nameSpan.textContent = folder.name;
-      nameSpan.title = folder.name;
+    // Thumbnail
+    const img = el.querySelector("img");
+    if (img && !img.src.includes(folder.thumbnailHash)) {
+        img.src = `${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp`;
     }
-    const pathSpan = el.querySelector(".folder-path") as HTMLElement | null;
-    if (pathSpan) {
-      const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
-      if (pathSpan.textContent !== trimmedPath) {
-        pathSpan.textContent = trimmedPath;
-      }
-      if (pathSpan.title !== folder.fullPath) pathSpan.title = folder.fullPath;
+
+    // Name
+    const nameDiv = el.querySelector(".folder-name") as HTMLElement | null;
+    if (nameDiv && nameDiv.textContent !== folder.name) {
+      nameDiv.textContent = folder.name;
+      nameDiv.title = folder.name;
+    }
+
+    // Path
+    const pathDiv = el.querySelector(".folder-path") as HTMLElement | null;
+    if (pathDiv) {
+        const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
+        if (pathDiv.textContent !== trimmedPath) {
+            pathDiv.textContent = trimmedPath;
+        }
+        if (pathDiv.title !== folder.fullPath) {
+            pathDiv.title = folder.fullPath;
+        }
+    }
+
+    // Count
+    const countDiv = el.querySelector(".photo-count") as HTMLElement | null;
+    const newCountText = `${folder.imageCount} ${folder.imageCount === 1 ? "photo" : "photos"}`;
+    if (countDiv && countDiv.textContent !== newCountText) {
+      countDiv.textContent = newCountText;
     }
   }
 
   private buildTopRow(folder: Directory): HTMLElement {
     const row = document.createElement("div");
-    row.className = "flex items-center gap-3";
+    row.className = "flex items-center gap-4";
 
-    // Use thumbnail if available, otherwise show folder icon
+    // Thumbnail or Icon
+    const thumbnailContainer = document.createElement("div");
+    thumbnailContainer.className =
+      "w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center";
+
     if (folder.thumbnailHash) {
-      row.innerHTML = `
-      <img 
-        src="${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp" 
-        alt="${folder.name}" 
-        class="w-12 h-12 object-cover rounded"
-        onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"
-      />
-      <svg class="w-6 h-6 text-gray-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-      </svg>
-      <span class="folder-name font-medium text-gray-800" title="${folder.name}">${folder.name}</span>
-    `;
+      thumbnailContainer.innerHTML = `
+        <img 
+          src="${endpoints.GET_PREVIEW_IMAGE}/${folder.thumbnailHash}.webp" 
+          alt="${folder.name}" 
+          class="w-full h-full object-cover rounded-lg"
+          onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+        />
+        <div class="hidden w-full h-full items-center justify-center">
+          <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+          </svg>
+        </div>
+      `;
     } else {
-      row.innerHTML = `
-      <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-      </svg>
-      <span class="folder-name font-medium text-gray-800" title="${folder.name}">${folder.name}</span>
-    `;
+      thumbnailContainer.innerHTML = `
+        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+        </svg>
+      `;
     }
+    row.appendChild(thumbnailContainer);
+
+    // Folder Name and Photo Count
+    const infoDiv = document.createElement("div");
+    infoDiv.className = "flex flex-col justify-center";
+    infoDiv.innerHTML = `
+      <span class="folder-name font-semibold text-gray-800 text-base" title="${folder.name}">${folder.name}</span>
+      <span class="text-sm text-gray-500">${folder.imageCount} ${folder.imageCount === 1 ? "photo" : "photos"}</span>
+    `;
+    row.appendChild(infoDiv);
+
     return row;
   }
 
   private buildPathRow(folder: Directory): HTMLElement {
     const { trimmedPath } = this.getTrimmedPath(folder.fullPath);
     const row = document.createElement("div");
-    row.className = "flex items-center gap-2 justify-between";
+    row.className = "pl-20"; // Indent to align with folder name
     row.innerHTML = `
-    <span class="folder-path text-xs text-gray-400 truncate max-w-full" title="${
-      folder.fullPath
-    }">${trimmedPath}</span>
-    <span class="text-xs text-gray-500 font-medium whitespace-nowrap ml-2">${
-      folder.imageCount
-    } ${folder.imageCount === 1 ? "photo" : "photos"}</span>
-  `;
+      <span class="folder-path text-sm text-gray-500 truncate" title="${folder.fullPath}">${trimmedPath}</span>
+    `;
     return row;
   }
 

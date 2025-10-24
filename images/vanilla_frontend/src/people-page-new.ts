@@ -63,7 +63,8 @@ class PeopleApp {
     const { rows, cols, tileWidth, tileHeight } = fitTiles(
       photoGalleryHeight!,
       photoGalleryWidth,
-      side
+      side,
+      9
     );
 
     this.itemsPerPage = rows * cols;
@@ -130,9 +131,7 @@ class PeopleApp {
       "div.count-badge"
     ) as HTMLElement;
     if (countBadge) {
-      countBadge.textContent = `${person.count} ${
-        person.count === 1 ? "photo" : "photos"
-      }`;
+      countBadge.textContent = `${person.count}`;
     }
 
     if (hasCustomName) {
@@ -205,33 +204,20 @@ class PeopleApp {
       >
         <!-- Count badge at top-left -->
         <div
-          class="count-badge absolute bottom-0 left-0 z-10 bg-gray-200 text-black text-xs font-semibold px-1.5 py-0.5 rounded-sm"
+          class="count-badge absolute top-1 right-1 z-10 bg-gray-200 text-black text-xs font-semibold px-1.5 py-0.5 rounded-sm"
         >
-          ${person.count} ${person.count === 1 ? "photo" : "photos"}
+          ${person.count}
         </div>
         <!-- Status badge -->
         <div
           style="${hasCustomName
             ? "visibility: visible;"
             : "visibility: hidden;"}"
-          class="badge hidden m-0 sm:block absolute -top-1 right-0 z-10"
+          class="badge hidden m-0 sm:block absolute bottom-0 w-full left-0 z-10"
         >
           <span
-            class="inline-flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-gray-200 text-black rounded-sm"
+            class="flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium text-white"
           >
-            <svg
-              class="w-2 h-2 sm:w-2.5 sm:h-2.5 mr-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              ></path>
-            </svg>
             <span title="${person.id}" class="hidden avatar-name sm:block"
               >${person.id.length > 12
                 ? person.id.substring(0, 12) + "..."
