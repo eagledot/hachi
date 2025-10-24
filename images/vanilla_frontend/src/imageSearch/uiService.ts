@@ -97,9 +97,7 @@ export class UIService {
     this.modalFacesBtn = document.querySelector(
       "#modal-faces-btn"
     ) as HTMLButtonElement;
-    this.modalTitleEl = document.querySelector(
-      "#modal-title"
-    ) as HTMLElement;
+    this.modalTitleEl = document.querySelector("#modal-title") as HTMLElement;
     if (!this.photoGrid) {
       throw new Error("Required UI elements not found");
     }
@@ -290,10 +288,15 @@ export class UIService {
   private updatePhotoGridForPagination(photos: HachiImageData[]): void {
     console.log("Updating photo grid for pagination:", photos.length);
 
+    let previousDate: string | null = null;
+
     // Update existing elements with new photo data
     photos.forEach((photo, index) => {
       const element = this.photoElementPool[index];
-      this.updateElementWithPhotoData(element, photo);
+      // WE basically want to check if photo.metadata.resource_created is different from the previous one
+      const showDate = photo.metadata?.resource_created !== previousDate;
+      this.updateElementWithPhotoData(element, photo, showDate);
+      previousDate = photo.metadata?.resource_created || null;
     });
 
     // Hide unused elements
@@ -357,7 +360,7 @@ export class UIService {
    */
   private formatDateForDisplay(dateString: string): string {
     try {
-      // Handles the specific format "YYYY:MM:DD HH:MM:SS" 
+      // Handles the specific format "YYYY:MM:DD HH:MM:SS"
       if (dateString.includes(":") && dateString.includes(" ")) {
         // SPlit by space to seperate date and time
         const [datePart] = dateString.split(" ");
@@ -379,6 +382,7 @@ export class UIService {
           month: "short",
           day: "numeric",
         };
+
         return date.toLocaleDateString(undefined, options);
       } else if (dateString.includes("-")) {
         // Handle standard ISO format "YYYY-MM-DD"
@@ -394,7 +398,7 @@ export class UIService {
           day: "numeric",
         };
         return date.toLocaleDateString(undefined, options);
-      } 
+      }
       return dateString;
     } catch (err) {
       console.error("Error formatting date:", err);
@@ -408,8 +412,8 @@ export class UIService {
   private createEmptyPhotoElement(): HTMLElement {
     const card = document.createElement("div");
     card.className =
-      "group relative bg-gray-100 overflow-hidden cursor-pointer";
-    
+      "group relative bg-gray-100 rounded-xl shadow-sm overflow-hidden cursor-pointer";
+
     // Image wrapper - apply the responsive height here so caption sits below the image
     const imgWrapper = document.createElement("div");
     imgWrapper.className = "mobile-photo-height w-full overflow-hidden";
@@ -439,14 +443,13 @@ export class UIService {
     // Bottom caption overlay (semi-transparent background)
     const captionOverlay = document.createElement("div");
     captionOverlay.className =
-      "absolute left-0 right-0 bottom-0 px-2 py-1 bg-black/40 backdrop-blur-sm text-xs text-gray-200 truncate";
+      "absolute left-0 right-0 bottom-0 px-2 py-1 text-xs text-gray-200 truncate";
     // Set text further smaller than text-xs
     captionOverlay.style.fontSize = "0.625rem";
-
     captionOverlay.setAttribute("data-photo-caption", "true");
+    // Give it a min height to avoid layout shift
+    captionOverlay.style.minHeight = "2.1em";
     captionOverlay.style.pointerEvents = "none"; // let clicks pass through to card (click handled on card)
-
-
 
     // Make overlay positioned relative to the wrapper
     imgWrapper.appendChild(img);
@@ -460,11 +463,64 @@ export class UIService {
   }
 
   /**
+   * Generates a consistent color for a given date string
+   * Uses golden ratio to ensure adjacent dates have maximally different colors
+   */
+  private getColorForDate(dateString: string): string {
+    if (!dateString) return "#d1d5db"; // default gray-300
+
+    // Extract just the date part (YYYY-MM-DD) from various formats
+    let datePart = dateString;
+    if (dateString.includes(" ")) {
+      datePart = dateString.split(" ")[0];
+    }
+    datePart = datePart.replace(/:/g, "-");
+
+    // Parse the date to get a sequential number (days since epoch)
+    try {
+      const date = new Date(datePart);
+      if (!isNaN(date.getTime())) {
+        // Get days since epoch
+        const daysSinceEpoch = Math.floor(
+          date.getTime() / (1000 * 60 * 60 * 24)
+        );
+
+        // Use golden ratio (0.618033988749895) for maximum color distribution
+        // This ensures adjacent dates get very different hues
+        const goldenRatioConjugate = 0.618033988749895;
+        const hue = (daysSinceEpoch * goldenRatioConjugate * 360) % 360;
+
+        // Vary saturation and lightness slightly based on the date
+        // to add more distinction
+        const saturation = 70 + ((daysSinceEpoch * 7) % 20); // 70-90%
+        const lightness = 55 + ((daysSinceEpoch * 11) % 25); // 55-80%
+
+        return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      }
+    } catch (err) {
+      console.error("Error parsing date for color:", err);
+    }
+
+    // Fallback to hash-based color if date parsing fails
+    let hash = 0;
+    for (let i = 0; i < datePart.length; i++) {
+      hash = datePart.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const hue = Math.abs(hash % 360);
+    const saturation = 70;
+    const lightness = 65;
+
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  }
+
+  /**
    * Updates an existing DOM element with new photo data
    */
   private updateElementWithPhotoData(
     element: HTMLElement,
-    photo: HachiImageData
+    photo: HachiImageData,
+    addDateOverlay: boolean = true
   ): void {
     const img = element.querySelector("img") as HTMLImageElement;
     if (!img) return;
@@ -474,21 +530,31 @@ export class UIService {
     img.alt = photo.metadata?.filename || "";
     element.setAttribute("data-photo-id", photo.id);
 
+    const caption = element.querySelector(
+      '[data-photo-caption="true"]'
+    ) as HTMLElement | null;
+
+    console.log(addDateOverlay);
+
     // Update caption
-    const caption = element.querySelector('[data-photo-caption="true"]') as HTMLElement | null;
     if (caption) {
-      const fullname = this.formatDateForDisplay(photo.metadata?.taken_at! || photo.metadata?.resource_created!) || photo.metadata?.filename || "";
-      // Get the width of the element to determine how much text can fit
-      const elementWidth = element.clientWidth;
-      // Approximate max characters based on width (assuming avg char width ~8px)
-      // 8px is a rough average, adjust as needed based on font and styling
-      const maxLength = Math.floor(elementWidth / 8); // Adjust as needed
-      const trimmedName =
-        fullname.length > maxLength
-          ? fullname.substring(0, maxLength) + "..."
-          : fullname;
-      caption.textContent = trimmedName; // Show full name for now
-      caption.title = fullname; // Full name in tooltip
+      // if (addDateOverlay) {
+      //   const dateForDisplay = this.formatDateForDisplay(photo.metadata?.resource_created!);
+      //   caption.textContent = dateForDisplay;
+      // } else {
+      //   caption.textContent = "";
+      // }
+      const dateForDisplay = this.formatDateForDisplay(
+        photo.metadata?.resource_created!
+      );
+      caption.textContent = dateForDisplay;
+      const textColor = this.getColorForDate(photo.metadata?.resource_created!);
+      // caption.style.borderBottom = `4px solid ${textColor}`;
+      // caption.style.color = textColor;
+      // caption.style.backgroundColor = textColor;
+      // caption.style.color = "black";
+      // Set font as bold
+      caption.style.fontWeight = "bold";
     }
 
     // Update score badge
@@ -554,7 +620,7 @@ export class UIService {
 
     this.updateModalMetadata(photo);
     this.updateModalNavigation(canGoPrevious, canGoNext);
-  this.updateModalTitle(photo);
+    this.updateModalTitle(photo);
     document.body.style.overflow = "hidden";
   }
 
@@ -582,7 +648,6 @@ export class UIService {
     this.currentFullImageLoader.decoding = "async"; // Use async decoding for better performance
     this.currentFullImageLoader.loading = "eager";
     this.currentFullImageLoader.src = fullImageUrl;
-    
 
     this.currentFullImageLoader.onload = () => {
       // Switch to full resolution while maintaining the same dimensions
@@ -666,7 +731,7 @@ export class UIService {
             ? `${metadata.width} × ${metadata.height}`
             : null,
       },
-      
+
       { label: "Path", value: metadata.resource_path },
     ].filter((item) => item.value && item.value.toString().trim() !== "");
 
@@ -674,7 +739,8 @@ export class UIService {
     for (const [key, value] of Object.entries(metadata)) {
       if (value && value.toString().trim() !== "") {
         // Let's format the label to be more user-friendly
-        const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
+        const formattedKey =
+          key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
         metadataItems.push({ label: formattedKey, value });
       }
     }
@@ -775,9 +841,9 @@ export class UIService {
       label.className = "font-semibold col-span-1 text-gray-100";
       label.textContent = `${item.label}:`;
       div.appendChild(label);
-  
 
-      const valueText = typeof item.value === "string" ? item.value : String(item.value);
+      const valueText =
+        typeof item.value === "string" ? item.value : String(item.value);
 
       // Special handling any label that is more than certain length
       if (valueText.length >= 20) {
@@ -841,8 +907,6 @@ export class UIService {
       // Value handling is now inside the conditional above
       fragment.appendChild(div);
     });
-
-    
 
     // Clear and append all at once for efficiency
     this.modalMetadata.innerHTML = "";

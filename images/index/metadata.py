@@ -420,12 +420,20 @@ def extract_image_metaData(resource_path: Union[os.PathLike, BinaryIO, bytes], d
             populate_image_exif_data(exif_attributes, resource_path=resource_path)
             
             # Trying to set `resource_created` to `taken_at` if available!( best effort  basis for now!)
-            assert (isinstance(exif_attributes["taken_at"]), str)
+            assert isinstance(exif_attributes["taken_at"], str)
             temp_taken = exif_attributes["taken_at"]
-            if len(temp_taken.split(":")) >= 3:  # we assume YYYY:MM:DD: <time optional> for taken_at!
-                yyyy, mm, dd = temp_taken.split(":")[:3]
+            temp_taken = temp_taken.split(" ")
+            # If the time is present, we will have length more than 1!
+            temp_taken = temp_taken[0]  # we only want date part!
+            # if len(temp_taken.split(":")) >= 3:  # we assume YYYY:MM:DD: <time optional> for taken_at!
+            #     yyyy, mm, dd = temp_taken.split(":")[:3]
+            #     if (int(mm.strip()) <= 12) and (int(dd.strip()) <= 31):
+            #         main_attributes["resource_created"] = "{}-{}-{}".format(yyyy.strip(), mm.strip(), dd.strip())
+            if len(temp_taken.split(":")) == 3:  # we assume YYYY:MM:DD for taken_at!
+                yyyy, mm, dd = temp_taken.split(":")
                 if (int(mm.strip()) <= 12) and (int(dd.strip()) <= 31):
                     main_attributes["resource_created"] = "{}-{}-{}".format(yyyy.strip(), mm.strip(), dd.strip())
+            
             
 
         result_meta["location"] = l

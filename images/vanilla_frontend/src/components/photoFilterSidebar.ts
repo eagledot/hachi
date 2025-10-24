@@ -11,6 +11,7 @@ interface PhotoFilters {
   places?: string[];
   tags?: string[];
   years?: string[];
+  months?: string[];
 }
 
 const Filter_UI_Mapping = {
@@ -20,6 +21,7 @@ const Filter_UI_Mapping = {
   places: "Places",
   tags: "Tags",
   years: "Years",
+  months: "Months",
 };
 
 const Filter_Request_Mapping = {
@@ -29,6 +31,7 @@ const Filter_Request_Mapping = {
   places: "place",
   tags: "tags",
   years: "year",
+  months: "month",
 };
 
 export default class PhotoFilterSidebar {
@@ -290,12 +293,12 @@ export default class PhotoFilterSidebar {
   }
 
   createSidebarStyles(sidebarElement: HTMLElement): void {
-    sidebarElement.style.width = "260px";
+    sidebarElement.style.width = "276px";
     sidebarElement.style.height = "100vh";
     // sidebarElement.style.position = "sticky";
     // sidebarElement.style.top = "0";
     // sidebarElement.style.right = "0";
-    sidebarElement.style.backgroundColor = "#fff";
+    // sidebarElement.style.backgroundColor = "#fff";
     // sidebarElement.style.boxShadow = "-2px 0 5px rgba(0,0,0,0.1)";
     // sidebarElement.style.zIndex = "1000";
     // sidebarElement.style.display = "none";
@@ -318,7 +321,7 @@ export default class PhotoFilterSidebar {
     const personItem = document.createElement("div");
     personItem.className =
       "flex flex-col cursor-pointer hover:bg-blue-50 rounded transition";
-    personItem.style.padding = "1px";
+    personItem.style.margin = "1px";
 
     const photo = document.createElement("img");
     photo.className = "w-13 h-13 bg-gray-200";
@@ -408,7 +411,7 @@ export default class PhotoFilterSidebar {
   createPeopleFilterUI(): HTMLElement {
     const people = this.filters.people || [];
     const filterContainer = document.createElement("div");
-    filterContainer.className = "filter-container mb-2";
+    filterContainer.className = "filter-container mb-4 shadow-sm p-2 rounded-lg";
 
     const filterTitle = document.createElement("h4");
     filterTitle.textContent = "People";
@@ -507,8 +510,8 @@ export default class PhotoFilterSidebar {
     }
     this.addFilterPill("person", personId);
     // Add better styles to show a selected image
-    image.parentElement!.style.border = "3px solid #2563eb"; // Use a blue accent for selection
-    image.parentElement!.style.borderRadius = "8px"; // Rounded corners for better appearance
+    image.parentElement!.style.border = "2px solid #2563eb"; // Use a blue accent for selection
+    // image.parentElement!.style.borderRadius = "8px"; // Rounded corners for better appearance
     // Add a data attribute to tell that it is checked
     image.dataset.personId = personId;
     this.setFilteredImages("person", personId);
@@ -558,16 +561,20 @@ export default class PhotoFilterSidebar {
     // If filterName is years, sort options in descending order but pad month values
     if (filterName === "years") {
       options.sort((a, b) => {
-        const [yearA, monthA] = a.split("-");
-        const [yearB, monthB] = b.split("-");
-        const dateA = new Date(parseInt(yearA), parseInt(monthA) - 1);
-        const dateB = new Date(parseInt(yearB), parseInt(monthB) - 1);
-        return dateB.getTime() - dateA.getTime();
+        // Only getting the year as string. For example, "2015"
+        return parseInt(b) - parseInt(a);
+      });
+    }
+
+    if (filterName === "months") {
+      options.sort((a, b) => {
+        // Only getting the month as string. For example, "4"
+        return parseInt(b) - parseInt(a);
       });
     }
 
     const filterContainer = document.createElement("div");
-    filterContainer.className = "filter-container mb-2";
+    filterContainer.className = "filter-container mb-4 shadow-sm rounded-2xl bg-white p-2";
 
 
 
@@ -588,6 +595,8 @@ export default class PhotoFilterSidebar {
     optionsList.style.scrollbarColor = "#cbd5e1 transparent"; // thumb and track colors
 
     optionsList.className = "space-y-0.5";
+
+
     options.forEach((option) => {
       const optionItem = document.createElement("li");
 
@@ -599,7 +608,12 @@ export default class PhotoFilterSidebar {
       checkbox.type = "checkbox";
       checkbox.name = filterName;
 
-      checkbox.value = option;
+      if (filterName === "months") {
+        // For months, Checkbox value will be -{option}-
+        checkbox.value = `-${option}-`;
+      } else {
+        checkbox.value = option;
+      }
       checkbox.className =
         "mr-1 accent-blue-600 w-3 h-3 rounded border-gray-300";
 
@@ -615,24 +629,32 @@ export default class PhotoFilterSidebar {
           );
         }
         const target = event.target as HTMLInputElement;
+        // For months, we need to send -{option}- as value
+        if (filterName === "months") {
+          this.onCheckboxClick(
+            filterName,
+            `-${option}-`,
+            target.checked,
+            checkbox
+          );
+          return;
+        }
         this.onCheckboxClick(filterName, option, target.checked, checkbox);
       });
 
       label.appendChild(checkbox);
       // when filterName is year, the value will be 2023-4 for April 2023
       // So, we need to display it as April 2023
-      if (filterName === "years") {
-        const [year, month] = option.split("-");
-        const monthName = new Date(
-          parseInt(year),
-          parseInt(month) - 1
-        ).toLocaleString("default", { month: "long" });
-        label.appendChild(document.createTextNode(`${monthName} ${year}`));
+      if (filterName === "months") {
+        // Parse the int. Example, "4" -> 4
+        const monthInt = parseInt(option);
+        const monthName = new Date(0, monthInt - 1).toLocaleString("default", { month: "long" });
+        label.appendChild(document.createTextNode(`${monthName}`));
       } else {
         label.appendChild(document.createTextNode(option));
       }
-      optionItem.appendChild(label);
 
+      optionItem.appendChild(label);
       optionsList.appendChild(optionItem);
     });
 
@@ -674,8 +696,7 @@ export default class PhotoFilterSidebar {
 
   createSidebarFooter(): HTMLElement {
     const footer = document.createElement("div");
-    footer.className = "p-4 border-t border-gray-200 bg-white";
-    footer.style.borderTop = "1px solid #e5e7eb";
+    footer.className = "p-4 bg-white";
 
     const clearButton = document.createElement("button");
     clearButton.textContent = "Clear All Filters";

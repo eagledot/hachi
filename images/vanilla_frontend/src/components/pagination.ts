@@ -98,7 +98,7 @@ export class PaginationComponent {
     this.container.classList.remove("hidden");
 
     this.container.innerHTML = html`
-      <div class="mx-auto w-full px-3 sm:px-4 py-2
+      <div class="mx-4 px-3 sm:px-4 py-2
                   flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
         
         <!-- Left: Info + Hint (stack) -->

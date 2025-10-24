@@ -792,7 +792,8 @@ def filterPopulateQuery(request:Request, query_token:str,  attribute:str) -> lis
 
     # Handling the `year` attribute, as we store the `YYYY-mm--dd` created date!
     # Later can modify the backend to handle data-time formats.
-    if attribute == "year":
+    origininal_attribute = attribute
+    if attribute == "year" or attribute == "month":
         attribute = "resource_created"
     
     attribute_type = metaIndex.get_attribute_type(attribute)
@@ -823,7 +824,7 @@ def filterPopulateQuery(request:Request, query_token:str,  attribute:str) -> lis
             final_row_indices.extend(row_indices)
         del row_indices, resource_hashes
 
-    if attribute == "resource_created":
+    if attribute == "resource_created" and origininal_attribute == "year":
         raw_json = mBackend.get_unique_str(
                 attribute,
                 count_only = False,        
@@ -834,13 +835,28 @@ def filterPopulateQuery(request:Request, query_token:str,  attribute:str) -> lis
         year_set = set()
         for x in json.loads(raw_json):
             # x would be in format "yyyy-mm-dd"
-            year_set.add(x.split("-")[0] + "-" + x.split("-")[1])
+            # year_set.add(x.split("-")[0] + "-" + x.split("-")[1])
+            year_set.add(x.split("-")[0])  # only year part!
         
         # create a json repr from set TOdO:
         # temp_str = str(year_set)
         # temp_str = temp_str.replace("{", "[", 1)
         # temp_str = temp_str.replace("}", "]", 1)
         raw_json = json.dumps(list(year_set)) # BOxing again to create a list :)
+        
+    elif attribute == "resource_created" and origininal_attribute == "month":
+        raw_json = mBackend.get_unique_str(
+                attribute,
+                count_only = False,        
+                row_indices = final_row_indices
+        )
+        
+        month_set = set()
+        for x in json.loads(raw_json):
+            # x would be in format "yyyy-mm-dd"
+            month_set.add(x.split("-")[1])  # month part!
+            
+        raw_json = json.dumps(list(month_set)) # BOxing again to create a list :)
 
     else:
         raw_json = mBackend.get_unique_str(
@@ -860,7 +876,7 @@ def filterQueryMeta(request:Request, query_token:str, attribute:str, value:Any) 
 
     print("Got request {} {}".format(attribute, value))
 
-    if attribute == "year":
+    if attribute == "year" or attribute == "month":
         attribute = "resource_created"
     attribute_type = metaIndex.get_attribute_type(attribute)
     assert attribute_type == "string" or attribute_type == "arrayString", "For now !"   
@@ -1313,7 +1329,7 @@ if __name__ == "__main__":
     # Register Extensions:
     # -------------------
     # Instead may be we can get the `mapping` directly from some parent class!
-    sys.path.insert(0,"D://hachi_extensions/images")
+    sys.path.insert(0,"D://hachi-extensions-2/hachi_extensions/images")
     from mtp_windows.mtp_code import MtpExtension
     from google_drive.drive import GoogleDrive
     
