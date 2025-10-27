@@ -518,6 +518,10 @@ class IndexingLocal(object):
                 meta_data:ImageMetaAttributes = extract_image_metaData(
                     resource_path
                 )
+                if meta_data is None:
+                    print("skipping..... because of meta-data ....")
+                    continue  # TO investigate, get_image_size, sometimes, not able to parse?
+                
                 meta_data["location"]["identifier"] = "Drive" # TODO: C:, D:
                 meta_data["location"]["location"]  = "L"  # local/remote
                 
@@ -526,6 +530,10 @@ class IndexingLocal(object):
                 meta_data:ImageMetaAttributes = extract_image_metaData(
                     image_raw_data, dummy_data = False
                 )
+                if meta_data is None:
+                    print("skipping..... because of meta-data ....")
+                    continue  # TO investigate, get_image_size, sometimes, not able to parse?
+                
                 # NOTE: Manually updating Main attributes.
                 meta_data["main_attributes"]["filename"] = resource_info["name"].strip().lower()
                 # NOTE: resource_directory/path are assumed to be unique enough from the Extension Code itself, i.e we won't modify/update it here!
@@ -537,9 +545,6 @@ class IndexingLocal(object):
                 meta_data["location"]["location"]  = "R"  # local/remote
 
             self.profile_info.add("extract-metadata")
-            if meta_data is None:
-                print("skipping..... because of meta-data ....")
-                continue  # TO investigate, get_image_size, sometimes, not able to parse?
             # --------------------------------------------
             # Do remaining, manual updates, as necessary here.
             # it is supposed to be updated, after clusters finalizing.
