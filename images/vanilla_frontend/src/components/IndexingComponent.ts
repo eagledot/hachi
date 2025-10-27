@@ -80,6 +80,16 @@ export class IndexingComponent {
     // For now done on a page-reload only!
       .then((clients) => {
           let temp = document.getElementById("protocol-select");
+          // remove existing children if any, first!
+          while(temp?.firstChild){
+            if (temp.children.length == 1){
+              //Keep the default option as No folder selected intact!
+              break;
+            }
+            if (temp.lastChild)
+              {temp.removeChild(temp.lastChild);}
+          }
+
           if (temp){
             for(let i = 0; i < clients.length; i = i + 1){
               let option_temp = document.createElement("option");
