@@ -443,7 +443,7 @@ export class UIService {
     // Bottom caption overlay (semi-transparent background)
     const captionOverlay = document.createElement("div");
     captionOverlay.className =
-      "absolute left-0 right-0 bottom-0 px-2 py-1 text-xs text-gray-200 truncate";
+      "absolute bg-black/80 left-0 right-0 bottom-0 px-2 py-1 text-xs text-gray-200 truncate";
     // Set text further smaller than text-xs
     captionOverlay.style.fontSize = "0.625rem";
     captionOverlay.setAttribute("data-photo-caption", "true");

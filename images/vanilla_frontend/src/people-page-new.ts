@@ -53,7 +53,7 @@ class PeopleApp {
     const photoGalleryWidth = photoGallery?.clientWidth!;
 
     // Set static dimensions
-    let side = 120;
+    let side = 150;
 
     // If we are on mobile screens, reduce side length
     if (window.innerWidth < 768) {
@@ -118,47 +118,42 @@ class PeopleApp {
   private updatePersonCard(card: HTMLElement, person: Person) {
     // I want to update the person card with new information in place without re-rendering the entire card
     const isAutoDetected = person.id.toLowerCase().startsWith("cluster");
-    const displayName = person.id;
+    // const displayName = person.id;
     const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${person.id}`;
     const hasCustomName = !isAutoDetected;
+    let displayName = person.id.startsWith("cluster")
+      ? "Unknown"
+      : person.id.charAt(0).toUpperCase() + person.id.slice(1);
 
     // First update the badge
     const badge = card.querySelector(".badge");
     // If not auto-detected, set its visibility style to "hidden"
 
     // Update count badge
-    const countBadge = card.querySelector(
-      "div.count-badge"
-    ) as HTMLElement;
+    const countBadge = card.querySelector("div.count-badge") as HTMLElement;
     if (countBadge) {
-      countBadge.textContent = `${person.count}`;
+      countBadge.textContent = `${person.count} ${
+        person.count === 1 ? "photo" : "photos"
+      }`;
     }
 
-    if (hasCustomName) {
-      if (badge) {
-        (badge as HTMLElement).style.visibility = "visible";
-      }
-      const avatarNameEl = card.querySelector(".avatar-name");
-      if (avatarNameEl) {
-        avatarNameEl.textContent =
-          displayName.length > 8
-            ? displayName.substring(0, 8) + "..."
-            : displayName;
-      }
-      // Similarly for avatarNameMobile
-      const avatarNameMobileEl = card.querySelector(".avatar-name-mobile");
-      if (avatarNameMobileEl) {
-        avatarNameMobileEl.textContent =
-          displayName.length > 8
-            ? displayName.substring(0, 8) + "..."
-            : displayName;
-      }
-    } else {
-      // If not auto-detected, set its visibility style to "hidden"
-      if (badge) {
-        console.log("Hiding badge for person:", person.id);
-        (badge as HTMLElement).style.visibility = "hidden";
-      }
+    if (badge) {
+      (badge as HTMLElement).style.visibility = "visible";
+    }
+    const avatarNameEl = card.querySelector(".avatar-name");
+    if (avatarNameEl) {
+      avatarNameEl.textContent =
+        displayName.length > 8
+          ? displayName.substring(0, 8) + "..."
+          : displayName;
+    }
+    // Similarly for avatarNameMobile
+    const avatarNameMobileEl = card.querySelector(".avatar-name-mobile");
+    if (avatarNameMobileEl) {
+      avatarNameMobileEl.textContent =
+        displayName.length > 8
+          ? displayName.substring(0, 8) + "..."
+          : displayName;
     }
 
     // Update data-person-id for buttons person-edit-btn and person-details-btn
@@ -197,36 +192,34 @@ class PeopleApp {
     const displayName = person.id;
     const avatarUrl = `${endpoints.GET_PERSON_IMAGE}/${person.id}`;
     const hasCustomName = !isAutoDetected;
+    let name = person.id.startsWith("cluster")
+      ? "Unknown"
+      : person.id.charAt(0).toUpperCase() + person.id.slice(1);
     return html`
       <div
         style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
-        class="group duration-200 cursor-pointer relative active:scale-98"
+        class="group cursor-pointer relative"
       >
         <!-- Count badge at top-left -->
         <div
           class="count-badge absolute top-1 right-1 z-10 bg-gray-200 text-black text-xs font-semibold px-1.5 py-0.5 rounded-sm"
         >
-          ${person.count}
+          ${person.count} ${person.count === 1 ? "photo" : "photos"}
         </div>
         <!-- Status badge -->
         <div
-          style="${hasCustomName
-            ? "visibility: visible;"
-            : "visibility: hidden;"}"
-          class="badge hidden m-0 sm:block absolute bottom-0 w-full left-0 z-10"
+          class="badge  hidden m-0 sm:block absolute bottom-0 w-full left-0 z-10"
         >
           <span
-            class="flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium text-white"
+            class="flex items-center px-1.5 sm:px-2 py-0.5 text-xs font-medium bg-black/80 text-white"
           >
-            <span title="${person.id}" class="hidden avatar-name sm:block"
-              >${person.id.length > 12
-                ? person.id.substring(0, 12) + "..."
-                : person.id}</span
-            >
+            <span title="${name}" class="hidden avatar-name sm:block"
+              >${name.length > 12 ? name.substring(0, 12) + "..." : name}
+            </span>
             <span class="sm:hidden avatar-name-mobile"
-              >${person.id.length > 8
-                ? person.id.substring(0, 8) + "..."
-                : person.id}</span
+              >${name.length > 8 && name.startsWith("cluster") === false
+                ? name.substring(0, 8) + "..."
+                : name}</span
             >
           </span>
         </div>
@@ -235,7 +228,7 @@ class PeopleApp {
             src="${avatarUrl}"
             alt="${displayName}"
             style="height: ${this.imageHeight}px; width: ${this.imageWidth}px;"
-            class="transition-transform rounded-md duration-200 group-hover:scale-105"
+            class=" rounded-md"
             onerror="this.src='./assets/sample_place_bg.jpg'; this.classList.add('opacity-75')"
             loading="lazy"
           />

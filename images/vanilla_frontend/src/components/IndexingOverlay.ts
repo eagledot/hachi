@@ -47,7 +47,7 @@ export class IndexingOverlay {
     const { details, progress } = this.state;
     
     this.container.innerHTML = html`
-      <div class="bg-blue-500 text-white rounded-lg shadow-lg px-4 py-3 flex items-center space-x-3 max-w-sm">
+      <div class="bg-gray-800 text-white rounded-lg shadow-lg px-4 py-3 flex items-center space-x-3 max-w-sm">
         <!-- Static indicator (no pulse animation) -->
         <div class="w-3 h-3 bg-blue-200 rounded-full"></div>
         
