@@ -82,6 +82,11 @@ class Extensions {
                 return;
             }
             let parent = document.getElementById("configured-extensions");
+            // remove existing childrens if any, before to populate/update more-recent info.
+            while(parent.firstChild){
+                parent.removeChild(parent.lastChild);
+            }
+
             for (let i = 0; i < data.length; i++) {
                 let temp = UI.configuredExtensionRow(data[i]);
                 parent.appendChild(temp);
@@ -117,7 +122,7 @@ class Extensions {
         });
 
         
-        // Also fetch and render the configured remote clients/devices
+        // Fetch and render the (latest) configured remote clients/devices
         this.getRemoteClients();
 
     }
