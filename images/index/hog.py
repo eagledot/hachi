@@ -39,18 +39,75 @@ def hog_channel_gradient(channel):
 
     return g_row, g_col
 
+Gx_sobel = np.array([
+    [-1, 0, 1],
+    [-2, 0, 2],
+    [-1, 0, 1]]
+).astype(np.float32)
+
+# Transpose of Gx_sobel.
+Gy_sobel = np.array([
+    [-1, -2, 1],
+    [0, 0, 0],
+    [1, 2, 1]]
+).astype(np.float32)
+
+def conv2d_sobel(kernel, image):
+    """
+    We convole the image with sobel kernels.
+    So as not to call `open cv` routines.
+    # NOTE: It is equivalent to cv2.Sobel(ksize = 3)! except at boundaries, we put zeros on paddings!
+    NOTE: naive, but we can get to speed it up, when becomes the bottleneck, part of `indexing` pipeline only, not inference!
+    """
+    (k_rows, k_cols) = kernel.shape
+    
+    assert k_rows % 2 == 1, "Keep it odd please"
+    assert k_cols % 2 == 1, "Keep it odd please"
+    
+    
+    kernel = kernel.astype(np.float32)
+    image = image.astype(np.float32)
+    
+    (img_rows, img_cols) = image.shape
+    
+    limit_rows = img_rows - k_rows + 1
+    limit_cols = img_cols - k_cols + 1
+    
+    offset_rows = k_rows // 2    # as would be odd
+    offset_cols = k_cols // 2    # as would be odd
+    
+    # NOTE: we pad with zeros!
+    assert limit_rows + (offset_rows) * 2 == img_rows
+    assert limit_cols + (offset_cols) * 2 == img_cols
+    
+    result = np.zeros(shape = (img_rows, img_cols), dtype = np.float32)
+    for row in range(limit_rows):
+        for col in range(limit_cols):
+            result[offset_rows+ row, offset_cols + col] = np.sum(np.multiply(kernel, image[row:row+k_rows, col:col+k_cols]))
+    return result
+
 def get_magnitude_angles(image:np.ndarray)->Tuple[np.ndarray, np.ndarray]:
     assert image.dtype == np.uint8, "For now it is assumed..."
 
-    # generally a single matrix is used, (for y it can be transposed)
-    gx = cv2.Sobel(image, cv2.CV_32F, 1, 0, ksize=1)
-    gy = cv2.Sobel(image, cv2.CV_32F, 0, 1, ksize=1)
-
-    # calculate magnitudes -> np.sqrt(np.square(gx) + np.square(gy))
-    # calculate angles -> math.degrees(math.arctan(gy / (gx + 1e-7)))
+    # ----------------------------------------------
+    # Internally a single matrix is used! (for y it can be transposed)
+    # NOTE: earlier i was using `ksize = 1`, using 3, leads to less number of face-clusters, not sure it is better or worse. (may be got better at filtering bad/angled/sunglasses !)
+    # gx = cv2.Sobel(image, cv2.CV_32F, 1, 0, ksize=3)
+    # gy = cv2.Sobel(image, cv2.CV_32F, 0, 1, ksize=3)
 
     # using opencv in one go..
-    mag, angle = cv2.cartToPolar(gx, gy, angleInDegrees = True)
+    # mag, angle = cv2.cartToPolar(gx, gy, angleInDegrees = True)
+    # ----------------------------------------------------------
+
+    # -----------------------------------------------------------------
+    # NOTE: It is equivalent to above commented block with cv2.Sobel(ksize = 3)! except at boundaries, we put zeros on paddings!
+    gx = conv2d_sobel(Gx_sobel, image)
+    gy = conv2d_sobel(Gy_sobel, image)
+    # Magnitude and angles!
+    mag = np.sqrt(np.square(gy) + np.square(gx))
+    angle = np.degrees(np.arctan(gy / (gx + 1e-7)))
+    # ------------------------------------------------------------------------
+
     return mag, angle
 
 # @profile
