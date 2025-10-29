@@ -10,6 +10,7 @@ interface PhotoFilters {
   cameraModels?: string[];
   places?: string[];
   tags?: string[];
+  years?: string[];
 }
 
 const Filter_UI_Mapping = {
@@ -18,6 +19,7 @@ const Filter_UI_Mapping = {
   cameraModels: "Camera Models",
   places: "Places",
   tags: "Tags",
+  years: "Years",
 };
 
 const Filter_Request_Mapping = {
@@ -26,11 +28,12 @@ const Filter_Request_Mapping = {
   cameraModels: "model",
   places: "place",
   tags: "tags",
+  years: "year",
 };
 
 export default class PhotoFilterSidebar {
   private sidebarElement: HTMLElement;
-  private overlayElement: HTMLElement;
+  // private overlayElement: HTMLElement;
   private filters: PhotoFilters = {};
   private queryToken: string | null = null;
   private filteredImages: HachiImageData[] = [];
@@ -49,12 +52,12 @@ export default class PhotoFilterSidebar {
     onFilterChange: (photos: HachiImageData[]) => void,
     toggleButtonId: string
   ) {
-    this.overlayElement = this.createOverlay();
+    // this.overlayElement = this.createOverlay();
     this.sidebarElement = this.createSidebar();
     this.onFilterChange = onFilterChange;
     this.toggleButtonId = toggleButtonId;
-    document.body.appendChild(this.overlayElement);
-    document.body.appendChild(this.sidebarElement);
+    // document.body.appendChild(this.overlayElement);
+    // document.body.appendChild(this.sidebarElement);
     this.addToggleListener();
     this.createPhotoFiltersUI();
   }
@@ -85,7 +88,9 @@ export default class PhotoFilterSidebar {
     console.log("Updating query token:", token);
     this.queryToken = token;
     this.enableToggleButton(); // TODO: Should be called only once. Fix it later.
-    this.isInitialized = false;
+    // Initialize
+    await this.initialize();
+    this.isInitialized = true;
   }
 
   enableToggleButton(): void {
@@ -126,11 +131,9 @@ export default class PhotoFilterSidebar {
     const icon = "";
     // Enhanced gradient and styling
 
-
     // Manually create the filter pill UI node with enhanced styling
     const pill = document.createElement("div");
-    pill.className =
-      "filter-pill flex items-center px-1 rounded-xl";
+    pill.className = "filter-pill flex items-center px-1 rounded-xl";
     pill.style.transition = "all 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
     pill.style.cursor = "pointer";
     pill.style.color = "#1f2937"; // Teal text color
@@ -219,8 +222,13 @@ export default class PhotoFilterSidebar {
   }
 
   createSidebar(): HTMLElement {
-    const sidebarElement = document.createElement("div");
-    sidebarElement.id = "photo-filter-sidebar";
+    // const sidebarElement = document.createElement("div");
+    // sidebarElement.id = "photo-filter-sidebar";
+    // this.createSidebarStyles(sidebarElement);
+    // return sidebarElement;
+    const sidebarElement = document.getElementById(
+      "photo-filter-sidebar"
+    ) as HTMLElement;
     this.createSidebarStyles(sidebarElement);
     return sidebarElement;
   }
@@ -250,17 +258,20 @@ export default class PhotoFilterSidebar {
   }
 
   closeSidebar(): void {
-    this.overlayElement.style.display = "none";
+    // this.overlayElement.style.display = "none";
     this.sidebarElement.style.display = "none";
+    this.sidebarElement.classList.add("hidden");
   }
 
   showSidebar(): void {
-    this.overlayElement.style.display = "block";
+    // this.overlayElement.style.display = "block";
     this.sidebarElement.style.display = "flex";
+    this.sidebarElement.classList.remove("hidden");
   }
 
   toggleSidebar(): void {
-    const isVisible = this.sidebarElement.style.display === "flex";
+    // const isVisible = this.sidebarElement.style.display === "flex";
+    const isVisible = !this.sidebarElement.classList.contains("hidden");
     if (isVisible) {
       this.closeSidebar();
     } else {
@@ -269,15 +280,17 @@ export default class PhotoFilterSidebar {
   }
 
   createSidebarStyles(sidebarElement: HTMLElement): void {
-    sidebarElement.style.width = "320px";
-    sidebarElement.style.height = "100%";
-    sidebarElement.style.position = "fixed";
-    sidebarElement.style.top = "0";
-    sidebarElement.style.right = "0";
-    sidebarElement.style.backgroundColor = "#fff";
-    sidebarElement.style.boxShadow = "-2px 0 5px rgba(0,0,0,0.1)";
-    sidebarElement.style.zIndex = "1000";
-    sidebarElement.style.display = "none";
+    sidebarElement.style.width = "276px";
+    sidebarElement.style.height = "100vh";
+    // sidebarElement.style.position = "sticky";
+    // sidebarElement.style.top = "0";
+    // sidebarElement.style.right = "0";
+    // sidebarElement.style.backgroundColor = "#fff";
+    // sidebarElement.style.boxShadow = "-2px 0 5px rgba(0,0,0,0.1)";
+    // sidebarElement.style.zIndex = "1000";
+    // sidebarElement.style.display = "none";
+    // Add overflow for scrolling
+    sidebarElement.style.overflowY = "auto";
     sidebarElement.style.flexDirection = "column";
   }
 
@@ -295,13 +308,13 @@ export default class PhotoFilterSidebar {
     const personItem = document.createElement("div");
     personItem.className =
       "flex flex-col cursor-pointer hover:bg-blue-50 rounded transition";
-    personItem.style.padding = "2px";
+    personItem.style.margin = "1px";
 
     const photo = document.createElement("img");
-    photo.className = "w-12 h-12 bg-gray-200 rounded-full object-cover";
+    photo.className = "w-12 h-12 bg-gray-200";
     photo.src = `${endpoints.GET_PERSON_IMAGE}/${person}`;
     photo.alt = person;
-    photo.style.marginBottom = "2px";
+    // photo.style.marginBottom = "2px";
 
     photo.addEventListener("click", () => {
       this.onImageClick(photo, person);
@@ -329,7 +342,10 @@ export default class PhotoFilterSidebar {
     }
 
     this.peopleRendered = nextLimit;
-    if (this.peopleSentinel && this.peopleListElement.contains(this.peopleSentinel)) {
+    if (
+      this.peopleSentinel &&
+      this.peopleListElement.contains(this.peopleSentinel)
+    ) {
       this.peopleListElement.insertBefore(frag, this.peopleSentinel);
     } else {
       this.peopleListElement.appendChild(frag);
@@ -372,19 +388,17 @@ export default class PhotoFilterSidebar {
       },
       {
         root: this.peopleListElement,
-        rootMargin: "0px 0px 200px 0px", // prefetch a bit earlier
+        rootMargin: "0px 0px 20px 0px", // prefetch a bit earlier
         threshold: 0,
       }
     );
     this.peopleObserver.observe(this.peopleSentinel);
   }
 
-
-
   createPeopleFilterUI(): HTMLElement {
     const people = this.filters.people || [];
     const filterContainer = document.createElement("div");
-    filterContainer.className = "filter-container mb-2";
+    filterContainer.className = "filter-container mb-4 shadow-sm p-4 rounded-lg";
 
     const filterTitle = document.createElement("h4");
     filterTitle.textContent = "People";
@@ -396,6 +410,14 @@ export default class PhotoFilterSidebar {
     this.resetPeopleInfiniteScroll();
 
     const peopleList = document.createElement("div");
+        // Have a very minimal scrollbar style
+    peopleList.style.scrollbarWidth = "none";
+    peopleList.style.scrollbarColor = "#cbd5e1 transparent"; // thumb and track colors
+    // I want to allow scrolling but not show scrollbar
+    // Perhaps some scrollbar properties can help
+
+    
+
     peopleList.className = "flex flex-wrap overflow-y-auto";
     peopleList.style.maxHeight = "360px";
     peopleList.style.display = "flex";
@@ -421,7 +443,6 @@ export default class PhotoFilterSidebar {
     if (this.peopleSentinel) {
       this.setupPeopleInfiniteScroll();
     }
-
 
     filterContainer.appendChild(peopleList);
     return filterContainer;
@@ -476,8 +497,8 @@ export default class PhotoFilterSidebar {
     }
     this.addFilterPill("person", personId);
     // Add better styles to show a selected image
-    image.parentElement!.style.border = "3px solid #2563eb"; // Use a blue accent for selection
-    image.parentElement!.style.borderRadius = "8px"; // Rounded corners for better appearance
+    image.parentElement!.style.border = "2px solid #2563eb"; // Use a blue accent for selection
+    // image.parentElement!.style.borderRadius = "8px"; // Rounded corners for better appearance
     // Add a data attribute to tell that it is checked
     image.dataset.personId = personId;
     this.setFilteredImages("person", personId);
@@ -523,31 +544,55 @@ export default class PhotoFilterSidebar {
     if (filterName === "people") {
       return this.createPeopleFilterUI();
     }
+
+    // If filterName is years, sort options in descending order
+    if (filterName === "years") {
+      options.sort((a, b) => {
+        // Only getting the year as string. For example, "2015"
+        return parseInt(b) - parseInt(a);
+      });
+    }
+
     const filterContainer = document.createElement("div");
-    filterContainer.className = "filter-container mb-4";
+    filterContainer.className = "filter-container mb-4 shadow-sm rounded-2xl bg-white p-4";
+
+
 
     const filterTitle = document.createElement("h4");
     filterTitle.textContent =
       Filter_UI_Mapping[filterName as keyof typeof Filter_UI_Mapping];
     filterTitle.className =
-      "text-lg font-semibold text-blue-700 mb-3 tracking-wide capitalize border-b border-blue-200 pb-1";
+      "text-sm font-semibold text-blue-700 mb-1 tracking-wide capitalize border-b border-blue-200 pb-1";
     filterContainer.appendChild(filterTitle);
 
     const optionsList = document.createElement("ul");
-    optionsList.className = "space-y-1";
+        // Every options List should have a max height with scroll
+    optionsList.style.maxHeight = "400px";
+    optionsList.style.overflowY = "auto";
+
+    // Have a very minimal scrollbar style
+    optionsList.style.scrollbarWidth = "thin";
+    optionsList.style.scrollbarColor = "#cbd5e1 transparent"; // thumb and track colors
+
+    optionsList.className = "space-y-0.5";
+
+
     options.forEach((option) => {
       const optionItem = document.createElement("li");
 
       const label = document.createElement("label");
       label.className =
-        "flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition";
+        "flex items-center gap-1 cursor-pointer px-1 py-0.5 rounded hover:bg-blue-50 transition";
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.name = filterName;
+
+      
       checkbox.value = option;
+      
       checkbox.className =
-        "mr-2 accent-blue-600 w-4 h-4 rounded border-gray-300";
+        "mr-1 accent-blue-600 w-3 h-3 rounded border-gray-300";
 
       // Add event listener
       checkbox.addEventListener("change", (event) => {
@@ -565,9 +610,10 @@ export default class PhotoFilterSidebar {
       });
 
       label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(option));
-      optionItem.appendChild(label);
 
+      label.appendChild(document.createTextNode(option));
+      
+      optionItem.appendChild(label);
       optionsList.appendChild(optionItem);
     });
 
@@ -609,13 +655,12 @@ export default class PhotoFilterSidebar {
 
   createSidebarFooter(): HTMLElement {
     const footer = document.createElement("div");
-    footer.className = "p-4 border-t border-gray-200 bg-white";
-    footer.style.borderTop = "1px solid #e5e7eb";
+    footer.className = "p-4 bg-white";
 
     const clearButton = document.createElement("button");
     clearButton.textContent = "Clear All Filters";
     clearButton.className =
-      "w-full py-2 px-4 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium";
+      "w-full py-2 px-4 border bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors font-medium";
     clearButton.style.cursor = "pointer";
     clearButton.style.border = "none";
 
@@ -634,9 +679,9 @@ export default class PhotoFilterSidebar {
     this.uncheckEveryCheckbox();
     // Remove all filter pills
     this.removeAllFilterPills();
-      // Clear filtered images
-      // TODO: Should be called only when filters are applied
-      // TODO: Need to keep a state to track which filters are on
+    // Clear filtered images
+    // TODO: Should be called only when filters are applied
+    // TODO: Need to keep a state to track which filters are on
     this.filteredImages = [];
     this.onFilterChange(this.filteredImages);
   }
@@ -650,6 +695,18 @@ export default class PhotoFilterSidebar {
     }
 
     filtersContainer.innerHTML = ""; // Clear existing content
+
+    // Check if we have any filters with options
+    const hasFilters = Object.values(this.filters).some(options => options && options.length > 0);
+
+    if (!hasFilters) {
+      const noFiltersMessage = document.createElement("p");
+      noFiltersMessage.textContent = "No filters available.";
+
+      noFiltersMessage.className = "text-gray-500 italic";
+      filtersContainer.appendChild(noFiltersMessage);
+      return;
+    }
 
     // Create filter elements for each filter category
     for (const [category, options] of Object.entries(this.filters)) {
@@ -666,13 +723,17 @@ export default class PhotoFilterSidebar {
     this.sidebarElement.innerHTML = "";
 
     // Create header with close button
-    const header = this.createSidebarHeader();
-    this.sidebarElement.appendChild(header);
+    // const header = this.createSidebarHeader();
+    // this.sidebarElement.appendChild(header);
 
     const filtersContainer = document.createElement("div");
     filtersContainer.id = "photo-filters";
     filtersContainer.className = "p-4 space-y-6 flex-1 overflow-y-auto";
+    // Set scrollbar width to none
+    filtersContainer.style.scrollbarWidth = "none";
     this.sidebarElement.appendChild(filtersContainer);
+
+    this.renderFilters();
 
     // Create footer with clear filters button
     const footer = this.createSidebarFooter();
