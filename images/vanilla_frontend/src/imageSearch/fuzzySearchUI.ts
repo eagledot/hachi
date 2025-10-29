@@ -575,9 +575,9 @@ export class FuzzySearchUI {
     });
 
     // If there were no filters or the container has no children, execute a search with empty search
-    if (filtersHtml.length === 0 || this.filtersContainer.children.length === 0) {
-      this.executeSearch();
-    }
+    // if (filtersHtml.length === 0 || this.filtersContainer.children.length === 0) {
+    //   this.executeSearch();
+    // }
   }
 
   private renderDropdown(): void {

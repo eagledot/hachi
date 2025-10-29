@@ -51,7 +51,7 @@ class ImageSearchApp {
     console.log(`Photo gallery height: ${photoGalleryHeight}px`);
 
     // Get photo-gallery width
-    const photoGalleryWidth = photoGallery?.clientWidth! - 264; // Subtract sidebar width
+    const photoGalleryWidth = photoGallery?.clientWidth!; // Subtract sidebar width
 
     // Set static dimensions
     let side = 150;
@@ -70,7 +70,7 @@ class ImageSearchApp {
       photoGalleryHeight!,
       photoGalleryWidth,
       side,
-      9
+      5
     );
 
     this.resultsPerPage = rows * cols;
