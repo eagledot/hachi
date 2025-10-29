@@ -10,6 +10,8 @@ from typing import Iterable
 import flask
 from flask import Flask
 
+from werkzeug.utils import secure_filename
+
 # MUST match with the client side...
 # query would be something like this  `filename=x.html|y.html&quezstion=what is your name`
 attrsSep = "&"; # Separator for attributes in the URL query
@@ -38,7 +40,7 @@ def upload() -> Status:
     for filename, desc in flask.request.files.items():
         print("filename: {}".format(filename))
         content = desc.read()
-        resource_path = os.path.join(UPLOADS_DIRECTORY, "{}_{}".format(client_id, filename))
+        resource_path = os.path.join(UPLOADS_DIRECTORY, "{}_{}".format(client_id, secure_filename(filename)))
         with open(resource_path, "wb") as f:
             f.write(content)
 
