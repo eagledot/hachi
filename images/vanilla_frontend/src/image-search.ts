@@ -51,24 +51,30 @@ class ImageSearchApp {
     console.log(`Photo gallery height: ${photoGalleryHeight}px`);
 
     // Get photo-gallery width
-    const photoGalleryWidth = photoGallery?.clientWidth!;
+    const photoGalleryWidth = photoGallery?.clientWidth! - 264; // Subtract sidebar width
 
     // Set static dimensions
-    let side = 180;
+    let side = 150;
 
     // If we are on mobile screens, reduce side length
     if (windowWidth < 768) {
       side = 100;
     }
 
+    // Print the photo gallery width and height
+    console.log(`Photo gallery width: ${photoGalleryWidth}px`);
+    console.log(`Photo gallery height: ${photoGalleryHeight}px`);
+
+
     const { rows, cols, tileWidth, tileHeight } = fitTiles(
       photoGalleryHeight!,
       photoGalleryWidth,
-      side
+      side,
+      9
     );
 
     this.resultsPerPage = rows * cols;
-    this.imageHeight = tileHeight - 1;
+    this.imageHeight = tileHeight;
     this.imageWidth = tileWidth - 1;
   }
 
@@ -84,8 +90,7 @@ class ImageSearchApp {
       gridId: "photo-grid",
     });
 
-    // Call findGallerySize to set the initial layout
-    this.findGallerySize();
+    
 
     // Get the fuzzy search container element
     const fuzzyContainer = document.getElementById("fuzzy-search-container");
@@ -95,22 +100,13 @@ class ImageSearchApp {
       onSearchExecuted: (query) => this.handleSearch(query),
     });
 
-    // this.photoFilter = new PhotoFilterComponent({
-    //   onFilterChange: (filteredPhotos: HachiImageData[]) =>
-    //     this.handleFilteredPhotosUpdate(filteredPhotos),
-    // });
-
     this.photoFilterSidebar = new PhotoFilterSidebar(
       (filteredPhotos: HachiImageData[]) =>
         this.handleFilteredPhotosUpdate(filteredPhotos), "filter-sidebar-toggle-btn"
     );
 
-    // if (this.filterContainer) {
-    //   this.filterContainer.classList.add("invisible");
-    //   this.filterContainer.innerHTML =
-    //     PhotoFilterComponent.getTemplate("photo-filter");
-    //   this.photoFilter.initialize("photo-filter");
-    // }
+    // Call findGallerySize to set the initial layout
+    this.findGallerySize();
 
     // Initialize UI service with photo-grid-container since that's where the photo grid elements are created
     this.uiService = new UIService(
@@ -126,6 +122,7 @@ class ImageSearchApp {
     this.setupEventListeners();
 
     this.init();
+
   }
 
   private cacheDOMElements() {
@@ -211,10 +208,10 @@ class ImageSearchApp {
    * Validates, starts search, updates pagination, filter, and UI state.
    */
   private async handleSearch(query: string): Promise<void> {
-    // if (!query.trim()) {
-    //   this.uiService.updateError("Please enter a search term");
-    //   return;
-    // }
+    if (!query.trim()) {
+      this.uiService.updateError("Please enter a search term");
+      return;
+    }
     // We have commented the above code. But this is not the best solution. TODO: Need to handle empty search better
     
     // Clear cache
