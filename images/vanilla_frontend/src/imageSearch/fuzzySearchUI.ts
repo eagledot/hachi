@@ -61,12 +61,6 @@ export class FuzzySearchUI {
         this.addFilter(attribute, value);
       }
       this.executeSearch();
-
-      // Check if last search query exists in local storage TODO: delete it later
-      // const lastSearchQuery = localStorage.getItem("lastSearchQuery");
-      // if (lastSearchQuery) {
-      //   this.callbacks.onSearchExecuted(lastSearchQuery);
-      // }
     }, 0);
   }
 
@@ -131,6 +125,7 @@ export class FuzzySearchUI {
                   />
 
                   <!-- Filter Toggle Button -->
+                  <!-- 
                   <button
                     disabled
                     id="filter-sidebar-toggle-btn"
@@ -138,7 +133,7 @@ export class FuzzySearchUI {
                     aria-label="Toggle advanced filters"
                     title="Show/hide advanced search filters"
                   >
-                    <?xml version="1.0" encoding="utf-8"?><!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+                    <?xml version="1.0" encoding="utf-8"?><
                     <svg
                       viewBox="0 0 24 24"
                       fill="none"
@@ -152,7 +147,7 @@ export class FuzzySearchUI {
                         stroke-linecap="round"
                       />
                     </svg>
-                  </button>
+                  </button> -->
 
                   <!-- Integrated Search Button -->
                   <button
