@@ -59,8 +59,9 @@ export class FuzzySearchUI {
       console.log("Extracted query params:", { attribute, value });
       if (attribute && value) {
         this.addFilter(attribute, value);
+        this.executeSearch();
       }
-      this.executeSearch();
+      
     }, 0);
   }
 
