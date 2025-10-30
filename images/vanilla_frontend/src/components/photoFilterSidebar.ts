@@ -10,6 +10,7 @@ interface PhotoFilters {
   cameraModels?: string[];
   places?: string[];
   tags?: string[];
+  years?: string[];  // years and months actually!
 }
 
 const Filter_UI_Mapping = {
@@ -18,14 +19,17 @@ const Filter_UI_Mapping = {
   cameraModels: "Camera Models",
   places: "Places",
   tags: "Tags",
+  years: "Years"
 };
 
+// Corresponding mapping to backend URI!
 const Filter_Request_Mapping = {
   people: "person",
   cameraMakes: "make",
   cameraModels: "model",
   places: "place",
   tags: "tags",
+  years: "year"
 };
 
 export default class PhotoFilterSidebar {
@@ -389,7 +393,7 @@ export default class PhotoFilterSidebar {
     const filterTitle = document.createElement("h4");
     filterTitle.textContent = "People";
     filterTitle.className =
-      "text-base font-semibold text-blue-700 mb-2 tracking-wide capitalize border-b border-blue-200 pb-0.5";
+      "font-mono text-base font-semibold text-blue-700 mb-1 tracking-wide capitalize border-b border-blue-200 pb-0.5";
     filterContainer.appendChild(filterTitle);
 
     // Reset previous infinite scroll state
@@ -524,13 +528,13 @@ export default class PhotoFilterSidebar {
       return this.createPeopleFilterUI();
     }
     const filterContainer = document.createElement("div");
-    filterContainer.className = "filter-container mb-4";
+    filterContainer.className = "filter-container mb-2";
 
     const filterTitle = document.createElement("h4");
     filterTitle.textContent =
       Filter_UI_Mapping[filterName as keyof typeof Filter_UI_Mapping];
     filterTitle.className =
-      "text-lg font-semibold text-blue-700 mb-3 tracking-wide capitalize border-b border-blue-200 pb-1";
+      "font-mono text-lg font-semibold text-blue-700 mb-2 tracking-wide capitalize border-b border-blue-200 pb-1";
     filterContainer.appendChild(filterTitle);
 
     const optionsList = document.createElement("ul");
@@ -540,7 +544,7 @@ export default class PhotoFilterSidebar {
 
       const label = document.createElement("label");
       label.className =
-        "flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition";
+        "font-mono flex items-center gap-2 cursor-pointer px-2 py-0 rounded hover:bg-blue-50 transition";
 
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
@@ -552,7 +556,7 @@ export default class PhotoFilterSidebar {
       // Add event listener
       checkbox.addEventListener("change", (event) => {
         if (checkbox.checked) {
-          label.classList.add("bg-blue-100", "font-semibold", "text-blue-700");
+          label.classList.add("bg-blue-100", "font-mono", "font-semibold", "text-blue-700");
         } else {
           label.classList.remove(
             "bg-blue-100",
@@ -583,7 +587,7 @@ export default class PhotoFilterSidebar {
 
     const title = document.createElement("h3");
     title.textContent = "Filters";
-    title.className = "text-lg font-semibold text-gray-800";
+    title.className = "font-mono text-lg font-semibold text-gray-800";
 
     const closeButton = document.createElement("button");
     closeButton.innerHTML = "×";
@@ -609,13 +613,13 @@ export default class PhotoFilterSidebar {
 
   createSidebarFooter(): HTMLElement {
     const footer = document.createElement("div");
-    footer.className = "p-4 border-t border-gray-200 bg-white";
+    footer.className = "p-2 border-t border-gray-200 bg-white";
     footer.style.borderTop = "1px solid #e5e7eb";
 
     const clearButton = document.createElement("button");
     clearButton.textContent = "Clear All Filters";
     clearButton.className =
-      "w-full py-2 px-4 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium";
+      "w-full py-1 px-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors font-medium";
     clearButton.style.cursor = "pointer";
     clearButton.style.border = "none";
 
@@ -671,7 +675,7 @@ export default class PhotoFilterSidebar {
 
     const filtersContainer = document.createElement("div");
     filtersContainer.id = "photo-filters";
-    filtersContainer.className = "p-4 space-y-6 flex-1 overflow-y-auto";
+    filtersContainer.className = "p-2 space-y-6 flex-1 overflow-y-auto";
     this.sidebarElement.appendChild(filtersContainer);
 
     // Create footer with clear filters button
