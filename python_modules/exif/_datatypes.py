@@ -1,5 +1,6 @@
 """Package EXIF-specific datatypes."""
 
+# TODO: port Plum specific code to pure python, so that as to do away with plum . OR for now just wrap it into python modules and push it to be included as source code!
 from enum import IntEnum, IntFlag
 
 from plum.array import ArrayX

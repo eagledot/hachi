@@ -5,8 +5,6 @@ import os
 import warnings
 from typing import Any, BinaryIO, Dict, List, Union
 
-from plum.bigendian import uint16
-
 from exif._constants import ATTRIBUTE_ID_MAP, ExifMarkers
 from exif._app1_create import generate_empty_app1_bytes
 from exif._app1_metadata import App1MetaData
@@ -38,10 +36,18 @@ class Image:
         app1_start_index = cursor
 
         if self._has_exif:
-            # Determine the expected length of the APP1 segment.
-            app1_len = uint16.unpack(
-                img_bytes[app1_start_index + 2 : app1_start_index + 4]
-            )
+
+            # ---------------------------
+            # from plum.bigendian import uint16  # legacy, we use the following block to achiev this 
+            # # Determine the expected length of the APP1 segment.
+            # app1_len = uint16.unpack(
+            #     img_bytes[app1_start_index + 2 : app1_start_index + 4]
+            # )
+            # ------------------------------------------
+
+            # # Determine the expected length of the APP1 segment.
+            app1_len = int.from_bytes(img_bytes[app1_start_index + 2 : app1_start_index + 4], byteorder = "big", signed = False)
+
             cursor += app1_len + 2  # skip APP1 marker and all data
 
             # If the expected length stops early, keep traversing until another section is found.

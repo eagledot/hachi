@@ -59,10 +59,21 @@ def generate_empty_app1_bytes():
     body_bytes += exif_ifd.ipack()
     body_bytes += gps_ifd.ipack()
 
+    # --------------------------------------------- 
+    # Legacy, was using the PLum uint16 data-type dependency!
     # Adjust the APP1 length (2 bytes into header).
-    app1_length_view = uint16.view(header_bytes, offset=2)
-    app1_length_view.set(
-        len(header_bytes + body_bytes) - HEADER_BYTES_EXCLUDED_FROM_LENGTH
+    # from plum.bigendian import uint16
+    # app1_length_view = uint16.view(header_bytes, offset=2)
+    # app1_length_view.set(
+    #     len(header_bytes + body_bytes) - HEADER_BYTES_EXCLUDED_FROM_LENGTH
+    # )
+    # -------------------------------------------------------
+
+    header_bytes[2:2+2] = int.to_bytes(
+        len(header_bytes + body_bytes) - HEADER_BYTES_EXCLUDED_FROM_LENGTH,
+        length = 2,
+        byteorder = "big",
+        signed=False
     )
 
     return header_bytes + body_bytes
