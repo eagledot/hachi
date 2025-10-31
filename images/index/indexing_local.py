@@ -27,7 +27,7 @@ except:
 sys.path.insert(0, "./nim")
 import utils_nim 
 
-import cv2   # TODO: remove dependence on opencv as we have ported almost all of required functionalities!
+# import cv2   # For legacy code, as we have ported almost all code to Nim or pure python!
 import numpy as np
 
 # -----------------
@@ -157,7 +157,8 @@ def generate_image_preview_new(
         new_height = new_height,
         new_width = new_width,
         channel_conversion_info = channel_conversion_info,
-        tile_size = tile_size
+        tile_size = tile_size,
+        aligned_32b = True             # by defalt also True, for `encode_image (c) webp encoder expects 32 b aligned`
     )
 
     # get encoded .webp data!
@@ -165,7 +166,7 @@ def generate_image_preview_new(
         resized_image,
         color_format = ColorFormat.BGRA,
         quality = 90,
-        lossless = False,
+        lossless = False,     # It mimics the opencv code at https://github.com/opencv/opencv/blob/0c10aecacd1d315192b3dc57a1ba0720ffd59424/modules/imgcodecs/src/grfmt_webp.cpp#L351
         meth = 2,         # faster, but with 4-5 % extra size.., thats ok with us! 
     )
 
@@ -174,33 +175,33 @@ def generate_image_preview_new(
         f.write(encoded_image)
     
 
-def generate_image_preview(
-    data_hash:str, 
-    image:Union[str, np.ndarray],
-    output_folder:os.PathLike):
-    """ Generate image previews and face-previews
-    NOTE: it does take up space and create previews, but it is optional but on by default.
-    SSDs may be fast enough to serve data directly from  disk.. but for HDDs it reduces the latency quite a bit
-    """
-    if isinstance(image, str):
-        assert os.path.exists(image), "Doesn't make sense, atleast if indexed, absolute path must exist!"
-        raw_data = cv2.imread(image)
-    else:
-        raw_data = image
-    del image
+# def generate_image_preview_legacy(
+#     data_hash:str, 
+#     image:Union[str, np.ndarray],
+#     output_folder:os.PathLike):
+#     """ Generate image previews and face-previews It uses open-cv, we have moved to `generate_image_preview_new` . IT Remains for legacy reasons now (as current implementation is sound)
+#     NOTE: it does take up space and create previews, but it is optional but on by default.
+#     SSDs may be fast enough to serve data directly from  disk.. but for HDDs it reduces the latency quite a bit
+#     """
+#     if isinstance(image, str):
+#         assert os.path.exists(image), "Doesn't make sense, atleast if indexed, absolute path must exist!"
+#         raw_data = cv2.imread(image)
+#     else:
+#         raw_data = image
+#     del image
     
-    preview_max_width = 640
-    h,w,c = raw_data.shape
-    ratio = h/w
+#     preview_max_width = 640
+#     h,w,c = raw_data.shape
+#     ratio = h/w
 
-    # calculate new height, width keep aspect ratio fixed.
-    new_width = min(w, preview_max_width)
-    new_height = int(ratio * new_width)
+#     # calculate new height, width keep aspect ratio fixed.
+#     new_width = min(w, preview_max_width)
+#     new_height = int(ratio * new_width)
 
-    # resize, and save to disk in compressed jpeg format.
-    raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
-    quality = 90
-    cv2.imwrite(os.path.join(output_folder,"{}.webp".format(data_hash)), raw_data_resized,[int(cv2.IMWRITE_WEBP_QUALITY),quality])
+#     # resize, and save to disk in compressed jpeg format.
+#     raw_data_resized = cv2.resize(raw_data, (new_width, new_height))
+#     quality = 90
+#     cv2.imwrite(os.path.join(output_folder,"{}.webp".format(data_hash)), raw_data_resized,[int(cv2.IMWRITE_WEBP_QUALITY),quality])
 
 from enum import Enum
 class IndexingStatus(Enum):
@@ -367,7 +368,7 @@ def read_from_disk_bg(
                 older_batch_size = curr_batch_size
 
                 # ---------------------------
-                # Due to current semantics, and maxsize == 1, callee thread may not able to `put` as i > 0 condition is being used.
+                # Due to current semantics, and maxsize == 1, caller thread may not able to `put` as i > 0 condition is being used.
                 # So we consume that most recent `signal` here when last batch.
                 # [DETAILED REASON]: Otherwise when indexing more than 1 directories, `i` would be set to zero and batch is generate, but older `signal` would never be read !!
                 #------------------------------ 
@@ -693,7 +694,7 @@ class IndexingLocal(object):
             if not (self.root_dir is None):
                 (resources_queue, signal_queue) = self.start_download()
             else:
-                (resources_queue, signal_queue) = self.remote_extension.start_download(self.remote_client_id)
+                (resources_queue, signal_queue) = self.remote_extension.start_download(self.remote_client_id, rescan = self.complete_rescan)
             
             count = 0
             while True:
