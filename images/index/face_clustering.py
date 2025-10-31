@@ -11,13 +11,17 @@ import base64
 import os
 import uuid
 import json
+import time
 
 try:
     from .face_utils import collect_aligned_faces, collect_eyes, compare_hog_image, compare_face_embedding
     from .hog import get_hog_image
+    from .utils import ChannelConversion, ColorFormat, encode_image, resize
 except:
     from face_utils import collect_aligned_faces, collect_eyes, compare_hog_image, compare_face_embedding
     from hog import get_hog_image
+    from utils import ChannelConversion, ColorFormat, encode_image, resize
+
 
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "ml"))
@@ -27,7 +31,6 @@ pipeline.load_model(weightFile = weights_path, from_stream=True)
 
 import numpy as np
 import cv2
-
 
 # Directory to save index.
 FACECLUSTERS_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./face_indices")
@@ -217,7 +220,7 @@ class FaceIndex(object):
                 absolute_path = absolute_path,
                 face_index = i,
                 face_preview = self.__get_face_preview(
-                    frame = frame[:,:,::-1],  # For now using open-cv, which expects BGR. TODO: do away with open-cv atleast here!
+                    frame = frame,  # For now RGB format!
                     bboxes = bboxes,
                     face_index = i
                 ),
@@ -251,12 +254,9 @@ class FaceIndex(object):
         face_index: int, tells which face master embedding actually belongs to..(stable enough across a session)
         """
         
-        # frame = cv2.imread(absolute_path) # i know its costly, but would need to done for only a few times.
-        # assert frame is not None
+        assert not frame is None
         h,w,c = frame.shape
-        # bboxes, _, _, _ = pipeline.detect_embedding(frame, is_bgr = True, conf_threshold = self.confidence)
         bbox = bboxes[face_index]
-        
         
         margin = 60
         x1 = int(bbox[0])
@@ -269,11 +269,50 @@ class FaceIndex(object):
         x2 = min(w-1, x2 + margin)
         y1 = max(0, y1 - margin)
         y2 = min(h-1, y2 + margin)
+
+        # make divisible by 16/8! better may speed up resizing!
+        round_size = 16
+        x1 = x1 - (x1 % round_size)
+        x2 = x2 - (x2 % round_size)
+        y1 = y1 - (y1 % round_size)
+        y2 = y2 - (y2 % round_size)
+
         
-        preview_face = frame[y1:y2, x1:x2,:]
-        preview_face = cv2.resize(preview_face, ((x2 - x1) // 2, (y2 - y1)//2))
-        flag, preview_data = cv2.imencode(".webp", preview_face, [cv2.IMWRITE_WEBP_QUALITY, 80])
-        
+        # -----------------------------------------
+        # Legacy open-cv based code!
+        # ------------------------------
+        # preview_face = frame[y1:y2, x1:x2,:]
+        # preview_face = cv2.resize(preview_face, ((x2 - x1) // 2, (y2 - y1)//2))
+        # flag, preview_data = cv2.imencode(".webp", preview_face, [cv2.IMWRITE_WEBP_QUALITY, 80])
+        # ---------------------------------------
+
+        # ------------------------------------------------------------
+        try:
+            if (x2 - x1) < 16 or (y2 - y1) < 16:
+                # not big enough to do any further processing i guess!
+                raise Exception
+
+            preview_face = frame[y1:y2, x1:x2,:].copy() # as Nim/C code expects packed, no stride argument allowed for now!
+            preview_face = resize(
+                preview_face,
+                new_height = (y2 - y1) // 2,
+                new_width = (x2 - x1 ) // 2,
+                channel_conversion_info=ChannelConversion.RGB2BGRA, # this helps for faster following webp-encoding!
+                aligned_32b = True,   # for following webp encoder!
+                tile_size = round_size // 2
+            )
+            preview_data = encode_image(
+                preview_face,
+                color_format=ColorFormat.BGRA,
+                quality = 80,
+                lossless = False      # to mimic the opencv code, as lossless is significantly slower!
+            )
+            flag = True
+        except Exception as e:
+            print("[ERROR FACE_PREVIEW_GENERATION]:  {}".format(e))
+            flag = False
+        # ---------------------------------------------------
+
         if flag == False:
             print("[WARNING]: couldn't convert ")
             preview_base64 = np.array([0]).tobytes() # provide a better template...
@@ -281,7 +320,7 @@ class FaceIndex(object):
             preview_base64 = base64.b64encode(preview_data.tobytes())  # it is a bit costly than saving raw-bytes, sue me!
         del frame
         
-        # prefix = "data:image/png;base64," # to be used by browser.
+        # prefix = "data:image/png;base64," # We by default send the raw-bytes with mime-type as image/webp now!
         prefix = ""
         return "{}{}".format(prefix, preview_base64.decode("ascii"))
 
@@ -395,14 +434,14 @@ class FaceIndex(object):
         del to_delete_ids
 
         # We put remaining embeddings/resources into a "specific" cluster.
-        flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
+        black_poster = b'RIFF\x1a\x00\x00\x00WEBPVP8L\x0e\x00\x00\x00/\x01@\x00\x00\x07\x10\x11\xfd\x0fDD\xff\x03'
         c_no_info = Cluster(
             master_embeddings = [],
             id = self.no_info_id,
             resource_hashes = set([self.aux_data[idx].resource_hash for idx in follower_ids]),
-            preview_data = base64.b64encode(poster.tobytes()).decode("ascii"),
+            preview_data = base64.b64encode(black_poster).decode("ascii"),
             label = None)
-        del follower_ids, poster, flag
+        del follower_ids
         temp_clusters.append(c_no_info)
         del c_no_info
 
@@ -520,87 +559,87 @@ class FaceIndex(object):
         self.save(finalize=False)
 
 
-    def get_face_id_mapping(self, image:Union[os.PathLike, np.ndarray], cluster_ids:list[str], is_bgr:bool):
-        # we aim to achieve one to one mapping b/w cluster ids provided and bboxes predicted.
-        # NOTE: this works on best effort basis, but should not produce `absurd` mappings anyway!
-        """
-        cluster_ids: list are predicted (original) cluster ids during indexing and can be considered `pure` (can be trusted)
-        (so an unexpected cluster id should be considered a strong warning ..)
-        each person(detected) in the image is supposed to have an original cluster id.
-        """
+    # def get_face_id_mapping(self, image:Union[os.PathLike, np.ndarray], cluster_ids:list[str], is_bgr:bool):
+    #     # we aim to achieve one to one mapping b/w cluster ids provided and bboxes predicted.
+    #     # NOTE: this works on best effort basis, but should not produce `absurd` mappings anyway!
+    #     """
+    #     cluster_ids: list are predicted (original) cluster ids during indexing and can be considered `pure` (can be trusted)
+    #     (so an unexpected cluster id should be considered a strong warning ..)
+    #     each person(detected) in the image is supposed to have an original cluster id.
+    #     """
 
-        if isinstance(image, str):
-            assert os.path.exists(image)
-            frame = cv2.imread(image)
-            is_bgr = True
-        else:
-            frame  = image        
+    #     if isinstance(image, str):
+    #         assert os.path.exists(image)
+    #         frame = cv2.imread(image)
+    #         is_bgr = True
+    #     else:
+    #         frame  = image        
         
-        final_bboxes_ids = [None for _ in range(len(cluster_ids))]
-        temp_mapping = {}  # index to clusters
+    #     final_bboxes_ids = [None for _ in range(len(cluster_ids))]
+    #     temp_mapping = {}  # index to clusters
 
-        # create a mapping from original indices to cluster and filter unxpected ids. (should be rare)
-        for ix, id in enumerate(cluster_ids):
-            if id not in self.id_to_cluster:
-                # TODO: make this an error... any unknow id should n;t be here in the first place!
-                print("[WARNING]: {} not found, it should be an error. PLEASE UPDATE CODE On the CLIENT SIDE!")
-                continue
-            elif id == self.no_face_detected_id:
-                # we skip it too... (for now i think no_face_detected_id is not used!)
-                continue
-            elif id == self.no_info_id:
-                # we assign this later, to any unassigned bboxes,otherwise current logic could assign undesired bboxes to this id.
-                continue
-            else:
-                temp_mapping[ix] = self.id_to_cluster[id]
+    #     # create a mapping from original indices to cluster and filter unxpected ids. (should be rare)
+    #     for ix, id in enumerate(cluster_ids):
+    #         if id not in self.id_to_cluster:
+    #             # TODO: make this an error... any unknow id should n;t be here in the first place!
+    #             print("[WARNING]: {} not found, it should be an error. PLEASE UPDATE CODE On the CLIENT SIDE!")
+    #             continue
+    #         elif id == self.no_face_detected_id:
+    #             # we skip it too... (for now i think no_face_detected_id is not used!)
+    #             continue
+    #         elif id == self.no_info_id:
+    #             # we assign this later, to any unassigned bboxes,otherwise current logic could assign undesired bboxes to this id.
+    #             continue
+    #         else:
+    #             temp_mapping[ix] = self.id_to_cluster[id]
         
-        (bboxes, embeddings, _, _) = pipeline.detect_embedding(frame, is_bgr = is_bgr, conf_threshold = self.confidence)   
-        to_skip = set()
-        for stored_ix, c in temp_mapping.items():
-            # find the best bbox candidate for this cluster..
-            scores = []
-            for bbox_ix, (bbox, embedding) in enumerate(zip(bboxes, embeddings)):
-                if bbox_ix in to_skip:
-                    continue
-                assert c.id != self.no_face_detected_id and c.id != self.no_info_id            
-                score = min([compare_face_embedding(m, embedding) for m in c.master_embeddings])
-                scores.append((bbox_ix,score))
-                del score, bbox_ix
-            # print(scores)
-            # print(bboxes)
-            # print(c.id)
+    #     (bboxes, embeddings, _, _) = pipeline.detect_embedding(frame, is_bgr = is_bgr, conf_threshold = self.confidence)   
+    #     to_skip = set()
+    #     for stored_ix, c in temp_mapping.items():
+    #         # find the best bbox candidate for this cluster..
+    #         scores = []
+    #         for bbox_ix, (bbox, embedding) in enumerate(zip(bboxes, embeddings)):
+    #             if bbox_ix in to_skip:
+    #                 continue
+    #             assert c.id != self.no_face_detected_id and c.id != self.no_info_id            
+    #             score = min([compare_face_embedding(m, embedding) for m in c.master_embeddings])
+    #             scores.append((bbox_ix,score))
+    #             del score, bbox_ix
+    #         # print(scores)
+    #         # print(bboxes)
+    #         # print(c.id)
             
-            if len(scores) > 0:
-                sorted_data = sorted(scores, key = lambda x: x[1], reverse = False)
-                best_bbox_ix = sorted_data[0][0]
-                bbox  = bboxes[best_bbox_ix]
+    #         if len(scores) > 0:
+    #             sorted_data = sorted(scores, key = lambda x: x[1], reverse = False)
+    #             best_bbox_ix = sorted_data[0][0]
+    #             bbox  = bboxes[best_bbox_ix]
 
-                # update the results at correct index
-                final_bboxes_ids[stored_ix] = ([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])], cluster_ids[stored_ix])
-                del bbox
+    #             # update the results at correct index
+    #             final_bboxes_ids[stored_ix] = ([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])], cluster_ids[stored_ix])
+    #             del bbox
 
-                # assing a bbox to exactly one person in the image!
-                to_skip.add(best_bbox_ix)
+    #             # assing a bbox to exactly one person in the image!
+    #             to_skip.add(best_bbox_ix)
 
-        # we assign any unassign bboxes to no-info id. (this makes sense if one to one mapping is assumed!)
-        for bbox_ix,bbox in enumerate(bboxes):
-            if not (bbox_ix in to_skip):
-                for ix, temp_id in enumerate(cluster_ids):
-                    if temp_id == self.no_info_id and final_bboxes_ids[ix] is None: # no need for and actually both are equivalent for now!
-                        final_bboxes_ids[ix] = ([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])], temp_id)
-                        break
-            del bbox_ix, bbox
+    #     # we assign any unassign bboxes to no-info id. (this makes sense if one to one mapping is assumed!)
+    #     for bbox_ix,bbox in enumerate(bboxes):
+    #         if not (bbox_ix in to_skip):
+    #             for ix, temp_id in enumerate(cluster_ids):
+    #                 if temp_id == self.no_info_id and final_bboxes_ids[ix] is None: # no need for and actually both are equivalent for now!
+    #                     final_bboxes_ids[ix] = ([int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])], temp_id)
+    #                     break
+    #         del bbox_ix, bbox
 
-        # rarely may fail to have a bbox for each of persons !
-        collect_ix = []
-        for ix,x in enumerate(final_bboxes_ids):
-            if x is None:
-                collect_ix.append(ix)
+    #     # rarely may fail to have a bbox for each of persons !
+    #     collect_ix = []
+    #     for ix,x in enumerate(final_bboxes_ids):
+    #         if x is None:
+    #             collect_ix.append(ix)
         
-        for ix in collect_ix:
-            final_bboxes_ids[ix] = ([int(0), int(0), int(1), int(1)], cluster_ids[ix]) # kind of an empty bbox!
-        del collect_ix
-        return final_bboxes_ids
+    #     for ix in collect_ix:
+    #         final_bboxes_ids[ix] = ([int(0), int(0), int(1), int(1)], cluster_ids[ix]) # kind of an empty bbox!
+    #     del collect_ix
+    #     return final_bboxes_ids
 
     def get(self, cluster_id) -> Cluster:
         """
@@ -621,6 +660,7 @@ if __name__ == "__main__":
     # kernprof -l -v <face_clustering.py> # put @profile on the routine.
 
     # have to disable pipeline , otherwise complaints of dnnl.dll missing..(not in this directory)
+    import cv2      # TODO: use utils_nim imread instead! opencv dependency has been deprecated!
     someIndex = FaceIndex(embedding_size = 512)
     print(someIndex)
     images_folder = "D://scripting_python/instagram_photos"
