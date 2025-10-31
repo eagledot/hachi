@@ -3,6 +3,9 @@ import os
 import sys
 import numpy as np
 
+from threading import RLock
+webp_lock = RLock()  # lock for encode_image, to be `safely` called from multiple threads. Read `encode_image` description!
+
 # ----------------------------------------------
 # Load (Nim) Extensions and initialize some routine pointers.. to not call `symAddr` for each such call!
 sys.path.append(os.path.join(
@@ -11,6 +14,7 @@ sys.path.append(os.path.join(
 import utils_nim
 utils_nim.initFuncPointers()
 # -------------------------------------
+
 
 # Keep it in sync with Nim corresponding enums, comes from resize.nim!
 class ChannelConversion(Enum):
@@ -41,21 +45,34 @@ def encode_image(
     # Return 1D array containing compressed bytes for given image !
 
     assert image.dtype == np.uint8
+
+    base = (image.__array_interface__['data'][0])
+    assert base % 32 == 0, "Expected buffer to be 32 byte aligned, \n \
+            Webp Implementation expects that . or Re-read again the code ! \n \
+            One solution is to reallocate to a new buffer and then proceed!"
+
     
     # allocate enough space to hold the compressed webp data! (Cannot be larger than the RAW-DATA itself, right!)
     webp_header_size = 20 
     expected_max_size = (image.shape[0] * image.shape[1] * image.shape[2]) + webp_header_size
     encoded_buffer = np.empty(shape = (expected_max_size,), dtype = np.uint8)
 
-    size = utils_nim.encode_image(
-        image,
-        encoded_buffer, # isolated copy, as created in this routine!
-        color_format = color_format.value,
+    with webp_lock:
+        # As far as i understand, `webp-encoder C code` is not thread-safe in sense that shouldn't be called from multiple-thread, 
+        # Otherwise it keeps crashing, could be related to Nim extension being called from multiple (python) threads, it really is difficult to debug.
+        # But generally compiling with --threads:on resolve such situations! 
 
-        quality = quality,
-        lossless = lossless,
-        meth = meth
-    )
+        # As we release the GIL from inside nim/c code, and then another thread may call the `webp encoder C` code, which leads to a multi-threading type situtation.
+        # So for now wrapping this , releasing the GIL will still allow other python code to move forward, but webp_lock will serialize access if other thread happens to call this!
+        size = utils_nim.encode_image(
+            image,
+            encoded_buffer, # isolated copy, as created in this routine!
+            color_format = color_format.value,
+
+            quality = quality,
+            lossless = lossless,
+            meth = meth
+        )
     return encoded_buffer[:size]
 
 def resize(image:np.ndarray, # [H,W,C] format!
@@ -63,7 +80,7 @@ def resize(image:np.ndarray, # [H,W,C] format!
     new_width:int,
     channel_conversion_info = ChannelConversion.SAME,
     tile_size:int = 1,
-    aligned_32b:bool = True # for following webp encoding.. 
+    aligned_32b:bool = True # for following webp encoding.. NOTE: Keep it true if goin
     )-> np.ndarray:
 
     new_channels = image.shape[2]
@@ -101,32 +118,48 @@ if __name__ == "__main__":
     
     import cv2
     import matplotlib.pyplot as plt
+    import time
 
     image_path = "C://users/random/pictures/netflix.png"
     image_path = "D://akshay/jim_6900/jim_6900.jpg"
     image_path = "D://akshay/rotated_photos/20250809_113005.jpg"
     image = cv2.imread(image_path)
-    assert not (image is None)
-
-
-    # Reading image data using std_image library!
-    image_buffer = np.empty((16000, 16000, 4), dtype = np.uint8).reshape(-1)
-    (flag, h, w, c) = utils_nim.imread_from_memory(
-        open(image_path, "rb").read(),
-        image_buffer,
-        flip_vertically = False
-    )
-
-    plt.subplot(1,2,1)
-    image_stb = image_buffer[:h*w*c].reshape(h,w,c)
-    plt.imshow(image_stb)
-    # plt.show()
+    image_re = cv2.resize(image, (200, 200))
     
-    plt.subplot(1,2,2)
-    image_tp = np.rot90(image_stb, k = 1, axes = (1,0)).copy()
-    # image_tp = np.transpose(image_stb, (1,0,2)).copy() # (tranpose ~ flip vertically + 90 degree clockwise ), earlier flip negates that.. we get 90 degree clockwise!
-    plt.imshow(image_tp)
-    plt.show()
+    # tic = time.time()
+    # for i in range(100):
+    #     (flag, temp) = cv2.imencode(".webp", image_re, [cv2.IMWRITE_WEBP_QUALITY, 80])
+    # toc = time.time()
+    # print("[CV2]: {}ms".format((toc - tic)*1000))
+
+    # image_re = resize(image, new_height=200, new_width=200, aligned_32b=True)
+    # tic = time.time()
+    # for i in range(100):
+    #     temp = encode_image(image_re, color_format=ColorFormat.RGB, quality = 80, lossless=False)
+    # toc = time.time()
+    # print("[CV2]: {}ms".format((toc - tic)*1000))
+
+    # assert not (image is None)
+
+
+    # # Reading image data using std_image library!
+    # image_buffer = np.empty((16000, 16000, 4), dtype = np.uint8).reshape(-1)
+    # (flag, h, w, c) = utils_nim.imread_from_memory(
+    #     open(image_path, "rb").read(),
+    #     image_buffer,
+    #     flip_vertically = False
+    # )
+
+    # plt.subplot(1,2,1)
+    # image_stb = image_buffer[:h*w*c].reshape(h,w,c)
+    # plt.imshow(image_stb)
+    # # plt.show()
+    
+    # plt.subplot(1,2,2)
+    # image_tp = np.rot90(image_stb, k = 1, axes = (1,0)).copy()
+    # # image_tp = np.transpose(image_stb, (1,0,2)).copy() # (tranpose ~ flip vertically + 90 degree clockwise ), earlier flip negates that.. we get 90 degree clockwise!
+    # plt.imshow(image_tp)
+    # plt.show()
 
 
 
