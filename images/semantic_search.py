@@ -718,7 +718,7 @@ def tagPerson(request:Request):
             if old_person_id == d:
                 count += 1
                 idx =  i # count must be 1, then only one (desired) idx would be returned, 
-        assert count == 1, "{} Must have been found in: {}".format(old_person_id, old_array)
+        assert count == 1, "{} Must have been found in: {}".format(old_person_id, old_person_arr)
         old_person_arr[idx] = new_person_id  # modifying while iterating, ok, since one read only! and then discarding it!
 
         mBackend.modify(
