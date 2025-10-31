@@ -45,7 +45,7 @@
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
 5. ``cd`` into the `images` directory .
 6. Collect Model Weights by downloading ``dataV2.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.3/dataV2.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data``(i.e. data folder in curretn directory) , such that now ``./data`` directory has 3 ``.bin`` files in it.
-7. Run command ``pip install -r requirements.txt``   ( This would install ``opencv-python``, ``numpy``, ``flask``, ``regex``, ``ftfy``, ``plum-py`` python packages, if not found .)
+7. Run command ``pip install -r requirements.txt``   ( This would install ``numpy``, ``regex``, ``ftfy`` python packages, if not found .)
 
     ### Extra steps (for Linux distributions Only.)
 
@@ -53,9 +53,9 @@
 
         * update the ``LD_LIBRARY_PATH`` to make ``dynamic linker`` search for ``shared objects`` in the Conda path (if     not already done!)
 
-    9. Install ``openblas`` if not already included/installed with your OS.
+    <!-- 9. Install ``openblas`` if not already included/installed with your OS.
         *   ``sudo dnf install openblas-devel`` (Fedora)
-        *   ``sudo apt-get install openblas-dev``  (Ubuntu/Debian)
+        *   ``sudo apt-get install openblas-dev``  (Ubuntu/Debian) -->
 
 ## Usage:
 1. make sure current working directory is `<root>/images` .
@@ -83,7 +83,7 @@ For Windows, shared libraries  ``dnnl.dll`` and ``dnnl_v3.dll`` are included in 
 Specifically ``dnnl.dll`` corresponds to a version >= ``2.6.x`` but less than version ``3.x.x`` and ``dnnl_v3.dll`` corresponds to the version >= ``3.x.x`` but less than ``4.x.x``.
 Developers can choose to build their own corresponding ``DLLs`` based on the instructions on the [project](https://github.com/oneapi-src/oneDNN#requirements-for-building-from-source) page, provided they name it as ``dnnl.dll`` and ``dnnl_v3.dll`` after building.
 
-``Openblas.dll`` included along is based on the project https://github.com/OpenMathLib/OpenBLAS/ and as an alternative can be built from scratch or can be downloaded directly from [releases](https://github.com/OpenMathLib/OpenBLAS/releases) . 
+<!-- ``Openblas.dll`` included along is based on the project https://github.com/OpenMathLib/OpenBLAS/ and as an alternative can be built from scratch or can be downloaded directly from [releases](https://github.com/OpenMathLib/OpenBLAS/releases) .  -->
 
 <details>
    <summary><h3>RAM usage</h3></summary>
