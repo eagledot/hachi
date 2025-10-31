@@ -184,7 +184,7 @@ export class IndexingComponent {
             for="protocol-select"
             class="block text-sm font-medium text-gray-700 mb-2"
           >
-            ☁️ Or, Connect a Cloud Service
+            ☁️ Or, Choose a Remote Protocol
           </label>
           <div class="relative">
             <select
@@ -257,7 +257,7 @@ export class IndexingComponent {
                   Simulate Indexing
                 </label>
                 <p class="text-xs text-gray-500 mt-1 leading-relaxed">
-                  Perform a dry run without actually indexing photos. Useful for testing.
+                  Generate random semantic embeddings. Useful while accessing overall indexing pipeline quickly!  
                 </p>
               </div>
             </div>
@@ -475,10 +475,25 @@ export class IndexingComponent {
       const data: IndexStatusResponse = await resp.json(); // Parse JSON response
       if (data.done) { // If backend reports job finished (or cancelled)
         if (this.state.value.isCancelling) { // If user initiated cancel
-          this.showNotification("Scan stopped successfully", "warning"); // Notify cancel success
+          
+          if (data.error){
+            // better to let user read it fully!
+            alert(data.error);
+          }
+          else
+          {
+            this.showNotification("Scan stopped successfully", "warning"); // Notify cancel success
+          }
         }
         if (!pageLoaded && !this.state.value.isCancelling) { // If not initial load and not cancelling
-          this.showNotification("Photo scan completed successfully!", "success"); // Notify completion
+          
+          if (data.error){
+            // better to let user read it fully!
+            alert(data.error);
+          }
+          else{
+            this.showNotification("Photo scan completed successfully!", "success"); // Notify completion
+          }
         }
         this.setState({ // Reset indexing related state
           isIndexing: false,
@@ -553,20 +568,21 @@ export class IndexingComponent {
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
     notification.style.cssText = `
+      font-family:monospace;
       position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 12px 20px;
-      border-radius: 6px;
-      color: white;
-      font-weight: 500;
+      top: 10px;
+      right: 10px;
+      padding: 4px 8px;
+      border-radius: 2px;
+      color: black;
+      font-weight: 360;
       z-index: 1000;
       max-width: 400px;
       word-wrap: break-word;
     `;
     switch (type) {
       case "success":
-        notification.style.backgroundColor = "#10b981";
+        notification.style.backgroundColor = '#16c60c';
         break;
       case "error":
         notification.style.backgroundColor = "#ef4444";
