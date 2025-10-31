@@ -6,6 +6,12 @@
     Repo: https://github.com/pallets/werkzeug
     License: https://github.com/pallets/werkzeug/blob/main/LICENSE.txt
 
+# Plum-py 
+  https://gitlab.com/dangass/plum for Pack/Unpack Memory Bytes
+  In the future this dependency could be deprecated, using native `struct` or custom python code. (required by Exif Module)
+
+# 
+
 ## Bootstraping Pip on windows.
 
 In case we are using an embedded python version, we will first need to install/bootstrap `pip`. One of recommended way is by using `get-pip.py` as mentioned at [https://pip.pypa.io/en/stable/installation/] (https://pip.pypa.io/en/stable/installation/) . This contains encoded `pip` package as zip file itself. Hence once downloaded and run, it will install `pip` into the `< embedded_python_folder >/lib/site-packages` directory.
