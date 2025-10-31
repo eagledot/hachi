@@ -14,6 +14,7 @@ from typing import TypedDict, List, Generator, BinaryIO, Union, Any
 import os, datetime
 from io import BytesIO
 
+# Supposed to come from `python_modules` folder/directory, bundled with app/code!
 from exif import Image as ImageExif
 
 # sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../exif"))
