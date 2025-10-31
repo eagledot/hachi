@@ -37,11 +37,7 @@ from threading import RLock
 import threading
 import base64
 
-import cv2
-# from flask import Flask
-# import flask
 from werkzeug import Request, Response
-import numpy as np
 
 # --------------------------------
 # configuration:
@@ -973,11 +969,8 @@ def get_original_cluster_id(person_id):
 def getPreviewCluster(r:Request, person_id:str) -> bytes:
     # TODO: have to add a cluster for no detection too... not a priority(i think have added just to incorporate)
     if person_id.lower() == "no_person_detected":
-        # TODO: just return a fixed set of bytes like a black image.
-        flag, poster = cv2.imencode(".png", np.array([[0,0], [0,0]], dtype = np.uint8))
-        raw_data = poster.tobytes()
-        del flag, poster
-        return Response(raw_data, mimetype = "{}/{}".format("image", "png"))
+        black_poster = b'RIFF\x1a\x00\x00\x00WEBPVP8L\x0e\x00\x00\x00/\x01@\x00\x00\x07\x10\x11\xfd\x0fDD\xff\x03'
+        return Response(black_poster, mimetype = "{}/{}".format("image", "webp"))
     else:
         # Do the dance of getting original `corresponding` cluster_id, so that we can retrive the `face preview`
         with global_lock:
@@ -998,50 +991,50 @@ def getPreviewCluster(r:Request, person_id:str) -> bytes:
         png_data = c.preview_data
         del c
         raw_data= base64.b64decode(png_data)
-        return Response(raw_data, mimetype = "{}/{}".format("image", "png"))
+        return Response(raw_data, mimetype = "{}/{}".format("image", "webp"))
 
 ##app.route("/getfaceBboxIdMapping/<resource_hash>", methods = ["POST"])
-def getfaceBboxIdMapping(request:Request, resource_hash:str):
-    """
-    TODO: its just do much work, to get corresponding face-bbox, by generating bboxes and using the order to much info to sync!
-    # TODO map it during the face-indexing itself.. 
-    generate/calculate a mapping from bbox to person_ids, for a given resource.
-    Returns an array of object/dicts . (with x1,y1,x2,y2, person_id) fields to easily plot bboxes with corresponding person id.
+# def getfaceBboxIdMapping(request:Request, resource_hash:str):
+#     """
+#     TODO: its just do much work, to get corresponding face-bbox, by generating bboxes and using the order to much info to sync!
+#     # TODO map it during the face-indexing itself.. 
+#     generate/calculate a mapping from bbox to person_ids, for a given resource.
+#     Returns an array of object/dicts . (with x1,y1,x2,y2, person_id) fields to easily plot bboxes with corresponding person id.
     
-    Inputs:
-    resource_hash:
-    cluster_ids/person_ids:  already assigned during indexing. (client has this information already) 
-    """
+#     Inputs:
+#     resource_hash:
+#     cluster_ids/person_ids:  already assigned during indexing. (client has this information already) 
+#     """
     
-    cluster_ids = request.form.get("cluster_ids").strip("| ").split("|")
-    orig_cluster_ids = []    
-    for c_id in cluster_ids:
-        orig_cluster_ids.append(get_original_cluster_id(c_id))
+#     cluster_ids = request.form.get("cluster_ids").strip("| ").split("|")
+#     orig_cluster_ids = []    
+#     for c_id in cluster_ids:
+#         orig_cluster_ids.append(get_original_cluster_id(c_id))
 
-    # TODO: reading full image data from cache if possible !
-    temp_meta = metaIndex.query(resource_hashes = resource_hash)[resource_hash]
-    absolute_path = temp_meta["absolute_path"]
-    frame = cv2.imread(absolute_path) # bit costly, should come from cache if possible.
-    if frame is None:
-        return jsonify([])
-    else:
-        # NOTE: bbox_ids preserves the order for provided cluster_ids, hence can easily to get the newest persond id in cluster_ids list provided as argument.
-        bbox_ids = faceIndex.get_face_id_mapping(
-            image = frame,
-            is_bgr = True,
-            cluster_ids = orig_cluster_ids
-        )
-        assert len(bbox_ids) == len(cluster_ids)
-        result = []
-        for ix, (bbox, id) in enumerate(bbox_ids):            
-            result.append({
-                "x1":bbox[0],
-                "y1":bbox[1],
-                "x2":bbox[2],
-                "y2":bbox[3],
-                "person_id": cluster_ids[ix]   # if order was same from get_face_id function.
-            })
-    return jsonify(result) 
+#     # TODO: reading full image data from cache if possible !
+#     temp_meta = metaIndex.query(resource_hashes = resource_hash)[resource_hash]
+#     absolute_path = temp_meta["absolute_path"]
+#     frame = cv2.imread(absolute_path) # bit costly, should come from cache if possible.
+#     if frame is None:
+#         return jsonify([])
+#     else:
+#         # NOTE: bbox_ids preserves the order for provided cluster_ids, hence can easily to get the newest persond id in cluster_ids list provided as argument.
+#         bbox_ids = faceIndex.get_face_id_mapping(
+#             image = frame,
+#             is_bgr = True,
+#             cluster_ids = orig_cluster_ids
+#         )
+#         assert len(bbox_ids) == len(cluster_ids)
+#         result = []
+#         for ix, (bbox, id) in enumerate(bbox_ids):            
+#             result.append({
+#                 "x1":bbox[0],
+#                 "y1":bbox[1],
+#                 "x2":bbox[2],
+#                 "y2":bbox[3],
+#                 "person_id": cluster_ids[ix]   # if order was same from get_face_id function.
+#             })
+#     return jsonify(result) 
 
 ##app.route("/ping", methods = ["GET"])
 def ping(r:Request) -> bytes:
