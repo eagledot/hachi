@@ -1,5 +1,6 @@
 numpy
-opencv-python-headless
-plum-py
 regex
+ftfy   # To be removed!
+
+# Optional, for now at-least, better shift to urllib3 only!
 requests
