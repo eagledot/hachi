@@ -10,7 +10,9 @@
   https://gitlab.com/dangass/plum for Pack/Unpack Memory Bytes
   In the future this dependency could be deprecated, using native `struct` or custom python code. (required by Exif Module)
 
-# 
+# Exif
+ https://gitlab.com/TNThieding/exif Read and modify image EXIF metadata using Python without any third-party software dependencies
+ Minor changes (by Anubhav N. (eagledot)) all under original MIT License .
 
 ## Bootstraping Pip on windows.
 
