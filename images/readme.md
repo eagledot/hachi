@@ -45,7 +45,7 @@
 4. ``cd`` into the cloned/downloaded repository.       ( i.e change path to the root of cloned repository)
 5. ``cd`` into the `images` directory .
 6. Collect Model Weights by downloading ``dataV2.zip`` from  [releases](https://github.com/eagledot/hachi/releases/download/v1.3/dataV2.zip), ``extract/collect`` 2 `.bin` files from it into the path ``./data``(i.e. data folder in curretn directory) , such that now ``./data`` directory has 3 ``.bin`` files in it.
-7. Run command ``pip install -r requirements.txt``   ( This would install ``numpy``, ``regex``, ``ftfy`` python packages, if not found .)
+7. Run command ``pip install -r requirements.txt``   ( This would install ``numpy``, ``regex`` python packages, if not found .)
 
     ### Extra steps (for Linux distributions Only.)
 
