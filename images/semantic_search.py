@@ -649,19 +649,17 @@ def getRawDataFull(request:Request, resource_hash:str) -> bytes:
         row_indices
     )[0]
 
-    # TODO: directly read from `absolute_path`, to do-away with case sensitive path on *Nix !
-    absolute_path = os.path.join(meta_data["resource_directory"], meta_data["filename"])
     resource_type = "image" # TODO: get it from meta-data?
     resource_extension = meta_data["resource_extension"]
+    location = meta_data["location"]
 
     raw_data = None
-    # TODO: handle remote data!
-    if absolute_path.strip().lower() == "remote":
-        remote_meta = temp_meta["remote"]
-        if resource_directory == "google_photos":
-            raw_data = googlePhotos.get_raw_data(remote_meta)
-        del remote_meta
+    if location.strip().lower() == "R":
+        identifier = meta_data["identifier"]
+        # TODO: conditioned on the identifier and availablity of device, we will attempt to download the original version!
+        pass
     else:
+        absolute_path = os.path.join(meta_data["resource_directory"], meta_data["filename"])
         with open(absolute_path, "rb") as f:
             raw_data = f.read()
     return Response(raw_data, mimetype = "{}/{}".format(resource_type, resource_extension[1:]))
