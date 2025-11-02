@@ -8,7 +8,7 @@
         body {
             background-color: #E9E5E5; /* Black background */
             color: #fff; /* White text */
-            font-family: Arial, sans-serif;
+            font-family: monospace;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -19,7 +19,7 @@
             text-align: center;
         }
         h1 {
-            font-family: 'Courier New', Courier, monospace;
+            font-family: monospace;
             color: #000000D3; 
             font-size: 5em; 
         }
@@ -29,10 +29,10 @@
             margin: auto;
             width: fit-content;
             font-weight: bold;
-            font-family: sans-serif;
+            font-family: monospace;
             font-size: 30px;
             padding: 0 5px 8px 0;
-            background: repeating-linear-gradient(90deg,currentColor 0 8%,#0000 0 10%) 200% 100%/200% 3px no-repeat;
+            background: repeating-linear-gradient(90deg,currentColor 0 4%,#0000 0 6%) 200% 100%/200% 3px no-repeat;
             animation: l3 2s steps(6) infinite;
         }
         .loader:before {
@@ -47,6 +47,7 @@
     <div class="container">
         <h1>HACHI</h1>
         <div class="loader"></div>
+        <!-- <div id="loading-info" style="color:aqua">xxxxxxxxxxxxxxxxxx</div> -->
     </div>
     <script>
         const MAIN_APP_URL = "http://localhost:5000"
@@ -56,6 +57,9 @@
             fetch(PING_URL, {signal: AbortSignal.timeout(600) })
                 .then((response) => {
                     clearInterval(interval_id);
+                    
+                    // stop getting  loading info too, as would be loaded!
+                    // clearInterval(info_interval_id);
 
                     if(response.ok){
                         window.location.href = MAIN_APP_URL;
@@ -65,7 +69,24 @@
                     }
                 });
         }
+
+        // minimal (temporary) server to send pre-loading info!
+        // no need as fast-enough loading times!
+        // const LOADING_INFO_URL = "http://localhost:8100/loadingInfo"
+
+        // function loading_info_timeout() {
+        //     fetch(LOADING_INFO_URL, {signal: AbortSignal.timeout(600) })
+        //         .then((response) => {
+        //             let div = document.getElementById("loading-info");
+        //             response.text().then((data) => {
+        //                 console.log(data);
+        //                 div.innerText = data;                        
+        //             })
+        //         });
+        // }
+
         let interval_id = setInterval(ping_timeout, 1000);
+        // let info_interval_id = setInterval(loading_info_timeout, 500);
     </script>
 </body>
 </html>
