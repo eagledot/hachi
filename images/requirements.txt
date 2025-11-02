@@ -1,5 +1,6 @@
 numpy
 regex
+markupsafe    # not pure python, required by werkzeug to produce html exceptions. TO BE REMOVED!
 
 # Optional, for now at-least, better shift to urllib3 only!
 requests
