@@ -1200,7 +1200,6 @@ def get_remote_clients(request:Request) -> list[dict]:
 ############################################################################
 
 if __name__ == "__main__":
-    # want to able to create a sample app here..
     from werkzeug_app import SimpleApp
     from werkzeug.serving import run_simple
     import argparse    
@@ -1246,36 +1245,37 @@ if __name__ == "__main__":
     # Register Extensions:
     # -------------------
     # Instead may be we can get the `mapping` directly from some parent class!
-    sys.path.insert(0,"D://hachi_extensions/images")
-    from mtp_windows.mtp_code import MtpExtension
-    from google_drive.drive import GoogleDrive
-    
-    # collect extension instances!
-    mtp_extension = MtpExtension()
-    gdr_extension = GoogleDrive()
-    # For now do it manually!
-    # gdr_extension.begin_setup(r = None) # We already have a `token.json`, so it will not start consent process!
-    # gdr_extension.finish_setup(r = None)
+    extensions_path = "D://hachi_extensions/images"
+    if os.path.exists(extensions_path):
+        sys.path.insert(0,extensions_path)
+        from mtp_windows.mtp_code import MtpExtension
+        from google_drive.drive import GoogleDrive
+        
+        # collect extension instances!
+        mtp_extension = MtpExtension()
+        gdr_extension = GoogleDrive()
 
-    # UPDATE THE GLOBAL MAPPING!
-    REGISTERED_EXTENSIONS = {
-        mtp_extension.get_name(): mtp_extension,
-        gdr_extension.get_name(): gdr_extension,
-    }
-    print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
+        # UPDATE THE GLOBAL MAPPING!
+        REGISTERED_EXTENSIONS = {
+            mtp_extension.get_name(): mtp_extension,
+            gdr_extension.get_name(): gdr_extension,
+        }
+        print("[REGISTERED]: {}".format(REGISTERED_EXTENSIONS))
+
+        app.register(
+        mtp_extension.get_wsgi_app(),
+        name = mtp_extension.get_name()
+        )
+        
+        app.register(
+            gdr_extension.get_wsgi_app(),
+            name = gdr_extension.get_name()
+        )
 
     # Collect remote clients info , for all protocols!
     app.add_url_rule(
         rule = "/getRemoteClients", 
         view_function = get_remote_clients
-    )
-    app.register(
-        mtp_extension.get_wsgi_app(),
-        name = mtp_extension.get_name()
-    )
-    app.register(
-        gdr_extension.get_wsgi_app(),
-        name = gdr_extension.get_name()
     )
 
     # Run the WSGI server, with `app` as underlying WSGI application!
