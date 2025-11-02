@@ -30,7 +30,7 @@ weights_path = os.path.join(os.path.dirname(__file__),"..", "data", "pipelineRet
 pipeline.load_model(weightFile = weights_path, from_stream=True)
 
 import numpy as np
-import cv2
+# import cv2
 
 # Directory to save index.
 FACECLUSTERS_INDEX_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "./face_indices")
