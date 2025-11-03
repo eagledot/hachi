@@ -5,6 +5,12 @@
 
 http://localhost:5000 {
 
+	# logging errors to a file!
+	log {
+         output file ./caddy-errors.log
+         level ERROR
+    	}
+	
 	encode zstd gzip
  
 	handle /* {
