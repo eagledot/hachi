@@ -6,6 +6,33 @@ import os
 import time
 import json
 
+DAEMON_MODE = False
+# ------------------------------------------------------------------
+# For DAEMON MODE
+# ---------------------------------------
+if DAEMON_MODE:
+    class LoggerNaive(object):
+        """
+        Good enough to handle unexpected and known exceptions/erros while running in daemon mode! As without running as a `service`, such complex scripts/applications are prone to get killed! 
+        Since Actual code supposed to be executed is a try/except block by werkzeug code anyway. 
+        Reporting to stderr by werkzeug should be redirected to this dumb logger, trapping `error` signals to OS!!
+        """
+        log = ["recent-data"]
+
+        def write(self, data):
+            self.log[0] = data
+
+        def flush(self):
+            pass
+
+    logger = LoggerNaive()
+    sys.stdout = logger
+    sys.stderr = logger
+
+    # sys.stderr = open('.//error.txt', 'w')
+    # sys.stdout = open('.//info.txt', 'w')
+# ---------------------------------------------------------------
+
 # -----------------------------------------------------
 # First party modules path configuration, could be better!
 # --------------------------------------------------
