@@ -397,10 +397,7 @@ class WSGIRequestHandler(BaseHTTPRequestHandler):
             from .debug.tbtools import DebugTraceback
 
             msg = DebugTraceback(e).render_traceback_text()
-            print("[ERROR]: {}".format(msg))  # just printing the message!
-            
-            # This raises an error signal , so when running in background/daemon-mode causing OS to kill the process!
-            # self.server.log("error", f"Error on request:\n{msg}")
+            self.server.log("error", f"Error on request:\n{msg}")
 
     def handle(self) -> None:
         """Handles a request ignoring dropped connections."""
