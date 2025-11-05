@@ -345,15 +345,26 @@ class FaceIndex(object):
             
             to_delete_ids = []
             group = []
-            current_id = master_ids[0]
+            current_id = master_ids[0]  # we choose first one, so becomes dependent on when a particular face was encountered, i.e may have slightly different clusters depending upon when that photo/face was scanned! !
             group.append(current_id)
             to_delete_ids.append(current_id)
             
             # try merging
+            mean_score = 1.12
             for temp_id in master_ids[1:]:
-                if compare_face_embedding(embeddings_ref[current_id], embeddings_ref[temp_id]) <= 1.12:
+                temp_s = compare_face_embedding(embeddings_ref[current_id], embeddings_ref[temp_id])
+                # if temp_s <= 1.12:
+                if temp_s <= mean_score:
+
+                    # rotate current_id, to soften the blow of initial worst embedding among possible better embeddings!
+                    current_id = temp_id    # kind of indicate, that recent temp_id was good, not exhaustive search, but still adaptive!
+                    
                     group.append(temp_id)
                     to_delete_ids.append(temp_id)
+                    
+                    # adaptive mean score.
+                    mean_score = min(mean_score, (0.6*mean_score + 0.4*temp_s))
+                
                 del temp_id
 
             # update master-ids to indicate merged ids.
