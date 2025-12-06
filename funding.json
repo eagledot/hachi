@@ -23,7 +23,7 @@
                 "url": "https://github.com/eagledot/hachi"
             },
             "licenses": [
-                "spdx:GPL-3.0"
+                "spdx:AGPL-3.0"
             ],
             "tags": [
                 "search",
@@ -33,7 +33,51 @@
                 "semantic",
                 "document-search"
             ]
+        },
+
+        {
+            "guid": "Malhar",
+            "name": "Malhar",
+            "description":"Fast and generic Fuzzy Search Index from grounds-up. Written in Nim and python",
+            "webpageUrl": {
+                "url": "https://github.com/eagledot/malhar"
+            },
+            "repositoryUrl": {
+                "url": "https://github.com/eagledot/malhar"
+            },
+            "licenses": [
+                "spdx:Apache-2.0"
+            ],
+            "tags": [
+                "search",
+                "fuzzy",
+                "text"
+            ]
+        },
+
+        {
+            "guid": "Megamind",
+            "name": "Megamind",
+            "description":"Performant Deep-learning Inference framework from grounds-up in Nim",
+            "webpageUrl": {
+                "url": "https://codeberg.org/eagledot/megamind"
+            },
+            "repositoryUrl": {
+                "url": "https://codeberg.org/eagledot/megamind"
+            },
+            "licenses": [
+                "spdx:Apache-2.0"
+            ],
+            "tags": [
+                "ML",
+                "DL",
+                "inference",
+                "Deep learning"
+            ]
         }
+
+
+
     ],
     "funding": {
         "channels": [
@@ -53,25 +97,26 @@
         ],
         "plans": [
             {
-                "guid": "one-time-donation",
-                "status": "active",
-                "name": "One-time Donation",
-                "description": "Make a one-time donation to support the ongoing development and maintenance of Hachi",
-                "amount": 5,
-                "currency": "USD",
-                "frequency": "one-time",
-                "channels": [
-                    "buymeacoffee-supporters"
-                ]
-            },
-            {
                 "guid": "floss-funding",
                 "status": "active",
                 "name": "FLOSS funding",
-                "amount": 0,
+                "amount": 25000,
                 "currency": "USD",
                 "frequency": "one-time",
                 "channels": ["bank"]
+            },
+
+            {
+                "guid": "one-time-donation",
+                "status": "active",
+                "name": "One-time Donation",
+                "description": "Make monthly donation to support the ongoing development and maintenance of Hachi",
+                "amount": 5,
+                "currency": "USD",
+                "frequency": "monthly",
+                "channels": [
+                    "buymeacoffee-supporters"
+                ]
             }
             
         ]
