@@ -69,10 +69,10 @@
                 "spdx:Apache-2.0"
             ],
             "tags": [
-                "ML",
-                "DL",
+                "ml",
+                "dl",
                 "inference",
-                "Deep learning"
+                "deep-learning"
             ]
         }
 
