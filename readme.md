@@ -13,3 +13,6 @@ To build a fast, end to end, self-hosted search engine to enable comprehensive s
 ## Supported Content-types:
 * [Images](/images): Visit Corresponding Readme.md for detailed instructions and screenshots.
 * [Documents](/documents): WIP , will support "pdf, html, md" by default.
+
+## Resources:
+* [Hachi: An (image) search engine] (https://eagledot.xyz/hachi.md.html)
